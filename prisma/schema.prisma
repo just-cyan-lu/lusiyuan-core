@@ -26,6 +26,7 @@ model Conversation {
   userId                 String
   channel                String
   externalConversationId String
+  metadata               Json?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -38,17 +39,35 @@ model Conversation {
 }
 
 model Message {
-  id             String   @id @default(cuid())
-  conversationId String
-  role           String
-  content        String
-  metadata       Json?
-  createdAt      DateTime @default(now())
+  id                String   @id @default(cuid())
+  conversationId    String
+  role              String
+  content           String
+  externalMessageId String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId])
   @@index([createdAt])
+  @@index([externalMessageId])
+}
+
+model ChannelEvent {
+  id                String   @id @default(cuid())
+  channel           String
+  externalEventId   String?
+  externalUserId    String?
+  externalMessageId String?
+  payload           Json
+  status            String   @default("received")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([channel])
+  @@index([externalEventId])
+  @@index([externalMessageId])
 }
 
 model Memory {

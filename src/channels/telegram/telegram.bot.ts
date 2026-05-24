@@ -1,0 +1,87 @@
+import { Bot } from "grammy";
+import { env } from "../../utils/env.js";
+import { chat } from "../../core/chat.service.js";
+import { memoryService } from "../../core/memory.service.js";
+
+const OWNER_IDS = new Set(env.OWNER_USER_IDS);
+
+export function createTelegramBot(token: string) {
+  const bot = new Bot(token);
+
+  bot.command("start", async (ctx) => {
+    await ctx.reply(
+      "你好，我是陆思源。\n我是一个原创 AI 数字人，不是真人，但我会认真和你聊天。\n\n发消息给我就好，或者输入 /help 看看有什么可以做的。"
+    );
+  });
+
+  bot.command("help", async (ctx) => {
+    await ctx.reply(
+      "你可以直接和我聊天。\n\n支持的命令：\n/start — 打个招呼\n/help — 查看帮助\n/reset — 重置本次会话"
+    );
+  });
+
+  bot.command("reset", async (ctx) => {
+    // Reset is handled at chat.service level by starting a new conversation_id.
+    // Here we just acknowledge — the next message will create a new conversation naturally
+    // if the user changes their conversation_id. For now, inform the user.
+    await ctx.reply("好的，咱们重新开始聊吧。");
+  });
+
+  bot.command("memories", async (ctx) => {
+    const userId = `telegram:${ctx.from?.id}`;
+    if (!OWNER_IDS.has(userId)) {
+      await ctx.reply("这个命令只有管理员才能用。");
+      return;
+    }
+    const memories = await memoryService.listUserMemories(userId);
+    if (memories.length === 0) {
+      await ctx.reply("暂无记忆记录。");
+      return;
+    }
+    const lines = memories
+      .slice(0, 20)
+      .map((m, i) => `${i + 1}. [${m.type}] ${m.content}`)
+      .join("\n");
+    await ctx.reply(lines);
+  });
+
+  bot.on("message:text", async (ctx) => {
+    const from = ctx.from;
+    const chatCtx = ctx.chat;
+    const message = ctx.message;
+
+    if (message.text.length > env.MAX_MESSAGE_LENGTH) {
+      await ctx.reply("消息太长了，请缩短一下再发给我。");
+      return;
+    }
+
+    // Only respond in private chats; in groups, only respond when @mentioned
+    if (chatCtx.type !== "private") {
+      const botUsername = ctx.me.username;
+      if (botUsername && !message.text.includes(`@${botUsername}`)) {
+        return;
+      }
+    }
+
+    try {
+      const result = await chat({
+        user_id: `telegram:${from?.id ?? chatCtx.id}`,
+        channel: "telegram",
+        conversation_id: `telegram:${chatCtx.id}`,
+        message: message.text,
+        external_message_id: String(message.message_id),
+        display_name: from?.username ?? from?.first_name,
+        raw_event: message,
+      });
+
+      if (result.duplicated) return;
+
+      await ctx.reply(result.reply);
+    } catch (err) {
+      console.error("Telegram message handling failed:", err);
+      await ctx.reply("出了点小问题，稍后再试试？");
+    }
+  });
+
+  return bot;
+}

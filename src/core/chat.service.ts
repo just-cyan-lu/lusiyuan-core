@@ -13,10 +13,41 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     throw new Error(safety.error);
   }
 
+  // Idempotency: skip if this external message was already processed
+  if (input.external_message_id) {
+    const existing = await prisma.message.findFirst({
+      where: { externalMessageId: input.external_message_id },
+    });
+    if (existing) {
+      return {
+        reply: "",
+        conversation_id: input.conversation_id,
+        memory_written: false,
+        duplicated: true,
+      };
+    }
+  }
+
+  // Record the raw channel event (fire-and-forget, non-blocking)
+  prisma.channelEvent
+    .create({
+      data: {
+        channel: input.channel,
+        externalMessageId: input.external_message_id,
+        externalUserId: input.user_id,
+        payload: (input.raw_event ?? {}) as object,
+        status: "received",
+      },
+    })
+    .catch((err) => console.warn("ChannelEvent write failed:", err));
+
   const user = await prisma.user.upsert({
     where: { externalId: input.user_id },
-    update: {},
-    create: { externalId: input.user_id },
+    update: input.display_name ? { displayName: input.display_name } : {},
+    create: {
+      externalId: input.user_id,
+      displayName: input.display_name,
+    },
   });
 
   let conversation = await prisma.conversation.findFirst({
@@ -41,6 +72,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       conversationId: conversation.id,
       role: "user",
       content: input.message,
+      externalMessageId: input.external_message_id,
     },
   });
 
