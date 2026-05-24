@@ -8,7 +8,7 @@ function requireEnv(key: string): string {
 
 export const env = {
   DATABASE_URL: requireEnv("DATABASE_URL"),
-  PORT: parseInt(process.env.PORT ?? "3000", 10),
+  PORT: parseInt(process.env.PORT ?? "64100", 10),
   MODEL_BASE_URL: requireEnv("MODEL_BASE_URL"),
   MODEL_API_KEY: requireEnv("MODEL_API_KEY"),
   MODEL_NAME: requireEnv("MODEL_NAME"),
@@ -16,4 +16,14 @@ export const env = {
     process.env.MEMORY_EXTRACTION_MODEL_NAME ??
     process.env.MODEL_NAME ??
     "gpt-4.1-mini",
+
+  TELEGRAM_ENABLED: process.env.TELEGRAM_ENABLED === "true",
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? "",
+  TELEGRAM_MODE: process.env.TELEGRAM_MODE ?? "polling",
+
+  WEIXIN_ENABLED: process.env.WEIXIN_ENABLED === "true",
+  WEIXIN_BRIDGE_SECRET: process.env.WEIXIN_BRIDGE_SECRET ?? "",
+
+  OWNER_USER_IDS: (process.env.OWNER_USER_IDS ?? "").split(",").filter(Boolean),
+  MAX_MESSAGE_LENGTH: parseInt(process.env.MAX_MESSAGE_LENGTH ?? "4000", 10),
 } as const;
