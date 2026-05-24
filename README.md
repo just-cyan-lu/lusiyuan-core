@@ -58,8 +58,8 @@ cp .env.example .env
 
 ```env
 DATABASE_URL="postgresql://lusiyuan:password@localhost:5432/lusiyuan_core"
-PORT=3000
-MODEL_BASE_URL="https://api.openai.com/v1"
+PORT=64100
+MODEL_BASE_URL="https://api.minimax.chat/v1"
 MODEL_API_KEY="your-api-key"
 MODEL_NAME="gpt-4.1-mini"
 MEMORY_EXTRACTION_MODEL_NAME="gpt-4.1-mini"
@@ -83,7 +83,7 @@ pnpm dev
 ### 健康检查
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:64100/health
 ```
 
 返回：
@@ -95,7 +95,7 @@ curl http://localhost:3000/health
 ### 发送消息
 
 ```bash
-curl -X POST http://localhost:3000/v1/chat \
+curl -X POST http://localhost:64100/v1/chat \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "creator_lu",
@@ -118,13 +118,13 @@ curl -X POST http://localhost:3000/v1/chat \
 ### 查看用户记忆
 
 ```bash
-curl http://localhost:3000/v1/users/creator_lu/memories
+curl http://localhost:64100/v1/users/creator_lu/memories
 ```
 
 ### 手动添加记忆
 
 ```bash
-curl -X POST http://localhost:3000/v1/users/creator_lu/memories \
+curl -X POST http://localhost:64100/v1/users/creator_lu/memories \
   -H "Content-Type: application/json" \
   -d '{
     "type": "user_preference",
