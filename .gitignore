@@ -1,1 +1,14 @@
+node_modules/
+dist/
+.env
+*.env.local
+
+# Prisma generated client
+prisma/migrations/
+
+# Logs
+*.log
+logs/
+
+# OS
 .DS_Store
