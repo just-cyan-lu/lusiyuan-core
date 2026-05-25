@@ -4,7 +4,12 @@ import { healthRoute } from "./routes/health.route.js";
 import { chatRoute } from "./routes/chat.route.js";
 import { channelsRoute } from "./routes/channels.route.js";
 import { weixinRoute } from "./channels/weixin/weixin.route.js";
+import { toolsRoute } from "./routes/tools.route.js";
+import { draftsRoute } from "./routes/drafts.route.js";
+import { registerBuiltinTools } from "./tools/builtin/index.js";
 import { env } from "./utils/env.js";
+
+registerBuiltinTools();
 
 export function buildApp() {
   const app = Fastify({
@@ -33,6 +38,8 @@ export function buildApp() {
   void app.register(chatRoute);
   void app.register(channelsRoute);
   void app.register(weixinRoute);
+  void app.register(toolsRoute);
+  void app.register(draftsRoute);
 
   return app;
 }

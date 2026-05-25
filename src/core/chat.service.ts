@@ -5,7 +5,13 @@ import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
 import { extractMemories } from "./memory-extractor.js";
 import { checkInput, sanitizeOutput } from "./safety.js";
+import { toolIntentDetector } from "../tools/tool-intent-detector.js";
+import { toolExecutor } from "../tools/tool-executor.js";
+import { formatToolResults } from "../tools/tool-result-formatter.js";
+import { isOwner } from "../tools/policy/owner-check.js";
+import { env } from "../utils/env.js";
 import type { ChatInput, ChatOutput } from "../types/chat.js";
+import type { ToolExecutionContext } from "../tools/tool.types.js";
 
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   const safety = checkInput(input.message);
@@ -67,7 +73,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     });
   }
 
-  await prisma.message.create({
+  const userMessage = await prisma.message.create({
     data: {
       conversationId: conversation.id,
       role: "user",
@@ -95,8 +101,53 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     userMessage: input.message,
   });
 
-  const rawReply = await modelProvider.chat(messages);
-  const reply = sanitizeOutput(rawReply);
+  const draftReply = await modelProvider.chat(messages);
+
+  // Tool execution
+  let reply = sanitizeOutput(draftReply);
+
+  if (env.TOOLS_ENABLED) {
+    const toolContext: ToolExecutionContext = {
+      userId: user.id,
+      channel: input.channel,
+      conversationId: conversation.id,
+      messageId: userMessage.id,
+      isOwner: isOwner(user.id),
+    };
+
+    const intents = await toolIntentDetector
+      .detect(input.message, draftReply, user.id)
+      .catch((err) => {
+        console.warn("ToolIntentDetector failed:", err);
+        return [];
+      });
+
+    if (intents.length > 0) {
+      const maxCalls = Math.min(intents.length, env.TOOL_MAX_CALLS_PER_MESSAGE);
+      const results = await Promise.all(
+        intents.slice(0, maxCalls).map((intent) =>
+          toolExecutor.execute({
+            toolName: intent.toolName,
+            input: intent.input,
+            context: toolContext,
+          })
+        )
+      );
+
+      const formatted = formatToolResults(results);
+      if (formatted) {
+        const augmentedMessages = buildChatPrompt({
+          persona,
+          memories,
+          recentMessages,
+          userMessage: input.message,
+          toolResults: formatted,
+        });
+        const augmentedReply = await modelProvider.chat(augmentedMessages);
+        reply = sanitizeOutput(augmentedReply);
+      }
+    }
+  }
 
   await prisma.message.create({
     data: {

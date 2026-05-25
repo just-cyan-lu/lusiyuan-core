@@ -12,7 +12,8 @@
     "db:studio": "prisma studio",
     "telegram:dev": "tsx watch scripts/start-telegram.ts",
     "embeddings:backfill": "tsx scripts/backfill-memory-embeddings.ts",
-    "embeddings:inspect": "tsx scripts/inspect-memory-retrieval.ts"
+    "embeddings:inspect": "tsx scripts/inspect-memory-retrieval.ts",
+    "tools:inspect": "tsx scripts/inspect-tools.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
