@@ -102,14 +102,15 @@ model Memory {
 }
 
 model MemoryEmbedding {
-  id          String   @id @default(cuid())
+  id          String                 @id @default(cuid())
   memoryId    String
   provider    String
   model       String
   dimensions  Int
   contentHash String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  embedding   Unsupported("vector(1024)")?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
   memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
 

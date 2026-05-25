@@ -31,9 +31,12 @@ class OpenAICompatibleProvider implements ModelProvider {
       response_format: { type: "json_object" },
     });
     const raw = response.choices[0]?.message?.content ?? "{}";
-    // Strip <think>...</think> blocks emitted by reasoning models before parsing
+    // Strip <think>...</think> blocks emitted by reasoning models
     const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-    return JSON.parse(cleaned || "{}") as T;
+    // Extract JSON object/array if model wrapped it in prose
+    const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    const jsonStr = jsonMatch ? jsonMatch[0] : cleaned;
+    return JSON.parse(jsonStr || "{}") as T;
   }
 }
 
