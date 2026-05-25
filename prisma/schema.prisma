@@ -101,6 +101,51 @@ model Memory {
   @@index([userId, status])
 }
 
+model ToolCallLog {
+  id             String   @id @default(cuid())
+  toolName       String
+  riskLevel      String
+  status         String
+  userId         String?
+  conversationId String?
+  messageId      String?
+  channel        String?
+  input          Json?
+  output         Json?
+  error          String?
+  blocked        Boolean  @default(false)
+  blockReason    String?
+  durationMs     Int?
+  createdAt      DateTime @default(now())
+
+  @@index([toolName])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Draft {
+  id             String   @id @default(cuid())
+  userId         String?
+  conversationId String?
+  channel        String?
+  type           String
+  title          String?
+  content        String
+  status         String   @default("draft")
+  metadata       Json?
+  createdByTool  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model MemoryEmbedding {
   id          String                 @id @default(cuid())
   memoryId    String

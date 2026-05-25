@@ -8,10 +8,11 @@ interface BuildChatPromptInput {
   memories: BudgetedMemory[];
   recentMessages: Message[];
   userMessage: string;
+  toolResults?: string;
 }
 
 export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
-  const { persona, memories, recentMessages, userMessage } = input;
+  const { persona, memories, recentMessages, userMessage, toolResults } = input;
 
   const memorySection =
     memories.length > 0
@@ -83,7 +84,7 @@ ${memorySection}
 ## 最近对话记录
 
 ${recentSection}
-
+${toolResults ? `\n---\n\n${toolResults}\n` : ""}
 ---
 
 回复要求：

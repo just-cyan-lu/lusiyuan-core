@@ -55,4 +55,19 @@ export const env = {
   ),
   MEMORY_VECTOR_INDEX_PROVIDER:
     process.env.MEMORY_VECTOR_INDEX_PROVIDER ?? "pgvector",
+
+  // Tools
+  TOOLS_ENABLED: process.env.TOOLS_ENABLED === "true",
+  TOOLS_AUTO_EXECUTE_LOW_RISK:
+    process.env.TOOLS_AUTO_EXECUTE_LOW_RISK !== "false",
+  TOOLS_ALLOW_MEDIUM_RISK: process.env.TOOLS_ALLOW_MEDIUM_RISK === "true",
+  TOOLS_ALLOW_HIGH_RISK: process.env.TOOLS_ALLOW_HIGH_RISK === "true",
+  DRAFTS_ENABLED: process.env.DRAFTS_ENABLED !== "false",
+  TOOL_MAX_CALLS_PER_MESSAGE: parseInt(
+    process.env.TOOL_MAX_CALLS_PER_MESSAGE ?? "3",
+    10
+  ),
+  TOOL_TIMEOUT_MS: parseInt(process.env.TOOL_TIMEOUT_MS ?? "10000", 10),
+  TOOL_LOG_INPUT_OUTPUT: process.env.TOOL_LOG_INPUT_OUTPUT !== "false",
+  MCP_ENABLED: process.env.MCP_ENABLED === "true",
 } as const;
