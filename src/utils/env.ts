@@ -29,4 +29,30 @@ export const env = {
 
   OWNER_USER_IDS: (process.env.OWNER_USER_IDS ?? "").split(",").filter(Boolean),
   MAX_MESSAGE_LENGTH: parseInt(process.env.MAX_MESSAGE_LENGTH ?? "4000", 10),
+
+  // Embedding
+  EMBEDDING_BASE_URL:
+    process.env.EMBEDDING_BASE_URL ?? "https://api.siliconflow.cn/v1",
+  EMBEDDING_API_KEY: process.env.EMBEDDING_API_KEY ?? "",
+  EMBEDDING_MODEL:
+    process.env.EMBEDDING_MODEL ?? "Qwen/Qwen3-Embedding-4B",
+  EMBEDDING_DIMENSIONS: parseInt(
+    process.env.EMBEDDING_DIMENSIONS ?? "1024",
+    10
+  ),
+
+  // Memory retrieval
+  MEMORY_RETRIEVAL_ENABLED:
+    process.env.MEMORY_RETRIEVAL_ENABLED === "true",
+  MEMORY_SEMANTIC_TOP_K: parseInt(
+    process.env.MEMORY_SEMANTIC_TOP_K ?? "30",
+    10
+  ),
+  MEMORY_FINAL_TOP_K: parseInt(process.env.MEMORY_FINAL_TOP_K ?? "8", 10),
+  MEMORY_MAX_TOTAL_CHARS: parseInt(
+    process.env.MEMORY_MAX_TOTAL_CHARS ?? "1200",
+    10
+  ),
+  MEMORY_VECTOR_INDEX_PROVIDER:
+    process.env.MEMORY_VECTOR_INDEX_PROVIDER ?? "pgvector",
 } as const;

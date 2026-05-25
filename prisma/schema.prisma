@@ -71,19 +71,48 @@ model ChannelEvent {
 }
 
 model Memory {
-  id         String   @id @default(cuid())
-  userId     String?
-  type       String
-  content    String
-  importance Int      @default(5)
-  source     String?
-  metadata   Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String    @id @default(cuid())
+  userId         String?
+  type           String
+  scope          String    @default("user")
+  content        String
+  summary        String?
+  importance     Int       @default(5)
+  confidence     Float     @default(0.8)
+  status         String    @default("active")
+  source         String?
+  tags           Json?
+  entities       Json?
+  channel        String?
+  conversationId String?
+  lastAccessedAt DateTime?
+  accessCount    Int       @default(0)
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  user User? @relation(fields: [userId], references: [id])
+  user       User?             @relation(fields: [userId], references: [id])
+  embeddings MemoryEmbedding[]
 
   @@index([userId])
   @@index([type])
   @@index([importance])
+  @@index([status, scope, type])
+  @@index([userId, status])
+}
+
+model MemoryEmbedding {
+  id          String   @id @default(cuid())
+  memoryId    String
+  provider    String
+  model       String
+  dimensions  Int
+  contentHash String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, provider, model, dimensions])
+  @@index([memoryId])
 }

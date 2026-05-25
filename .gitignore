@@ -3,9 +3,6 @@ dist/
 .env
 *.env.local
 
-# Prisma generated client
-prisma/migrations/
-
 # Logs
 *.log
 logs/
