@@ -13,6 +13,7 @@
     "telegram:dev": "tsx watch scripts/start-telegram.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "@grammyjs/transformer-throttler": "^1.2.1",
     "@prisma/client": "^6.9.0",
     "dotenv": "^16.5.0",

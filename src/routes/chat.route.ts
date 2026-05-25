@@ -87,4 +87,31 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
       return reply.send({ ok: true });
     }
   );
+
+  // Conversation history — used by Web frontend to restore messages on refresh
+  app.get("/v1/conversations/:conversationId/messages", async (request, reply) => {
+    const { conversationId } = request.params as { conversationId: string };
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { externalConversationId: conversationId },
+    });
+
+    if (!conversation) {
+      return reply.send({ messages: [] });
+    }
+
+    const messages = await prisma.message.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: "asc" },
+      select: { role: true, content: true, createdAt: true },
+    });
+
+    return reply.send({
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt.toISOString(),
+      })),
+    });
+  });
 }
