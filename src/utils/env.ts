@@ -25,6 +25,8 @@ export const env = {
   WEIXIN_ENABLED: process.env.WEIXIN_ENABLED === "true",
   WEIXIN_BRIDGE_SECRET: process.env.WEIXIN_BRIDGE_SECRET ?? "",
 
+  WEB_ORIGIN: process.env.WEB_ORIGIN ?? "http://localhost:64111",
+
   OWNER_USER_IDS: (process.env.OWNER_USER_IDS ?? "").split(",").filter(Boolean),
   MAX_MESSAGE_LENGTH: parseInt(process.env.MAX_MESSAGE_LENGTH ?? "4000", 10),
 } as const;
