@@ -1,4 +1,5 @@
 import { Bot } from "grammy";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { env } from "../../utils/env.js";
 import { chat } from "../../core/chat.service.js";
 import { memoryService } from "../../core/memory.service.js";
@@ -6,7 +7,17 @@ import { memoryService } from "../../core/memory.service.js";
 const OWNER_IDS = new Set(env.OWNER_USER_IDS);
 
 export function createTelegramBot(token: string) {
-  const bot = new Bot(token);
+  const botOptions = env.TELEGRAM_PROXY
+    ? {
+        client: {
+          baseFetchConfig: {
+            agent: new HttpsProxyAgent(env.TELEGRAM_PROXY),
+          },
+        },
+      }
+    : {};
+
+  const bot = new Bot(token, botOptions);
 
   bot.command("start", async (ctx) => {
     await ctx.reply(

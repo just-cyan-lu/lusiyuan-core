@@ -20,6 +20,7 @@ export const env = {
   TELEGRAM_ENABLED: process.env.TELEGRAM_ENABLED === "true",
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? "",
   TELEGRAM_MODE: process.env.TELEGRAM_MODE ?? "polling",
+  TELEGRAM_PROXY: process.env.TELEGRAM_PROXY ?? "",
 
   WEIXIN_ENABLED: process.env.WEIXIN_ENABLED === "true",
   WEIXIN_BRIDGE_SECRET: process.env.WEIXIN_BRIDGE_SECRET ?? "",
