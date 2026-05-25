@@ -36,7 +36,12 @@ class OpenAICompatibleProvider implements ModelProvider {
     // Extract JSON object/array if model wrapped it in prose
     const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     const jsonStr = jsonMatch ? jsonMatch[0] : cleaned;
-    return JSON.parse(jsonStr || "{}") as T;
+    try {
+      return JSON.parse(jsonStr || "{}") as T;
+    } catch {
+      console.warn("chatJson parse failed, raw response:", raw.slice(0, 500));
+      return JSON.parse("{}") as T;
+    }
   }
 }
 
