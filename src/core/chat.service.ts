@@ -78,7 +78,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   const [persona, memories, recentMessages] = await Promise.all([
     loadPersona(),
-    memoryService.searchRelevantMemories(user.id, input.message),
+    memoryService.retrieveRelevantMemories(user.id, input.message),
     prisma.message
       .findMany({
         where: { conversationId: conversation.id },

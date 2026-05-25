@@ -1,5 +1,5 @@
 import type { ModelProvider } from "../types/model.js";
-import type { NewMemory, MemoryType } from "../types/memory.js";
+import type { NewMemory, MemoryType, MemoryScope } from "../types/memory.js";
 
 const VALID_TYPES: MemoryType[] = [
   "user_preference",
@@ -13,8 +13,13 @@ interface ExtractionResult {
   should_write: boolean;
   memories: Array<{
     type: string;
+    scope?: string;
     content: string;
+    summary?: string;
     importance: number;
+    confidence?: number;
+    tags?: string[];
+    entities?: string[];
   }>;
 }
 
@@ -47,8 +52,13 @@ JSON 格式：
   "memories": [
     {
       "type": "user_preference" | "project_context" | "relationship" | "growth_event" | "technical_decision",
+      "scope": "user" | "project" | "global" | "relationship",
       "content": "string",
-      "importance": number
+      "summary": "string（可选，简短摘要）",
+      "importance": number,
+      "confidence": number（0.0-1.0，可选）,
+      "tags": ["string"]（可选）,
+      "entities": ["string"]（可选，涉及的具体人名/项目名/技术名）
     }
   ]
 }`;
@@ -87,8 +97,17 @@ export async function extractMemories(
     )
     .map((m) => ({
       type: m.type as MemoryType,
+      scope: (m.scope as MemoryScope | undefined) ?? "user",
       content: m.content.trim(),
+      summary: m.summary?.trim() || undefined,
       importance: Math.round(m.importance),
+      confidence:
+        typeof m.confidence === "number"
+          ? Math.min(1, Math.max(0, m.confidence))
+          : 0.8,
+      status: "active" as const,
       source: "auto_extraction",
+      tags: Array.isArray(m.tags) ? m.tags : undefined,
+      entities: Array.isArray(m.entities) ? m.entities : undefined,
     }));
 }
