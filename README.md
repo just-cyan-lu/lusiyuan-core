@@ -108,20 +108,21 @@
 
 ## 长期记忆是怎么工作的
 
-陆思源会记住你说过的事情，这靠的是一个独立的记忆系统：
+陆思源会记住你说过的事情，这靠的是一个独立的记忆系统。
+
+记忆**不会**在对话时自动写入，所有记忆变更都走提案审核流：
 
 ```
-对话结束后（异步）
+Reflection 或 Dream 分析历史对话
         │
         ▼
-记忆提取器（memory-extractor）
-   用 AI 分析这段对话
-   判断有没有值得记住的信息
+生成记忆提案（MemoryProposal）
+   不会自动写入
         │
-   有 ↓        没有 → 结束
         ▼
-写入数据库（Memory 表）
-   类型：用户偏好 / 关系信息 / 事实 / 情感 / 边界 等
+等待 owner 审核
+   批准 → 写入 Memory 表
+   拒绝 → 丢弃
         │
         ▼
 下次对话时
@@ -129,7 +130,6 @@
    拼进提示词 → 陆思源"记得"你
 ```
 
----
 
 ## 反思代理是怎么工作的（v0.7，可选）
 
@@ -578,7 +578,6 @@ src/
 │   ├── prompt-builder.ts         # 组装发给模型的 messages
 │   ├── persona-loader.ts         # 读取 persona/ 人格文件
 │   ├── memory.service.ts         # 长期记忆读写
-│   ├── memory-extractor.ts       # 从对话中提取长期记忆
 │   ├── memory-retrieval.service.ts  # v0.4 语义检索
 │   ├── memory-reranker.ts        # v0.4 规则重排
 │   ├── memory-budget.ts          # v0.4 记忆预算控制

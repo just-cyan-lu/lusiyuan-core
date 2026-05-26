@@ -115,6 +115,15 @@ MCP_ENABLED=false                    # MCP 预留，v0.5 不实现
 
 ---
 
+## 未实现 / 不做了
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| MCP 接入 | ⏭ 推迟 | `src/mcp/` 有占位符，v0.7 计划但未实现，v0.75 做了 Dream Cycle，MCP 顺延 |
+| OpenClaw Action Gateway（v0.8） | ⏭ 推迟 | 高风险外部动作网关，尚未规划 |
+
+---
+
 ## API 端点
 
 ```

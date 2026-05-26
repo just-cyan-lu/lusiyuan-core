@@ -28,7 +28,6 @@ function stripThinkTags(text: string): string {
 class OpenAICompatibleProvider implements ModelProvider {
   private client: OpenAI;
   private model: string;
-  private extractionModel: string;
 
   constructor() {
     this.client = new OpenAI({
@@ -36,7 +35,6 @@ class OpenAICompatibleProvider implements ModelProvider {
       apiKey: env.MODEL_API_KEY,
     });
     this.model = env.MODEL_NAME;
-    this.extractionModel = env.MEMORY_EXTRACTION_MODEL_NAME;
   }
 
   async chat(messages: ChatMessage[]): Promise<string> {
@@ -51,7 +49,7 @@ class OpenAICompatibleProvider implements ModelProvider {
 
   async chatJson<T>(messages: ChatMessage[]): Promise<T> {
     const response = await this.client.chat.completions.create({
-      model: this.extractionModel,
+      model: this.model,
       messages,
       response_format: { type: "json_object" },
     });

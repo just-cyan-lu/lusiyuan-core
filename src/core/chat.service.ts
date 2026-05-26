@@ -3,7 +3,6 @@ import { loadPersona } from "./persona-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
 import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
-import { extractMemories } from "./memory-extractor.js";
 import { checkInput, sanitizeOutput } from "./safety.js";
 import { toolIntentDetector } from "../tools/tool-intent-detector.js";
 import { toolExecutor } from "../tools/tool-executor.js";
@@ -156,15 +155,6 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       content: reply,
     },
   });
-
-  // Fire-and-forget: does not block the response
-  extractMemories(modelProvider, input.message, reply)
-    .then((extracted) => {
-      if (extracted.length > 0) {
-        return memoryService.createMemories(user.id, extracted);
-      }
-    })
-    .catch((err) => console.warn("Background memory write failed:", err));
 
   return {
     reply,

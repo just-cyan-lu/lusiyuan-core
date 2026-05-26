@@ -101,3 +101,12 @@ ReflectionProposalService.applyProposal() → 写入 Memory 表
 | `REFLECTION_PROPOSAL_MIN_CONFIDENCE` | `0.7` | 提案最低置信度 |
 | `REFLECTION_PROPOSAL_MAX_PER_RUN` | `20` | 每次最多生成提案数 |
 | `REFLECTION_ENABLE_GROWTH_LOG` | `true` | 是否生成成长日志提案 |
+
+---
+
+## 未实现 / 不做了
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| 审核 UI（图形界面） | ⏭ 跳过 | 属于前端仓库（lusiyuan-web）的工作，目前审核只能通过 HTTP API 或 CLI |
+| MCP 接入（v0.7 计划） | ⏭ 推迟 | v0.75 做了 Dream Cycle，MCP 未实现，占位符保留在 `src/mcp/` |

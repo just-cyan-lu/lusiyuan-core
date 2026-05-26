@@ -12,10 +12,6 @@ export const env = {
   MODEL_BASE_URL: requireEnv("MODEL_BASE_URL"),
   MODEL_API_KEY: requireEnv("MODEL_API_KEY"),
   MODEL_NAME: requireEnv("MODEL_NAME"),
-  MEMORY_EXTRACTION_MODEL_NAME:
-    process.env.MEMORY_EXTRACTION_MODEL_NAME ??
-    process.env.MODEL_NAME ??
-    "gpt-4.1-mini",
 
   TELEGRAM_ENABLED: process.env.TELEGRAM_ENABLED === "true",
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? "",

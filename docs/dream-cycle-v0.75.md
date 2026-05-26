@@ -146,3 +146,13 @@ src/dream/
 ├── morning-brief.service.ts    # Morning Brief：结果摘要
 └── dream.service.ts            # 主编排器
 ```
+
+---
+
+## 未实现 / 不做了
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| `dream-scheduler.ts`（定时自动运行） | ⏭ 跳过 | `DREAM_AUTO_RUN=false` 默认关闭，cron 调度器未实现，需要时再加 |
+| 审核 UI（图形界面） | ⏭ 跳过 | 属于前端仓库（lusiyuan-web）的工作，目前审核只能通过 HTTP API 或 CLI |
+| Dream Proposal 专属 CLI | ⏭ 跳过 | Dream 生成的 MemoryProposal 复用 Reflection 的审核流（`pnpm reflection:apply`），不单独做 |
