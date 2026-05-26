@@ -13,7 +13,10 @@
     "telegram:dev": "tsx watch scripts/start-telegram.ts",
     "embeddings:backfill": "tsx scripts/backfill-memory-embeddings.ts",
     "embeddings:inspect": "tsx scripts/inspect-memory-retrieval.ts",
-    "tools:inspect": "tsx scripts/inspect-tools.ts"
+    "tools:inspect": "tsx scripts/inspect-tools.ts",
+    "reflection:run": "tsx scripts/run-reflection.ts",
+    "reflection:inspect": "tsx scripts/inspect-reflection-report.ts",
+    "reflection:apply": "tsx scripts/apply-memory-proposals.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
