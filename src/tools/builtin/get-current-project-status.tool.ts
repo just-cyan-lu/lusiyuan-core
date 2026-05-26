@@ -21,12 +21,12 @@ const FIXED_VERSIONS = {
     "v0.3 Web Chat — React + Vite 网页入口",
     "v0.4 pgvector 语义记忆检索 — SiliconFlow Qwen3-Embedding-4B",
     "v0.5 Tool & Action Layer — 安全内部工具调用",
+    "v0.7 Reflection Agent — 记忆提案与人格稳定性复盘",
   ],
   inProgress: [] as string[],
   nextCandidates: [
-    "v0.6 Reflection Agent — 定期记忆整理与成长记录",
-    "v0.7 MCP 工具接入 — 文件系统、GitHub、Notion",
-    "v0.8 OpenClaw Action Gateway — 高风险外部动作层",
+    "v0.8 MCP 工具接入 — 文件系统、GitHub、Notion",
+    "v0.9 OpenClaw Action Gateway — 高风险外部动作层",
   ],
 };
 
@@ -53,19 +53,13 @@ async function handler(
   }
 
   return {
-    currentVersion: "v0.5",
+    currentVersion: "v0.7",
     completed: FIXED_VERSIONS.completed,
     inProgress: FIXED_VERSIONS.inProgress,
     nextCandidates: FIXED_VERSIONS.nextCandidates,
     recentDecisions,
     summary:
-      "陆思源目前已完成核心 API、多渠道入口、网页聊天、语义记忆检索和工具调用层，下一步计划接入 Reflection Agent 和 MCP 工具。",
-    completed: FIXED_VERSIONS.completed,
-    inProgress: FIXED_VERSIONS.inProgress,
-    nextCandidates: FIXED_VERSIONS.nextCandidates,
-    recentDecisions,
-    summary:
-      "陆思源目前已完成核心 API、多渠道入口、网页聊天、语义记忆检索和工具调用层，下一步计划接入 Reflection Agent 和 MCP 工具。",
+      "陆思源目前已完成核心 API、多渠道入口、网页聊天、语义记忆检索、工具调用层和 Reflection Agent，下一步计划接入 MCP 工具。",
   };
 }
 
