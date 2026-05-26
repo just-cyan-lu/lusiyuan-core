@@ -171,8 +171,13 @@
 | 反思代理 | `src/reflection/` |
 
 ---
+---
+---
 
 # lusiyuan-core
+
+> 技术版本。
+
 
 陆思源 AI 数字人 Core API
 
