@@ -2,6 +2,23 @@ import OpenAI from "openai";
 import { env } from "../utils/env.js";
 import type { ChatMessage, ModelProvider } from "../types/model.js";
 
+/**
+ * Strip <think>...</think> blocks emitted by reasoning models.
+ * Also handles stray </think> tags and duplicate output: some models output
+ * the answer once inside/after the think block, then a bare </think>, then
+ * the answer again. Taking everything after the last </think> deduplicates.
+ */
+function stripThinkTags(text: string): string {
+  // Remove complete <think>...</think> blocks first
+  let result = text.replace(/<think>[\s\S]*?<\/think>/g, "");
+  // If any stray </think> remains, take everything after the last one
+  const lastClose = result.lastIndexOf("</think>");
+  if (lastClose !== -1) {
+    result = result.slice(lastClose + "</think>".length);
+  }
+  return result.trim();
+}
+
 class OpenAICompatibleProvider implements ModelProvider {
   private client: OpenAI;
   private model: string;
@@ -21,7 +38,8 @@ class OpenAICompatibleProvider implements ModelProvider {
       model: this.model,
       messages,
     });
-    return response.choices[0]?.message?.content ?? "";
+    const raw = response.choices[0]?.message?.content ?? "";
+    return stripThinkTags(raw);
   }
 
   async chatJson<T>(messages: ChatMessage[]): Promise<T> {
@@ -31,8 +49,7 @@ class OpenAICompatibleProvider implements ModelProvider {
       response_format: { type: "json_object" },
     });
     const raw = response.choices[0]?.message?.content ?? "{}";
-    // Strip <think>...</think> blocks emitted by reasoning models
-    const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const cleaned = stripThinkTags(raw);
     // Extract JSON object/array if model wrapped it in prose
     const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     const jsonStr = jsonMatch ? jsonMatch[0] : cleaned;
