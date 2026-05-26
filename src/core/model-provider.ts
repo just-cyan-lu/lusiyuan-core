@@ -46,9 +46,7 @@ class OpenAICompatibleProvider implements ModelProvider {
     });
     const raw = response.choices[0]?.message?.content ?? "";
     console.log("[chat raw]\n" + raw + "\n[/chat raw]");
-    const result = stripThinkTags(raw);
-    console.log("[chat result]\n" + result + "\n[/chat result]");
-    return result;
+    return stripThinkTags(raw);
   }
 
   async chatJson<T>(messages: ChatMessage[]): Promise<T> {
