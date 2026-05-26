@@ -277,3 +277,136 @@ model GrowthLogProposal {
   @@index([status])
   @@index([createdAt])
 }
+
+// ─── v0.75 Dream Cycle ────────────────────────────────────────────────────────
+
+model DreamJob {
+  id          String    @id @default(cuid())
+  status      String    @default("pending")
+  triggerType String
+  scope       String
+  userId      String?
+  conversationId String?
+  channel     String?
+  fromTime    DateTime?
+  toTime      DateTime?
+  phase       String?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  metadata    Json?
+
+  dailyNotes   DailyNote[]
+  signals      DreamSignal[]
+  diaryEntries DreamDiaryEntry[]
+  reports      DreamConsolidationReport[]
+
+  @@index([status])
+  @@index([triggerType])
+  @@index([scope])
+  @@index([createdAt])
+}
+
+model DailyNote {
+  id          String    @id @default(cuid())
+  jobId       String?
+  date        DateTime
+  scope       String
+  userId      String?
+  channel     String?
+  title       String?
+  summary     String
+  keyPoints   Json?
+  sourceStats Json?
+  riskSummary Json?
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([scope])
+  @@index([userId])
+  @@index([status])
+}
+
+model DreamSignal {
+  id           String   @id @default(cuid())
+  jobId        String?
+  signalType   String
+  content      String
+  summary      String?
+  confidence   Float
+  strength     Float
+  riskLevel    String   @default("low")
+  sourceTypes  Json?
+  sourceIds    Json?
+  evidenceCount Int     @default(0)
+  tags         Json?
+  entities     Json?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([signalType])
+  @@index([confidence])
+  @@index([strength])
+  @@index([riskLevel])
+  @@index([status])
+}
+
+model DreamDiaryEntry {
+  id               String   @id @default(cuid())
+  jobId            String?
+  date             DateTime
+  title            String?
+  content          String
+  style            String   @default("lusiyuan_inner_diary")
+  grounded         Boolean  @default(true)
+  sourceSignalIds  Json?
+  sourceMessageIds Json?
+  visibility       String   @default("owner_only")
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([visibility])
+  @@index([status])
+}
+
+model DreamConsolidationReport {
+  id                   String   @id @default(cuid())
+  jobId                String?
+  summary              String
+  phase                String
+  candidateCount       Int      @default(0)
+  promotedCount        Int      @default(0)
+  rejectedCount        Int      @default(0)
+  riskCount            Int      @default(0)
+  generatedProposalIds Json?
+  rawOutput            Json?
+  metadata             Json?
+  createdAt            DateTime @default(now())
+
+  job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([phase])
+  @@index([createdAt])
+}
+
+model DreamLock {
+  id        String   @id @default(cuid())
+  lockKey   String   @unique
+  owner     String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

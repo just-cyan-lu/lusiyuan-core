@@ -16,7 +16,11 @@
     "tools:inspect": "tsx scripts/inspect-tools.ts",
     "reflection:run": "tsx scripts/run-reflection.ts",
     "reflection:inspect": "tsx scripts/inspect-reflection-report.ts",
-    "reflection:apply": "tsx scripts/apply-memory-proposals.ts"
+    "reflection:apply": "tsx scripts/apply-memory-proposals.ts",
+    "dream:run": "tsx scripts/run-dream.ts",
+    "dream:inspect": "tsx scripts/inspect-dream-job.ts",
+    "dream:diary": "tsx scripts/inspect-dream-diary.ts",
+    "dream:cleanup-locks": "tsx scripts/cleanup-dream-locks.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

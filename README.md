@@ -421,6 +421,59 @@ curl http://localhost:64100/v1/reflection/risks
 
 ---
 
+## 梦境周期（v0.75，可选）
+
+默认关闭。开启后可以在闲时整理最近对话，生成每日笔记、梦境日记和记忆提案（需 owner 审核后才写入）。
+
+在 `.env` 里追加：
+
+```env
+DREAM_ENABLED=true
+```
+
+### 手动运行
+
+```bash
+# 立即运行（整理最近 24 小时）
+curl -X POST http://localhost:64100/v1/dream/run \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "creator_lu"}'
+
+# 或用 CLI 脚本
+pnpm dream:run
+pnpm dream:run --hours=48
+```
+
+### 查看结果
+
+```bash
+# 查看最新 Job 结果（含 Morning Brief）
+pnpm dream:inspect --latest
+
+# 查看梦境日记
+pnpm dream:diary --limit=5
+
+# 查看 Daily Notes
+curl "http://localhost:64100/v1/dream/daily-notes?user_id=creator_lu"
+
+# 查看 Dream Signals
+curl "http://localhost:64100/v1/dream/signals?user_id=creator_lu"
+```
+
+### 定时自动运行（可选）
+
+```env
+DREAM_AUTO_RUN=true
+DREAM_CRON="30 3 * * *"
+DREAM_TIMEZONE="Asia/Taipei"
+```
+
+> 注意：Dream 生成的 MemoryProposal 和 Reflection Agent 共用同一套审核流，用 `pnpm reflection:apply` 审核即可。
+
+详细设计见 [docs/dream-cycle-v0.75.md](docs/dream-cycle-v0.75.md)。
+
+---
+
 ## 接口速查
 
 ### 健康检查
@@ -523,6 +576,18 @@ src/
 │   ├── reflection-report-formatter.ts# 调用模型，解析输出
 │   ├── reflection.service.ts         # Job 创建与执行
 │   └── reflection-proposal.service.ts# 提案审核与写入记忆
+├── dream/                  # v0.75 梦境周期层
+│   ├── dream.types.ts              # 所有类型定义
+│   ├── dream-prompts.ts            # 四个阶段的 system prompt
+│   ├── dream-policy.ts             # 内容过滤、隐私脱敏、评分
+│   ├── dream-lock.service.ts       # 分布式锁（防并发）
+│   ├── dream-context-builder.ts    # Intake：收集系统事件
+│   ├── daily-note.service.ts       # Light Sleep：生成 DailyNote
+│   ├── dream-signal-extractor.ts   # REM Sleep：提取 DreamSignal
+│   ├── dream-diary-writer.ts       # Dream Diary：生成日记
+│   ├── dream-consolidator.ts       # Deep Sleep：生成提案
+│   ├── morning-brief.service.ts    # Morning Brief：结果摘要
+│   └── dream.service.ts            # 主编排器
 ├── mcp/                    # v0.5 MCP 预留（占位符）
 ├── embeddings/             # v0.4 Embedding 层
 ├── vector-index/           # v0.4 向量索引层（pgvector / Qdrant 接口）
@@ -542,6 +607,11 @@ scripts/
 ├── inspect-tools.ts               # 查看已注册工具列表
 ├── run-reflection.ts              # 触发反思分析（CLI）
 ├── inspect-reflection-report.ts   # 查看反思报告（CLI）
+├── apply-memory-proposals.ts      # 批量应用已批准提案（CLI）
+├── run-dream.ts                   # 触发梦境周期（CLI）
+├── inspect-dream-job.ts           # 查看 Dream Job 结果（CLI）
+├── inspect-dream-diary.ts         # 查看梦境日记（CLI）
+└── cleanup-dream-locks.ts         # 清理过期锁（CLI）
 └── apply-memory-proposals.ts      # 审核并写入记忆提案（CLI）
 docs/
 ├── memory-retrieval-v0.4.md       # v0.4 技术设计文档

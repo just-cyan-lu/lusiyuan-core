@@ -103,4 +103,85 @@ export const env = {
   ),
   REFLECTION_ENABLE_GROWTH_LOG:
     process.env.REFLECTION_ENABLE_GROWTH_LOG !== "false",
+
+  // Dream Cycle (v0.75)
+  DREAM_ENABLED: process.env.DREAM_ENABLED !== "false",
+  DREAM_AUTO_RUN: process.env.DREAM_AUTO_RUN === "true",
+  DREAM_CRON: process.env.DREAM_CRON ?? "30 3 * * *",
+  DREAM_TIMEZONE: process.env.DREAM_TIMEZONE ?? "Asia/Taipei",
+
+  DREAM_DEFAULT_LOOKBACK_HOURS: parseInt(
+    process.env.DREAM_DEFAULT_LOOKBACK_HOURS ?? "24",
+    10
+  ),
+  DREAM_MAX_LOOKBACK_DAYS: parseInt(
+    process.env.DREAM_MAX_LOOKBACK_DAYS ?? "7",
+    10
+  ),
+  DREAM_MIN_SOURCE_EVENTS: parseInt(
+    process.env.DREAM_MIN_SOURCE_EVENTS ?? "5",
+    10
+  ),
+
+  // Context limits
+  DREAM_MAX_MESSAGES: parseInt(process.env.DREAM_MAX_MESSAGES ?? "120", 10),
+  DREAM_MAX_TOOL_CALLS: parseInt(process.env.DREAM_MAX_TOOL_CALLS ?? "50", 10),
+  DREAM_MAX_DRAFTS: parseInt(process.env.DREAM_MAX_DRAFTS ?? "30", 10),
+  DREAM_MAX_REFLECTION_REPORTS: parseInt(
+    process.env.DREAM_MAX_REFLECTION_REPORTS ?? "10",
+    10
+  ),
+  DREAM_MAX_MEMORY_PROPOSALS: parseInt(
+    process.env.DREAM_MAX_MEMORY_PROPOSALS ?? "30",
+    10
+  ),
+
+  // Phase toggles
+  DREAM_LIGHT_ENABLED: process.env.DREAM_LIGHT_ENABLED !== "false",
+  DREAM_REM_ENABLED: process.env.DREAM_REM_ENABLED !== "false",
+  DREAM_DEEP_ENABLED: process.env.DREAM_DEEP_ENABLED !== "false",
+  DREAM_DIARY_ENABLED: process.env.DREAM_DIARY_ENABLED !== "false",
+  DREAM_MORNING_BRIEF_ENABLED:
+    process.env.DREAM_MORNING_BRIEF_ENABLED !== "false",
+
+  // Safety
+  DREAM_AUTO_APPLY: process.env.DREAM_AUTO_APPLY === "true",
+  DREAM_ALLOW_MEMORY_PROPOSALS:
+    process.env.DREAM_ALLOW_MEMORY_PROPOSALS !== "false",
+  DREAM_ALLOW_GROWTH_LOG_PROPOSALS:
+    process.env.DREAM_ALLOW_GROWTH_LOG_PROPOSALS !== "false",
+
+  // Scoring thresholds
+  DREAM_MIN_SIGNAL_SCORE: parseFloat(
+    process.env.DREAM_MIN_SIGNAL_SCORE ?? "0.72"
+  ),
+  DREAM_MIN_CONFIDENCE: parseFloat(
+    process.env.DREAM_MIN_CONFIDENCE ?? "0.70"
+  ),
+  DREAM_MIN_EVIDENCE_COUNT: parseInt(
+    process.env.DREAM_MIN_EVIDENCE_COUNT ?? "2",
+    10
+  ),
+  DREAM_MAX_PROPOSALS_PER_RUN: parseInt(
+    process.env.DREAM_MAX_PROPOSALS_PER_RUN ?? "10",
+    10
+  ),
+
+  // Diary
+  DREAM_DIARY_MAX_CHARS: parseInt(
+    process.env.DREAM_DIARY_MAX_CHARS ?? "1200",
+    10
+  ),
+  DREAM_DIARY_VISIBILITY:
+    process.env.DREAM_DIARY_VISIBILITY ?? "owner_only",
+
+  // Privacy
+  DREAM_REDACT_PRIVATE_DATA:
+    process.env.DREAM_REDACT_PRIVATE_DATA !== "false",
+
+  // Lock
+  DREAM_LOCK_TTL_MINUTES: parseInt(
+    process.env.DREAM_LOCK_TTL_MINUTES ?? "60",
+    10
+  ),
 } as const;

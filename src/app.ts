@@ -7,6 +7,7 @@ import { weixinRoute } from "./channels/weixin/weixin.route.js";
 import { toolsRoute } from "./routes/tools.route.js";
 import { draftsRoute } from "./routes/drafts.route.js";
 import { reflectionRoute } from "./routes/reflection.route.js";
+import { dreamRoute } from "./routes/dream.route.js";
 import { registerBuiltinTools } from "./tools/builtin/index.js";
 import { env } from "./utils/env.js";
 
@@ -42,6 +43,7 @@ export function buildApp() {
   void app.register(toolsRoute);
   void app.register(draftsRoute);
   void app.register(reflectionRoute);
+  void app.register(dreamRoute);
 
   return app;
 }
