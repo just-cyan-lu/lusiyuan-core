@@ -14,6 +14,7 @@ export interface MemoryService {
   retrieveRelevantMemories(userId: string, query: string): Promise<BudgetedMemory[]>;
   createMemories(userId: string, memories: NewMemory[]): Promise<void>;
   listUserMemories(userId: string): Promise<Memory[]>;
+  generateAndStoreEmbedding(memory: Memory): Promise<void>;
 }
 
 class PrismaMemoryService implements MemoryService {
@@ -74,7 +75,7 @@ class PrismaMemoryService implements MemoryService {
     });
   }
 
-  private async generateAndStoreEmbedding(memory: Memory): Promise<void> {
+  async generateAndStoreEmbedding(memory: Memory): Promise<void> {
     const text = buildMemoryEmbeddingText(memory);
     const contentHash = createMemoryContentHash(text);
 

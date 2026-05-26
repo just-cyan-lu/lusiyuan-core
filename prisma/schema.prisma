@@ -147,18 +147,133 @@ model Draft {
 }
 
 model MemoryEmbedding {
-  id          String                 @id @default(cuid())
+  id          String                      @id @default(cuid())
   memoryId    String
   provider    String
   model       String
   dimensions  Int
   contentHash String
   embedding   Unsupported("vector(1024)")?
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
 
   memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
 
   @@unique([memoryId, provider, model, dimensions])
   @@index([memoryId])
+}
+
+// ── v0.7 Reflection ──────────────────────────────────────────────────────────
+
+model ReflectionJob {
+  id             String    @id @default(cuid())
+  status         String    @default("pending")
+  triggerType    String
+  scope          String
+  userId         String?
+  conversationId String?
+  channel        String?
+  messageFrom    DateTime?
+  messageTo      DateTime?
+  messageLimit   Int?
+  error          String?
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  report ReflectionReport?
+
+  @@index([status])
+  @@index([triggerType])
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model ReflectionReport {
+  id         String   @id @default(cuid())
+  jobId      String   @unique
+  summary    String
+  confidence Float    @default(0.8)
+  rawOutput  Json?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  job        ReflectionJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  proposals  MemoryProposal[]
+  riskFlags  ReflectionRiskFlag[]
+  growthLogs GrowthLogProposal[]
+
+  @@index([createdAt])
+}
+
+model MemoryProposal {
+  id              String    @id @default(cuid())
+  reportId        String
+  proposalType    String
+  targetMemoryId  String?
+  scope           String
+  type            String
+  content         String
+  summary         String?
+  tags            Json?
+  entities        Json?
+  reason          String
+  confidence      Float
+  riskLevel       String
+  status          String    @default("pending")
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  appliedMemoryId String?
+  sourceMessageIds Json?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([status])
+  @@index([proposalType])
+  @@index([riskLevel])
+  @@index([confidence])
+}
+
+model ReflectionRiskFlag {
+  id                String   @id @default(cuid())
+  reportId          String
+  type              String
+  severity          String
+  description       String
+  suggestedAction   String?
+  relatedMessageIds Json?
+  status            String   @default("open")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+}
+
+model GrowthLogProposal {
+  id               String   @id @default(cuid())
+  reportId         String
+  title            String
+  content          String
+  tags             Json?
+  confidence       Float
+  status           String   @default("pending")
+  sourceMessageIds Json?
+  appliedMemoryId  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([status])
+  @@index([createdAt])
 }
