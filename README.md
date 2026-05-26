@@ -194,6 +194,72 @@ curl -X PATCH http://localhost:64100/v1/drafts/<draftId>/status \
 
 ---
 
+## 反思代理（v0.7，可选）
+
+默认关闭。开启后可以对历史对话进行分析，生成记忆提案（需 owner 审核后才写入）。
+
+在 `.env` 里追加：
+
+```env
+REFLECTION_ENABLED=true
+```
+
+### 触发反思分析
+
+```bash
+# 立即运行（创建 job 并执行）
+curl -X POST http://localhost:64100/v1/reflection/run \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "creator_lu", "triggerType": "manual", "scope": "user"}'
+
+# 或用 CLI 脚本
+pnpm reflection:run --daily
+pnpm reflection:run --conversation=<conversationId> --limit=80
+```
+
+### 查看分析报告
+
+```bash
+# 列出最近报告
+curl http://localhost:64100/v1/reflection/reports
+
+# 查看单份报告
+curl http://localhost:64100/v1/reflection/reports/<reportId>
+
+# 或用 CLI 脚本
+pnpm reflection:inspect
+pnpm reflection:inspect --report=<reportId>
+```
+
+### 审核记忆提案
+
+```bash
+# 查看待审核提案
+curl http://localhost:64100/v1/reflection/proposals
+
+# 批准提案
+curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/approve
+
+# 拒绝提案
+curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/reject
+
+# 批准后写入记忆
+curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/apply
+
+# 或用 CLI 脚本（批量处理所有已批准的提案）
+pnpm reflection:apply --approved
+```
+
+### 查看风险标记
+
+```bash
+curl http://localhost:64100/v1/reflection/risks
+```
+
+详细设计见 [docs/reflection-agent-v0.7.md](docs/reflection-agent-v0.7.md)。
+
+---
+
 ## 接口速查
 
 ### 健康检查
@@ -258,7 +324,8 @@ src/
 │   ├── chat.route.ts       # /v1/chat、记忆、对话历史接口
 │   ├── channels.route.ts   # /v1/channels/status
 │   ├── tools.route.ts      # v0.5 工具调用接口
-│   └── drafts.route.ts     # v0.5 草稿接口
+│   ├── drafts.route.ts     # v0.5 草稿接口
+│   └── reflection.route.ts # v0.7 反思代理接口
 ├── channels/
 │   ├── telegram/           # Telegram Bot 适配器
 │   └── weixin/             # 微信 webhook 接口（待接官方 API）
@@ -287,6 +354,14 @@ src/
 ├── drafts/                 # v0.5 草稿层
 │   ├── draft.service.ts
 │   └── draft.types.ts
+├── reflection/             # v0.7 反思代理层
+│   ├── reflection.types.ts           # 核心类型定义
+│   ├── reflection-context-builder.ts # 从 DB 构建分析上下文
+│   ├── reflection.prompt.ts          # 模型 system prompt
+│   ├── reflection-policy.ts          # 提案过滤与风险策略
+│   ├── reflection-report-formatter.ts# 调用模型，解析输出
+│   ├── reflection.service.ts         # Job 创建与执行
+│   └── reflection-proposal.service.ts# 提案审核与写入记忆
 ├── mcp/                    # v0.5 MCP 预留（占位符）
 ├── embeddings/             # v0.4 Embedding 层
 ├── vector-index/           # v0.4 向量索引层（pgvector / Qdrant 接口）
@@ -303,8 +378,12 @@ scripts/
 ├── start-telegram.ts              # Telegram bot 启动入口
 ├── backfill-memory-embeddings.ts  # 给旧记忆补 embedding
 ├── inspect-memory-retrieval.ts    # 调试语义检索
-└── inspect-tools.ts               # 查看已注册工具列表
+├── inspect-tools.ts               # 查看已注册工具列表
+├── run-reflection.ts              # 触发反思分析（CLI）
+├── inspect-reflection-report.ts   # 查看反思报告（CLI）
+└── apply-memory-proposals.ts      # 审核并写入记忆提案（CLI）
 docs/
 ├── memory-retrieval-v0.4.md       # v0.4 技术设计文档
-└── tool-action-layer-v0.5.md      # v0.5 技术设计文档
+├── tool-action-layer-v0.5.md      # v0.5 技术设计文档
+└── reflection-agent-v0.7.md       # v0.7 技术设计文档
 ```
