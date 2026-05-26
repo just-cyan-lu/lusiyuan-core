@@ -9,6 +9,14 @@ import type { ChatMessage, ModelProvider } from "../types/model.js";
  * the answer again. Taking everything after the last </think> deduplicates.
  */
 function stripThinkTags(text: string): string {
+  // Log think blocks to console before stripping
+  const thinkMatches = text.match(/<think>([\s\S]*?)<\/think>/g);
+  if (thinkMatches) {
+    for (const block of thinkMatches) {
+      const inner = block.replace(/^<think>/, "").replace(/<\/think>$/, "").trim();
+      console.log("[think]\n" + inner + "\n[/think]");
+    }
+  }
   // Remove complete <think>...</think> blocks first
   let result = text.replace(/<think>[\s\S]*?<\/think>/g, "");
   // If any stray </think> remains, take everything after the last one
