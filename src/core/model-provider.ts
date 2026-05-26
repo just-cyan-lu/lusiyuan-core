@@ -10,14 +10,6 @@ import type { ChatMessage, ModelProvider } from "../types/model.js";
  *   3. Unclosed <think> (model truncated mid-thought): take everything before it
  */
 function stripThinkTags(text: string): string {
-  // Log complete think blocks to console before stripping
-  const thinkMatches = text.match(/<think>([\s\S]*?)<\/think>/g);
-  if (thinkMatches) {
-    for (const block of thinkMatches) {
-      const inner = block.replace(/^<think>/, "").replace(/<\/think>$/, "").trim();
-      console.log("[think]\n" + inner + "\n[/think]");
-    }
-  }
   // Remove complete <think>...</think> blocks
   let result = text.replace(/<think>[\s\S]*?<\/think>/g, "");
   // If any stray </think> remains, take everything after the last one
@@ -53,7 +45,10 @@ class OpenAICompatibleProvider implements ModelProvider {
       messages,
     });
     const raw = response.choices[0]?.message?.content ?? "";
-    return stripThinkTags(raw);
+    console.log("[chat raw]\n" + raw + "\n[/chat raw]");
+    const result = stripThinkTags(raw);
+    console.log("[chat result]\n" + result + "\n[/chat result]");
+    return result;
   }
 
   async chatJson<T>(messages: ChatMessage[]): Promise<T> {
