@@ -157,6 +157,37 @@
 
 ---
 
+## 梦境周期是怎么工作的（v0.75，可选）
+
+这是一个闲时整理系统，在没有实时对话的时候运行，把最近发生的事情整理成笔记和日记：
+
+```
+手动触发 或 定时触发（默认关闭）
+        │
+        ▼
+Intake：收集最近的消息、记忆、工具调用、草稿、复盘报告
+        │
+        ▼
+Light Sleep：生成每日笔记（摘要、要点、潜在信号、风险）
+        │
+        ▼
+REM Sleep：提取值得长期关注的信号（需要有来源证据）
+        │
+        ▼
+Dream Diary：写一篇陆思源风格的内在日记
+   （可以用比喻，但不能编造真实世界经历，不能说自己是真人）
+        │
+        ▼
+Deep Sleep：生成记忆提案（不会自动写入）
+        │
+        ▼
+等待 owner（你）审核
+   批准 → 写入记忆（和反思代理共用同一套审核流）
+   拒绝 → 丢弃
+```
+
+---
+
 ## 各个部分在哪里
 
 | 你看到的 | 对应的代码位置 |
@@ -169,9 +200,8 @@
 | 网页接入（HTTP 接口） | `src/routes/chat.route.ts` |
 | 数据库结构 | `prisma/schema.prisma` |
 | 反思代理 | `src/reflection/` |
+| 梦境周期 | `src/dream/` |
 
----
----
 ---
 
 # lusiyuan-core
@@ -612,9 +642,9 @@ scripts/
 ├── inspect-dream-job.ts           # 查看 Dream Job 结果（CLI）
 ├── inspect-dream-diary.ts         # 查看梦境日记（CLI）
 └── cleanup-dream-locks.ts         # 清理过期锁（CLI）
-└── apply-memory-proposals.ts      # 审核并写入记忆提案（CLI）
 docs/
 ├── memory-retrieval-v0.4.md       # v0.4 技术设计文档
 ├── tool-action-layer-v0.5.md      # v0.5 技术设计文档
-└── reflection-agent-v0.7.md       # v0.7 技术设计文档
+├── reflection-agent-v0.7.md       # v0.7 技术设计文档
+└── dream-cycle-v0.75.md           # v0.75 技术设计文档
 ```
