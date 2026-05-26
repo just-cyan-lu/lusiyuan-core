@@ -154,6 +154,46 @@ pnpm embeddings:inspect "查询内容" <userId>
 
 ---
 
+## 工具调用（v0.5，可选）
+
+默认关闭。开启后陆思源在回复时可以查询内部数据（记忆、项目状态、对话历史）并生成草稿。
+
+在 `.env` 里追加：
+
+```env
+TOOLS_ENABLED=true
+```
+
+查看已注册的工具：
+
+```bash
+pnpm tools:inspect
+```
+
+详细设计见 [docs/tool-action-layer-v0.5.md](docs/tool-action-layer-v0.5.md)。
+
+### 工具调用日志
+
+```bash
+curl http://localhost:64100/v1/tool-logs
+```
+
+### 草稿
+
+草稿是工具调用的产物，AI 只写入数据库，不会自动发送。
+
+```bash
+# 查看草稿列表
+curl "http://localhost:64100/v1/drafts?userId=creator_lu"
+
+# 更新草稿状态
+curl -X PATCH http://localhost:64100/v1/drafts/<draftId>/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "approved"}'
+```
+
+---
+
 ## 接口速查
 
 ### 健康检查
@@ -216,7 +256,9 @@ src/
 ├── routes/
 │   ├── health.route.ts
 │   ├── chat.route.ts       # /v1/chat、记忆、对话历史接口
-│   └── channels.route.ts   # /v1/channels/status
+│   ├── channels.route.ts   # /v1/channels/status
+│   ├── tools.route.ts      # v0.5 工具调用接口
+│   └── drafts.route.ts     # v0.5 草稿接口
 ├── channels/
 │   ├── telegram/           # Telegram Bot 适配器
 │   └── weixin/             # 微信 webhook 接口（待接官方 API）
@@ -231,6 +273,21 @@ src/
 │   ├── memory-budget.ts          # v0.4 记忆预算控制
 │   ├── model-provider.ts         # OpenAI-compatible 模型调用
 │   └── safety.ts                 # 输入校验与输出清理
+├── tools/                  # v0.5 工具调用层
+│   ├── tool.types.ts             # 核心类型定义
+│   ├── tool-registry.ts          # 工具注册表
+│   ├── tool-executor.ts          # 执行器（含超时、日志）
+│   ├── tool-intent-detector.ts   # 模型驱动意图检测
+│   ├── tool-result-formatter.ts  # 工具结果格式化
+│   ├── policy/
+│   │   ├── action-policy.ts      # 权限与风险检查
+│   │   └── owner-check.ts        # owner 身份判断
+│   ├── builtin/                  # 5 个低风险内置工具
+│   └── future/                   # 高风险工具占位符（全部禁用）
+├── drafts/                 # v0.5 草稿层
+│   ├── draft.service.ts
+│   └── draft.types.ts
+├── mcp/                    # v0.5 MCP 预留（占位符）
 ├── embeddings/             # v0.4 Embedding 层
 ├── vector-index/           # v0.4 向量索引层（pgvector / Qdrant 接口）
 ├── db/
@@ -243,9 +300,11 @@ prisma/
 ├── schema.prisma           # 数据库 schema
 └── migrations/             # 所有迁移 SQL（需跟随代码提交）
 scripts/
-├── start-telegram.ts          # Telegram bot 启动入口
+├── start-telegram.ts              # Telegram bot 启动入口
 ├── backfill-memory-embeddings.ts  # 给旧记忆补 embedding
-└── inspect-memory-retrieval.ts    # 调试语义检索
+├── inspect-memory-retrieval.ts    # 调试语义检索
+└── inspect-tools.ts               # 查看已注册工具列表
 docs/
-└── memory-retrieval-v0.4.md   # v0.4 技术设计文档
+├── memory-retrieval-v0.4.md       # v0.4 技术设计文档
+└── tool-action-layer-v0.5.md      # v0.5 技术设计文档
 ```
