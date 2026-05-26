@@ -4,12 +4,13 @@ import type { ChatMessage, ModelProvider } from "../types/model.js";
 
 /**
  * Strip <think>...</think> blocks emitted by reasoning models.
- * Also handles stray </think> tags and duplicate output: some models output
- * the answer once inside/after the think block, then a bare </think>, then
- * the answer again. Taking everything after the last </think> deduplicates.
+ * Handles three cases:
+ *   1. Complete blocks: removed entirely
+ *   2. Stray </think> + duplicate output: take everything after the last </think>
+ *   3. Unclosed <think> (model truncated mid-thought): take everything before it
  */
 function stripThinkTags(text: string): string {
-  // Log think blocks to console before stripping
+  // Log complete think blocks to console before stripping
   const thinkMatches = text.match(/<think>([\s\S]*?)<\/think>/g);
   if (thinkMatches) {
     for (const block of thinkMatches) {
@@ -17,12 +18,17 @@ function stripThinkTags(text: string): string {
       console.log("[think]\n" + inner + "\n[/think]");
     }
   }
-  // Remove complete <think>...</think> blocks first
+  // Remove complete <think>...</think> blocks
   let result = text.replace(/<think>[\s\S]*?<\/think>/g, "");
   // If any stray </think> remains, take everything after the last one
   const lastClose = result.lastIndexOf("</think>");
   if (lastClose !== -1) {
     result = result.slice(lastClose + "</think>".length);
+  }
+  // If an unclosed <think> remains, take everything before it
+  const openTag = result.indexOf("<think>");
+  if (openTag !== -1) {
+    result = result.slice(0, openTag);
   }
   return result.trim();
 }
