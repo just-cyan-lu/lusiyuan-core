@@ -13,6 +13,7 @@ import { webSearchRoute } from "./routes/web-search.route.js";
 import { pageReaderRoute } from "./routes/page-reader.route.js";
 import { externalInboxRoute } from "./routes/external-inbox.route.js";
 import { env } from "./utils/env.js";
+import { createTelegramBot } from "./channels/telegram/telegram.bot.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -48,6 +49,30 @@ export function buildApp() {
   void app.register(webSearchRoute);
   void app.register(pageReaderRoute);
   void app.register(externalInboxRoute);
+
+  // Start Telegram bot if enabled
+  if (env.TELEGRAM_ENABLED) {
+    if (!env.TELEGRAM_BOT_TOKEN) {
+      app.log.error("TELEGRAM_ENABLED is true but TELEGRAM_BOT_TOKEN is not set");
+    } else {
+      app.log.info("Starting Telegram bot...");
+      const bot = createTelegramBot(env.TELEGRAM_BOT_TOKEN);
+
+      bot.catch((err) => {
+        app.log.error("Telegram bot error:", err);
+      });
+
+      bot
+        .start({
+          onStart: (info) => {
+            app.log.info(`Telegram bot @${info.username} started (long polling)`);
+          },
+        })
+        .catch((err) => {
+          app.log.error("Failed to start Telegram bot:", err);
+        });
+    }
+  }
 
   return app;
 }

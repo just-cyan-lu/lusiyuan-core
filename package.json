@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "telegram:dev": "tsx watch scripts/start-telegram.ts",
+    "telegram:dev:deprecated": "echo 'DEPRECATED: Use pnpm dev with TELEGRAM_ENABLED=true instead' && exit 1",
     "embeddings:backfill": "tsx scripts/backfill-memory-embeddings.ts",
     "embeddings:inspect": "tsx scripts/inspect-memory-retrieval.ts",
     "tools:inspect": "tsx scripts/inspect-tools.ts",
