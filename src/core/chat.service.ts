@@ -116,10 +116,10 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       channel: input.channel,
       conversationId: conversation.id,
       messageId: userMessage.id,
-      isOwner: isOwner(user.id),
+      isOwner: isOwner(input.user_id), // use externalId (e.g. "telegram:1848918705"), not internal DB id
     };
 
-    console.log(`[chat] user.id: ${user.id}, isOwner: ${toolContext.isOwner}`);
+    console.log(`[chat] externalId: ${input.user_id}, isOwner: ${toolContext.isOwner}`);
 
     const toolsForLLM = convertToolsForLLM(availableTools);
     const conversationMessages: ChatMessage[] = [...messages];
