@@ -4,13 +4,14 @@ import { buildChatPrompt } from "./prompt-builder.js";
 import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
 import { checkInput, sanitizeOutput } from "./safety.js";
-import { toolIntentDetector } from "../tools/tool-intent-detector.js";
 import { toolExecutor } from "../tools/tool-executor.js";
-import { formatToolResults } from "../tools/tool-result-formatter.js";
+import { toolRegistry } from "../tools/tool-registry.js";
+import { convertToolsForLLM } from "../tools/tool-converter.js";
 import { isOwner } from "../tools/policy/owner-check.js";
 import { env } from "../utils/env.js";
 import type { ChatInput, ChatOutput } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
+import type { ChatMessage } from "../types/model.js";
 
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   const safety = checkInput(input.message);
@@ -93,6 +94,10 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       .then((msgs) => msgs.reverse()),
   ]);
 
+  const availableTools = env.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
+
+  console.log(`[chat] availableTools count: ${availableTools.length}`);
+
   const messages = buildChatPrompt({
     persona,
     memories,
@@ -100,12 +105,12 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     userMessage: input.message,
   });
 
-  const draftReply = await modelProvider.chat(messages);
+  // Tool execution with function calling
+  let reply = "";
 
-  // Tool execution
-  let reply = sanitizeOutput(draftReply);
+  console.log("[chat] TOOLS_ENABLED:", env.TOOLS_ENABLED);
 
-  if (env.TOOLS_ENABLED) {
+  if (env.TOOLS_ENABLED && availableTools.length > 0) {
     const toolContext: ToolExecutionContext = {
       userId: user.id,
       channel: input.channel,
@@ -114,38 +119,89 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       isOwner: isOwner(user.id),
     };
 
-    const intents = await toolIntentDetector
-      .detect(input.message, draftReply, user.id)
-      .catch((err) => {
-        console.warn("ToolIntentDetector failed:", err);
-        return [];
-      });
+    console.log(`[chat] user.id: ${user.id}, isOwner: ${toolContext.isOwner}`);
 
-    if (intents.length > 0) {
-      const maxCalls = Math.min(intents.length, env.TOOL_MAX_CALLS_PER_MESSAGE);
-      const results = await Promise.all(
-        intents.slice(0, maxCalls).map((intent) =>
-          toolExecutor.execute({
-            toolName: intent.toolName,
-            input: intent.input,
-            context: toolContext,
-          })
-        )
+    const toolsForLLM = convertToolsForLLM(availableTools);
+    const conversationMessages: ChatMessage[] = [...messages];
+
+    // Allow up to 3 rounds of tool calls (to handle multi-step tasks)
+    for (let round = 0; round < 3; round++) {
+      console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
+
+      const response = await modelProvider.chatWithTools(
+        conversationMessages,
+        toolsForLLM
       );
 
-      const formatted = formatToolResults(results);
-      if (formatted) {
-        const augmentedMessages = buildChatPrompt({
-          persona,
-          memories,
-          recentMessages,
-          userMessage: input.message,
-          toolResults: formatted,
-        });
-        const augmentedReply = await modelProvider.chat(augmentedMessages);
-        reply = sanitizeOutput(augmentedReply);
+      // If LLM returned text (no tool calls), we're done
+      if (!response.tool_calls || response.tool_calls.length === 0) {
+        reply = sanitizeOutput(response.content ?? "");
+        console.log("[chat] LLM returned text, no tool calls");
+        break;
       }
+
+      // LLM wants to call tools
+      console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
+
+      // Add assistant message with tool calls to conversation
+      conversationMessages.push({
+        role: "assistant",
+        content: response.content ?? "",
+        tool_calls: response.tool_calls,
+      });
+
+      // Execute each tool call
+      console.log(`[chat] executing ${response.tool_calls.length} tool calls`);
+      const toolResults = await Promise.all(
+        response.tool_calls.map(async (toolCall) => {
+          const toolName = toolCall.function.name;
+          console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
+          let input: unknown;
+          try {
+            input = JSON.parse(toolCall.function.arguments);
+          } catch {
+            input = {};
+          }
+
+          const result = await toolExecutor.execute({
+            toolName,
+            input,
+            context: toolContext,
+          });
+
+          console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
+
+          return {
+            tool_call_id: toolCall.id,
+            result,
+          };
+        })
+      );
+
+      // Add tool results to conversation
+      for (const { tool_call_id, result } of toolResults) {
+        conversationMessages.push({
+          role: "tool",
+          content: result.ok
+            ? JSON.stringify(result.output)
+            : `Error: ${result.error}`,
+          tool_call_id,
+        });
+      }
+
+      // Continue loop to let LLM respond with tool results
     }
+
+    // If we exhausted rounds without getting a text response, ask LLM one more time without tools
+    if (!reply) {
+      console.log("[chat] exhausted tool rounds, final call without tools");
+      const finalResponse = await modelProvider.chat(conversationMessages);
+      reply = sanitizeOutput(finalResponse);
+    }
+  } else {
+    // No tools enabled, just get a direct response
+    const draftReply = await modelProvider.chat(messages);
+    reply = sanitizeOutput(draftReply);
   }
 
   await prisma.message.create({

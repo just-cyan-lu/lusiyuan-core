@@ -1,3 +1,4 @@
+import "./init.js"; // Initialize app (register tools, etc.)
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { healthRoute } from "./routes/health.route.js";
@@ -8,10 +9,10 @@ import { toolsRoute } from "./routes/tools.route.js";
 import { draftsRoute } from "./routes/drafts.route.js";
 import { reflectionRoute } from "./routes/reflection.route.js";
 import { dreamRoute } from "./routes/dream.route.js";
-import { registerBuiltinTools } from "./tools/builtin/index.js";
+import { webSearchRoute } from "./routes/web-search.route.js";
+import { pageReaderRoute } from "./routes/page-reader.route.js";
+import { externalInboxRoute } from "./routes/external-inbox.route.js";
 import { env } from "./utils/env.js";
-
-registerBuiltinTools();
 
 export function buildApp() {
   const app = Fastify({
@@ -44,6 +45,9 @@ export function buildApp() {
   void app.register(draftsRoute);
   void app.register(reflectionRoute);
   void app.register(dreamRoute);
+  void app.register(webSearchRoute);
+  void app.register(pageReaderRoute);
+  void app.register(externalInboxRoute);
 
   return app;
 }

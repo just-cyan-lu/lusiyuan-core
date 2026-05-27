@@ -18,8 +18,11 @@ export class ToolExecutor {
     const { toolName, input, context } = req;
     const start = Date.now();
 
+    console.log(`[tool-executor] execute called: ${toolName}`);
+
     const tool = toolRegistry.get(toolName);
     if (!tool) {
+      console.log(`[tool-executor] tool not found: ${toolName}`);
       return {
         toolName,
         ok: false,
@@ -29,8 +32,12 @@ export class ToolExecutor {
       };
     }
 
+    console.log(`[tool-executor] tool found: ${toolName}, enabled: ${tool.enabled}`);
+
     const decision = actionPolicy.canExecute(tool, context);
+    console.log(`[tool-executor] policy decision: ${JSON.stringify(decision)}`);
     if (!decision.allowed) {
+      console.log(`[tool-executor] tool blocked: ${toolName}, reason: ${decision.reason}`);
       await this.log({
         toolName,
         riskLevel: tool.riskLevel,
@@ -54,6 +61,8 @@ export class ToolExecutor {
     let error: string | undefined;
     let status = "success";
 
+    console.log(`[tool] executing ${toolName}`, JSON.stringify(input).slice(0, 200));
+
     try {
       const timeoutMs = env.TOOL_TIMEOUT_MS;
       output = await Promise.race([
@@ -68,6 +77,8 @@ export class ToolExecutor {
     }
 
     const durationMs = Date.now() - start;
+
+    console.log(`[tool] ${toolName} ${status} (${durationMs}ms)`, error ? `error: ${error}` : '');
 
     await this.log({
       toolName,
