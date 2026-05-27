@@ -28,9 +28,15 @@ export class ToolIntentDetector {
     const result = await modelProvider.chatJson<DetectionResult>([
       {
         role: "system",
-        content: `你是一个工具意图检测器。根据用户消息和助手草稿回复，判断是否需要调用工具。
+        content: `你是一个工具意图检测器。分析用户消息和助手的回复，判断助手是否需要调用工具来完成任务。
+
 可用工具：
 ${toolList}
+
+**关键判断规则：**
+- 如果助手说"我去看看"、"让我查一下"、"我搜索一下"等表达，说明他需要工具
+- 如果用户要求查看外部平台（小红书、网页、URL），助手必须用工具，不能假装
+- 如果助手的回复中包含具体的外部信息（通知内容、搜索结果），但这些信息不在对话历史中，说明他需要工具
 
 返回 JSON 格式：
 {
@@ -43,19 +49,24 @@ ${toolList}
     }
   ]
 }
+
 如果不需要任何工具，返回 { "intents": [] }。
 只返回置信度 >= 0.7 的工具调用。每条消息最多返回 3 个工具。`,
       },
       {
         role: "user",
-        content: `用户消息：${userMessage.slice(0, 1000)}\n\n助手草稿：${assistantDraft.slice(0, 1000)}`,
+        content: `用户消息：${userMessage.slice(0, 1000)}\n\n助手回复：${assistantDraft.slice(0, 1000)}`,
       },
     ]);
 
     const intents = result.intents ?? [];
-    return intents
+    const filtered = intents
       .filter((i) => i.confidence >= 0.7 && toolRegistry.get(i.toolName))
       .slice(0, 3);
+
+    console.log(`[tool-intent] detected ${filtered.length} intents:`, filtered.map(i => i.toolName));
+
+    return filtered;
   }
 }
 

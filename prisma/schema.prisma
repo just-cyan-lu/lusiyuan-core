@@ -410,3 +410,35 @@ model DreamLock {
 
   @@index([expiresAt])
 }
+
+model ExternalPageSnapshot {
+  id             String   @id @default(cuid())
+  url            String
+  tool           String   // jina | playwright | cdp
+  content        String
+  screenshotPath String?
+  createdAt      DateTime @default(now())
+
+  @@index([url])
+  @@index([tool])
+  @@index([createdAt])
+}
+
+model ExternalInboxItem {
+  id          String   @id @default(cuid())
+  platform    String   // xiaohongshu | bilibili | weibo
+  sourceId    String   // 平台原始 ID，用于去重
+  type        String   // comment | mention | dm_summary
+  content     String
+  authorName  String?
+  postTitle   String?
+  postUrl     String?
+  summary     String?
+  draftId     String?
+  syncedAt    DateTime @default(now())
+
+  @@unique([platform, sourceId])
+  @@index([platform])
+  @@index([type])
+  @@index([syncedAt])
+}

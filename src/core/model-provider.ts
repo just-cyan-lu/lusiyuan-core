@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { env } from "../utils/env.js";
-import type { ChatMessage, ModelProvider } from "../types/model.js";
+import type { ChatMessage, ModelProvider, ToolDefinitionForLLM } from "../types/model.js";
 
 /**
  * Strip <think>...</think> blocks emitted by reasoning models.
@@ -40,7 +40,7 @@ class OpenAICompatibleProvider implements ModelProvider {
   async chat(messages: ChatMessage[]): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.model,
-      messages,
+      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     });
     const raw = response.choices[0]?.message?.content ?? "";
     console.log("[chat raw]\n" + raw + "\n[/chat raw]");
@@ -50,7 +50,7 @@ class OpenAICompatibleProvider implements ModelProvider {
   async chatJson<T>(messages: ChatMessage[]): Promise<T> {
     const response = await this.client.chat.completions.create({
       model: this.model,
-      messages,
+      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
       response_format: { type: "json_object" },
     });
     const raw = response.choices[0]?.message?.content ?? "{}";
@@ -64,6 +64,46 @@ class OpenAICompatibleProvider implements ModelProvider {
       console.warn("chatJson parse failed, raw response:", raw.slice(0, 500));
       return JSON.parse("{}") as T;
     }
+  }
+
+  async chatWithTools(
+    messages: ChatMessage[],
+    tools: ToolDefinitionForLLM[]
+  ): Promise<{
+    content: string | null;
+    tool_calls?: Array<{
+      id: string;
+      type: "function";
+      function: { name: string; arguments: string };
+    }>;
+  }> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      tools: tools as OpenAI.Chat.Completions.ChatCompletionTool[],
+    });
+
+    const message = response.choices[0]?.message;
+    if (!message) {
+      return { content: "" };
+    }
+
+    const content = message.content ? stripThinkTags(message.content) : null;
+    const tool_calls = message.tool_calls?.map((tc) => ({
+      id: tc.id,
+      type: tc.type as "function",
+      function: {
+        name: tc.function.name,
+        arguments: tc.function.arguments,
+      },
+    }));
+
+    console.log("[chat with tools]", {
+      content: content?.slice(0, 100),
+      tool_calls: tool_calls?.map((tc) => tc.function.name),
+    });
+
+    return { content, tool_calls };
   }
 }
 

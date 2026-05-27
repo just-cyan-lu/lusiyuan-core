@@ -174,4 +174,49 @@ export const env = {
     process.env.DREAM_LOCK_TTL_MINUTES ?? "60",
     10
   ),
+
+  // Tavily web search (v0.8.1)
+  TAVILY_ENABLED: process.env.TAVILY_ENABLED === "true",
+  // Comma-separated list of keys, e.g. "key1,key2,key3"
+  TAVILY_API_KEYS: (process.env.TAVILY_API_KEYS ?? process.env.TAVILY_API_KEY ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean),
+  TAVILY_MAX_RESULTS: parseInt(process.env.TAVILY_MAX_RESULTS ?? "5", 10),
+  TAVILY_SEARCH_DEPTH: process.env.TAVILY_SEARCH_DEPTH ?? "basic",
+
+  // Jina AI Reader (v0.8.1)
+  JINA_ENABLED: process.env.JINA_ENABLED !== "false",
+  JINA_API_KEY: process.env.JINA_API_KEY ?? "",
+
+  // HTTP proxy for external requests (v0.8.1)
+  // Falls back to TELEGRAM_PROXY if not set separately
+  EXTERNAL_HTTP_PROXY:
+    process.env.EXTERNAL_HTTP_PROXY ??
+    process.env.TELEGRAM_PROXY ??
+    "",
+
+  // Playwright headless browser (v0.8.1)
+  PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
+  PLAYWRIGHT_MAX_PAGE_TEXT_CHARS: parseInt(
+    process.env.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS ?? "12000",
+    10
+  ),
+  PLAYWRIGHT_SCREENSHOT_ENABLED:
+    process.env.PLAYWRIGHT_SCREENSHOT_ENABLED === "true",
+
+  // CDP Browser — connect to user's Chrome (v0.8.1)
+  CDP_BROWSER_ENABLED: process.env.CDP_BROWSER_ENABLED === "true",
+  CDP_BROWSER_PORT: parseInt(process.env.CDP_BROWSER_PORT ?? "9222", 10),
+
+  // External Inbox (v0.8.1)
+  EXTERNAL_INBOX_ENABLED: process.env.EXTERNAL_INBOX_ENABLED === "true",
+  EXTERNAL_INBOX_AUTO_SUMMARIZE:
+    process.env.EXTERNAL_INBOX_AUTO_SUMMARIZE !== "false",
+  EXTERNAL_INBOX_AUTO_CREATE_DRAFT:
+    process.env.EXTERNAL_INBOX_AUTO_CREATE_DRAFT !== "false",
+  EXTERNAL_INBOX_MAX_ITEMS_PER_SYNC: parseInt(
+    process.env.EXTERNAL_INBOX_MAX_ITEMS_PER_SYNC ?? "50",
+    10
+  ),
 } as const;

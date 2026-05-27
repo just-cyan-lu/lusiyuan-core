@@ -1,5 +1,9 @@
+> ⚠️ **已废弃**（2026-05-27）：OpenClaw 方案不做。替代方案见 [task_08_01.md](task_08_01.md)。废弃原因见本文末尾”未实现/不做了”章节。
+
+---
+
 下面是 **陆思源 Core API v0.8：OpenClaw Action Gateway 技术开发文档**。
-这一版的核心目标是：**让陆思源开始“看见外部世界”，但不允许他失控地自动发送、发布、点击、读取隐私。**
+这一版的核心目标是：**让陆思源开始”看见外部世界”，但不允许他失控地自动发送、发布、点击、读取隐私。**
 
 OpenClaw 在这里不是陆思源的大脑，而是外部行动网关。OpenClaw 官方对自己的定位是 self-hosted gateway，用来连接聊天应用、channel surfaces 和 AI agents；Gateway 是通道、路由和常驻 assistant 的桥接层。([OpenClaw][1])
 
@@ -2650,4 +2654,32 @@ v0.8 做完后，陆思源会拥有第一版“外部世界感知能力”。
 [3]: https://docs.openclaw.ai/tools/plugin?utm_source=chatgpt.com "Plugins - OpenClaw"
 [4]: https://www.theverge.com/news/874011/openclaw-ai-skill-clawhub-extensions-security-nightmare?utm_source=chatgpt.com "OpenClaw's AI 'skill' extensions are a security nightmare"
 [5]: https://docs.openclaw.ai/channels/wechat?utm_source=chatgpt.com "WeChat - OpenClaw"
+
+---
+
+## 未实现/不做了（2026-05-27）
+
+**整个 v0.8 OpenClaw 方案不做。**
+
+原因：
+
+1. **消息渠道不需要 OpenClaw**：Telegram 已自己接入（官方 Bot API）。微信个人号的 OpenClaw 插件本质上也是非官方 hook，风险和自己写没区别，且多了一层依赖。未来如果接微信，优先考虑企业微信官方 API。
+
+2. **操作能力可以自己实现**：v0.8 实际需要的操作只有 `read_page`、`fetch_comments`、`collect_inbox_summary`、`capture_page_snapshot`，全部是只读操作，用 `fetch` + `@mozilla/readability`（静态页）和 Playwright（JS 渲染页/截图）即可实现，不需要额外的 Gateway 进程。
+
+3. **OpenClaw 增加了不必要的复杂度**：需要单独运行和维护 Gateway 进程、配置 webhook secret、bridge secret、签名验证等，工程量大但收益低。
+
+**替代方案（未来如果需要）：**
+
+```
+src/browser/
+├── browser.service.ts     — Playwright 封装，read_page + snapshot
+└── browser.types.ts
+
+src/external-inbox/
+├── external-inbox.service.ts  — 各平台 inbox/评论读取（平台 API 或 Playwright）
+└── external-inbox.types.ts
+```
+
+核心功能（读取外部信息 → 生成摘要/草稿 → 人工审核）可以在不依赖 OpenClaw 的情况下实现。
 [6]: https://docs.openclaw.ai/automation/hooks?utm_source=chatgpt.com "Hooks - OpenClaw"

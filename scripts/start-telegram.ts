@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "../src/init.js"; // Initialize app (register tools, etc.)
 import { createTelegramBot } from "../src/channels/telegram/telegram.bot.js";
 import { env } from "../src/utils/env.js";
 
