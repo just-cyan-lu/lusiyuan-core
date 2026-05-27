@@ -45,7 +45,7 @@ export const readPageTool: ToolDefinition<ReadPageInput, ReadPageOutput> = {
     "- cdp：连接用户已登录的 Chrome，适合需要登录的页面（如小红书通知）\n" +
     "参数 wait_ms：等待页面 JS 渲染完成的毫秒数。对于动态加载的页面（如社交媒体、SPA 应用）建议传 2000-5000，静态页面不需要传。",
   riskLevel: "low",
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED || env.CDP_BROWSER_ENABLED,
   handler,
 };
