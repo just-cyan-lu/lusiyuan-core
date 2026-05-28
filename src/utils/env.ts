@@ -9,9 +9,46 @@ function requireEnv(key: string): string {
 export const env = {
   DATABASE_URL: requireEnv("DATABASE_URL"),
   PORT: parseInt(process.env.PORT ?? "64100", 10),
-  MODEL_BASE_URL: requireEnv("MODEL_BASE_URL"),
-  MODEL_API_KEY: requireEnv("MODEL_API_KEY"),
-  MODEL_NAME: requireEnv("MODEL_NAME"),
+
+  // Multi-provider LLM configuration
+  // ACTIVE_MODEL_PROVIDER 指定当前使用的提供商，值为配置前缀（如 openai, anthropic, glm, qwen, deepseek, minimax）
+  // 例如：ACTIVE_MODEL_PROVIDER=openai 会读取 OPENAI_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL
+  ACTIVE_MODEL_PROVIDER: process.env.ACTIVE_MODEL_PROVIDER ?? "openai",
+
+  // Legacy single-provider config (fallback if ACTIVE_MODEL_PROVIDER not set)
+  MODEL_BASE_URL: process.env.MODEL_BASE_URL ?? "",
+  MODEL_API_KEY: process.env.MODEL_API_KEY ?? "",
+  MODEL_NAME: process.env.MODEL_NAME ?? "",
+
+  // OpenAI
+  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? "",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+  OPENAI_MODEL: process.env.OPENAI_MODEL ?? "",
+
+  // Anthropic (Claude)
+  ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL ?? "",
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL ?? "",
+
+  // GLM (智谱)
+  GLM_BASE_URL: process.env.GLM_BASE_URL ?? "",
+  GLM_API_KEY: process.env.GLM_API_KEY ?? "",
+  GLM_MODEL: process.env.GLM_MODEL ?? "",
+
+  // Qwen (通义千问)
+  QWEN_BASE_URL: process.env.QWEN_BASE_URL ?? "",
+  QWEN_API_KEY: process.env.QWEN_API_KEY ?? "",
+  QWEN_MODEL: process.env.QWEN_MODEL ?? "",
+
+  // DeepSeek
+  DEEPSEEK_BASE_URL: process.env.DEEPSEEK_BASE_URL ?? "",
+  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY ?? "",
+  DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL ?? "",
+
+  // MiniMax
+  MINIMAX_BASE_URL: process.env.MINIMAX_BASE_URL ?? "",
+  MINIMAX_API_KEY: process.env.MINIMAX_API_KEY ?? "",
+  MINIMAX_MODEL: process.env.MINIMAX_MODEL ?? "",
 
   TELEGRAM_ENABLED: process.env.TELEGRAM_ENABLED === "true",
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? "",
