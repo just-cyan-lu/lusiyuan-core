@@ -24,6 +24,7 @@
     "dream:cleanup-locks": "tsx scripts/cleanup-dream-locks.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
     "@fastify/cors": "^11.2.0",
     "@grammyjs/transformer-throttler": "^1.2.1",
     "@prisma/client": "^6.9.0",
