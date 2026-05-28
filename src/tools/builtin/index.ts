@@ -10,6 +10,7 @@ import {
   syncExternalInboxTool,
   listExternalInboxTool,
 } from "./external-inbox.tool.js";
+import { sendIntermediateMessageTool } from "./send-intermediate-message.js";
 
 export function registerBuiltinTools(): void {
   console.log("[tools] registering builtin tools...");
@@ -22,5 +23,6 @@ export function registerBuiltinTools(): void {
   toolRegistry.register(readPageTool);
   toolRegistry.register(syncExternalInboxTool);
   toolRegistry.register(listExternalInboxTool);
+  toolRegistry.register(sendIntermediateMessageTool);
   console.log(`[tools] registered ${toolRegistry.listAll().length} tools, ${toolRegistry.listEnabled().length} enabled`);
 }

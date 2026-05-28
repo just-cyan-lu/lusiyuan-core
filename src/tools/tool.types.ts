@@ -9,9 +9,17 @@ export interface ToolExecutionContext {
   requestId?: string;
 }
 
+export interface ToolParametersSchema {
+  type: "object";
+  properties: Record<string, unknown>;
+  required?: string[];
+}
+
 export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   name: string;
   description: string;
+  /** JSON Schema for the tool's input parameters, passed directly to the LLM. */
+  parameters?: ToolParametersSchema;
   riskLevel: ToolRiskLevel;
   ownerOnly?: boolean;
   enabled: boolean;

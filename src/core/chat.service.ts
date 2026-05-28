@@ -153,6 +153,29 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       // LLM wants to call tools
       console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
 
+      // If LLM returned text alongside tool calls, send it as an intermediate message.
+      // This is the primary multi-message mechanism: the LLM naturally writes its
+      // immediate reaction in the content field before issuing tool calls.
+      if (response.content && response.content.trim().length > 0) {
+        console.log(`[chat] LLM returned content with tool calls, sending as intermediate message`);
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            role: "assistant",
+            content: response.content,
+            isIntermediate: true,
+          },
+        });
+        if (input.onIntermediateMessage) {
+          const delay = Math.floor(Math.random() * 400) + 100;
+          try {
+            await input.onIntermediateMessage(response.content, delay);
+          } catch (err) {
+            console.error("[chat] failed to send intermediate message:", err);
+          }
+        }
+      }
+
       // Add assistant message with tool calls to conversation
       conversationMessages.push({
         role: "assistant",
@@ -166,20 +189,45 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         response.tool_calls.map(async (toolCall) => {
           const toolName = toolCall.function.name;
           console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
-          let input: unknown;
+          let toolInput: unknown;
           try {
-            input = JSON.parse(toolCall.function.arguments);
+            toolInput = JSON.parse(toolCall.function.arguments);
           } catch {
-            input = {};
+            toolInput = {};
           }
 
           const result = await toolExecutor.execute({
             toolName,
-            input,
+            input: toolInput,
             context: toolContext,
           });
 
           console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
+
+          // Handle send_intermediate_message tool specially
+          if (toolName === "send_intermediate_message" && result.ok && result.output) {
+            const output = result.output as { content: string; delay_ms: number; is_intermediate: boolean };
+
+            // Store intermediate message in database
+            await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                role: "assistant",
+                content: output.content,
+                isIntermediate: true,
+              },
+            });
+
+            // Send via callback if provided
+            if (input.onIntermediateMessage) {
+              try {
+                await input.onIntermediateMessage(output.content, output.delay_ms);
+                console.log(`[chat] sent intermediate message: ${output.content.slice(0, 50)}`);
+              } catch (err) {
+                console.error("[chat] failed to send intermediate message:", err);
+              }
+            }
+          }
 
           return {
             tool_call_id: toolCall.id,
