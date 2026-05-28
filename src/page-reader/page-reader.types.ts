@@ -3,7 +3,7 @@ export interface PageContent {
   title?: string;
   content: string;
   tool: "jina" | "playwright" | "cdp";
-  screenshotPath?: string;
+  screenshotBase64?: string;  // base64 encoded PNG screenshot
 }
 
 export interface ReadPageOptions {

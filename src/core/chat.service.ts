@@ -11,7 +11,7 @@ import { isOwner } from "../tools/policy/owner-check.js";
 import { env } from "../utils/env.js";
 import type { ChatInput, ChatOutput } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
-import type { ChatMessage } from "../types/model.js";
+import type { ChatMessage, MessageContentPart } from "../types/model.js";
 
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   const safety = checkInput(input.message);
@@ -105,6 +105,16 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     userMessage: input.message,
   });
 
+  // If user sent images, append them to the last user message
+  if (input.images && input.images.length > 0) {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === "user") {
+      // Convert string content to multimodal array
+      const textPart: MessageContentPart = { type: "text", text: typeof lastMessage.content === "string" ? lastMessage.content : "" };
+      lastMessage.content = [textPart, ...input.images];
+    }
+  }
+
   // Tool execution with function calling
   let reply = "";
 
@@ -180,13 +190,29 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
       // Add tool results to conversation
       for (const { tool_call_id, result } of toolResults) {
-        conversationMessages.push({
-          role: "tool",
-          content: result.ok
+        let content: ChatMessage["content"];
+
+        if (result.ok && result.output && typeof result.output === "object" && "screenshotBase64" in result.output && result.output.screenshotBase64) {
+          // Tool returned a screenshot — build multimodal content
+          const { screenshotBase64, ...outputWithoutScreenshot } = result.output as Record<string, unknown>;
+          const parts: MessageContentPart[] = [
+            { type: "text", text: JSON.stringify(outputWithoutScreenshot) },
+            {
+              type: "image",
+              image: {
+                data: screenshotBase64 as string,
+                mimeType: "image/png",
+              },
+            },
+          ];
+          content = parts;
+        } else {
+          content = result.ok
             ? JSON.stringify(result.output)
-            : `Error: ${result.error}`,
-          tool_call_id,
-        });
+            : `Error: ${result.error}`;
+        }
+
+        conversationMessages.push({ role: "tool", content, tool_call_id });
       }
 
       // Continue loop to let LLM respond with tool results

@@ -1,6 +1,21 @@
+/**
+ * Message content can be either plain text or multimodal (text + images)
+ */
+export type MessageContent = string | MessageContentPart[];
+
+export interface MessageContentPart {
+  type: "text" | "image";
+  text?: string;
+  image?: {
+    data: string;      // base64 encoded image data (without data:image/xxx;base64, prefix)
+    mimeType: string;  // e.g., "image/jpeg", "image/png", "image/webp"
+    url?: string;      // optional original URL or file path
+  };
+}
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: MessageContent;
   tool_call_id?: string;
   tool_calls?: Array<{
     id: string;

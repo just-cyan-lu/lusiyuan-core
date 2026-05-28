@@ -32,7 +32,7 @@ class PageReaderService {
         url: result.url,
         tool: result.tool,
         content: result.content,
-        screenshotPath: result.screenshotPath ?? null,
+        screenshotPath: result.screenshotBase64 ? "base64" : null, // legacy field, just mark as "base64" if present
       },
     });
 

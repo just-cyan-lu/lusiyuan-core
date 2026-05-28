@@ -15,7 +15,7 @@ interface ReadPageOutput {
   title?: string;
   content: string;
   tool: string;
-  screenshotPath?: string;
+  screenshotBase64?: string;  // base64 encoded PNG screenshot
 }
 
 async function handler(
@@ -23,17 +23,31 @@ async function handler(
   _context: ToolExecutionContext
 ): Promise<ReadPageOutput> {
   if (input.tool === "cdp") {
-    return cdpBrowserService.read({
+    const result = await cdpBrowserService.read({
       url: input.url,
       waitMs: input.wait_ms,
     });
+    return {
+      url: result.url,
+      title: result.title,
+      content: result.content,
+      tool: result.tool,
+    };
   }
 
-  return pageReaderService.read({
+  const result = await pageReaderService.read({
     url: input.url,
     screenshot: input.screenshot,
     preferTool: input.tool,
   });
+
+  return {
+    url: result.url,
+    title: result.title,
+    content: result.content,
+    tool: result.tool,
+    screenshotBase64: result.screenshotBase64,
+  };
 }
 
 export const readPageTool: ToolDefinition<ReadPageInput, ReadPageOutput> = {
