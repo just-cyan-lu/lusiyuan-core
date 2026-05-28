@@ -1,6 +1,9 @@
 import "./init.js"; // Initialize app (register tools, etc.)
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { healthRoute } from "./routes/health.route.js";
 import { chatRoute } from "./routes/chat.route.js";
 import { channelsRoute } from "./routes/channels.route.js";
@@ -15,6 +18,9 @@ import { externalInboxRoute } from "./routes/external-inbox.route.js";
 import { env } from "./utils/env.js";
 import { createTelegramBot } from "./channels/telegram/telegram.bot.js";
 import { startDreamScheduler } from "./dream/dream-scheduler.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function buildApp() {
   const app = Fastify({
@@ -50,6 +56,18 @@ export function buildApp() {
   void app.register(webSearchRoute);
   void app.register(pageReaderRoute);
   void app.register(externalInboxRoute);
+
+  // Serve web frontend (production build)
+  const webDistPath = path.join(__dirname, "../web/dist");
+  void app.register(fastifyStatic, {
+    root: webDistPath,
+    prefix: "/",
+  });
+
+  // Fallback to index.html for SPA routing
+  app.setNotFoundHandler((_request, reply) => {
+    void reply.sendFile("index.html");
+  });
 
   // Start Telegram bot if enabled
   if (env.TELEGRAM_ENABLED) {

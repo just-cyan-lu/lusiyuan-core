@@ -307,7 +307,30 @@ pnpm telegram:dev
 
 ### Web 前端
 
-前端在独立仓库 `lusiyuan-web`，默认端口 `64111`，详见该仓库 README。
+前端已合并到 `web/` 目录，默认端口 `64111`。
+
+**开发模式**：
+
+```bash
+# 安装前端依赖（首次）
+pnpm web:install
+
+# 启动后端
+pnpm dev
+
+# 另开终端启动前端
+pnpm web:dev
+```
+
+**生产模式**：
+
+```bash
+# 构建前端
+pnpm web:build
+
+# 启动后端（会自动提供前端静态文件）
+pnpm start
+```
 
 后端 `.env` 里需要配置允许的 origin：
 
@@ -624,6 +647,18 @@ src/
 │   └── prisma.ts           # Prisma 单例客户端
 ├── types/                  # TypeScript 类型定义
 └── utils/                  # env 校验、logger
+
+web/                        # Web 前端（React + Vite）
+├── src/
+│   ├── App.tsx
+│   ├── components/         # 聊天界面组件
+│   ├── api/                # API 调用
+│   ├── hooks/              # React hooks
+│   └── types/              # TypeScript 类型
+├── public/
+├── index.html
+├── vite.config.ts
+└── package.json
 
 persona/                    # 陆思源人格 Markdown 文件
 prisma/
