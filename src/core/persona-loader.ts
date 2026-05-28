@@ -8,6 +8,7 @@ export interface PersonaContent {
   boundaries: string;
   examples: string;
   coreMemory: string;
+  toolUsage: string;
 }
 
 const PERSONA_DIR = resolve(process.cwd(), "persona");
@@ -17,7 +18,7 @@ async function readPersonaFile(filename: string): Promise<string> {
 }
 
 export async function loadPersona(): Promise<PersonaContent> {
-  const [identity, personality, speakingStyle, boundaries, examples, coreMemory] =
+  const [identity, personality, speakingStyle, boundaries, examples, coreMemory, toolUsage] =
     await Promise.all([
       readPersonaFile("identity.md"),
       readPersonaFile("personality.md"),
@@ -25,7 +26,8 @@ export async function loadPersona(): Promise<PersonaContent> {
       readPersonaFile("boundaries.md"),
       readPersonaFile("examples.md"),
       readPersonaFile("core_memory.md"),
+      readPersonaFile("tool_usage.md"),
     ]);
 
-  return { identity, personality, speakingStyle, boundaries, examples, coreMemory };
+  return { identity, personality, speakingStyle, boundaries, examples, coreMemory, toolUsage };
 }

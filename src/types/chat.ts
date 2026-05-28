@@ -10,6 +10,9 @@ export interface ChatInput {
   external_message_id?: string;
   display_name?: string;
   raw_event?: unknown;
+
+  // Callback for sending intermediate messages during conversation
+  onIntermediateMessage?: (content: string, delayMs: number) => Promise<void>;
 }
 
 export interface ChatOutput {

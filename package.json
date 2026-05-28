@@ -32,6 +32,7 @@
     "fastify": "^5.3.2",
     "grammy": "^1.43.0",
     "https-proxy-agent": "^9.0.0",
+    "node-cron": "^3.0.3",
     "openai": "^4.103.0",
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.21",
+    "@types/node-cron": "^3.0.11",
     "prisma": "^6.9.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"

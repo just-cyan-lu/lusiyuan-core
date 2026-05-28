@@ -28,10 +28,11 @@ export class DreamDiaryWriter {
     let content = raw.content ?? "";
 
     // Safety: reject diary entries that contain pretend-human content
-    if (containsPretendHumanContent(content)) {
-      console.warn("[DreamDiaryWriter] Diary content failed safety check, skipping.");
-      return null;
-    }
+    // DISABLED: Allow Lu Siyuan to write as if she's a real person in diary
+    // if (containsPretendHumanContent(content)) {
+    //   console.warn("[DreamDiaryWriter] Diary content failed safety check, skipping.");
+    //   return null;
+    // }
 
     // Enforce character limit
     if (content.length > env.DREAM_DIARY_MAX_CHARS) {
@@ -79,7 +80,7 @@ export class DreamDiaryWriter {
     }
 
     lines.push(
-      `请基于以上材料，写一篇陆思源风格的梦境日记。记住：可以用比喻，但不能编造真实世界经历，不能说自己是真人。`
+      `请基于以上材料，写一篇陆思源风格的梦境日记。`
     );
 
     return lines.join("\n");

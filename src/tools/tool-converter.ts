@@ -3,8 +3,6 @@ import type { ToolDefinitionForLLM } from "../types/model.js";
 
 /**
  * Convert internal tool definitions to OpenAI function calling format.
- * This is a basic implementation - you may need to enhance parameter schemas
- * based on your actual tool input types.
  */
 export function convertToolsForLLM(
   tools: ToolDefinition[]
@@ -14,7 +12,8 @@ export function convertToolsForLLM(
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: inferParametersSchema(tool.name),
+      // Use tool's own parameters if defined, otherwise fall back to legacy hardcoded schema
+      parameters: tool.parameters || inferParametersSchema(tool.name),
     },
   }));
 }

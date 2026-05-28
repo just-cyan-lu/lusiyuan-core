@@ -50,6 +50,11 @@ export const env = {
   MINIMAX_API_KEY: process.env.MINIMAX_API_KEY ?? "",
   MINIMAX_MODEL: process.env.MINIMAX_MODEL ?? "",
 
+  // SiliconFlow (硅基流动) — unified endpoint for GLM, Qwen, DeepSeek, etc.
+  SILICONFLOW_BASE_URL: process.env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1",
+  SILICONFLOW_API_KEY: process.env.SILICONFLOW_API_KEY ?? "",
+  SILICONFLOW_MODEL: process.env.SILICONFLOW_MODEL ?? "",
+
   TELEGRAM_ENABLED: process.env.TELEGRAM_ENABLED === "true",
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? "",
   TELEGRAM_MODE: process.env.TELEGRAM_MODE ?? "polling",

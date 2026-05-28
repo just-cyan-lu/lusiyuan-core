@@ -14,6 +14,7 @@ import { pageReaderRoute } from "./routes/page-reader.route.js";
 import { externalInboxRoute } from "./routes/external-inbox.route.js";
 import { env } from "./utils/env.js";
 import { createTelegramBot } from "./channels/telegram/telegram.bot.js";
+import { startDreamScheduler } from "./dream/dream-scheduler.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -73,6 +74,9 @@ export function buildApp() {
         });
     }
   }
+
+  // Start Dream Cycle scheduler if enabled
+  startDreamScheduler(app.log);
 
   return app;
 }
