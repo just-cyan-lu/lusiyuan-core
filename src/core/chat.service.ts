@@ -176,6 +176,50 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         }
       }
 
+      // For providers that don't support content+tool_calls (e.g., MiniMax),
+      // make an extra LLM call to get an immediate reaction before executing tools.
+      if (!modelProvider.capabilities.supportsContentWithToolCalls &&
+          (!response.content || response.content.trim().length === 0)) {
+        console.log(`[chat] provider doesn't support content+tool_calls, requesting immediate reaction`);
+
+        // Build a focused prompt to get a short immediate reaction
+        const reactionPrompt: ChatMessage[] = [
+          ...conversationMessages,
+          {
+            role: "assistant",
+            content: `[内部指令] 你即将调用工具 ${response.tool_calls.map(tc => tc.function.name).join(", ")}。在调用工具之前，请用1句话表达你的即时反应（如"我去看看"、"稍等，我查一下"等），让对话更自然。只输出这1句话，不要解释。`,
+          },
+        ];
+
+        try {
+          const reactionResponse = await modelProvider.chat(reactionPrompt);
+          const reaction = reactionResponse.trim();
+
+          if (reaction.length > 0 && reaction.length < 100) {
+            console.log(`[chat] got immediate reaction: ${reaction}`);
+            await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                role: "assistant",
+                content: reaction,
+                isIntermediate: true,
+              },
+            });
+            if (input.onIntermediateMessage) {
+              const delay = Math.floor(Math.random() * 400) + 100;
+              try {
+                await input.onIntermediateMessage(reaction, delay);
+              } catch (err) {
+                console.error("[chat] failed to send immediate reaction:", err);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[chat] failed to get immediate reaction:", err);
+          // Continue with tool execution even if reaction fails
+        }
+      }
+
       // Add assistant message with tool calls to conversation
       conversationMessages.push({
         role: "assistant",
