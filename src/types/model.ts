@@ -40,7 +40,16 @@ export interface ToolDefinitionForLLM {
   };
 }
 
+export interface ProviderCapabilities {
+  /**
+   * Whether this provider can return content alongside tool_calls in the same response.
+   * Some providers (e.g., MiniMax) always return empty content when making tool calls.
+   */
+  supportsContentWithToolCalls: boolean;
+}
+
 export interface ModelProvider {
+  capabilities: ProviderCapabilities;
   chat(messages: ChatMessage[]): Promise<string>;
   chatJson<T>(messages: ChatMessage[]): Promise<T>;
   chatWithTools(

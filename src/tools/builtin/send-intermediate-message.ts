@@ -2,7 +2,10 @@
 
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
-export const sendIntermediateMessageTool: ToolDefinition = {
+export const sendIntermediateMessageTool: ToolDefinition<
+  { content: string; style?: string },
+  { content: string; style: string; delay_ms: number; is_intermediate: boolean }
+> = {
   name: "send_intermediate_message",
   description: `发送一条中间消息给用户（在最终回复之前）。
 

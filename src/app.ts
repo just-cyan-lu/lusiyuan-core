@@ -60,7 +60,7 @@ export function buildApp() {
       const bot = createTelegramBot(env.TELEGRAM_BOT_TOKEN);
 
       bot.catch((err) => {
-        app.log.error("Telegram bot error:", err);
+        app.log.error({ err }, "Telegram bot error:");
       });
 
       bot

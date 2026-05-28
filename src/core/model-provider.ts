@@ -99,6 +99,7 @@ class OpenAICompatibleProvider implements ModelProvider {
   private client: OpenAI;
   private model: string;
   private providerName: string;
+  public capabilities: import("../types/model.js").ProviderCapabilities;
 
   constructor(config: ProviderConfig) {
     this.client = new OpenAI({
@@ -107,6 +108,11 @@ class OpenAICompatibleProvider implements ModelProvider {
     });
     this.model = config.model;
     this.providerName = env.ACTIVE_MODEL_PROVIDER;
+
+    // MiniMax doesn't support returning content alongside tool_calls
+    this.capabilities = {
+      supportsContentWithToolCalls: this.providerName.toLowerCase() !== "minimax",
+    };
   }
 
   /**
@@ -248,6 +254,7 @@ function convertContentToAnthropic(content: MessageContent): string | Anthropic.
 class AnthropicProvider implements ModelProvider {
   private client: Anthropic;
   private model: string;
+  public capabilities: import("../types/model.js").ProviderCapabilities;
 
   constructor(config: ProviderConfig) {
     this.client = new Anthropic({
@@ -255,6 +262,11 @@ class AnthropicProvider implements ModelProvider {
       apiKey: config.apiKey,
     });
     this.model = config.model;
+
+    // Anthropic supports content alongside tool_calls
+    this.capabilities = {
+      supportsContentWithToolCalls: true,
+    };
   }
 
   private convertMessages(messages: ChatMessage[]): {
