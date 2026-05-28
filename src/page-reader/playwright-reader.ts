@@ -1,7 +1,5 @@
 import { env } from "../utils/env.js";
 import type { PageContent } from "./page-reader.types.js";
-import path from "path";
-import os from "os";
 
 export async function playwrightRead(
   url: string,
@@ -18,13 +16,13 @@ export async function playwrightRead(
     const content = await page.evaluate(() => document.body.innerText);
     const truncated = content.slice(0, env.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS);
 
-    let screenshotPath: string | undefined;
+    let screenshotBase64: string | undefined;
     if (screenshot && env.PLAYWRIGHT_SCREENSHOT_ENABLED) {
-      screenshotPath = path.join(os.tmpdir(), `screenshot-${Date.now()}.png`);
-      await page.screenshot({ path: screenshotPath, fullPage: false });
+      const buffer = await page.screenshot({ fullPage: false });
+      screenshotBase64 = buffer.toString("base64");
     }
 
-    return { url, title, content: truncated, tool: "playwright", screenshotPath };
+    return { url, title, content: truncated, tool: "playwright", screenshotBase64 };
   } finally {
     await browser.close();
   }

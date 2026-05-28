@@ -3,6 +3,8 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import { env } from "../../utils/env.js";
 import { chat } from "../../core/chat.service.js";
 import { memoryService } from "../../core/memory.service.js";
+import { imageService } from "../../media/image.service.js";
+import type { MessageContentPart } from "../../types/model.js";
 
 const OWNER_IDS = new Set(env.OWNER_USER_IDS);
 
@@ -91,6 +93,47 @@ export function createTelegramBot(token: string) {
     } catch (err) {
       console.error("Telegram message handling failed:", err);
       await ctx.reply("出了点小问题，稍后再试试？");
+    }
+  });
+
+  // Handle photo messages (with optional caption as the user's text)
+  bot.on("message:photo", async (ctx) => {
+    const from = ctx.from;
+    const chatCtx = ctx.chat;
+    const message = ctx.message;
+
+    // Only respond in private chats
+    if (chatCtx.type !== "private") return;
+
+    try {
+      // Pick the highest-resolution photo variant
+      const photos = message.photo;
+      const photo = photos[photos.length - 1];
+      const fileInfo = await ctx.api.getFile(photo.file_id);
+      const fileUrl = `https://api.telegram.org/file/bot${token}/${fileInfo.file_path}`;
+
+      const imageData = await imageService.loadFromUrl(fileUrl);
+      const imagePart: MessageContentPart = imageService.toContentPart(imageData);
+
+      const caption = message.caption ?? "（用户发送了一张图片）";
+
+      const result = await chat({
+        user_id: `telegram:${from?.id ?? chatCtx.id}`,
+        channel: "telegram",
+        conversation_id: `telegram:${chatCtx.id}`,
+        message: caption,
+        images: [imagePart],
+        external_message_id: String(message.message_id),
+        display_name: from?.username ?? from?.first_name,
+        raw_event: message,
+      });
+
+      if (result.duplicated) return;
+
+      await ctx.reply(result.reply);
+    } catch (err) {
+      console.error("Telegram photo handling failed:", err);
+      await ctx.reply("图片处理出了点问题，稍后再试试？");
     }
   });
 
