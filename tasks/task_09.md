@@ -1,9 +1,14 @@
-下面是 **task_09 / v0.9：Media & Asset Memory 技术开发文档**。
-这一版的核心目标是：**让陆思源不只是一个会聊天、有记忆的数字人，而是开始拥有自己的图片、音频、视频、设定、训练素材和内容资产库。**
+# ⚠️ 本文档已废弃
+
+**请使用 task_09_01.md（轻量资产索引）替代。**
+
+**废弃原因**：本文档设计了完整的资产管理系统（Asset、AssetVersion、AssetReview、AssetCollection、AssetUsage、AssetEmbedding），对个人项目来说过度设计。这些管理工具可以用已有软件（本地文件夹、Google Photos、Notion等）替代。
+
+**新方案**：task_09_01.md 只做最小化的资产索引，让陆思源可以在对话中引用自己的照片、音频等素材。
 
 ---
 
-# task_09：Media & Asset Memory
+# task_09：Media & Asset Memory（已废弃）
 
 # 陆思源 Core API v0.9：媒体与数字人资产记忆系统
 

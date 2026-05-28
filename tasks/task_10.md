@@ -1,9 +1,14 @@
-下面是重写后的 **task_10 / v1.0：Public Beta & Production Hardening 技术开发文档**。
-这一版先把 **人格回归测试用例** 留作占位，不展开具体问题，后面可以单独写 `persona-eval-cases-v1.0.md`。
+# ⚠️ 本文档已废弃
+
+**请使用 task_10_01.md（生产稳定化轻量版）替代。**
+
+**废弃原因**：本文档设计了完整的企业级稳定化方案（复杂的 RBAC 权限系统、AuditLog、UsageDailyStat、完整的 Admin Console、Eval Framework 等），对个人项目来说过度设计。
+
+**新方案**：task_10_01.md 只做真正必要的生产稳定化功能：简单的 owner 权限检查、基础限流、错误日志、备份脚本、health check、隐私提示。
 
 ---
 
-# task_10：Public Beta & Production Hardening
+# task_10：Public Beta & Production Hardening（已废弃）
 
 # 陆思源 Core API v1.0：公开测试与生产稳定化
 
