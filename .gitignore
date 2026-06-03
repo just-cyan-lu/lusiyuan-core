@@ -11,3 +11,4 @@ logs/
 .DS_Store
 web/dist
 web/node_modules
+.pnpm-store/
