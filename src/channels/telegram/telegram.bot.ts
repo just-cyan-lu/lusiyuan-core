@@ -4,9 +4,21 @@ import { env } from "../../utils/env.js";
 import { chat } from "../../core/chat.service.js";
 import { memoryService } from "../../core/memory.service.js";
 import { imageService } from "../../media/image.service.js";
+import { prisma } from "../../db/prisma.js";
 import type { MessageContentPart } from "../../types/model.js";
 
 const OWNER_IDS = new Set(env.OWNER_USER_IDS);
+const conversationSessions = new Map<number, string>();
+
+function getConversationId(chatId: number): string {
+  return conversationSessions.get(chatId) ?? `telegram:${chatId}`;
+}
+
+function resetConversationId(chatId: number): string {
+  const conversationId = `telegram:${chatId}:session:${Date.now()}`;
+  conversationSessions.set(chatId, conversationId);
+  return conversationId;
+}
 
 export function createTelegramBot(token: string) {
   const botOptions = env.TELEGRAM_PROXY
@@ -34,10 +46,8 @@ export function createTelegramBot(token: string) {
   });
 
   bot.command("reset", async (ctx) => {
-    // Reset is handled at chat.service level by starting a new conversation_id.
-    // Here we just acknowledge — the next message will create a new conversation naturally
-    // if the user changes their conversation_id. For now, inform the user.
-    await ctx.reply("好的，咱们重新开始聊吧。");
+    resetConversationId(ctx.chat.id);
+    await ctx.reply("好的，咱们重新开始聊吧。刚才的上下文不会带进来了。");
   });
 
   bot.command("memories", async (ctx) => {
@@ -46,7 +56,12 @@ export function createTelegramBot(token: string) {
       await ctx.reply("这个命令只有管理员才能用。");
       return;
     }
-    const memories = await memoryService.listUserMemories(userId);
+    const user = await prisma.user.findUnique({ where: { externalId: userId } });
+    if (!user) {
+      await ctx.reply("还没有找到你的用户记录。");
+      return;
+    }
+    const memories = await memoryService.listUserMemories(user.id);
     if (memories.length === 0) {
       await ctx.reply("暂无记忆记录。");
       return;
@@ -80,7 +95,7 @@ export function createTelegramBot(token: string) {
       const result = await chat({
         user_id: `telegram:${from?.id ?? chatCtx.id}`,
         channel: "telegram",
-        conversation_id: `telegram:${chatCtx.id}`,
+        conversation_id: getConversationId(chatCtx.id),
         message: message.text,
         external_message_id: String(message.message_id),
         display_name: from?.username ?? from?.first_name,
@@ -125,7 +140,7 @@ export function createTelegramBot(token: string) {
       const result = await chat({
         user_id: `telegram:${from?.id ?? chatCtx.id}`,
         channel: "telegram",
-        conversation_id: `telegram:${chatCtx.id}`,
+        conversation_id: getConversationId(chatCtx.id),
         message: caption,
         images: [imagePart],
         external_message_id: String(message.message_id),

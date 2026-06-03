@@ -1,21 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import { externalInboxService } from "../external-inbox/external-inbox.service.js";
-import { isOwner } from "../tools/policy/owner-check.js";
-
-async function requireOwner(userId: string | undefined): Promise<void> {
-  if (!userId || !isOwner(userId)) {
-    throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-  }
-}
+import { requireAdminAuth } from "./admin-auth.js";
 
 export async function externalInboxRoute(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", async (request) => {
+    requireAdminAuth(request);
+  });
+
   app.get("/v1/external-inbox", async (request, reply) => {
     const query = request.query as {
       user_id?: string;
       platform?: string;
       limit?: string;
     };
-    await requireOwner(query.user_id);
 
     const items = await externalInboxService.list(
       query.platform,
@@ -26,7 +23,6 @@ export async function externalInboxRoute(app: FastifyInstance): Promise<void> {
 
   app.post("/v1/external-inbox/sync", async (request, reply) => {
     const body = request.body as { user_id?: string; platform: string };
-    await requireOwner(body.user_id);
 
     if (!body.platform) {
       return reply.status(400).send({ error: "platform is required" });
@@ -39,7 +35,6 @@ export async function externalInboxRoute(app: FastifyInstance): Promise<void> {
   app.get("/v1/external-inbox/:id", async (request, reply) => {
     const params = request.params as { id: string };
     const query = request.query as { user_id?: string };
-    await requireOwner(query.user_id);
 
     const item = await externalInboxService.get(params.id);
     if (!item) {

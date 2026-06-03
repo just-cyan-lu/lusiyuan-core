@@ -3,6 +3,7 @@ import { env } from "../utils/env.js";
 import { buildReflectionContext } from "./reflection-context-builder.js";
 import { runReflectionAnalysis } from "./reflection-report-formatter.js";
 import { applyReflectionPolicy } from "./reflection-policy.js";
+import type { MemoryProposalOwnership } from "./memory-proposal-ownership.js";
 import type {
   CreateReflectionJobInput,
   RawMemoryProposal,
@@ -77,7 +78,8 @@ export class ReflectionService {
         },
       });
 
-      await this.saveProposals(report.id, allowedProposals);
+      const ownership = await this.resolveProposalOwnership(job);
+      await this.saveProposals(report.id, allowedProposals, ownership);
       await this.saveRiskFlags(report.id, allowedRiskFlags);
       await this.saveGrowthLogs(report.id, allowedGrowthLogs);
 
@@ -117,12 +119,16 @@ export class ReflectionService {
 
   private async saveProposals(
     reportId: string,
-    proposals: RawMemoryProposal[]
+    proposals: RawMemoryProposal[],
+    ownership: MemoryProposalOwnership
   ): Promise<void> {
     if (proposals.length === 0) return;
     await prisma.memoryProposal.createMany({
       data: proposals.map((p) => ({
         reportId,
+        userId: ownership.userId ?? null,
+        conversationId: ownership.conversationId ?? null,
+        channel: ownership.channel ?? null,
         proposalType: p.proposalType,
         targetMemoryId: p.targetMemoryId ?? null,
         scope: p.scope,
@@ -137,6 +143,43 @@ export class ReflectionService {
         sourceMessageIds: p.sourceMessageIds ?? undefined,
       })),
     });
+  }
+
+  private async resolveProposalOwnership(
+    job: ReflectionJob
+  ): Promise<MemoryProposalOwnership> {
+    let userId: string | null = null;
+    let conversationId: string | null = null;
+    let channel: string | null = job.channel ?? null;
+
+    if (job.conversationId) {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          OR: [
+            { id: job.conversationId },
+            { externalConversationId: job.conversationId },
+          ],
+        },
+        select: { id: true, userId: true, channel: true },
+      });
+      if (conversation) {
+        conversationId = conversation.id;
+        userId = conversation.userId;
+        channel = channel ?? conversation.channel;
+      }
+    }
+
+    if (!userId && job.userId) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [{ id: job.userId }, { externalId: job.userId }],
+        },
+        select: { id: true },
+      });
+      userId = user?.id ?? null;
+    }
+
+    return { userId, conversationId, channel };
   }
 
   private async saveRiskFlags(

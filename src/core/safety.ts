@@ -1,4 +1,4 @@
-const MAX_INPUT_LENGTH = 2000;
+import { env } from "../utils/env.js";
 
 export interface SafetyCheckResult {
   ok: boolean;
@@ -9,10 +9,10 @@ export function checkInput(message: string): SafetyCheckResult {
   if (!message || message.trim().length === 0) {
     return { ok: false, error: "Message cannot be empty." };
   }
-  if (message.length > MAX_INPUT_LENGTH) {
+  if (message.length > env.MAX_MESSAGE_LENGTH) {
     return {
       ok: false,
-      error: `Message too long. Maximum ${MAX_INPUT_LENGTH} characters allowed.`,
+      error: `Message too long. Maximum ${env.MAX_MESSAGE_LENGTH} characters allowed.`,
     };
   }
   return { ok: true };

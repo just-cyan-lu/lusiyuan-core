@@ -67,18 +67,22 @@ export class DreamContextBuilder {
 
     if (conversationId) {
       const conv = await prisma.conversation.findFirst({
-        where: { externalConversationId: conversationId },
+        where: {
+          OR: [{ id: conversationId }, { externalConversationId: conversationId }],
+        },
       });
-      if (conv) where.conversationId = conv.id;
+      where.conversationId = conv ? conv.id : "__missing_conversation__";
     } else if (userId) {
       const user = await prisma.user.findFirst({
-        where: { externalId: userId },
+        where: { OR: [{ id: userId }, { externalId: userId }] },
       });
       if (user) {
         const convIds = await prisma.conversation
           .findMany({ where: { userId: user.id }, select: { id: true } })
           .then((cs) => cs.map((c) => c.id));
         where.conversationId = { in: convIds };
+      } else {
+        where.conversationId = { in: [] };
       }
     }
 
@@ -108,9 +112,9 @@ export class DreamContextBuilder {
 
     if (userId) {
       const user = await prisma.user.findFirst({
-        where: { externalId: userId },
+        where: { OR: [{ id: userId }, { externalId: userId }] },
       });
-      if (user) where.userId = user.id;
+      where.userId = user ? user.id : "__missing_user__";
     }
 
     const rows = await prisma.memory.findMany({

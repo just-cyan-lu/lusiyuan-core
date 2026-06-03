@@ -8,6 +8,7 @@ import { dailyNoteService } from "./daily-note.service.js";
 import { dreamSignalExtractor } from "./dream-signal-extractor.js";
 import { dreamDiaryWriter } from "./dream-diary-writer.js";
 import { dreamConsolidator } from "./dream-consolidator.js";
+import type { MemoryProposalOwnership } from "../reflection/memory-proposal-ownership.js";
 import type {
   CreateDreamJobInput,
   RunDailyDreamInput,
@@ -39,7 +40,14 @@ export class DreamService {
     const from = job.fromTime ?? new Date(Date.now() - env.DREAM_DEFAULT_LOOKBACK_HOURS * 3600_000);
     const to = job.toTime ?? new Date();
 
-    return this.executeJob(jobId, from, to, job.userId ?? undefined);
+    return this.executeJob(
+      jobId,
+      from,
+      to,
+      job.userId ?? undefined,
+      job.conversationId ?? undefined,
+      job.channel ?? undefined
+    );
   }
 
   async runDailyDream(input: RunDailyDreamInput = {}): Promise<DreamRunResult> {
@@ -79,7 +87,9 @@ export class DreamService {
     jobId: string,
     from: Date,
     to: Date,
-    userId?: string
+    userId?: string,
+    conversationId?: string,
+    channel?: string
   ): Promise<DreamRunResult> {
     // Mark running
     await prisma.dreamJob.update({
@@ -90,7 +100,12 @@ export class DreamService {
     try {
       // ── Phase 1: Intake ──────────────────────────────────────────────────
       await this.setPhase(jobId, "intake");
-      const context = await dreamContextBuilder.build({ from, to, userId });
+      const context = await dreamContextBuilder.build({
+        from,
+        to,
+        userId,
+        conversationId,
+      });
 
       const totalEvents = Object.values(context.sourceStats).reduce((a, b) => a + b, 0);
       if (totalEvents < env.DREAM_MIN_SOURCE_EVENTS) {
@@ -139,6 +154,9 @@ export class DreamService {
           status: "completed",
           triggerType: "dream",
           scope: "daily",
+          userId: userId ?? null,
+          conversationId: conversationId ?? null,
+          channel: channel ?? null,
           startedAt: new Date(),
           completedAt: new Date(),
         },
@@ -152,6 +170,12 @@ export class DreamService {
         },
       });
 
+      const ownership = await this.resolveProposalOwnership({
+        userId,
+        conversationId,
+        channel,
+      });
+
       const consolidation = env.DREAM_DEEP_ENABLED
         ? await dreamConsolidator.consolidate({
             signals,
@@ -159,6 +183,7 @@ export class DreamService {
             diaryEntry,
             jobId,
             dreamReflectionReportId: syntheticReport.id,
+            ownership,
           })
         : null;
 
@@ -193,6 +218,45 @@ export class DreamService {
       where: { id: jobId },
       data: { status: "completed", completedAt: new Date(), phase },
     });
+  }
+
+  private async resolveProposalOwnership(input: {
+    userId?: string;
+    conversationId?: string;
+    channel?: string;
+  }): Promise<MemoryProposalOwnership> {
+    let userId: string | null = null;
+    let conversationId: string | null = null;
+    let channel: string | null = input.channel ?? null;
+
+    if (input.conversationId) {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          OR: [
+            { id: input.conversationId },
+            { externalConversationId: input.conversationId },
+          ],
+        },
+        select: { id: true, userId: true, channel: true },
+      });
+      if (conversation) {
+        conversationId = conversation.id;
+        userId = conversation.userId;
+        channel = channel ?? conversation.channel;
+      }
+    }
+
+    if (!userId && input.userId) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [{ id: input.userId }, { externalId: input.userId }],
+        },
+        select: { id: true },
+      });
+      userId = user?.id ?? null;
+    }
+
+    return { userId, conversationId, channel };
   }
 
   async getDreamReport(jobId: string) {
