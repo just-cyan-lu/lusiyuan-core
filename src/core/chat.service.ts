@@ -9,6 +9,11 @@ import { toolRegistry } from "../tools/tool-registry.js";
 import { convertToolsForLLM } from "../tools/tool-converter.js";
 import { isOwner } from "../tools/policy/owner-check.js";
 import { env } from "../utils/env.js";
+import {
+  buildDuplicatedChatOutput,
+  buildExternalMessageLookup,
+  isPrismaUniqueConstraintError,
+} from "./chat-idempotency.js";
 import type { ChatInput, ChatOutput } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 import type { ChatMessage, MessageContentPart } from "../types/model.js";
@@ -20,17 +25,13 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   }
 
   // Idempotency: skip if this external message was already processed
-  if (input.external_message_id) {
+  const externalMessageLookup = buildExternalMessageLookup(input);
+  if (externalMessageLookup) {
     const existing = await prisma.message.findFirst({
-      where: { externalMessageId: input.external_message_id },
+      where: externalMessageLookup,
     });
     if (existing) {
-      return {
-        reply: "",
-        conversation_id: input.conversation_id,
-        memory_written: false,
-        duplicated: true,
-      };
+      return buildDuplicatedChatOutput(input.conversation_id);
     }
   }
 
@@ -73,14 +74,22 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     });
   }
 
-  const userMessage = await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      role: "user",
-      content: input.message,
-      externalMessageId: input.external_message_id,
-    },
-  });
+  let userMessage: { id: string };
+  try {
+    userMessage = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "user",
+        content: input.message,
+        externalMessageId: input.external_message_id,
+      },
+    });
+  } catch (err) {
+    if (input.external_message_id && isPrismaUniqueConstraintError(err)) {
+      return buildDuplicatedChatOutput(input.conversation_id);
+    }
+    throw err;
+  }
 
   const [persona, memories, recentMessages] = await Promise.all([
     loadPersona(),
@@ -134,8 +143,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     const toolsForLLM = convertToolsForLLM(availableTools);
     const conversationMessages: ChatMessage[] = [...messages];
 
-    // Allow up to 3 rounds of tool calls (to handle multi-step tasks)
-    for (let round = 0; round < 3; round++) {
+    // Allow a bounded number of tool rounds to handle multi-step tasks.
+    for (let round = 0; round < env.TOOL_MAX_CALLS_PER_MESSAGE; round++) {
       console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
       const response = await modelProvider.chatWithTools(

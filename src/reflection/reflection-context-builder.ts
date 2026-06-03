@@ -19,14 +19,37 @@ export async function buildReflectionContext(
 
   // ── Messages ──────────────────────────────────────────────────────────────
   const messageWhere: Record<string, unknown> = {};
-  if (scope === "conversation" && conversationId) {
+  let resolvedUserId = userId;
+
+  if (scope === "conversation") {
+    if (!conversationId) {
+      throw new Error("conversationId is required for conversation reflection");
+    }
     const conv = await prisma.conversation.findFirst({
-      where: { externalConversationId: conversationId },
+      where: {
+        OR: [{ id: conversationId }, { externalConversationId: conversationId }],
+      },
+      select: { id: true, userId: true },
     });
-    if (conv) messageWhere["conversationId"] = conv.id;
-  } else if (scope === "user" && userId) {
+    if (!conv) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    messageWhere["conversationId"] = conv.id;
+    resolvedUserId = conv.userId;
+  } else if (scope === "user") {
+    if (!userId) {
+      throw new Error("userId is required for user reflection");
+    }
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ id: userId }, { externalId: userId }] },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new Error(`User not found: ${userId}`);
+    }
+    resolvedUserId = user.id;
     const convIds = await prisma.conversation
-      .findMany({ where: { userId }, select: { id: true } })
+      .findMany({ where: { userId: user.id }, select: { id: true } })
       .then((cs) => cs.map((c) => c.id));
     messageWhere["conversationId"] = { in: convIds };
   }
@@ -48,7 +71,7 @@ export async function buildReflectionContext(
 
   // ── Existing memories ─────────────────────────────────────────────────────
   const memoryWhere: Record<string, unknown> = { status: "active" };
-  if (userId) memoryWhere["userId"] = userId;
+  if (resolvedUserId) memoryWhere["userId"] = resolvedUserId;
 
   const rawMemories = await prisma.memory.findMany({
     where: memoryWhere,

@@ -5,6 +5,7 @@ import { modelProvider } from "../core/model-provider.js";
 import { DEEP_CONSOLIDATION_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { filterProposals } from "./dream-policy.js";
 import { env } from "../utils/env.js";
+import type { MemoryProposalOwnership } from "../reflection/memory-proposal-ownership.js";
 import type {
   RawConsolidationOutput,
   RawConsolidationProposal,
@@ -35,8 +36,9 @@ export class DreamConsolidator {
     diaryEntry?: DreamDiaryEntry | null;
     jobId?: string;
     dreamReflectionReportId: string;
+    ownership?: MemoryProposalOwnership;
   }): Promise<DreamConsolidationResult> {
-    const { signals, dailyNote, jobId, dreamReflectionReportId } = input;
+    const { signals, dailyNote, jobId, dreamReflectionReportId, ownership } = input;
 
     if (!env.DREAM_DEEP_ENABLED) {
       const emptyReport = await this.createReport(jobId, "", 0, 0, 0, 0, []);
@@ -72,6 +74,9 @@ export class DreamConsolidator {
         const mp = await prisma.memoryProposal.create({
           data: {
             reportId: dreamReflectionReportId,
+            userId: ownership?.userId ?? null,
+            conversationId: ownership?.conversationId ?? null,
+            channel: ownership?.channel ?? null,
             proposalType: p.proposalType,
             targetMemoryId: p.targetMemoryId ?? null,
             scope: p.scope,

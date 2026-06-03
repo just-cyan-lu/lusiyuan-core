@@ -19,7 +19,7 @@ export class PgVectorMemoryIndex implements VectorMemoryIndex {
 
     if (existing) {
       await prisma.$executeRaw`
-        UPDATE "MemoryEmbedding"
+        UPDATE "memory_embeddings"
         SET "embedding" = ${vectorLiteral}::vector,
             "contentHash" = ${contentHash},
             "updatedAt" = NOW()
@@ -28,7 +28,7 @@ export class PgVectorMemoryIndex implements VectorMemoryIndex {
     } else {
       const id = randomUUID();
       await prisma.$executeRaw`
-        INSERT INTO "MemoryEmbedding" ("id", "memoryId", "provider", "model", "dimensions", "contentHash", "embedding", "createdAt", "updatedAt")
+        INSERT INTO "memory_embeddings" ("id", "memoryId", "provider", "model", "dimensions", "contentHash", "embedding", "createdAt", "updatedAt")
         VALUES (${id}, ${memoryId}, ${provider}, ${model}, ${dimensions}, ${contentHash}, ${vectorLiteral}::vector, NOW(), NOW())
       `;
     }
@@ -42,8 +42,8 @@ export class PgVectorMemoryIndex implements VectorMemoryIndex {
       SELECT
         me."memoryId"  AS memory_id,
         1 - (me."embedding" <=> ${vectorLiteral}::vector) AS score
-      FROM "MemoryEmbedding" me
-      JOIN "Memory" m ON m."id" = me."memoryId"
+      FROM "memory_embeddings" me
+      JOIN "memories" m ON m."id" = me."memoryId"
       WHERE
         me."provider"   = ${provider}
         AND me."model"      = ${model}

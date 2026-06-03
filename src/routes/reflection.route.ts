@@ -1,17 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { reflectionService } from "../reflection/reflection.service.js";
 import { reflectionProposalService } from "../reflection/reflection-proposal.service.js";
-import { isOwner } from "../tools/policy/owner-check.js";
 import { prisma } from "../db/prisma.js";
 import { env } from "../utils/env.js";
-
-async function requireOwner(userId: string | undefined): Promise<void> {
-  if (!userId || !isOwner(userId)) {
-    throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-  }
-}
+import { requireAdminAuth } from "./admin-auth.js";
 
 export async function reflectionRoute(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", async (request) => {
+    requireAdminAuth(request);
+  });
+
   // POST /v1/reflection/run — create job and run immediately
   app.post("/v1/reflection/run", async (request, reply) => {
     const body = request.body as {
@@ -20,7 +18,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
       conversation_id?: string;
       message_limit?: number;
     };
-    await requireOwner(body.user_id);
 
     if (!env.REFLECTION_ENABLED) {
       return reply.status(503).send({ error: "Reflection is disabled" });
@@ -29,6 +26,7 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
     const report = await reflectionService.runManualReflection({
       scope: (body.scope ?? "conversation") as never,
       triggerType: "manual",
+      userId: body.scope === "user" ? body.user_id : undefined,
       conversationId: body.conversation_id,
       messageLimit: body.message_limit,
     });
@@ -44,11 +42,11 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
       conversation_id?: string;
       message_limit?: number;
     };
-    await requireOwner(body.user_id);
 
     const job = await reflectionService.createJob({
       scope: (body.scope ?? "conversation") as never,
       triggerType: "manual",
+      userId: body.scope === "user" ? body.user_id : undefined,
       conversationId: body.conversation_id,
       messageLimit: body.message_limit,
     });
@@ -59,7 +57,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // POST /v1/reflection/jobs/:jobId/run
   app.post("/v1/reflection/jobs/:jobId/run", async (request, reply) => {
     const body = request.body as { user_id?: string };
-    await requireOwner(body.user_id);
 
     const { jobId } = request.params as { jobId: string };
     const report = await reflectionService.runJob(jobId);
@@ -69,7 +66,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // GET /v1/reflection/reports
   app.get("/v1/reflection/reports", async (request, reply) => {
     const query = request.query as { user_id?: string; limit?: string };
-    await requireOwner(query.user_id);
 
     const reports = await reflectionService.listReports(
       parseInt(query.limit ?? "20", 10)
@@ -80,7 +76,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // GET /v1/reflection/reports/:reportId
   app.get("/v1/reflection/reports/:reportId", async (request, reply) => {
     const query = request.query as { user_id?: string };
-    await requireOwner(query.user_id);
 
     const { reportId } = request.params as { reportId: string };
     const report = await reflectionService.getReport(reportId);
@@ -102,7 +97,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
       status?: string;
       limit?: string;
     };
-    await requireOwner(query.user_id);
 
     const proposals = await reflectionProposalService.listProposals({
       status: query.status,
@@ -114,7 +108,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // POST /v1/reflection/proposals/:proposalId/approve
   app.post("/v1/reflection/proposals/:proposalId/approve", async (request, reply) => {
     const body = request.body as { user_id?: string };
-    await requireOwner(body.user_id);
 
     const { proposalId } = request.params as { proposalId: string };
     const proposal = await reflectionProposalService.approveProposal(
@@ -127,7 +120,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // POST /v1/reflection/proposals/:proposalId/reject
   app.post("/v1/reflection/proposals/:proposalId/reject", async (request, reply) => {
     const body = request.body as { user_id?: string; reason?: string };
-    await requireOwner(body.user_id);
 
     const { proposalId } = request.params as { proposalId: string };
     const proposal = await reflectionProposalService.rejectProposal(
@@ -141,7 +133,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // POST /v1/reflection/proposals/:proposalId/apply
   app.post("/v1/reflection/proposals/:proposalId/apply", async (request, reply) => {
     const body = request.body as { user_id?: string };
-    await requireOwner(body.user_id);
 
     const { proposalId } = request.params as { proposalId: string };
     const proposal = await reflectionProposalService.applyProposal(
@@ -158,7 +149,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
       status?: string;
       limit?: string;
     };
-    await requireOwner(query.user_id);
 
     const risks = await prisma.reflectionRiskFlag.findMany({
       where: query.status ? { status: query.status } : undefined,

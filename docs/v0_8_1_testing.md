@@ -19,6 +19,12 @@
 
    服务会在 `http://localhost:64100` 启动。
 
+4. **管理接口鉴权**：
+   下方 `/v1/read-page`、`/v1/search`、`/v1/external-inbox` 等外部世界感知接口需要在 `.env` 配置 `ADMIN_API_TOKEN`，调用时带上：
+   ```bash
+   -H "Authorization: Bearer $ADMIN_API_TOKEN"
+   ```
+
 ---
 
 ## 测试 1：Jina AI Reader（最简单，无需配置）
@@ -310,7 +316,7 @@ curl "http://localhost:64100/v1/external-inbox?user_id=telegram:123456"
 
 ### 1. 403 Forbidden
 
-检查 `user_id` 是否在 `.env` 的 `OWNER_USER_IDS` 里。默认是 `telegram:123456`。
+检查请求是否带了 `Authorization: Bearer $ADMIN_API_TOKEN`，以及 `.env` 是否配置了 `ADMIN_API_TOKEN`。
 
 ### 2. Playwright not installed
 

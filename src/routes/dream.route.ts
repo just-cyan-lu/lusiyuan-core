@@ -3,17 +3,15 @@
 import type { FastifyInstance } from "fastify";
 import { dreamService } from "../dream/dream.service.js";
 import { morningBriefService } from "../dream/morning-brief.service.js";
-import { isOwner } from "../tools/policy/owner-check.js";
 import { prisma } from "../db/prisma.js";
 import { env } from "../utils/env.js";
-
-async function requireOwner(userId: string | undefined): Promise<void> {
-  if (!userId || !isOwner(userId)) {
-    throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-  }
-}
+import { requireAdminAuth } from "./admin-auth.js";
 
 export async function dreamRoute(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", async (request) => {
+    requireAdminAuth(request);
+  });
+
   // POST /v1/dream/run — run a daily dream cycle immediately
   app.post("/v1/dream/run", async (request, reply) => {
     const body = request.body as {
@@ -23,7 +21,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
       to?: string;
       lookback_hours?: number;
     };
-    await requireOwner(body.user_id);
 
     if (!env.DREAM_ENABLED) {
       return reply.status(503).send({ error: "Dream Cycle is disabled" });
@@ -55,7 +52,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
       from?: string;
       to?: string;
     };
-    await requireOwner(body.user_id);
 
     const job = await dreamService.createJob({
       triggerType: (body.trigger_type ?? "manual") as never,
@@ -72,7 +68,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
   app.post("/v1/dream/jobs/:jobId/run", async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const body = request.body as { user_id?: string };
-    await requireOwner(body.user_id);
 
     const result = await dreamService.runJob(jobId);
     return reply.send(result);
@@ -82,7 +77,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
   app.get("/v1/dream/jobs/:jobId", async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const query = request.query as { user_id?: string };
-    await requireOwner(query.user_id);
 
     const job = await prisma.dreamJob.findUnique({ where: { id: jobId } });
     if (!job) return reply.status(404).send({ error: "Job not found" });
@@ -92,7 +86,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
   // GET /v1/dream/daily-notes — list daily notes
   app.get("/v1/dream/daily-notes", async (request, reply) => {
     const query = request.query as { user_id?: string; limit?: string };
-    await requireOwner(query.user_id);
 
     const notes = await prisma.dailyNote.findMany({
       where: { status: "active" },
@@ -109,7 +102,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
       limit?: string;
       signal_type?: string;
     };
-    await requireOwner(query.user_id);
 
     const signals = await prisma.dreamSignal.findMany({
       where: {
@@ -125,7 +117,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
   // GET /v1/dream/diary — list dream diary entries
   app.get("/v1/dream/diary", async (request, reply) => {
     const query = request.query as { user_id?: string; limit?: string };
-    await requireOwner(query.user_id);
 
     const entries = await dreamService.listDiaryEntries({
       limit: parseInt(query.limit ?? "20", 10),
@@ -137,7 +128,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
   app.get("/v1/dream/diary/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const query = request.query as { user_id?: string };
-    await requireOwner(query.user_id);
 
     const entry = await prisma.dreamDiaryEntry.findUnique({ where: { id } });
     if (!entry) return reply.status(404).send({ error: "Diary entry not found" });
@@ -148,7 +138,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
   app.get("/v1/dream/jobs/:jobId/morning-brief", async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const query = request.query as { user_id?: string };
-    await requireOwner(query.user_id);
 
     const brief = await morningBriefService.getMorningBrief(jobId);
     if (!brief) return reply.status(404).send({ error: "Job not found" });

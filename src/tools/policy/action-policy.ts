@@ -18,11 +18,11 @@ export class ActionPolicy {
       return { allowed: false, requiresApproval: false, reason: "Owner only" };
     }
 
-    if (tool.riskLevel === "high") {
+    if (tool.riskLevel === "high" && !env.TOOLS_ALLOW_HIGH_RISK) {
       return {
         allowed: false,
         requiresApproval: true,
-        reason: "High risk tools are disabled in v0.5",
+        reason: "High risk tools are disabled",
       };
     }
 

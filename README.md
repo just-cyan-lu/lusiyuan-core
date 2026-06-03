@@ -249,10 +249,14 @@ cp .env.example .env
 # 数据库（默认值和 docker-compose.yml 一致，通常不用改）
 DATABASE_URL="postgresql://lusiyuan:password@localhost:5432/lusiyuan_core"
 
-# 对话模型（OpenAI 兼容接口）
-MODEL_BASE_URL="https://api.openai.com/v1"
-MODEL_API_KEY="your-api-key"
-MODEL_NAME="gpt-4.1-mini"
+# 管理接口鉴权 token（用于记忆、工具、反思、梦境、外部页面读取等接口）
+ADMIN_API_TOKEN="change-this-to-a-long-random-string"
+
+# 对话模型（默认 provider 是 openai）
+ACTIVE_MODEL_PROVIDER="openai"
+OPENAI_BASE_URL="https://api.openai.com/v1"
+OPENAI_API_KEY="your-api-key"
+OPENAI_MODEL="gpt-4.1-mini"
 ```
 
 ### 3. 启动数据库
@@ -389,7 +393,8 @@ pnpm tools:inspect
 ### 工具调用日志
 
 ```bash
-curl http://localhost:64100/v1/tool-logs
+curl http://localhost:64100/v1/tool-logs \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 ```
 
 ### 草稿
@@ -398,11 +403,13 @@ curl http://localhost:64100/v1/tool-logs
 
 ```bash
 # 查看草稿列表
-curl "http://localhost:64100/v1/drafts?userId=creator_lu"
+curl "http://localhost:64100/v1/drafts?userId=creator_lu" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 更新草稿状态
 curl -X PATCH http://localhost:64100/v1/drafts/<draftId>/status \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN" \
   -d '{"status": "approved"}'
 ```
 
@@ -424,7 +431,8 @@ REFLECTION_ENABLED=true
 # 立即运行（创建 job 并执行）
 curl -X POST http://localhost:64100/v1/reflection/run \
   -H "Content-Type: application/json" \
-  -d '{"userId": "creator_lu", "triggerType": "manual", "scope": "user"}'
+  -H "Authorization: Bearer $ADMIN_API_TOKEN" \
+  -d '{"user_id": "creator_lu", "scope": "user"}'
 
 # 或用 CLI 脚本
 pnpm reflection:run --daily
@@ -435,10 +443,12 @@ pnpm reflection:run --conversation=<conversationId> --limit=80
 
 ```bash
 # 列出最近报告
-curl http://localhost:64100/v1/reflection/reports
+curl http://localhost:64100/v1/reflection/reports \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 查看单份报告
-curl http://localhost:64100/v1/reflection/reports/<reportId>
+curl http://localhost:64100/v1/reflection/reports/<reportId> \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 或用 CLI 脚本
 pnpm reflection:inspect
@@ -449,16 +459,20 @@ pnpm reflection:inspect --report=<reportId>
 
 ```bash
 # 查看待审核提案
-curl http://localhost:64100/v1/reflection/proposals
+curl http://localhost:64100/v1/reflection/proposals \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 批准提案
-curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/approve
+curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/approve \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 拒绝提案
-curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/reject
+curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/reject \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 批准后写入记忆
-curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/apply
+curl -X POST http://localhost:64100/v1/reflection/proposals/<proposalId>/apply \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 或用 CLI 脚本（批量处理所有已批准的提案）
 pnpm reflection:apply --approved
@@ -467,7 +481,8 @@ pnpm reflection:apply --approved
 ### 查看风险标记
 
 ```bash
-curl http://localhost:64100/v1/reflection/risks
+curl http://localhost:64100/v1/reflection/risks \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 ```
 
 详细设计见 [docs/reflection-agent-v0.7.md](docs/reflection-agent-v0.7.md)。
@@ -490,6 +505,7 @@ DREAM_ENABLED=true
 # 立即运行（整理最近 24 小时）
 curl -X POST http://localhost:64100/v1/dream/run \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN" \
   -d '{"user_id": "creator_lu"}'
 
 # 或用 CLI 脚本
@@ -507,10 +523,12 @@ pnpm dream:inspect --latest
 pnpm dream:diary --limit=5
 
 # 查看 Daily Notes
-curl "http://localhost:64100/v1/dream/daily-notes?user_id=creator_lu"
+curl "http://localhost:64100/v1/dream/daily-notes?user_id=creator_lu" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 
 # 查看 Dream Signals
-curl "http://localhost:64100/v1/dream/signals?user_id=creator_lu"
+curl "http://localhost:64100/v1/dream/signals?user_id=creator_lu" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 ```
 
 ### 定时自动运行（可选）
@@ -551,7 +569,8 @@ curl -X POST http://localhost:64100/v1/chat \
 ### 查看用户记忆
 
 ```bash
-curl http://localhost:64100/v1/users/creator_lu/memories
+curl http://localhost:64100/v1/users/creator_lu/memories \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
 ```
 
 ### 手动添加记忆
@@ -559,6 +578,7 @@ curl http://localhost:64100/v1/users/creator_lu/memories
 ```bash
 curl -X POST http://localhost:64100/v1/users/creator_lu/memories \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN" \
   -d '{
     "type": "user_preference",
     "content": "用户希望陆思源说话轻松自然，不喜欢太抒情。",

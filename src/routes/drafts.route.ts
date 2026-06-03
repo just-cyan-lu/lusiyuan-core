@@ -1,8 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { draftService } from "../drafts/draft.service.js";
 import { prisma } from "../db/prisma.js";
+import { requireAdminAuth } from "./admin-auth.js";
 
 export async function draftsRoute(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", async (request) => {
+    requireAdminAuth(request);
+  });
+
   app.get("/v1/drafts", async (request, reply) => {
     const query = request.query as { userId?: string; limit?: string };
     const limit = Math.min(parseInt(query.limit ?? "20", 10), 100);

@@ -1,6 +1,10 @@
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
 import { env } from "../utils/env.js";
+import {
+  resolveMemoryProposalUserId,
+  type MemoryProposalUserLookup,
+} from "./memory-proposal-user-resolver.js";
 import type { MemoryProposal } from "@prisma/client";
 
 export class ReflectionProposalService {
@@ -87,9 +91,11 @@ class ReflectionApplyServiceImpl {
   }
 
   private async applyCreate(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
+    const userId = await this.resolveMemoryUserId(proposal);
+
     const memory = await prisma.memory.create({
       data: {
-        userId: null,
+        userId,
         type: proposal.type,
         scope: proposal.scope,
         content: proposal.content,
@@ -161,9 +167,10 @@ class ReflectionApplyServiceImpl {
 
     let newMemoryId: string | null = null;
     if (proposal.content) {
+      const userId = await this.resolveMemoryUserId(proposal);
       const newMemory = await prisma.memory.create({
         data: {
-          userId: null,
+          userId,
           type: proposal.type,
           scope: proposal.scope,
           content: proposal.content,
@@ -212,6 +219,66 @@ class ReflectionApplyServiceImpl {
         appliedMemoryId: proposal.targetMemoryId,
       },
     });
+  }
+
+  private async resolveMemoryUserId(proposal: MemoryProposal): Promise<string | null> {
+    const lookup: MemoryProposalUserLookup = {
+      findTargetMemoryUserId: async (memoryId) => {
+        const target = await prisma.memory.findUnique({
+          where: { id: memoryId },
+          select: { userId: true },
+        });
+        return target?.userId ?? null;
+      },
+      findSourceMessageUserId: async (messageIds) => {
+        const sourceMessage = await prisma.message.findFirst({
+          where: { id: { in: messageIds } },
+          select: {
+            conversation: {
+              select: { userId: true },
+            },
+          },
+        });
+        return sourceMessage?.conversation.userId ?? null;
+      },
+      findReportJobScope: async (reportId) => {
+        const report = await prisma.reflectionReport.findUnique({
+          where: { id: reportId },
+          select: {
+            job: {
+              select: {
+                userId: true,
+                conversationId: true,
+              },
+            },
+          },
+        });
+        return report?.job ?? null;
+      },
+      findUserInternalId: async (idOrExternalId) => {
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [{ id: idOrExternalId }, { externalId: idOrExternalId }],
+          },
+          select: { id: true },
+        });
+        return user?.id ?? null;
+      },
+      findConversationUserId: async (idOrExternalId) => {
+        const conversation = await prisma.conversation.findFirst({
+          where: {
+            OR: [
+              { id: idOrExternalId },
+              { externalConversationId: idOrExternalId },
+            ],
+          },
+          select: { userId: true },
+        });
+        return conversation?.userId ?? null;
+      },
+    };
+
+    return resolveMemoryProposalUserId(proposal, lookup);
   }
 }
 

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { chat } from "../core/chat.service.js";
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
+import { requireAdminAuth } from "./admin-auth.js";
 import type { MemoryType } from "../types/memory.js";
 
 const chatBodySchema = {
@@ -48,6 +49,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
   );
 
   app.get("/v1/users/:userId/memories", async (request, reply) => {
+    requireAdminAuth(request);
     const { userId } = request.params as { userId: string };
 
     const user = await prisma.user.findUnique({ where: { externalId: userId } });
@@ -63,6 +65,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
     "/v1/users/:userId/memories",
     { schema: { body: addMemoryBodySchema } },
     async (request, reply) => {
+      requireAdminAuth(request);
       const { userId } = request.params as { userId: string };
       const body = request.body as {
         type: string;

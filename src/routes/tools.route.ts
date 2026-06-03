@@ -1,11 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { toolRegistry } from "../tools/tool-registry.js";
 import { toolExecutor } from "../tools/tool-executor.js";
-import { isOwner } from "../tools/policy/owner-check.js";
 import { prisma } from "../db/prisma.js";
+import { requireAdminAuth } from "./admin-auth.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 
 export async function toolsRoute(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", async (request) => {
+    requireAdminAuth(request);
+  });
+
   app.get("/v1/tools", async (_request, reply) => {
     const tools = toolRegistry.listAll().map((t) => ({
       name: t.name,
@@ -41,7 +45,7 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
       userId: user.id,
       channel: body.channel ?? "api",
       conversationId: body.conversationId,
-      isOwner: isOwner(user.id),
+      isOwner: true,
     };
 
     const result = await toolExecutor.execute({
