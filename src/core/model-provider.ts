@@ -1,7 +1,22 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../utils/env.js";
-import type { ChatMessage, ModelProvider, ToolDefinitionForLLM, MessageContent, MessageContentPart } from "../types/model.js";
+import {
+  applyMiniMaxMetadata,
+  buildMiniMaxRequestFields,
+  extractMiniMaxMessageMetadata,
+  isMiniMaxM3Model,
+  isMiniMaxProvider,
+  type MiniMaxRuntimeOptions,
+} from "./minimax-provider.js";
+import type {
+  ChatMessage,
+  ChatMessageProviderMetadata,
+  ModelProvider,
+  ToolDefinitionForLLM,
+  MessageContent,
+  MessageContentPart,
+} from "../types/model.js";
 
 interface ProviderConfig {
   type: "openai-compatible" | "anthropic";
@@ -9,6 +24,20 @@ interface ProviderConfig {
   apiKey: string;
   model: string;
 }
+
+type OpenAICompatibleMessageParam = Record<string, unknown>;
+
+type OpenAICompatibleRequest =
+  OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & Record<string, unknown>;
+
+type OpenAIContentPart =
+  | OpenAI.Chat.Completions.ChatCompletionContentPart
+  | {
+      type: "video_url";
+      video_url: {
+        url: string;
+      };
+    };
 
 /**
  * Get the active provider configuration based on ACTIVE_MODEL_PROVIDER.
@@ -43,6 +72,14 @@ function getActiveProviderConfig(): ProviderConfig {
   return { type: config.type, baseURL: config.baseURL, apiKey: config.apiKey, model: config.model };
 }
 
+function getMiniMaxRuntimeOptions(): MiniMaxRuntimeOptions {
+  return {
+    thinkingType: env.MINIMAX_THINKING_TYPE === "disabled" ? "disabled" : "adaptive",
+    reasoningSplit: env.MINIMAX_REASONING_SPLIT,
+    maxCompletionTokens: env.MINIMAX_MAX_COMPLETION_TOKENS,
+  };
+}
+
 /**
  * Strip <think>...</think> blocks emitted by reasoning models.
  * Handles three cases:
@@ -68,22 +105,23 @@ function stripThinkTags(text: string): string {
 
 /**
  * Convert our internal MessageContent format to OpenAI's format.
- * OpenAI uses: { type: "text", text: "..." } | { type: "image_url", image_url: { url: "data:..." } }
+ * OpenAI-compatible APIs use text, image_url, and provider-specific content parts.
  */
-function convertContentToOpenAI(content: MessageContent): string | Array<OpenAI.Chat.Completions.ChatCompletionContentPart> {
+function convertContentToOpenAI(content: MessageContent): string | OpenAIContentPart[] {
   if (typeof content === "string") {
     return content;
   }
 
   // Multimodal content
-  return content.map((part) => {
+  return content.map((part): OpenAIContentPart => {
     if (part.type === "text") {
       return {
         type: "text" as const,
         text: part.text ?? "",
       };
-    } else {
-      // image
+    }
+
+    if (part.type === "image") {
       const dataUrl = `data:${part.image!.mimeType};base64,${part.image!.data}`;
       return {
         type: "image_url" as const,
@@ -92,13 +130,38 @@ function convertContentToOpenAI(content: MessageContent): string | Array<OpenAI.
         },
       };
     }
+
+    const videoUrl = part.video!.data
+      ? `data:${part.video!.mimeType ?? "video/mp4"};base64,${part.video!.data}`
+      : part.video!.url;
+    return {
+      type: "video_url",
+      video_url: {
+        url: videoUrl,
+      },
+    };
   });
+}
+
+function stripUnsupportedMediaParts(
+  content: MessageContent,
+  supportsVision: boolean
+): MessageContent {
+  if (typeof content === "string" || supportsVision) {
+    return content;
+  }
+
+  const textParts = content.filter((part) => part.type === "text");
+  return textParts.length > 0 ? textParts.map((p) => p.text ?? "").join("\n") : "";
 }
 
 class OpenAICompatibleProvider implements ModelProvider {
   private client: OpenAI;
   private model: string;
   private providerName: string;
+  private isMiniMax: boolean;
+  private isMiniMaxM3: boolean;
+  private miniMaxRuntimeOptions: MiniMaxRuntimeOptions;
   public capabilities: import("../types/model.js").ProviderCapabilities;
 
   constructor(config: ProviderConfig) {
@@ -108,65 +171,78 @@ class OpenAICompatibleProvider implements ModelProvider {
     });
     this.model = config.model;
     this.providerName = env.ACTIVE_MODEL_PROVIDER;
+    this.isMiniMax = isMiniMaxProvider(this.providerName);
+    this.isMiniMaxM3 = this.isMiniMax && isMiniMaxM3Model(this.model);
+    this.miniMaxRuntimeOptions = getMiniMaxRuntimeOptions();
 
-    // MiniMax doesn't support returning content alongside tool_calls
     this.capabilities = {
-      supportsContentWithToolCalls: this.providerName.toLowerCase() !== "minimax",
+      supportsContentWithToolCalls: !this.isMiniMax || this.isMiniMaxM3,
+      supportsVision: !this.isMiniMax || this.isMiniMaxM3,
+      requestsToolReactionFallback: this.isMiniMax,
     };
   }
 
   /**
    * Convert our ChatMessage[] to OpenAI's format, handling multimodal content.
-   * For MiniMax (which doesn't support vision), strip images from content.
+   * Older MiniMax text models do not support vision, but MiniMax-M3 does.
    */
-  private convertMessages(messages: ChatMessage[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-    const isMiniMax = this.providerName === "minimax";
-
+  private convertMessages(messages: ChatMessage[]): OpenAICompatibleMessageParam[] {
     return messages.map((msg) => {
-      let content = msg.content;
+      const content = stripUnsupportedMediaParts(
+        msg.content,
+        this.capabilities.supportsVision
+      );
 
-      // Strip images for MiniMax
-      if (isMiniMax && Array.isArray(content)) {
-        const textParts = content.filter((part) => part.type === "text");
-        content = textParts.length > 0 ? textParts.map((p) => p.text ?? "").join("\n") : "";
-      }
-
-      const base = {
+      const base: OpenAICompatibleMessageParam = {
         role: msg.role,
         content: convertContentToOpenAI(content),
       };
 
+      if (this.isMiniMax) {
+        applyMiniMaxMetadata(base, msg.providerMetadata);
+      }
+
       if (msg.tool_call_id) {
-        return { ...base, tool_call_id: msg.tool_call_id } as OpenAI.Chat.Completions.ChatCompletionMessageParam;
+        return { ...base, tool_call_id: msg.tool_call_id };
       }
 
       if (msg.tool_calls) {
         return {
           ...base,
           tool_calls: msg.tool_calls as OpenAI.Chat.Completions.ChatCompletionMessageToolCall[],
-        } as OpenAI.Chat.Completions.ChatCompletionMessageParam;
+        };
       }
 
-      return base as OpenAI.Chat.Completions.ChatCompletionMessageParam;
+      return base;
     });
   }
 
-  async chat(messages: ChatMessage[]): Promise<string> {
-    const response = await this.client.chat.completions.create({
+  private buildRequest(params: Record<string, unknown>): OpenAICompatibleRequest {
+    return {
       model: this.model,
+      ...buildMiniMaxRequestFields(
+        this.providerName,
+        this.model,
+        this.miniMaxRuntimeOptions
+      ),
+      ...params,
+    } as OpenAICompatibleRequest;
+  }
+
+  async chat(messages: ChatMessage[]): Promise<string> {
+    const response = await this.client.chat.completions.create(this.buildRequest({
       messages: this.convertMessages(messages),
-    });
+    }));
     const raw = response.choices[0]?.message?.content ?? "";
     console.log("[chat raw]\n" + raw + "\n[/chat raw]");
     return stripThinkTags(raw);
   }
 
   async chatJson<T>(messages: ChatMessage[]): Promise<T> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
+    const response = await this.client.chat.completions.create(this.buildRequest({
       messages: this.convertMessages(messages),
-      response_format: { type: "json_object" },
-    });
+      ...(this.isMiniMax ? {} : { response_format: { type: "json_object" as const } }),
+    }));
     const raw = response.choices[0]?.message?.content ?? "{}";
     const cleaned = stripThinkTags(raw);
     // Extract JSON object/array if model wrapped it in prose
@@ -185,17 +261,19 @@ class OpenAICompatibleProvider implements ModelProvider {
     tools: ToolDefinitionForLLM[]
   ): Promise<{
     content: string | null;
+    rawContent?: string | null;
+    providerMetadata?: ChatMessageProviderMetadata;
     tool_calls?: Array<{
       id: string;
       type: "function";
+      index?: number;
       function: { name: string; arguments: string };
     }>;
   }> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
+    const response = await this.client.chat.completions.create(this.buildRequest({
       messages: this.convertMessages(messages),
       tools: tools as OpenAI.Chat.Completions.ChatCompletionTool[],
-    });
+    }));
 
     const message = response.choices[0]?.message;
     if (!message) {
@@ -205,22 +283,37 @@ class OpenAICompatibleProvider implements ModelProvider {
     // Log full message for debugging (includes thinking/reasoning_content if present)
     console.log("[chat with tools - full message]", JSON.stringify(message, null, 2).slice(0, 1000));
 
-    const content = message.content ? stripThinkTags(message.content) : null;
-    const tool_calls = message.tool_calls?.map((tc) => ({
-      id: tc.id,
-      type: tc.type as "function",
-      function: {
-        name: tc.function.name,
-        arguments: tc.function.arguments,
-      },
-    }));
+    const rawContent = message.content ?? null;
+    const content = rawContent ? stripThinkTags(rawContent) : null;
+    const providerMetadata = this.isMiniMax
+      ? { minimax: extractMiniMaxMessageMetadata(message as unknown as Record<string, unknown>) }
+      : undefined;
+    const tool_calls = message.tool_calls?.map((tc) => {
+      const toolCallWithIndex = tc as typeof tc & { index?: number };
+      return {
+        id: tc.id,
+        type: tc.type as "function",
+        ...(typeof toolCallWithIndex.index === "number"
+          ? { index: toolCallWithIndex.index }
+          : {}),
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+        },
+      };
+    });
 
     console.log("[chat with tools]", {
       content: content?.slice(0, 100),
       tool_calls: tool_calls?.map((tc) => tc.function.name),
     });
 
-    return { content, tool_calls };
+    return {
+      content,
+      rawContent,
+      providerMetadata: providerMetadata?.minimax ? providerMetadata : undefined,
+      tool_calls,
+    };
   }
 }
 
@@ -266,6 +359,8 @@ class AnthropicProvider implements ModelProvider {
     // Anthropic supports content alongside tool_calls
     this.capabilities = {
       supportsContentWithToolCalls: true,
+      supportsVision: true,
+      requestsToolReactionFallback: false,
     };
   }
 
@@ -367,6 +462,7 @@ class AnthropicProvider implements ModelProvider {
     tool_calls?: Array<{
       id: string;
       type: "function";
+      index?: number;
       function: { name: string; arguments: string };
     }>;
   }> {
