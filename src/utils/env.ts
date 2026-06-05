@@ -6,6 +6,17 @@ function requireEnv(key: string): string {
   return val;
 }
 
+function optionalPositiveInt(key: string): number | undefined {
+  const val = process.env[key];
+  if (!val) return undefined;
+
+  const parsed = parseInt(val, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid positive integer environment variable: ${key}`);
+  }
+  return parsed;
+}
+
 export const env = {
   DATABASE_URL: requireEnv("DATABASE_URL"),
   PORT: parseInt(process.env.PORT ?? "64100", 10),
@@ -49,6 +60,10 @@ export const env = {
   MINIMAX_BASE_URL: process.env.MINIMAX_BASE_URL ?? "",
   MINIMAX_API_KEY: process.env.MINIMAX_API_KEY ?? "",
   MINIMAX_MODEL: process.env.MINIMAX_MODEL ?? "",
+  MINIMAX_THINKING_TYPE: process.env.MINIMAX_THINKING_TYPE ?? "adaptive",
+  MINIMAX_REASONING_SPLIT: process.env.MINIMAX_REASONING_SPLIT === "true",
+  MINIMAX_MAX_COMPLETION_TOKENS:
+    optionalPositiveInt("MINIMAX_MAX_COMPLETION_TOKENS"),
 
   // SiliconFlow (硅基流动) — unified endpoint for GLM, Qwen, DeepSeek, etc.
   SILICONFLOW_BASE_URL: process.env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1",
@@ -59,6 +74,18 @@ export const env = {
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? "",
   TELEGRAM_MODE: process.env.TELEGRAM_MODE ?? "polling",
   TELEGRAM_PROXY: process.env.TELEGRAM_PROXY ?? "",
+  TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS: parseInt(
+    process.env.TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS ?? "30000",
+    10
+  ),
+  TELEGRAM_FILE_DOWNLOAD_RETRIES: parseInt(
+    process.env.TELEGRAM_FILE_DOWNLOAD_RETRIES ?? "2",
+    10
+  ),
+  TELEGRAM_MAX_IMAGE_FILE_BYTES: parseInt(
+    process.env.TELEGRAM_MAX_IMAGE_FILE_BYTES ?? String(10 * 1024 * 1024),
+    10
+  ),
 
   WEIXIN_ENABLED: process.env.WEIXIN_ENABLED === "true",
   WEIXIN_BRIDGE_SECRET: process.env.WEIXIN_BRIDGE_SECRET ?? "",

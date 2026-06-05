@@ -4,13 +4,29 @@
 export type MessageContent = string | MessageContentPart[];
 
 export interface MessageContentPart {
-  type: "text" | "image";
+  type: "text" | "image" | "video";
   text?: string;
   image?: {
     data: string;      // base64 encoded image data (without data:image/xxx;base64, prefix)
     mimeType: string;  // e.g., "image/jpeg", "image/png", "image/webp"
     url?: string;      // optional original URL or file path
   };
+  video?: {
+    data?: string;      // optional base64 encoded video data
+    mimeType?: string;  // e.g., "video/mp4", "video/mov"
+    url: string;        // URL or data URL
+  };
+}
+
+export interface MiniMaxMessageMetadata {
+  reasoningContent?: string;
+  reasoningDetails?: unknown[];
+  audioContent?: string;
+  name?: string;
+}
+
+export interface ChatMessageProviderMetadata {
+  minimax?: MiniMaxMessageMetadata;
 }
 
 export interface ChatMessage {
@@ -20,11 +36,13 @@ export interface ChatMessage {
   tool_calls?: Array<{
     id: string;
     type: "function";
+    index?: number;
     function: {
       name: string;
       arguments: string;
     };
   }>;
+  providerMetadata?: ChatMessageProviderMetadata;
 }
 
 export interface ToolDefinitionForLLM {
@@ -46,6 +64,16 @@ export interface ProviderCapabilities {
    * Some providers (e.g., MiniMax) always return empty content when making tool calls.
    */
   supportsContentWithToolCalls: boolean;
+  /**
+   * Whether this provider can receive multimodal content parts from our chat
+   * representation without stripping images.
+   */
+  supportsVision: boolean;
+  /**
+   * Whether to ask for a short natural-language reaction when tool calls contain
+   * no visible text. MiniMax-M3 often returns only thinking content before tools.
+   */
+  requestsToolReactionFallback: boolean;
 }
 
 export interface ModelProvider {
@@ -57,9 +85,12 @@ export interface ModelProvider {
     tools: ToolDefinitionForLLM[]
   ): Promise<{
     content: string | null;
+    rawContent?: string | null;
+    providerMetadata?: ChatMessageProviderMetadata;
     tool_calls?: Array<{
       id: string;
       type: "function";
+      index?: number;
       function: {
         name: string;
         arguments: string;

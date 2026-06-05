@@ -185,11 +185,12 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         }
       }
 
-      // For providers that don't support content+tool_calls (e.g., MiniMax),
-      // make an extra LLM call to get an immediate reaction before executing tools.
-      if (!modelProvider.capabilities.supportsContentWithToolCalls &&
+      // Some providers return only hidden thinking before tool calls. In that
+      // case, ask for a short visible reaction so the chat feels responsive.
+      if ((!modelProvider.capabilities.supportsContentWithToolCalls ||
+          modelProvider.capabilities.requestsToolReactionFallback) &&
           (!response.content || response.content.trim().length === 0)) {
-        console.log(`[chat] provider doesn't support content+tool_calls, requesting immediate reaction`);
+        console.log(`[chat] provider returned no visible tool-call content, requesting immediate reaction`);
 
         // Build a focused prompt to get a short immediate reaction
         const reactionPrompt: ChatMessage[] = [
@@ -232,8 +233,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       // Add assistant message with tool calls to conversation
       conversationMessages.push({
         role: "assistant",
-        content: response.content ?? "",
+        content: response.rawContent ?? response.content ?? "",
         tool_calls: response.tool_calls,
+        providerMetadata: response.providerMetadata,
       });
 
       // Execute each tool call

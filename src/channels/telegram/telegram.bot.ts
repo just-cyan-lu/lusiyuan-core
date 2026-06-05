@@ -10,6 +10,8 @@ import type { MessageContentPart } from "../../types/model.js";
 const OWNER_IDS = new Set(env.OWNER_USER_IDS);
 const conversationSessions = new Map<number, string>();
 
+class TelegramImageTooLargeError extends Error {}
+
 function getConversationId(chatId: number): string {
   return conversationSessions.get(chatId) ?? `telegram:${chatId}`;
 }
@@ -32,6 +34,40 @@ export function createTelegramBot(token: string) {
     : {};
 
   const bot = new Bot(token, botOptions);
+
+  async function loadTelegramImagePart(
+    fileId: string,
+    fileSize?: number,
+    fallbackMimeType?: string
+  ): Promise<MessageContentPart> {
+    if (fileSize && fileSize > env.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
+      throw new TelegramImageTooLargeError(
+        `Telegram image is too large: ${fileSize} bytes`
+      );
+    }
+
+    const fileInfo = await bot.api.getFile(fileId);
+    const telegramFile = fileInfo as { file_path?: string; file_size?: number };
+    const resolvedSize = fileSize ?? telegramFile.file_size;
+    if (resolvedSize && resolvedSize > env.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
+      throw new TelegramImageTooLargeError(
+        `Telegram image is too large: ${resolvedSize} bytes`
+      );
+    }
+    if (!telegramFile.file_path) {
+      throw new Error("Telegram file_path is missing");
+    }
+
+    const fileUrl = `https://api.telegram.org/file/bot${token}/${telegramFile.file_path}`;
+    const imageData = await imageService.loadFromUrl(fileUrl, {
+      proxyUrl: env.EXTERNAL_HTTP_PROXY,
+      timeoutMs: env.TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS,
+      retries: env.TELEGRAM_FILE_DOWNLOAD_RETRIES,
+      fallbackMimeType: fallbackMimeType ?? imageService.inferMimeTypeFromPath(telegramFile.file_path),
+    });
+
+    return imageService.toContentPart(imageData);
+  }
 
   bot.command("start", async (ctx) => {
     await ctx.reply(
@@ -129,11 +165,7 @@ export function createTelegramBot(token: string) {
       // Pick the highest-resolution photo variant
       const photos = message.photo;
       const photo = photos[photos.length - 1];
-      const fileInfo = await ctx.api.getFile(photo.file_id);
-      const fileUrl = `https://api.telegram.org/file/bot${token}/${fileInfo.file_path}`;
-
-      const imageData = await imageService.loadFromUrl(fileUrl);
-      const imagePart: MessageContentPart = imageService.toContentPart(imageData);
+      const imagePart = await loadTelegramImagePart(photo.file_id, photo.file_size);
 
       const caption = message.caption ?? "（用户发送了一张图片）";
 
@@ -157,7 +189,60 @@ export function createTelegramBot(token: string) {
       await ctx.reply(result.reply);
     } catch (err) {
       console.error("Telegram photo handling failed:", err);
-      await ctx.reply("图片处理出了点问题，稍后再试试？");
+      const text = err instanceof TelegramImageTooLargeError
+        ? "这张图片太大了，请压缩到 10MB 以内再发我。"
+        : "图片处理出了点问题，稍后再试试？";
+      await ctx.reply(text);
+    }
+  });
+
+  // Handle images sent as Telegram documents/files.
+  bot.on("message:document", async (ctx) => {
+    const from = ctx.from;
+    const chatCtx = ctx.chat;
+    const message = ctx.message;
+    const document = message.document;
+
+    if (chatCtx.type !== "private") return;
+
+    const mimeType = document.mime_type ?? "";
+    if (!mimeType.startsWith("image/")) {
+      await ctx.reply("我现在还只能处理图片文件，普通文件暂时看不了。");
+      return;
+    }
+
+    try {
+      const imagePart = await loadTelegramImagePart(
+        document.file_id,
+        document.file_size,
+        mimeType
+      );
+      const caption = message.caption ?? "（用户发送了一张图片文件）";
+
+      const result = await chat({
+        user_id: `telegram:${from?.id ?? chatCtx.id}`,
+        channel: "telegram",
+        conversation_id: getConversationId(chatCtx.id),
+        message: caption,
+        images: [imagePart],
+        external_message_id: String(message.message_id),
+        display_name: from?.username ?? from?.first_name,
+        raw_event: message,
+        onIntermediateMessage: async (content: string, delayMs: number) => {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          await ctx.reply(content);
+        },
+      });
+
+      if (result.duplicated) return;
+
+      await ctx.reply(result.reply);
+    } catch (err) {
+      console.error("Telegram document image handling failed:", err);
+      const text = err instanceof TelegramImageTooLargeError
+        ? "这张图片文件太大了，请压缩到 10MB 以内再发我。"
+        : "图片文件处理出了点问题，稍后再试试？";
+      await ctx.reply(text);
     }
   });
 

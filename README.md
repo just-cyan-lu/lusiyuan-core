@@ -259,6 +259,23 @@ OPENAI_API_KEY="your-api-key"
 OPENAI_MODEL="gpt-4.1-mini"
 ```
 
+使用 MiniMax-M3 时：
+
+```env
+ACTIVE_MODEL_PROVIDER="minimax"
+MINIMAX_BASE_URL="https://api.minimax.io/v1"
+MINIMAX_API_KEY="your-api-key"
+MINIMAX_MODEL="MiniMax-M3"
+MINIMAX_THINKING_TYPE="adaptive"
+MINIMAX_REASONING_SPLIT=false
+MINIMAX_MAX_COMPLETION_TOKENS=8192
+```
+
+`MINIMAX_REASONING_SPLIT=false` 会让 MiniMax 把 thinking 保留在 assistant
+content 中；服务会保存这份 raw content 给下一轮工具调用，同时对用户隐藏
+`<think>` 内容。开启 split 时，服务会回传 `reasoning_content` /
+`reasoning_details` 给 MiniMax。
+
 ### 3. 启动数据库
 
 ```bash
@@ -301,6 +318,10 @@ TELEGRAM_BOT_TOKEN="your-bot-token"
 TELEGRAM_MODE="polling"
 # 如果在国内需要代理访问 Telegram：
 TELEGRAM_PROXY="http://127.0.0.1:7890"
+# Telegram 文件下载也会走代理；如需单独指定外部下载代理，可设置 EXTERNAL_HTTP_PROXY。
+TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS=30000
+TELEGRAM_FILE_DOWNLOAD_RETRIES=2
+TELEGRAM_MAX_IMAGE_FILE_BYTES=10485760
 ```
 
 另开终端启动：
@@ -624,7 +645,7 @@ src/
 │   ├── memory-retrieval.service.ts  # v0.4 语义检索
 │   ├── memory-reranker.ts        # v0.4 规则重排
 │   ├── memory-budget.ts          # v0.4 记忆预算控制
-│   ├── model-provider.ts         # OpenAI-compatible 模型调用
+│   ├── model-provider.ts         # 多 provider 模型调用（OpenAI-compatible / Anthropic / MiniMax-M3）
 │   └── safety.ts                 # 输入校验与输出清理
 ├── tools/                  # v0.5 工具调用层
 │   ├── tool.types.ts             # 核心类型定义
