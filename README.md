@@ -304,6 +304,22 @@ pnpm dev
 
 服务监听 `http://localhost:64100`。
 
+### 6. 快速验收
+
+服务启动后可以跑一轮 smoke test：
+
+```bash
+pnpm smoke
+```
+
+如果要真实调用当前配置的 LLM：
+
+```bash
+SMOKE_RUN_CHAT=true pnpm smoke
+```
+
+完整手工验收清单见 [docs/smoke_test.md](docs/smoke_test.md)。
+
 ---
 
 ## 可选渠道
