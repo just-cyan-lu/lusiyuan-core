@@ -48,9 +48,51 @@ export interface RuntimeConfig {
   limits: Record<string, number>;
 }
 
+export type MemoryProposalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "applied"
+  | "ignored";
+
+export interface MemoryProposal {
+  id: string;
+  reportId: string;
+  userId: string | null;
+  conversationId: string | null;
+  channel: string | null;
+  proposalType: string;
+  targetMemoryId: string | null;
+  scope: string;
+  type: string;
+  content: string;
+  summary: string | null;
+  tags: unknown;
+  entities: unknown;
+  reason: string;
+  confidence: number;
+  riskLevel: "low" | "medium" | "high" | string;
+  status: MemoryProposalStatus | string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  appliedMemoryId: string | null;
+  sourceMessageIds: unknown;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   if (!response.ok) {
     const text = await response.text();
+    if (text) {
+      try {
+        const data = JSON.parse(text) as { error?: string };
+        if (data.error) throw new Error(data.error);
+      } catch (error) {
+        if (error instanceof Error && error.name === "Error") throw error;
+      }
+    }
     throw new Error(text || fallbackMessage);
   }
   return response.json() as Promise<T>;
@@ -92,6 +134,145 @@ export async function fetchRuntimeConfig(token: string): Promise<RuntimeConfig> 
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeConfig>(response, "无法读取运行配置");
+}
+
+export async function fetchMemoryProposals(input: {
+  token: string;
+  status?: string;
+  limit?: number;
+}): Promise<MemoryProposal[]> {
+  const params = new URLSearchParams();
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/proposals?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  const data = await parseJsonResponse<{ proposals: MemoryProposal[] }>(
+    response,
+    "无法读取记忆提案"
+  );
+  return data.proposals ?? [];
+}
+
+export async function approveMemoryProposal(input: {
+  token: string;
+  proposalId: string;
+  reviewerId?: string;
+}): Promise<MemoryProposal> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/approve`,
+    {
+      method: "POST",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
+    }
+  );
+  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
+    response,
+    "批准提案失败"
+  );
+  return data.proposal;
+}
+
+export async function rejectMemoryProposal(input: {
+  token: string;
+  proposalId: string;
+  reason?: string;
+  reviewerId?: string;
+}): Promise<MemoryProposal> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/reject`,
+    {
+      method: "POST",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: input.reviewerId ?? "admin:web",
+        reason: input.reason,
+      }),
+    }
+  );
+  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
+    response,
+    "拒绝提案失败"
+  );
+  return data.proposal;
+}
+
+export async function applyMemoryProposal(input: {
+  token: string;
+  proposalId: string;
+  reviewerId?: string;
+}): Promise<MemoryProposal> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/apply`,
+    {
+      method: "POST",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
+    }
+  );
+  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
+    response,
+    "应用提案失败"
+  );
+  return data.proposal;
+}
+
+export async function applyMemoryProposalGlobally(input: {
+  token: string;
+  proposalId: string;
+  reviewerId?: string;
+}): Promise<MemoryProposal> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/apply-global`,
+    {
+      method: "POST",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
+    }
+  );
+  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
+    response,
+    "全局应用提案失败"
+  );
+  return data.proposal;
+}
+
+export async function revokeMemoryProposal(input: {
+  token: string;
+  proposalId: string;
+  reviewerId?: string;
+}): Promise<MemoryProposal> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/revoke`,
+    {
+      method: "POST",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
+    }
+  );
+  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
+    response,
+    "撤回提案失败"
+  );
+  return data.proposal;
 }
 
 export async function fetchConversationMessages(
