@@ -12,6 +12,7 @@ import { toolsRoute } from "./routes/tools.route.js";
 import { draftsRoute } from "./routes/drafts.route.js";
 import { reflectionRoute } from "./routes/reflection.route.js";
 import { dreamRoute } from "./routes/dream.route.js";
+import { adminRoute } from "./routes/admin.route.js";
 import { webSearchRoute } from "./routes/web-search.route.js";
 import { pageReaderRoute } from "./routes/page-reader.route.js";
 import { externalInboxRoute } from "./routes/external-inbox.route.js";
@@ -35,7 +36,7 @@ export function buildApp() {
 
   void app.register(cors, {
     origin: env.WEB_ORIGIN,
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
 
   app.setErrorHandler((error: Error & { statusCode?: number }, _request, reply) => {
@@ -53,6 +54,7 @@ export function buildApp() {
   void app.register(draftsRoute);
   void app.register(reflectionRoute);
   void app.register(dreamRoute);
+  void app.register(adminRoute);
   void app.register(webSearchRoute);
   void app.register(pageReaderRoute);
   void app.register(externalInboxRoute);
