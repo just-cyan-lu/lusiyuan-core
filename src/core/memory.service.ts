@@ -20,7 +20,13 @@ export interface MemoryService {
 class PrismaMemoryService implements MemoryService {
   async searchRelevantMemories(userId: string, _query: string): Promise<Memory[]> {
     return prisma.memory.findMany({
-      where: { userId },
+      where: {
+        status: "active",
+        OR: [
+          { userId },
+          { userId: null, scope: { in: ["project", "global"] } },
+        ],
+      },
       orderBy: [{ importance: "desc" }, { updatedAt: "desc" }],
       take: 8,
     });

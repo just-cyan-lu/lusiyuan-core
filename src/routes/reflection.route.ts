@@ -142,6 +142,30 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
     return reply.send({ proposal });
   });
 
+  // POST /v1/reflection/proposals/:proposalId/apply-global
+  app.post("/v1/reflection/proposals/:proposalId/apply-global", async (request, reply) => {
+    const body = request.body as { user_id?: string };
+
+    const { proposalId } = request.params as { proposalId: string };
+    const proposal = await reflectionProposalService.applyProposalGlobally(
+      proposalId,
+      body.user_id ?? "owner"
+    );
+    return reply.send({ proposal });
+  });
+
+  // POST /v1/reflection/proposals/:proposalId/revoke
+  app.post("/v1/reflection/proposals/:proposalId/revoke", async (request, reply) => {
+    const body = request.body as { user_id?: string };
+
+    const { proposalId } = request.params as { proposalId: string };
+    const proposal = await reflectionProposalService.revokeProposal(
+      proposalId,
+      body.user_id ?? "owner"
+    );
+    return reply.send({ proposal });
+  });
+
   // GET /v1/reflection/risks
   app.get("/v1/reflection/risks", async (request, reply) => {
     const query = request.query as {

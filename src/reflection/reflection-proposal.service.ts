@@ -5,7 +5,48 @@ import {
   resolveMemoryProposalUserId,
   type MemoryProposalUserLookup,
 } from "./memory-proposal-user-resolver.js";
-import type { MemoryProposal } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { Memory, MemoryProposal } from "@prisma/client";
+
+type MemoryRollbackSnapshot = Pick<
+  Memory,
+  "id" | "content" | "summary" | "confidence" | "tags" | "entities" | "status"
+>;
+
+function metadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata)
+    ? (metadata as Prisma.JsonObject)
+    : {};
+}
+
+function mergeMetadata(
+  proposal: MemoryProposal,
+  data: Prisma.JsonObject
+): Prisma.InputJsonObject {
+  return {
+    ...metadataObject(proposal.metadata),
+    ...data,
+  };
+}
+
+function snapshotMemory(memory: MemoryRollbackSnapshot): Prisma.JsonObject {
+  return {
+    id: memory.id,
+    content: memory.content,
+    summary: memory.summary,
+    confidence: memory.confidence,
+    tags: memory.tags,
+    entities: memory.entities,
+    status: memory.status,
+  } as Prisma.JsonObject;
+}
+
+function readRollback(metadata: Prisma.JsonValue | null): Prisma.JsonObject | null {
+  const rollback = metadataObject(metadata).rollback;
+  return rollback && typeof rollback === "object" && !Array.isArray(rollback)
+    ? (rollback as Prisma.JsonObject)
+    : null;
+}
 
 export class ReflectionProposalService {
   async listProposals(opts: {
@@ -53,7 +94,7 @@ export class ReflectionProposalService {
         status: "rejected",
         reviewedBy: reviewerId,
         reviewedAt: new Date(),
-        metadata: reason ? { rejectReason: reason } : undefined,
+        metadata: reason ? mergeMetadata(proposal, { rejectReason: reason }) : undefined,
       },
     });
   }
@@ -69,6 +110,47 @@ export class ReflectionProposalService {
       throw new Error("High-risk proposals cannot be applied without REFLECTION_AUTO_APPLY=true");
     }
     return applyService.apply(proposal, reviewerId);
+  }
+
+  async applyProposalGlobally(proposalId: string, reviewerId: string): Promise<MemoryProposal> {
+    const proposal = await prisma.memoryProposal.findUniqueOrThrow({
+      where: { id: proposalId },
+    });
+    if (proposal.status !== "approved") {
+      throw new Error(`Proposal must be approved before applying globally (current: ${proposal.status})`);
+    }
+    if (proposal.riskLevel === "high" && !env.REFLECTION_AUTO_APPLY) {
+      throw new Error("High-risk proposals cannot be applied without REFLECTION_AUTO_APPLY=true");
+    }
+    return applyService.applyGlobal(proposal, reviewerId);
+  }
+
+  async revokeProposal(proposalId: string, reviewerId: string): Promise<MemoryProposal> {
+    const proposal = await prisma.memoryProposal.findUniqueOrThrow({
+      where: { id: proposalId },
+    });
+
+    if (proposal.status === "approved") {
+      return prisma.memoryProposal.update({
+        where: { id: proposal.id },
+        data: {
+          status: "pending",
+          reviewedBy: null,
+          reviewedAt: null,
+          metadata: mergeMetadata(proposal, {
+            lastRevokedAt: new Date().toISOString(),
+            lastRevokedBy: reviewerId,
+            lastRevokedStatus: "approved",
+          }),
+        },
+      });
+    }
+
+    if (proposal.status !== "applied") {
+      throw new Error(`Cannot revoke proposal with status: ${proposal.status}`);
+    }
+
+    return applyService.revoke(proposal, reviewerId);
   }
 }
 
@@ -90,6 +172,92 @@ class ReflectionApplyServiceImpl {
     }
   }
 
+  async applyGlobal(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
+    const memory = await prisma.memory.create({
+      data: {
+        userId: null,
+        type: proposal.type,
+        scope: "global",
+        content: proposal.content,
+        summary: proposal.summary ?? null,
+        importance: Math.round(proposal.confidence * 10),
+        confidence: proposal.confidence,
+        status: "active",
+        source: "reflection_global",
+        tags: proposal.tags ?? undefined,
+        entities: proposal.entities ?? undefined,
+        channel: proposal.channel ?? null,
+        conversationId: proposal.conversationId ?? null,
+        metadata: {
+          sourceProposalId: proposal.id,
+          sourceReportId: proposal.reportId,
+          applyMode: "global",
+        },
+      },
+    });
+
+    if (env.MEMORY_RETRIEVAL_ENABLED) {
+      memoryService.generateAndStoreEmbedding(memory).catch((err) =>
+        console.warn("Reflection global embedding failed:", err)
+      );
+    }
+
+    return prisma.memoryProposal.update({
+      where: { id: proposal.id },
+      data: {
+        status: "applied",
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        appliedMemoryId: memory.id,
+        metadata: mergeMetadata(proposal, {
+          applyMode: "global",
+          rollback: {
+            type: "create_memory",
+            appliedMemoryId: memory.id,
+          },
+        }),
+      },
+    });
+  }
+
+  async revoke(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
+    const rollback = readRollback(proposal.metadata);
+    const rollbackType = typeof rollback?.type === "string" ? rollback.type : proposal.proposalType;
+
+    switch (rollbackType) {
+      case "create_memory":
+        await this.revokeCreatedMemory(proposal);
+        break;
+      case "update_memory":
+        await this.revokeUpdatedMemory(proposal, rollback);
+        break;
+      case "supersede_memory":
+        await this.revokeSupersededMemory(proposal, rollback);
+        break;
+      case "archive_memory":
+        await this.revokeArchivedMemory(proposal, rollback);
+        break;
+      default:
+        throw new Error(`Cannot revoke unknown proposalType: ${proposal.proposalType}`);
+    }
+
+    return prisma.memoryProposal.update({
+      where: { id: proposal.id },
+      data: {
+        status: "approved",
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        appliedMemoryId: null,
+        metadata: mergeMetadata(proposal, {
+          lastRevokedAt: new Date().toISOString(),
+          lastRevokedBy: reviewerId,
+          lastRevokedStatus: "applied",
+          previousAppliedMemoryId: proposal.appliedMemoryId,
+        }),
+      },
+    });
+  }
+
   private async applyCreate(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
     const userId = await this.resolveMemoryUserId(proposal);
 
@@ -106,6 +274,13 @@ class ReflectionApplyServiceImpl {
         source: "reflection",
         tags: proposal.tags ?? undefined,
         entities: proposal.entities ?? undefined,
+        channel: proposal.channel ?? null,
+        conversationId: proposal.conversationId ?? null,
+        metadata: {
+          sourceProposalId: proposal.id,
+          sourceReportId: proposal.reportId,
+          applyMode: "user",
+        },
       },
     });
 
@@ -122,12 +297,23 @@ class ReflectionApplyServiceImpl {
         reviewedBy: reviewerId,
         reviewedAt: new Date(),
         appliedMemoryId: memory.id,
+        metadata: mergeMetadata(proposal, {
+          applyMode: "user",
+          rollback: {
+            type: "create_memory",
+            appliedMemoryId: memory.id,
+          },
+        }),
       },
     });
   }
 
   private async applyUpdate(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
     if (!proposal.targetMemoryId) throw new Error("update_memory requires targetMemoryId");
+
+    const before = await prisma.memory.findUniqueOrThrow({
+      where: { id: proposal.targetMemoryId },
+    });
 
     const memory = await prisma.memory.update({
       where: { id: proposal.targetMemoryId },
@@ -153,12 +339,23 @@ class ReflectionApplyServiceImpl {
         reviewedBy: reviewerId,
         reviewedAt: new Date(),
         appliedMemoryId: memory.id,
+        metadata: mergeMetadata(proposal, {
+          applyMode: "user",
+          rollback: {
+            type: "update_memory",
+            targetMemory: snapshotMemory(before),
+          },
+        }),
       },
     });
   }
 
   private async applySupersede(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
     if (!proposal.targetMemoryId) throw new Error("supersede_memory requires targetMemoryId");
+
+    const before = await prisma.memory.findUniqueOrThrow({
+      where: { id: proposal.targetMemoryId },
+    });
 
     await prisma.memory.update({
       where: { id: proposal.targetMemoryId },
@@ -181,6 +378,13 @@ class ReflectionApplyServiceImpl {
           source: "reflection",
           tags: proposal.tags ?? undefined,
           entities: proposal.entities ?? undefined,
+          channel: proposal.channel ?? null,
+          conversationId: proposal.conversationId ?? null,
+          metadata: {
+            sourceProposalId: proposal.id,
+            sourceReportId: proposal.reportId,
+            applyMode: "user",
+          },
         },
       });
       newMemoryId = newMemory.id;
@@ -198,12 +402,24 @@ class ReflectionApplyServiceImpl {
         reviewedBy: reviewerId,
         reviewedAt: new Date(),
         appliedMemoryId: newMemoryId,
+        metadata: mergeMetadata(proposal, {
+          applyMode: "user",
+          rollback: {
+            type: "supersede_memory",
+            targetMemory: snapshotMemory(before),
+            appliedMemoryId: newMemoryId,
+          },
+        }),
       },
     });
   }
 
   private async applyArchive(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
     if (!proposal.targetMemoryId) throw new Error("archive_memory requires targetMemoryId");
+
+    const before = await prisma.memory.findUniqueOrThrow({
+      where: { id: proposal.targetMemoryId },
+    });
 
     await prisma.memory.update({
       where: { id: proposal.targetMemoryId },
@@ -217,6 +433,79 @@ class ReflectionApplyServiceImpl {
         reviewedBy: reviewerId,
         reviewedAt: new Date(),
         appliedMemoryId: proposal.targetMemoryId,
+        metadata: mergeMetadata(proposal, {
+          applyMode: "user",
+          rollback: {
+            type: "archive_memory",
+            targetMemory: snapshotMemory(before),
+          },
+        }),
+      },
+    });
+  }
+
+  private async revokeCreatedMemory(proposal: MemoryProposal): Promise<void> {
+    if (!proposal.appliedMemoryId) {
+      throw new Error("Applied memory id is missing");
+    }
+    await prisma.memory.update({
+      where: { id: proposal.appliedMemoryId },
+      data: { status: "archived" },
+    });
+  }
+
+  private async revokeUpdatedMemory(
+    proposal: MemoryProposal,
+    rollback: Prisma.JsonObject | null
+  ): Promise<void> {
+    const targetMemory = rollback?.targetMemory;
+    if (!targetMemory || typeof targetMemory !== "object" || Array.isArray(targetMemory)) {
+      throw new Error("Cannot revoke update_memory without rollback snapshot");
+    }
+    await this.restoreMemory(targetMemory as Prisma.JsonObject);
+  }
+
+  private async revokeSupersededMemory(
+    proposal: MemoryProposal,
+    rollback: Prisma.JsonObject | null
+  ): Promise<void> {
+    const targetMemory = rollback?.targetMemory;
+    if (!targetMemory || typeof targetMemory !== "object" || Array.isArray(targetMemory)) {
+      throw new Error("Cannot revoke supersede_memory without rollback snapshot");
+    }
+    await this.restoreMemory(targetMemory as Prisma.JsonObject);
+    if (proposal.appliedMemoryId) {
+      await prisma.memory.update({
+        where: { id: proposal.appliedMemoryId },
+        data: { status: "archived" },
+      });
+    }
+  }
+
+  private async revokeArchivedMemory(
+    _proposal: MemoryProposal,
+    rollback: Prisma.JsonObject | null
+  ): Promise<void> {
+    const targetMemory = rollback?.targetMemory;
+    if (!targetMemory || typeof targetMemory !== "object" || Array.isArray(targetMemory)) {
+      throw new Error("Cannot revoke archive_memory without rollback snapshot");
+    }
+    await this.restoreMemory(targetMemory as Prisma.JsonObject);
+  }
+
+  private async restoreMemory(snapshot: Prisma.JsonObject): Promise<void> {
+    if (typeof snapshot.id !== "string") {
+      throw new Error("Invalid memory rollback snapshot");
+    }
+    await prisma.memory.update({
+      where: { id: snapshot.id },
+      data: {
+        content: typeof snapshot.content === "string" ? snapshot.content : undefined,
+        summary: typeof snapshot.summary === "string" ? snapshot.summary : null,
+        confidence: typeof snapshot.confidence === "number" ? snapshot.confidence : undefined,
+        tags: snapshot.tags ?? undefined,
+        entities: snapshot.entities ?? undefined,
+        status: typeof snapshot.status === "string" ? snapshot.status : "active",
       },
     });
   }

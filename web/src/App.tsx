@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
 import { DashboardPage } from "./components/admin/DashboardPage";
+import { MemoryProposalsPage } from "./components/admin/MemoryProposalsPage";
 import { PlaceholderPage } from "./components/admin/PlaceholderPage";
 import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
@@ -67,14 +68,7 @@ export default function App() {
     }
 
     if (activeSection === "memory") {
-      return (
-        <PlaceholderPage
-          eyebrow="Memory Command"
-          title="记忆与提案审核"
-          summary="下一步会先接 MemoryProposal 审核：待处理列表、详情、批准、拒绝、应用。批量操作会等单条链路稳定后再加。"
-          items={["提案队列", "记忆浏览", "单条审核动作", "应用后的写入结果"]}
-        />
-      );
+      return <MemoryProposalsPage adminToken={adminToken} />;
     }
 
     if (activeSection === "ops") {

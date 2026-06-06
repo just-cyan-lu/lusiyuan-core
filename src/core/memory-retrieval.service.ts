@@ -18,6 +18,13 @@ export async function retrieveMemories(
   input: RetrievalInput
 ): Promise<BudgetedMemory[]> {
   const { userId, query } = input;
+  const visibleMemoryWhere = {
+    status: "active",
+    OR: [
+      { userId },
+      { userId: null, scope: { in: ["project", "global"] } },
+    ],
+  } satisfies Prisma.MemoryWhereInput;
 
   // Semantic candidates via pgvector
   const queryEmbedding = await embeddingProvider.embedText(query);
@@ -35,8 +42,7 @@ export async function retrieveMemories(
 
   // Supplemental: high-importance active memories not in semantic results
   const importantWhere = {
-    userId,
-    status: "active",
+    ...visibleMemoryWhere,
     id: { notIn: [...semanticIds] },
   } satisfies Prisma.MemoryWhereInput;
   const importantMemories = await prisma.memory.findMany({
@@ -51,8 +57,7 @@ export async function retrieveMemories(
     ...importantMemories.map((m) => m.id),
   ]);
   const recentWhere = {
-    userId,
-    status: "active",
+    ...visibleMemoryWhere,
     id: { notIn: [...recentIds] },
   } satisfies Prisma.MemoryWhereInput;
   const recentMemories = await prisma.memory.findMany({

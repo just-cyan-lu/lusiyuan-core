@@ -50,7 +50,7 @@ export class PgVectorMemoryIndex implements VectorMemoryIndex {
         AND me."dimensions" = ${dimensions}
         AND m."status"      = 'active'
         AND (
-          m."scope" IN ('project', 'global')
+          (m."userId" IS NULL AND m."scope" IN ('project', 'global'))
           OR m."userId" = ${userId}
         )
       ORDER BY me."embedding" <=> ${vectorLiteral}::vector
