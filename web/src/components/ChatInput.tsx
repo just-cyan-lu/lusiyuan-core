@@ -35,8 +35,8 @@ export function ChatInput({ onSend, disabled }: Props) {
   }
 
   return (
-    <div className="border-t border-gray-100 bg-white px-4 py-3">
-      <div className="flex items-end gap-2 bg-gray-50 rounded-2xl px-3 py-2">
+    <div className="border-t border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
+      <div className="flex items-end gap-2 rounded-lg border border-[#d9e2ec] bg-white px-3 py-2">
         <textarea
           ref={textareaRef}
           value={text}
@@ -47,13 +47,13 @@ export function ChatInput({ onSend, disabled }: Props) {
           disabled={disabled}
           rows={1}
           maxLength={4000}
-          className="flex-1 bg-transparent resize-none outline-none text-sm text-gray-800 placeholder:text-gray-400 leading-relaxed py-0.5 disabled:opacity-50"
+          className="flex-1 resize-none bg-transparent py-0.5 text-sm leading-relaxed text-[#172033] outline-none placeholder:text-[#9aa8b8] disabled:opacity-50"
           style={{ height: "auto", minHeight: "24px" }}
         />
         <button
           onClick={handleSend}
           disabled={disabled || !text.trim()}
-          className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center shrink-0 transition-opacity disabled:opacity-30 hover:bg-purple-600 active:scale-95"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#6f8fb8] transition disabled:opacity-30 hover:bg-[#5f7fa7] active:scale-95"
           aria-label="发送"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -67,7 +67,7 @@ export function ChatInput({ onSend, disabled }: Props) {
           </svg>
         </button>
       </div>
-      <p className="text-center text-xs text-gray-300 mt-2">
+      <p className="mt-2 text-center text-xs text-[#7b8ca2]">
         陆思源是原创 AI 数字人，不是真人。请勿输入敏感隐私信息。
       </p>
     </div>

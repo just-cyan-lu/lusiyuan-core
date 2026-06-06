@@ -7,7 +7,7 @@ export function ChatPage() {
   const { messages, isSending, isLoadingHistory, error, sendMessage } = useChat();
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto w-full bg-gray-50">
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[#d9e2ec] bg-white shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
       <ChatHeader />
       <MessageList
         messages={messages}
@@ -15,7 +15,7 @@ export function ChatPage() {
         isLoadingHistory={isLoadingHistory}
       />
       {error && (
-        <div className="mx-4 mb-2 px-3 py-2 bg-red-50 border border-red-100 rounded-xl text-sm text-red-500">
+        <div className="mx-4 mb-2 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-3 py-2 text-sm text-[#8d6048]">
           {error}
         </div>
       )}
