@@ -48,6 +48,54 @@ export interface RuntimeConfig {
   limits: Record<string, number>;
 }
 
+export interface AdminMemoryUser {
+  id: string;
+  externalId: string;
+  displayName: string | null;
+}
+
+export interface AdminMemory {
+  id: string;
+  userId: string | null;
+  user?: AdminMemoryUser | null;
+  type: string;
+  scope: string;
+  content: string;
+  summary: string | null;
+  importance: number;
+  confidence: number;
+  status: string;
+  source: string | null;
+  tags: unknown;
+  entities: unknown;
+  channel: string | null;
+  conversationId: string | null;
+  lastAccessedAt: string | null;
+  accessCount: number;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminMemoryWriteInput {
+  token: string;
+  memoryId?: string;
+  userId?: string | null;
+  type: string;
+  scope: string;
+  content: string;
+  summary?: string | null;
+  importance: number;
+  confidence: number;
+  status?: string;
+  source?: string | null;
+  tags?: unknown;
+  entities?: unknown;
+  channel?: string | null;
+  conversationId?: string | null;
+  metadata?: unknown;
+}
+
 export type MemoryProposalStatus =
   | "pending"
   | "approved"
@@ -134,6 +182,107 @@ export async function fetchRuntimeConfig(token: string): Promise<RuntimeConfig> 
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeConfig>(response, "无法读取运行配置");
+}
+
+export async function fetchAdminMemories(input: {
+  token: string;
+  userId?: string;
+  status?: string;
+  scope?: string;
+  type?: string;
+  query?: string;
+  limit?: number;
+}): Promise<AdminMemory[]> {
+  const params = new URLSearchParams();
+  if (input.userId) params.set("user_id", input.userId);
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.scope && input.scope !== "all") params.set("scope", input.scope);
+  if (input.type && input.type !== "all") params.set("type", input.type);
+  if (input.query) params.set("q", input.query);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/memories?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  const data = await parseJsonResponse<{ memories: AdminMemory[] }>(
+    response,
+    "无法读取记忆库"
+  );
+  return data.memories ?? [];
+}
+
+function adminMemoryBody(input: AdminMemoryWriteInput) {
+  return {
+    user_id: input.userId,
+    type: input.type,
+    scope: input.scope,
+    content: input.content,
+    summary: input.summary,
+    importance: input.importance,
+    confidence: input.confidence,
+    status: input.status,
+    source: input.source,
+    tags: input.tags,
+    entities: input.entities,
+    channel: input.channel,
+    conversation_id: input.conversationId,
+    metadata: input.metadata,
+  };
+}
+
+export async function createAdminMemory(input: AdminMemoryWriteInput): Promise<AdminMemory> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/memories`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(adminMemoryBody(input)),
+  });
+  const data = await parseJsonResponse<{ memory: AdminMemory }>(
+    response,
+    "新增记忆失败"
+  );
+  return data.memory;
+}
+
+export async function updateAdminMemory(input: AdminMemoryWriteInput): Promise<AdminMemory> {
+  if (!input.memoryId) throw new Error("memoryId is required");
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/memories/${encodeURIComponent(input.memoryId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(adminMemoryBody(input)),
+    }
+  );
+  const data = await parseJsonResponse<{ memory: AdminMemory }>(
+    response,
+    "更新记忆失败"
+  );
+  return data.memory;
+}
+
+export async function archiveAdminMemory(input: {
+  token: string;
+  memoryId: string;
+}): Promise<AdminMemory> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/memories/${encodeURIComponent(input.memoryId)}`,
+    {
+      method: "DELETE",
+      headers: adminHeaders(input.token),
+    }
+  );
+  const data = await parseJsonResponse<{ memory: AdminMemory }>(
+    response,
+    "归档记忆失败"
+  );
+  return data.memory;
 }
 
 export async function fetchMemoryProposals(input: {

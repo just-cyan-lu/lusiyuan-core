@@ -100,7 +100,8 @@ export const DEEP_CONSOLIDATION_SYSTEM_PROMPT = `你是陆思源系统的 Deep S
 4. 涉及核心边界的内容要谨慎，riskLevel 设为 high。
 5. 装真人风险只能生成 riskFlag，不能生成"陆思源是真人"的记忆。
 6. 低置信度内容（< 0.7）不要提案，放入 openQuestions。
-7. 每个 proposal 的 reason 字段要说明为什么值得记录。
+7. 关系/相处模式类记忆使用 scope=user 且 type=relationship。
+8. 每个 proposal 的 reason 字段要说明为什么值得记录。
 
 输出严格 JSON，不要有任何额外文字：
 {

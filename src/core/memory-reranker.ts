@@ -25,7 +25,6 @@ const SCOPE_BOOST: Record<string, number> = {
   global: 1.0,
   project: 0.9,
   user: 0.7,
-  relationship: 0.6,
 };
 
 const WEIGHTS = {

@@ -39,7 +39,7 @@ JSON 结构：
   "newMemoryProposals": [
     {
       "proposalType": "create_memory",
-      "scope": "user|project|relationship|global",
+      "scope": "user|project|global",
       "type": "user_preference|project_context|relationship|growth_event|technical_decision|persona_feedback|boundary|fact",
       "content": "记忆内容",
       "summary": "简短摘要（可选）",
@@ -90,6 +90,7 @@ JSON 结构：
 1. 只提取长期有价值的信息，不要把临时闲聊写进记忆。
 2. 玩笑话、短期情绪、一次性说法不要写成长期记忆。
 3. 如果旧记忆被新信息覆盖，提出 supersede 建议，不要直接删除。
-4. 不确定的内容 confidence 设低，并加入 openQuestions。
-5. 每次最多提出 20 条 proposal。`;
+4. 关系/相处模式类记忆使用 scope=user 且 type=relationship。
+5. 不确定的内容 confidence 设低，并加入 openQuestions。
+6. 每次最多提出 20 条 proposal。`;
 }

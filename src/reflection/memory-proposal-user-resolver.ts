@@ -21,7 +21,7 @@ export interface MemoryProposalUserLookup {
 }
 
 export function memoryProposalRequiresUser(scope: string): boolean {
-  return scope === "user" || scope === "relationship";
+  return scope === "user";
 }
 
 export function getStringArray(value: unknown): string[] {
