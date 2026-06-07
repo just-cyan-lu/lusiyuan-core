@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
 import { DashboardPage } from "./components/admin/DashboardPage";
-import { MemoryProposalsPage } from "./components/admin/MemoryProposalsPage";
+import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { PlaceholderPage } from "./components/admin/PlaceholderPage";
 import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
@@ -68,7 +68,7 @@ export default function App() {
     }
 
     if (activeSection === "memory") {
-      return <MemoryProposalsPage adminToken={adminToken} />;
+      return <MemoryAdminPage adminToken={adminToken} />;
     }
 
     if (activeSection === "ops") {

@@ -34,7 +34,7 @@ const navItems: Array<{
     section: "memory",
     index: "02",
     label: "记忆",
-    description: "提案审核",
+    description: "记忆库 / 提案",
   },
   {
     section: "ops",

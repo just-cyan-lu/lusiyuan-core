@@ -22,6 +22,26 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
+}
+
+.field-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #d9e2ec;
+  background: #f8fbff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #172033;
+  outline: none;
+}
+
+.field-input::placeholder {
+  color: #9aa8b8;
+}
+
+.field-input:focus {
+  border-color: #a9bfd7;
 }

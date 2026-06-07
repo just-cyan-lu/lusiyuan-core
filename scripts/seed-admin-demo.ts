@@ -7,6 +7,7 @@ const seed = {
   jobId: "admin-demo-reflection-job",
   reportId: "admin-demo-reflection-report",
   targetMemoryId: "admin-demo-target-memory",
+  globalMemoryId: "admin-demo-global-memory",
   messageIds: [
     "admin-demo-message-1",
     "admin-demo-message-2",
@@ -37,6 +38,7 @@ async function cleanupPreviousSeed(): Promise<void> {
     where: {
       OR: [
         { id: seed.targetMemoryId },
+        { id: seed.globalMemoryId },
         { content: { startsWith: "Seed demo:" } },
       ],
     },
@@ -121,7 +123,7 @@ async function main(): Promise<void> {
     data: {
       id: seed.targetMemoryId,
       userId: user.id,
-      type: "preference",
+      type: "user_preference",
       scope: "user",
       content: "Seed demo: 用户偏好深色高对比控制台。",
       summary: "旧的界面偏好，需要被新提案更新。",
@@ -133,6 +135,25 @@ async function main(): Promise<void> {
       conversationId: conversation.id,
       tags: ["admin", "ui"],
       metadata: { seed: "admin_demo" },
+    },
+  });
+
+  await prisma.memory.create({
+    data: {
+      id: seed.globalMemoryId,
+      userId: null,
+      type: "core",
+      scope: "global",
+      content: "Seed demo: 陆思源后台管理应保持浅色、清爽、低饱和，并优先呈现真实业务链路。",
+      summary: "全局基础记忆示例：Admin 设计取向与开发原则。",
+      importance: 7,
+      confidence: 0.86,
+      status: "active",
+      source: "admin_demo_seed",
+      channel: "web",
+      tags: ["admin", "global", "design"],
+      entities: ["陆思源", "Admin 平台"],
+      metadata: { seed: "admin_demo", global: true },
     },
   });
 
@@ -173,7 +194,7 @@ async function main(): Promise<void> {
         channel: "web",
         proposalType: "create_memory",
         scope: "user",
-        type: "preference",
+        type: "user_preference",
         content: "Seed demo: 用户偏好浅色、低饱和、明快的控制台界面。",
         summary: "Admin 平台视觉偏好：浅色、低饱和、明快。",
         tags: ["admin", "ui", "preference"],
@@ -193,7 +214,7 @@ async function main(): Promise<void> {
         channel: "web",
         proposalType: "create_memory",
         scope: "user",
-        type: "workflow",
+        type: "project_context",
         content: "Seed demo: Admin 功能开发应先接真实链路，再逐步扩展批量操作。",
         summary: "Admin 开发节奏：真实链路优先，批量能力后置。",
         tags: ["admin", "workflow"],
@@ -216,7 +237,7 @@ async function main(): Promise<void> {
         proposalType: "update_memory",
         targetMemoryId: targetMemory.id,
         scope: "user",
-        type: "preference",
+        type: "user_preference",
         content: "Seed demo: 用户偏好浅色、低饱和、层次清楚的控制台界面。",
         summary: "更新旧界面偏好为浅色低饱和。",
         tags: ["admin", "ui"],
@@ -236,7 +257,7 @@ async function main(): Promise<void> {
         channel: "web",
         proposalType: "create_memory",
         scope: "user",
-        type: "note",
+        type: "other",
         content: "Seed demo: 这是一条已拒绝的示例提案。",
         summary: "已拒绝示例。",
         reason: "用于验证 rejected 筛选和只读状态展示。",

@@ -7,7 +7,7 @@ export type MemoryType =
   | "boundary"
   | "technical_decision";
 
-export type MemoryScope = "user" | "relationship" | "project" | "global";
+export type MemoryScope = "user" | "project" | "global";
 export type MemoryStatus = "active" | "archived" | "superseded" | "rejected";
 
 export interface NewMemory {

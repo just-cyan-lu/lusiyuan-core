@@ -18,9 +18,8 @@ function lookup(overrides: Partial<MemoryProposalUserLookup> = {}): MemoryPropos
   };
 }
 
-test("only user and relationship scoped proposals require a user", () => {
+test("only user scoped proposals require a user", () => {
   assert.equal(memoryProposalRequiresUser("user"), true);
-  assert.equal(memoryProposalRequiresUser("relationship"), true);
   assert.equal(memoryProposalRequiresUser("project"), false);
   assert.equal(memoryProposalRequiresUser("global"), false);
 });
