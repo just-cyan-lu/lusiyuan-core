@@ -167,6 +167,10 @@ export class DreamService {
           summary: `Dream Cycle ${jobId} — Deep Sleep`,
           confidence: 0.8,
           rawOutput: {},
+          metadata: {
+            dreamJobId: jobId,
+            phase: "deep_sleep",
+          },
         },
       });
 

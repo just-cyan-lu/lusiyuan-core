@@ -77,6 +77,21 @@ export interface AdminMemory {
   updatedAt: string;
 }
 
+export interface AdminMemoryActivityDay {
+  date: string;
+  count: number;
+  importance: number;
+}
+
+export interface AdminMemoryActivity {
+  days: AdminMemoryActivityDay[];
+  totalCount: number;
+  peakCount: number;
+  peakImportance: number;
+  metric: string;
+  dateField: string;
+}
+
 export interface AdminMemoryWriteInput {
   token: string;
   memoryId?: string;
@@ -128,6 +143,175 @@ export interface MemoryProposal {
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReflectionRunResult {
+  reportId: string;
+  summary: string;
+}
+
+export interface ReflectionReport {
+  id: string;
+  jobId: string;
+  summary: string;
+  confidence: number;
+  rawOutput: unknown;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface ReflectionRiskFlag {
+  id: string;
+  reportId: string;
+  type: string;
+  severity: string;
+  description: string;
+  suggestedAction: string | null;
+  relatedMessageIds: unknown;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GrowthLogProposal {
+  id: string;
+  reportId: string;
+  title: string;
+  content: string;
+  tags: unknown;
+  confidence: number;
+  status: string;
+  sourceMessageIds: unknown;
+  appliedMemoryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReflectionReportDetail {
+  report: ReflectionReport;
+  proposals: MemoryProposal[];
+  riskFlags: ReflectionRiskFlag[];
+  growthLogs: GrowthLogProposal[];
+}
+
+export interface DreamRunResult {
+  jobId: string;
+  status: string;
+  dailyNoteId: string | null;
+  diaryEntryId: string | null;
+  signalCount: number;
+  proposalCount: number;
+  riskCount: number;
+}
+
+export interface DreamJob {
+  id: string;
+  status: string;
+  triggerType: string;
+  scope: string;
+  userId: string | null;
+  conversationId: string | null;
+  channel: string | null;
+  fromTime: string | null;
+  toTime: string | null;
+  phase: string | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  metadata: unknown;
+  _count?: {
+    dailyNotes: number;
+    signals: number;
+    diaryEntries: number;
+    reports: number;
+  };
+}
+
+export interface DreamDailyNote {
+  id: string;
+  jobId: string | null;
+  date: string;
+  scope: string;
+  userId: string | null;
+  channel: string | null;
+  title: string | null;
+  summary: string;
+  keyPoints: unknown;
+  sourceStats: unknown;
+  riskSummary: unknown;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DreamSignal {
+  id: string;
+  jobId: string | null;
+  signalType: string;
+  content: string;
+  summary: string | null;
+  confidence: number;
+  strength: number;
+  riskLevel: string;
+  sourceTypes: unknown;
+  sourceIds: unknown;
+  evidenceCount: number;
+  tags: unknown;
+  entities: unknown;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DreamDiaryEntry {
+  id: string;
+  jobId: string | null;
+  date: string;
+  title: string | null;
+  content: string;
+  style: string;
+  grounded: boolean;
+  sourceSignalIds: unknown;
+  sourceMessageIds: unknown;
+  visibility: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DreamMorningBrief {
+  jobId: string;
+  completedAt: string;
+  dailyNoteId?: string;
+  diaryEntryId?: string;
+  signalCount: number;
+  proposalCount: number;
+  riskCount: number;
+  topSignals: Array<{ signalType: string; content: string; confidence: number }>;
+  summary: string;
+}
+
+export interface DreamConsolidationReport {
+  id: string;
+  jobId: string | null;
+  summary: string;
+  phase: string;
+  candidateCount: number;
+  promotedCount: number;
+  rejectedCount: number;
+  riskCount: number;
+  generatedProposalIds: unknown;
+  rawOutput: unknown;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface DreamDeepSleepDetail {
+  reports: DreamConsolidationReport[];
+  proposals: MemoryProposal[];
+  riskFlags: ReflectionRiskFlag[];
+  growthLogs: GrowthLogProposal[];
 }
 
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -191,6 +375,10 @@ export async function fetchAdminMemories(input: {
   scope?: string;
   type?: string;
   query?: string;
+  from?: string;
+  to?: string;
+  dateField?: string;
+  sort?: string;
   limit?: number;
 }): Promise<AdminMemory[]> {
   const params = new URLSearchParams();
@@ -199,6 +387,10 @@ export async function fetchAdminMemories(input: {
   if (input.scope && input.scope !== "all") params.set("scope", input.scope);
   if (input.type && input.type !== "all") params.set("type", input.type);
   if (input.query) params.set("q", input.query);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.dateField) params.set("date_field", input.dateField);
+  if (input.sort) params.set("sort", input.sort);
   if (input.limit) params.set("limit", String(input.limit));
 
   const response = await fetch(
@@ -210,6 +402,35 @@ export async function fetchAdminMemories(input: {
     "无法读取记忆库"
   );
   return data.memories ?? [];
+}
+
+export async function fetchAdminMemoryActivity(input: {
+  token: string;
+  userId?: string;
+  status?: string;
+  scope?: string;
+  type?: string;
+  query?: string;
+  dateField?: string;
+  metric?: string;
+}): Promise<AdminMemoryActivity> {
+  const params = new URLSearchParams();
+  if (input.userId) params.set("user_id", input.userId);
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.scope && input.scope !== "all") params.set("scope", input.scope);
+  if (input.type && input.type !== "all") params.set("type", input.type);
+  if (input.query) params.set("q", input.query);
+  if (input.dateField) params.set("date_field", input.dateField);
+  if (input.metric) params.set("metric", input.metric);
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/memories/activity?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<AdminMemoryActivity>(
+    response,
+    "无法读取记忆活跃统计"
+  );
 }
 
 function adminMemoryBody(input: AdminMemoryWriteInput) {
@@ -288,10 +509,14 @@ export async function archiveAdminMemory(input: {
 export async function fetchMemoryProposals(input: {
   token: string;
   status?: string;
+  from?: string;
+  to?: string;
   limit?: number;
 }): Promise<MemoryProposal[]> {
   const params = new URLSearchParams();
   if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
   if (input.limit) params.set("limit", String(input.limit));
 
   const response = await fetch(
@@ -422,6 +647,241 @@ export async function revokeMemoryProposal(input: {
     "撤回提案失败"
   );
   return data.proposal;
+}
+
+export async function runReflection(input: {
+  token: string;
+  scope: string;
+  userId?: string;
+  conversationId?: string;
+  messageLimit?: number;
+}): Promise<ReflectionRunResult> {
+  const response = await fetch(`${API_BASE_URL}/v1/reflection/run`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      scope: input.scope,
+      user_id: input.userId,
+      conversation_id: input.conversationId,
+      message_limit: input.messageLimit,
+    }),
+  });
+  const data = await parseJsonResponse<{ report_id: string; summary: string }>(
+    response,
+    "运行 Reflection 失败"
+  );
+  return {
+    reportId: data.report_id,
+    summary: data.summary,
+  };
+}
+
+export async function fetchReflectionReports(input: {
+  token: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<ReflectionReport[]> {
+  const params = new URLSearchParams();
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/reports?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  const data = await parseJsonResponse<{ reports: ReflectionReport[] }>(
+    response,
+    "无法读取 Reflection 报告"
+  );
+  return data.reports ?? [];
+}
+
+export async function fetchReflectionReportDetail(input: {
+  token: string;
+  reportId: string;
+}): Promise<ReflectionReportDetail> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/reports/${encodeURIComponent(input.reportId)}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ReflectionReportDetail>(
+    response,
+    "无法读取 Reflection 报告详情"
+  );
+}
+
+export async function fetchReflectionRisks(input: {
+  token: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<ReflectionRiskFlag[]> {
+  const params = new URLSearchParams();
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/reflection/risks?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  const data = await parseJsonResponse<{ risks: ReflectionRiskFlag[] }>(
+    response,
+    "无法读取 Reflection 风险项"
+  );
+  return data.risks ?? [];
+}
+
+export async function runDream(input: {
+  token: string;
+  userId?: string;
+  lookbackHours?: number;
+}): Promise<DreamRunResult> {
+  const response = await fetch(`${API_BASE_URL}/v1/dream/run`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      user_id: input.userId,
+      lookback_hours: input.lookbackHours,
+    }),
+  });
+  const data = await parseJsonResponse<{
+    job_id: string;
+    status: string;
+    daily_note_id: string | null;
+    diary_entry_id: string | null;
+    signal_count: number;
+    proposal_count: number;
+    risk_count: number;
+  }>(response, "运行 Dream 失败");
+  return {
+    jobId: data.job_id,
+    status: data.status,
+    dailyNoteId: data.daily_note_id,
+    diaryEntryId: data.diary_entry_id,
+    signalCount: data.signal_count,
+    proposalCount: data.proposal_count,
+    riskCount: data.risk_count,
+  };
+}
+
+export async function fetchDreamJobs(input: {
+  token: string;
+  status?: string;
+  userId?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<DreamJob[]> {
+  const params = new URLSearchParams();
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.userId) params.set("user_id", input.userId);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/dream/jobs?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  const data = await parseJsonResponse<{ jobs: DreamJob[] }>(
+    response,
+    "无法读取 Dream 作业"
+  );
+  return data.jobs ?? [];
+}
+
+export async function fetchDreamDailyNotes(input: {
+  token: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<DreamDailyNote[]> {
+  const params = new URLSearchParams();
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/dream/daily-notes?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<DreamDailyNote[]>(response, "无法读取 Dream Daily Note");
+}
+
+export async function fetchDreamSignals(input: {
+  token: string;
+  signalType?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<DreamSignal[]> {
+  const params = new URLSearchParams();
+  if (input.signalType && input.signalType !== "all") {
+    params.set("signal_type", input.signalType);
+  }
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/dream/signals?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<DreamSignal[]>(response, "无法读取 Dream Signal");
+}
+
+export async function fetchDreamDiary(input: {
+  token: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<DreamDiaryEntry[]> {
+  const params = new URLSearchParams();
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/v1/dream/diary?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<DreamDiaryEntry[]>(response, "无法读取 Dream Diary");
+}
+
+export async function fetchDreamMorningBrief(input: {
+  token: string;
+  jobId: string;
+}): Promise<DreamMorningBrief> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/dream/jobs/${encodeURIComponent(input.jobId)}/morning-brief`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<DreamMorningBrief>(response, "无法读取 Morning Brief");
+}
+
+export async function fetchDreamDeepSleep(input: {
+  token: string;
+  jobId: string;
+}): Promise<DreamDeepSleepDetail> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/dream/jobs/${encodeURIComponent(input.jobId)}/deep-sleep`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<DreamDeepSleepDetail>(
+    response,
+    "无法读取 Deep Sleep 整合结果"
+  );
 }
 
 export async function fetchConversationMessages(

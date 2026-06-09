@@ -4,6 +4,31 @@ import { reflectionProposalService } from "../reflection/reflection-proposal.ser
 import { prisma } from "../db/prisma.js";
 import { env } from "../utils/env.js";
 import { requireAdminAuth } from "./admin-auth.js";
+import { Prisma } from "@prisma/client";
+
+function parseLimit(value: string | undefined, fallback: number): number {
+  const parsed = parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), 100);
+}
+
+function parseDate(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw Object.assign(new Error("Invalid date filter"), { statusCode: 400 });
+  }
+  return date;
+}
+
+function createdAtRange(from?: string, to?: string): Prisma.DateTimeFilter | undefined {
+  const range: Prisma.DateTimeFilter = {};
+  const fromDate = parseDate(from);
+  const toDate = parseDate(to);
+  if (fromDate) range.gte = fromDate;
+  if (toDate) range.lte = toDate;
+  return Object.keys(range).length > 0 ? range : undefined;
+}
 
 export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", async (request) => {
@@ -65,11 +90,19 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
 
   // GET /v1/reflection/reports
   app.get("/v1/reflection/reports", async (request, reply) => {
-    const query = request.query as { user_id?: string; limit?: string };
+    const query = request.query as {
+      user_id?: string;
+      limit?: string;
+      from?: string;
+      to?: string;
+    };
+    const range = createdAtRange(query.from, query.to);
 
-    const reports = await reflectionService.listReports(
-      parseInt(query.limit ?? "20", 10)
-    );
+    const reports = await prisma.reflectionReport.findMany({
+      where: range ? { createdAt: range } : undefined,
+      orderBy: { createdAt: "desc" },
+      take: parseLimit(query.limit, 20),
+    });
     return reply.send({ reports });
   });
 
@@ -96,11 +129,15 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
       user_id?: string;
       status?: string;
       limit?: string;
+      from?: string;
+      to?: string;
     };
 
     const proposals = await reflectionProposalService.listProposals({
       status: query.status,
-      limit: parseInt(query.limit ?? "50", 10),
+      limit: parseLimit(query.limit, 50),
+      from: parseDate(query.from),
+      to: parseDate(query.to),
     });
     return reply.send({ proposals });
   });
@@ -172,12 +209,18 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
       user_id?: string;
       status?: string;
       limit?: string;
+      from?: string;
+      to?: string;
     };
+    const range = createdAtRange(query.from, query.to);
 
     const risks = await prisma.reflectionRiskFlag.findMany({
-      where: query.status ? { status: query.status } : undefined,
+      where: {
+        ...(query.status ? { status: query.status } : {}),
+        ...(range ? { createdAt: range } : {}),
+      },
       orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
-      take: parseInt(query.limit ?? "50", 10),
+      take: parseLimit(query.limit, 50),
     });
     return reply.send({ risks });
   });

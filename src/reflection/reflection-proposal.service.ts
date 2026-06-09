@@ -53,11 +53,16 @@ export class ReflectionProposalService {
     status?: string;
     reportId?: string;
     limit?: number;
+    from?: Date;
+    to?: Date;
   } = {}): Promise<MemoryProposal[]> {
     return prisma.memoryProposal.findMany({
       where: {
         ...(opts.status ? { status: opts.status } : {}),
         ...(opts.reportId ? { reportId: opts.reportId } : {}),
+        ...(opts.from || opts.to
+          ? { createdAt: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
+          : {}),
       },
       orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
       take: opts.limit ?? 50,

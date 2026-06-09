@@ -28,6 +28,21 @@ function clampLimit(value: unknown, fallback = 80): number {
   return Math.min(Math.max(parsed, 1), 200);
 }
 
+type MemoryDateField = "createdAt" | "updatedAt" | "lastAccessedAt";
+
+interface MemoryListQuery {
+  user_id?: string;
+  status?: string;
+  scope?: string;
+  type?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+  date_field?: string;
+  sort?: string;
+  limit?: string;
+}
+
 function boundedNumber(
   value: unknown,
   fallback: number,
@@ -55,6 +70,147 @@ function metadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
   return metadata && typeof metadata === "object" && !Array.isArray(metadata)
     ? (metadata as Prisma.JsonObject)
     : {};
+}
+
+function parseDate(value: unknown): Date | undefined {
+  const raw = cleanString(value);
+  if (!raw) return undefined;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    throw routeError("Invalid date filter", 400);
+  }
+  return date;
+}
+
+function startOfToday(): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfToday(): Date {
+  const date = new Date();
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function daysAgoStart(days: number): Date {
+  const date = startOfToday();
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function memoryDateField(value: unknown, fallback: MemoryDateField): MemoryDateField {
+  const field = cleanString(value) ?? fallback;
+  if (field === "createdAt" || field === "updatedAt" || field === "lastAccessedAt") {
+    return field;
+  }
+  throw routeError("date_field must be createdAt, updatedAt, or lastAccessedAt", 400);
+}
+
+function applyMemoryDateRange(
+  where: Prisma.MemoryWhereInput,
+  field: MemoryDateField,
+  from?: Date,
+  to?: Date
+): void {
+  if (!from && !to) return;
+  const range: Prisma.DateTimeNullableFilter = {};
+  if (from) range.gte = from;
+  if (to) range.lte = to;
+
+  if (field === "createdAt") where.createdAt = range as Prisma.DateTimeFilter;
+  if (field === "updatedAt") where.updatedAt = range as Prisma.DateTimeFilter;
+  if (field === "lastAccessedAt") where.lastAccessedAt = range;
+}
+
+function memoryOrderBy(value: unknown): Prisma.MemoryOrderByWithRelationInput[] {
+  switch (cleanString(value) ?? "updated_desc") {
+    case "created_desc":
+      return [{ createdAt: "desc" }, { importance: "desc" }];
+    case "importance_desc":
+      return [{ importance: "desc" }, { updatedAt: "desc" }];
+    case "confidence_desc":
+      return [{ confidence: "desc" }, { updatedAt: "desc" }];
+    case "access_desc":
+      return [{ accessCount: "desc" }, { updatedAt: "desc" }];
+    case "stale_access":
+      return [{ lastAccessedAt: "asc" }, { updatedAt: "asc" }];
+    case "review_focus":
+      return [{ importance: "desc" }, { confidence: "asc" }, { updatedAt: "desc" }];
+    case "updated_desc":
+    default:
+      return [{ updatedAt: "desc" }, { importance: "desc" }];
+  }
+}
+
+async function buildMemoryWhere(
+  query: MemoryListQuery,
+  opts: {
+    defaultDateField?: MemoryDateField;
+    defaultFrom?: Date;
+    defaultTo?: Date;
+  } = {}
+): Promise<Prisma.MemoryWhereInput> {
+  const where: Prisma.MemoryWhereInput = {};
+  const status = cleanString(query.status);
+  const scope = cleanString(query.scope);
+  const type = cleanString(query.type);
+  const search = cleanString(query.q);
+
+  if (status && status !== "all") where.status = status;
+  if (scope && scope !== "all") where.scope = memoryScope(scope);
+  if (type && type !== "all") where.type = type;
+
+  if (query.user_id) {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ id: query.user_id }, { externalId: query.user_id }],
+      },
+      select: { id: true },
+    });
+    if (!user) throw routeError("User not found", 404);
+    where.userId = user.id;
+  }
+
+  if (search) {
+    where.OR = [
+      { id: { contains: search, mode: "insensitive" } },
+      { userId: { contains: search, mode: "insensitive" } },
+      { content: { contains: search, mode: "insensitive" } },
+      { summary: { contains: search, mode: "insensitive" } },
+      { source: { contains: search, mode: "insensitive" } },
+      { channel: { contains: search, mode: "insensitive" } },
+      { conversationId: { contains: search, mode: "insensitive" } },
+      {
+        user: {
+          is: {
+            OR: [
+              { id: { contains: search, mode: "insensitive" } },
+              { externalId: { contains: search, mode: "insensitive" } },
+              { displayName: { contains: search, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
+    ];
+  }
+
+  applyMemoryDateRange(
+    where,
+    memoryDateField(query.date_field, opts.defaultDateField ?? "updatedAt"),
+    parseDate(query.from) ?? opts.defaultFrom,
+    parseDate(query.to) ?? opts.defaultTo
+  );
+
+  return where;
 }
 
 async function resolveMemoryOwnerId(
@@ -201,47 +357,10 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/v1/admin/memories", async (request, reply) => {
-    const query = request.query as {
-      user_id?: string;
-      status?: string;
-      scope?: string;
-      type?: string;
-      q?: string;
-      limit?: string;
-    };
-
-    const where: Prisma.MemoryWhereInput = {};
-    const status = cleanString(query.status);
-    const scope = cleanString(query.scope);
-    const type = cleanString(query.type);
-    const search = cleanString(query.q);
-
-    if (status && status !== "all") where.status = status;
-    if (scope && scope !== "all") where.scope = memoryScope(scope);
-    if (type && type !== "all") where.type = type;
-
-    if (query.user_id) {
-      const user = await prisma.user.findFirst({
-        where: {
-          OR: [{ id: query.user_id }, { externalId: query.user_id }],
-        },
-        select: { id: true },
-      });
-      if (!user) throw routeError("User not found", 404);
-      where.userId = user.id;
-    }
-
-    if (search) {
-      where.OR = [
-        { id: { contains: search, mode: "insensitive" } },
-        { content: { contains: search, mode: "insensitive" } },
-        { summary: { contains: search, mode: "insensitive" } },
-        { source: { contains: search, mode: "insensitive" } },
-      ];
-    }
+    const query = request.query as MemoryListQuery;
 
     const memories = await prisma.memory.findMany({
-      where,
+      where: await buildMemoryWhere(query),
       include: {
         user: {
           select: {
@@ -251,11 +370,58 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
           },
         },
       },
-      orderBy: [{ updatedAt: "desc" }, { importance: "desc" }],
+      orderBy: memoryOrderBy(query.sort),
       take: clampLimit(query.limit),
     });
 
     return reply.send({ memories });
+  });
+
+  app.get("/v1/admin/memories/activity", async (request, reply) => {
+    const query = request.query as MemoryListQuery & {
+      metric?: string;
+    };
+    const field = memoryDateField(query.date_field, "createdAt");
+    const rows = await prisma.memory.findMany({
+      where: await buildMemoryWhere(query, {
+        defaultDateField: field,
+        defaultFrom: daysAgoStart(364),
+        defaultTo: endOfToday(),
+      }),
+      select: {
+        createdAt: true,
+        updatedAt: true,
+        lastAccessedAt: true,
+        importance: true,
+      },
+    });
+
+    const days = new Map<string, { count: number; importance: number }>();
+    for (const row of rows) {
+      const date = row[field];
+      if (!date) continue;
+      const key = dateKey(date);
+      const current = days.get(key) ?? { count: 0, importance: 0 };
+      current.count += 1;
+      current.importance += row.importance;
+      days.set(key, current);
+    }
+
+    const activity = Array.from(days.entries())
+      .map(([date, value]) => ({ date, ...value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return reply.send({
+      days: activity,
+      totalCount: rows.length,
+      peakCount: activity.reduce((peak, day) => Math.max(peak, day.count), 0),
+      peakImportance: activity.reduce(
+        (peak, day) => Math.max(peak, day.importance),
+        0
+      ),
+      metric: cleanString(query.metric) ?? "count",
+      dateField: field,
+    });
   });
 
   app.post("/v1/admin/memories", async (request, reply) => {

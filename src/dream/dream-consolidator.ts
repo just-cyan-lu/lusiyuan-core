@@ -41,7 +41,16 @@ export class DreamConsolidator {
     const { signals, dailyNote, jobId, dreamReflectionReportId, ownership } = input;
 
     if (!env.DREAM_DEEP_ENABLED) {
-      const emptyReport = await this.createReport(jobId, "", 0, 0, 0, 0, []);
+      const emptyReport = await this.createReport(
+        jobId,
+        "",
+        0,
+        0,
+        0,
+        0,
+        [],
+        dreamReflectionReportId
+      );
       return { report: emptyReport, memoryProposals: [], growthLogProposals: [], riskFlags: [] };
     }
 
@@ -140,7 +149,8 @@ export class DreamConsolidator {
       memoryProposals.length,
       rawProposals.length - filteredProposals.length,
       riskFlags.length,
-      proposalIds
+      proposalIds,
+      dreamReflectionReportId
     );
 
     return { report, memoryProposals, growthLogProposals, riskFlags };
@@ -153,7 +163,8 @@ export class DreamConsolidator {
     promotedCount: number,
     rejectedCount: number,
     riskCount: number,
-    proposalIds: string[]
+    proposalIds: string[],
+    dreamReflectionReportId: string
   ): Promise<DreamConsolidationReport> {
     return prisma.dreamConsolidationReport.create({
       data: {
@@ -165,6 +176,9 @@ export class DreamConsolidator {
         rejectedCount,
         riskCount,
         generatedProposalIds: proposalIds,
+        metadata: {
+          dreamReflectionReportId,
+        },
       },
     });
   }
