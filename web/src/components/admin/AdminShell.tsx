@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 export type AdminSection =
   | "overview"
   | "memory"
-  | "ops"
+  | "reflection"
+  | "dream"
   | "drafts"
   | "logs"
   | "chat"
@@ -37,32 +38,38 @@ const navItems: Array<{
     description: "记忆库 / 提案",
   },
   {
-    section: "ops",
+    section: "reflection",
     index: "03",
-    label: "运行",
-    description: "Dream / Reflection",
+    label: "复盘",
+    description: "Reflection",
+  },
+  {
+    section: "dream",
+    index: "04",
+    label: "梦境",
+    description: "Dream Cycle",
   },
   {
     section: "drafts",
-    index: "04",
+    index: "05",
     label: "草稿",
     description: "内容队列",
   },
   {
     section: "logs",
-    index: "05",
+    index: "06",
     label: "日志",
     description: "工具调用",
   },
   {
     section: "chat",
-    index: "06",
+    index: "07",
     label: "聊天",
     description: "Web Chat",
   },
   {
     section: "settings",
-    index: "07",
+    index: "08",
     label: "配置",
     description: ".env 只读",
   },

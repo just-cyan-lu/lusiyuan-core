@@ -2,6 +2,7 @@
 
 import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
+import { loadPersona, type PersonaContent } from "../core/persona-loader.js";
 import { DREAM_DIARY_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { containsPretendHumanContent } from "./dream-policy.js";
 import { env } from "../utils/env.js";
@@ -17,7 +18,8 @@ export class DreamDiaryWriter {
     if (!env.DREAM_DIARY_ENABLED) return null;
 
     const { dailyNote, signals, jobId } = input;
-    const userContent = this.buildUserContent(dailyNote, signals);
+    const persona = await loadPersona();
+    const userContent = this.buildUserContent(dailyNote, signals, persona);
 
     const raw = await modelProvider.chatJson<RawDreamDiaryEntry>([
       { role: "system", content: DREAM_DIARY_SYSTEM_PROMPT },
@@ -57,8 +59,27 @@ export class DreamDiaryWriter {
     return entry;
   }
 
-  private buildUserContent(dailyNote: DailyNote, signals: DreamSignal[]): string {
+  private buildUserContent(
+    dailyNote: DailyNote,
+    signals: DreamSignal[],
+    persona: PersonaContent
+  ): string {
     const lines: string[] = [
+      `## 陆思源人设依据`,
+      persona.identity.slice(0, 800),
+      ``,
+      `## 性格`,
+      persona.personality.slice(0, 1000),
+      ``,
+      `## 说话风格`,
+      persona.speakingStyle.slice(0, 1000),
+      ``,
+      `## 风格示例`,
+      persona.examples.slice(0, 1200),
+      ``,
+      `## 边界`,
+      persona.boundaries.slice(0, 700),
+      ``,
       `## 今日摘要`,
       dailyNote.summary,
       ``,
@@ -80,7 +101,7 @@ export class DreamDiaryWriter {
     }
 
     lines.push(
-      `请基于以上材料，写一篇陆思源风格的梦境日记。`
+      `请基于以上材料，写一篇陆思源自己会写出来的梦境日记。内容只能来自今日摘要和今日信号；风格参考人设依据、性格、说话风格和示例。`
     );
 
     return lines.join("\n");

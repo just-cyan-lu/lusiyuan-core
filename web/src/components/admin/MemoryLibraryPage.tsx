@@ -1,15 +1,28 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   archiveAdminMemory,
   createAdminMemory,
+  fetchAdminMemoryActivity,
   fetchAdminMemories,
   updateAdminMemory,
+  type AdminMemoryActivity,
   type AdminMemory,
 } from "../../api/lusiyuan-api";
 import { StatusPill } from "./StatusPill";
 
 type MemoryStatusFilter = "active" | "archived" | "superseded" | "all";
 type MemoryScopeFilter = "all" | "user" | "global" | "project";
+type MemoryDatePreset = "all" | "7d" | "30d" | "90d" | "custom";
+type MemoryDateField = "createdAt" | "updatedAt" | "lastAccessedAt";
+type MemorySortKey =
+  | "updated_desc"
+  | "created_desc"
+  | "importance_desc"
+  | "confidence_desc"
+  | "access_desc"
+  | "stale_access"
+  | "review_focus";
+type MemoryActivityMetric = "count" | "importance";
 
 interface MemoryLibraryPageProps {
   adminToken: string;
@@ -46,6 +59,35 @@ const scopeOptions: Array<{ value: MemoryScopeFilter; label: string }> = [
   { value: "user", label: "用户" },
   { value: "global", label: "全局" },
   { value: "project", label: "项目" },
+];
+
+const datePresetOptions: Array<{ value: MemoryDatePreset; label: string }> = [
+  { value: "all", label: "全部时间" },
+  { value: "7d", label: "最近 7 天" },
+  { value: "30d", label: "最近 30 天" },
+  { value: "90d", label: "最近 90 天" },
+  { value: "custom", label: "自定义" },
+];
+
+const dateFieldOptions: Array<{ value: MemoryDateField; label: string }> = [
+  { value: "updatedAt", label: "更新时间" },
+  { value: "createdAt", label: "创建时间" },
+  { value: "lastAccessedAt", label: "访问时间" },
+];
+
+const sortOptions: Array<{ value: MemorySortKey; label: string }> = [
+  { value: "updated_desc", label: "最近更新" },
+  { value: "created_desc", label: "最近创建" },
+  { value: "importance_desc", label: "重要度高" },
+  { value: "confidence_desc", label: "置信度高" },
+  { value: "access_desc", label: "访问最多" },
+  { value: "stale_access", label: "久未访问" },
+  { value: "review_focus", label: "重点审查" },
+];
+
+const activityMetricOptions: Array<{ value: MemoryActivityMetric; label: string }> = [
+  { value: "count", label: "数量" },
+  { value: "importance", label: "重要度" },
 ];
 
 const editableScopes = ["user", "global", "project"];
@@ -144,6 +186,53 @@ function formatDate(value: string | null): string {
   }).format(date);
 }
 
+function localDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateDaysAgo(days: number): string {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - days);
+  return localDateKey(date);
+}
+
+function dateStartIso(value: string): string | undefined {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+}
+
+function dateEndIso(value: string): string | undefined {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
+}
+
+function resolveDateRange(
+  preset: MemoryDatePreset,
+  customFrom: string,
+  customTo: string
+): { from?: string; to?: string } {
+  if (preset === "all") return {};
+  if (preset === "custom") {
+    return {
+      from: dateStartIso(customFrom),
+      to: dateEndIso(customTo),
+    };
+  }
+  const days = preset === "7d" ? 6 : preset === "30d" ? 29 : 89;
+  return {
+    from: dateStartIso(dateDaysAgo(days)),
+    to: dateEndIso(localDateKey(new Date())),
+  };
+}
+
 function shortId(value: string | null): string {
   if (!value) return "无";
   return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
@@ -192,7 +281,14 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [datePreset, setDatePreset] = useState<MemoryDatePreset>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [dateField, setDateField] = useState<MemoryDateField>("updatedAt");
+  const [sortKey, setSortKey] = useState<MemorySortKey>("updated_desc");
+  const [activityMetric, setActivityMetric] = useState<MemoryActivityMetric>("count");
   const [memories, setMemories] = useState<AdminMemory[]>([]);
+  const [activity, setActivity] = useState<AdminMemoryActivity | null>(null);
   const [knownTypes, setKnownTypes] = useState<string[]>(canonicalMemoryTypes);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<MemoryFormState>(emptyForm);
@@ -201,6 +297,7 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [createFocusSignal, setCreateFocusSignal] = useState(0);
 
   const selectedMemory = useMemo(
     () => memories.find((memory) => memory.id === selectedId) ?? null,
@@ -218,6 +315,11 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
     }, {});
   }, [memories]);
 
+  const dateRange = useMemo(
+    () => resolveDateRange(datePreset, fromDate, toDate),
+    [datePreset, fromDate, toDate]
+  );
+
   async function loadMemories() {
     if (!adminToken) return;
     setLoading(true);
@@ -226,16 +328,33 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
     setActionMessage(null);
 
     try {
-      const next = await fetchAdminMemories({
-        token: adminToken,
-        userId: userFilter.trim() || undefined,
-        status: statusFilter,
-        scope: scopeFilter,
-        type: typeFilter,
-        query: query.trim() || undefined,
-        limit: 120,
-      });
+      const [next, nextActivity] = await Promise.all([
+        fetchAdminMemories({
+          token: adminToken,
+          userId: userFilter.trim() || undefined,
+          status: statusFilter,
+          scope: scopeFilter,
+          type: typeFilter,
+          query: query.trim() || undefined,
+          from: dateRange.from,
+          to: dateRange.to,
+          dateField,
+          sort: sortKey,
+          limit: 200,
+        }),
+        fetchAdminMemoryActivity({
+          token: adminToken,
+          userId: userFilter.trim() || undefined,
+          status: statusFilter,
+          scope: scopeFilter,
+          type: typeFilter,
+          query: query.trim() || undefined,
+          dateField,
+          metric: activityMetric,
+        }),
+      ]);
       setMemories(next);
+      setActivity(nextActivity);
       setKnownTypes((current) => mergeTypes(current, next));
       const nextSelected =
         next.find((memory) => memory.id === selectedId) ?? next[0] ?? null;
@@ -243,6 +362,7 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
       setForm(nextSelected ? formFromMemory(nextSelected) : emptyForm());
     } catch (err) {
       setMemories([]);
+      setActivity(null);
       setSelectedId(null);
       setForm(emptyForm());
       setError(friendlyErrorMessage(err));
@@ -259,17 +379,34 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
       setLoading(true);
       setError(null);
       try {
-        const next = await fetchAdminMemories({
-          token: adminToken,
-          status: statusFilter,
-          scope: scopeFilter,
-          type: typeFilter,
-          userId: userFilter.trim() || undefined,
-          query: query.trim() || undefined,
-          limit: 120,
-        });
+        const [next, nextActivity] = await Promise.all([
+          fetchAdminMemories({
+            token: adminToken,
+            status: statusFilter,
+            scope: scopeFilter,
+            type: typeFilter,
+            userId: userFilter.trim() || undefined,
+            query: query.trim() || undefined,
+            from: dateRange.from,
+            to: dateRange.to,
+            dateField,
+            sort: sortKey,
+            limit: 200,
+          }),
+          fetchAdminMemoryActivity({
+            token: adminToken,
+            userId: userFilter.trim() || undefined,
+            status: statusFilter,
+            scope: scopeFilter,
+            type: typeFilter,
+            query: query.trim() || undefined,
+            dateField,
+            metric: activityMetric,
+          }),
+        ]);
         if (cancelled) return;
         setMemories(next);
+        setActivity(nextActivity);
         setKnownTypes((current) => mergeTypes(current, next));
         const nextSelected = next[0] ?? null;
         setSelectedId(nextSelected?.id ?? null);
@@ -277,6 +414,7 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
       } catch (err) {
         if (!cancelled) {
           setMemories([]);
+          setActivity(null);
           setSelectedId(null);
           setForm(emptyForm());
           setError(friendlyErrorMessage(err));
@@ -290,7 +428,25 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [adminToken, statusFilter, scopeFilter, typeFilter, userFilter, query]);
+  }, [
+    activityMetric,
+    adminToken,
+    dateField,
+    dateRange.from,
+    dateRange.to,
+    scopeFilter,
+    sortKey,
+    statusFilter,
+    typeFilter,
+    userFilter,
+    query,
+  ]);
+
+  function selectActivityDay(day: string) {
+    setDatePreset("custom");
+    setFromDate(day);
+    setToDate(day);
+  }
 
   function selectMemory(memory: AdminMemory) {
     setSelectedId(memory.id);
@@ -303,7 +459,8 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
     setSelectedId(null);
     setForm(emptyForm());
     setActionError(null);
-    setActionMessage(null);
+    setActionMessage("正在新增一条空白记忆。填写 Content 后点击保存新增。");
+    setCreateFocusSignal((current) => current + 1);
   }
 
   async function submitForm() {
@@ -399,7 +556,7 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
   return (
     <div className="space-y-5">
       <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-[0_18px_48px_rgba(91,117,150,0.1)]">
-        <div className="grid gap-3 xl:grid-cols-[1fr_0.8fr_0.8fr_0.9fr_1.1fr_auto_auto]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <FilterSelect
             label="状态"
             value={statusFilter}
@@ -430,8 +587,50 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
           <FilterInput
             label="搜索"
             value={query}
-            placeholder="content / summary / source"
+            placeholder="id / content / user / channel"
             onChange={setQuery}
+          />
+          <FilterSelect
+            label="时间字段"
+            value={dateField}
+            onChange={(value) => setDateField(value as MemoryDateField)}
+            options={dateFieldOptions}
+          />
+          <FilterSelect
+            label="时间范围"
+            value={datePreset}
+            onChange={(value) => setDatePreset(value as MemoryDatePreset)}
+            options={datePresetOptions}
+          />
+          <FilterInput
+            label="开始日期"
+            value={fromDate}
+            type="date"
+            onChange={(value) => {
+              setFromDate(value);
+              setDatePreset("custom");
+            }}
+          />
+          <FilterInput
+            label="结束日期"
+            value={toDate}
+            type="date"
+            onChange={(value) => {
+              setToDate(value);
+              setDatePreset("custom");
+            }}
+          />
+          <FilterSelect
+            label="排序"
+            value={sortKey}
+            onChange={(value) => setSortKey(value as MemorySortKey)}
+            options={sortOptions}
+          />
+          <FilterSelect
+            label="热力图"
+            value={activityMetric}
+            onChange={(value) => setActivityMetric(value as MemoryActivityMetric)}
+            options={activityMetricOptions}
           />
           <button
             type="button"
@@ -470,6 +669,14 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
             </span>
           ))}
         </div>
+
+        <MemoryActivityHeatmap
+          activity={activity}
+          metric={activityMetric}
+          selectedFromDate={datePreset === "custom" ? fromDate : ""}
+          selectedToDate={datePreset === "custom" ? toDate : ""}
+          onSelectDay={selectActivityDay}
+        />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.1fr)]">
@@ -503,6 +710,7 @@ export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
           form={form}
           selectedMemory={selectedMemory}
           saving={saving}
+          focusSignal={createFocusSignal}
           actionError={actionError}
           actionMessage={actionMessage}
           typeOptions={knownTypes}
@@ -538,6 +746,12 @@ function MemoryListItem({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[#172033]">{memory.type}</span>
+            <span
+              className="rounded-full bg-white/80 px-2 py-0.5 font-mono text-xs text-[#66758a]"
+              title={memory.id}
+            >
+              ID {shortId(memory.id)}
+            </span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[#66758a]">
               {memory.scope}
             </span>
@@ -562,10 +776,134 @@ function MemoryListItem({
   );
 }
 
+function MemoryActivityHeatmap({
+  activity,
+  metric,
+  selectedFromDate,
+  selectedToDate,
+  onSelectDay,
+}: {
+  activity: AdminMemoryActivity | null;
+  metric: MemoryActivityMetric;
+  selectedFromDate: string;
+  selectedToDate: string;
+  onSelectDay: (day: string) => void;
+}) {
+  const dayMap = useMemo(() => {
+    const map = new Map<string, { count: number; importance: number }>();
+    for (const day of activity?.days ?? []) {
+      map.set(day.date, { count: day.count, importance: day.importance });
+    }
+    return map;
+  }, [activity]);
+
+  const cells = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const firstDay = new Date(today);
+    firstDay.setDate(firstDay.getDate() - 364);
+    const blankCount = firstDay.getDay();
+    const next: Array<{
+      date: string | null;
+      count: number;
+      importance: number;
+    }> = Array.from({ length: blankCount }, () => ({
+      date: null,
+      count: 0,
+      importance: 0,
+    }));
+
+    for (let index = 0; index < 365; index += 1) {
+      const date = new Date(firstDay);
+      date.setDate(firstDay.getDate() + index);
+      const key = localDateKey(date);
+      const value = dayMap.get(key) ?? { count: 0, importance: 0 };
+      next.push({ date: key, ...value });
+    }
+    return next;
+  }, [dayMap]);
+
+  const peak = Math.max(
+    1,
+    ...cells.map((cell) =>
+      metric === "importance" ? cell.importance : cell.count
+    )
+  );
+
+  function intensity(cell: { count: number; importance: number }): number {
+    const value = metric === "importance" ? cell.importance : cell.count;
+    if (value <= 0) return 0;
+    return Math.max(1, Math.ceil((value / peak) * 4));
+  }
+
+  function cellClass(level: number, selected: boolean): string {
+    const colors = [
+      "bg-[#eef3f8]",
+      "bg-[#dbeaf4]",
+      "bg-[#bfd9ea]",
+      "bg-[#91bad8]",
+      "bg-[#5f94bd]",
+    ];
+    return `${colors[level]} ${
+      selected ? "ring-2 ring-[#8a6f5a] ring-offset-1" : "ring-1 ring-white/80"
+    }`;
+  }
+
+  return (
+    <section className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-[#172033]">记忆活跃度</h3>
+          <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">
+            最近一年按天统计。点击方块会筛选当天记忆。
+          </p>
+        </div>
+        <span className="text-xs text-[#66758a]">
+          {activity ? `全年 ${activity.totalCount} 条` : "统计读取中"}
+        </span>
+      </div>
+
+      <div className="overflow-x-auto pb-1">
+        <div className="grid w-max grid-flow-col grid-rows-7 gap-1">
+          {cells.map((cell, index) =>
+            cell.date ? (
+              <button
+                key={cell.date}
+                type="button"
+                onClick={() => onSelectDay(cell.date ?? "")}
+                title={`${cell.date}: ${cell.count} 条 · 重要度 ${cell.importance}`}
+                className={`h-3 w-3 rounded-[3px] transition hover:scale-110 ${cellClass(
+                  intensity(cell),
+                  cell.date >= selectedFromDate && cell.date <= selectedToDate
+                )}`}
+                aria-label={`${cell.date} 记忆活动`}
+              />
+            ) : (
+              <span key={`blank-${index}`} className="h-3 w-3" />
+            )
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-end gap-1 text-[11px] text-[#7b8ca2]">
+        <span>少</span>
+        {[0, 1, 2, 3, 4].map((level) => (
+          <span
+            key={level}
+            className={`h-3 w-3 rounded-[3px] ${cellClass(level, false)}`}
+          />
+        ))}
+        <span>多</span>
+      </div>
+    </section>
+  );
+}
+
 function MemoryEditor({
   form,
   selectedMemory,
   saving,
+  focusSignal,
   actionError,
   actionMessage,
   typeOptions,
@@ -576,6 +914,7 @@ function MemoryEditor({
   form: MemoryFormState;
   selectedMemory: AdminMemory | null;
   saving: boolean;
+  focusSignal: number;
   actionError: string | null;
   actionMessage: string | null;
   typeOptions: string[];
@@ -584,16 +923,27 @@ function MemoryEditor({
   onArchive: () => void;
 }) {
   const userRequired = requiresUser(form.scope);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const editableTypeOptions = useMemo(() => {
     return Array.from(new Set([...typeOptions, form.type].filter(Boolean))).sort();
   }, [form.type, typeOptions]);
+
+  useEffect(() => {
+    if (!focusSignal) return;
+    editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    contentRef.current?.focus({ preventScroll: true });
+  }, [focusSignal]);
 
   function update<K extends keyof MemoryFormState>(key: K, value: MemoryFormState[K]) {
     onFormChange({ ...form, [key]: value });
   }
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.1)]">
+    <div
+      ref={editorRef}
+      className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.1)]"
+    >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold text-[#8a6f5a]">
@@ -613,6 +963,7 @@ function MemoryEditor({
 
       {selectedMemory && (
         <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <DetailRow label="Memory ID" value={selectedMemory.id} title={selectedMemory.id} />
           <DetailRow label="Created" value={formatDate(selectedMemory.createdAt)} title={selectedMemory.createdAt} />
           <DetailRow label="Updated" value={formatDate(selectedMemory.updatedAt)} title={selectedMemory.updatedAt} />
           <DetailRow label="Access" value={`${selectedMemory.accessCount} 次`} />
@@ -700,6 +1051,7 @@ function MemoryEditor({
 
       <Field label="Content" className="mt-4">
         <textarea
+          ref={contentRef}
           value={form.content}
           onChange={(event) => update("content", event.target.value)}
           rows={5}
@@ -825,11 +1177,13 @@ function QueuePlaceholder({ text }: { text: string }) {
 function FilterInput({
   label,
   value,
+  type = "text",
   placeholder,
   onChange,
 }: {
   label: string;
   value: string;
+  type?: string;
   placeholder?: string;
   onChange: (value: string) => void;
 }) {
@@ -837,6 +1191,7 @@ function FilterInput({
     <label className="block">
       <span className="text-[11px] font-medium text-[#7b8ca2]">{label}</span>
       <input
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}

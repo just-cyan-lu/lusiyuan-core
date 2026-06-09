@@ -3,6 +3,7 @@ import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
 import { DashboardPage } from "./components/admin/DashboardPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
+import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
 import { PlaceholderPage } from "./components/admin/PlaceholderPage";
 import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
@@ -10,7 +11,8 @@ import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
 const sections: AdminSection[] = [
   "overview",
   "memory",
-  "ops",
+  "reflection",
+  "dream",
   "drafts",
   "logs",
   "chat",
@@ -23,6 +25,10 @@ function pathForSection(section: AdminSection): string {
 
 function readSectionFromLocation(): AdminSection {
   const legacyHashValue = window.location.hash.replace(/^#\/?/, "");
+  if (legacyHashValue === "ops") {
+    window.history.replaceState(null, "", pathForSection("reflection"));
+    return "reflection";
+  }
   if (sections.includes(legacyHashValue as AdminSection)) {
     const section = legacyHashValue as AdminSection;
     window.history.replaceState(null, "", pathForSection(section));
@@ -35,6 +41,10 @@ function readSectionFromLocation(): AdminSection {
     : path === "/admin" || path === "" || path === "/"
       ? "overview"
       : "";
+  if (value === "ops") {
+    window.history.replaceState(null, "", pathForSection("reflection"));
+    return "reflection";
+  }
   return sections.includes(value as AdminSection) ? (value as AdminSection) : "overview";
 }
 
@@ -71,15 +81,12 @@ export default function App() {
       return <MemoryAdminPage adminToken={adminToken} />;
     }
 
-    if (activeSection === "ops") {
-      return (
-        <PlaceholderPage
-          eyebrow="Dream / Reflection"
-          title="系统运行与复盘"
-          summary="这里会承载 Dream Cycle、Reflection 手动触发、报告查看和运行状态。第一版先保持只读和单次触发，不做复杂调度。"
-          items={["Reflection 报告", "Dream Daily Note", "Dream Signal", "Morning Brief"]}
-        />
-      );
+    if (activeSection === "reflection") {
+      return <ReflectionPage adminToken={adminToken} />;
+    }
+
+    if (activeSection === "dream") {
+      return <DreamPage adminToken={adminToken} />;
     }
 
     if (activeSection === "drafts") {
