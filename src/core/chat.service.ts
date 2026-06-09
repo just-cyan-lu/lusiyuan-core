@@ -112,6 +112,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     memories,
     recentMessages,
     userMessage: input.message,
+    channel: input.channel,
   });
 
   // If user sent images, append them to the last user message
