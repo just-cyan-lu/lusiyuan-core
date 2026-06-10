@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
+import { ConfigCenterPage } from "./components/admin/ConfigCenterPage";
 import { DashboardPage } from "./components/admin/DashboardPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
@@ -111,14 +112,7 @@ export default function App() {
       );
     }
 
-    return (
-      <PlaceholderPage
-        eyebrow="Configuration"
-        title="配置中心"
-        summary="配置第一版先做只读状态：模型、渠道、工具、Dream、Reflection 是否启用。API key 和 token 继续由 .env 管理。"
-        items={["模型提供商状态", "渠道连接状态", "功能开关", "安全阈值"]}
-      />
-    );
+    return <ConfigCenterPage adminToken={adminToken} />;
   }, [activeSection, adminToken]);
 
   return (
