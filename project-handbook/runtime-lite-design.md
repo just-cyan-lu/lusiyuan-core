@@ -168,6 +168,16 @@ LLM 生成回复
 
 RuntimeState 告诉系统“陆思源现在怎么样”；chat_profile 告诉系统“这个场景该怎么说话”。
 
+## 和 persona slices 的关系
+
+`persona/slices/` 是稳定人设切片，不是实时状态。
+
+它们负责把完整人设拆成一小段一小段的“可召回材料”。比如用户聊情绪，就带上情感切片；聊规则和自由，就带上价值观切片；聊真实存在，就带上存在感切片。
+
+RuntimeState 负责“现在的陆思源”；persona slices 负责“这类问题下，陆思源稳定是什么样”。
+
+以后如果做向量检索，优先给 slices 建向量，而不是直接把完整人格整篇丢给模型。
+
 ## 和 Reflection / Dream 的关系
 
 Reflection 是复盘员。它可以读 RuntimeEvent，判断陆思源最近有没有人格漂移、关系状态是否需要更新。

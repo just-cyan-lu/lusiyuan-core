@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import { resolve } from "path";
 
 export const DEFAULT_CHAT_PROFILE_ID = "default";
@@ -21,7 +21,18 @@ export interface PersonaContent {
   coreMemory: string;
   toolUsage: string;
   chatProfiles: Record<string, string>;
+  runtimeCore: string;
   runtimeStateSeed: string;
+  slices: PersonaSlice[];
+}
+
+export interface PersonaSlice {
+  id: string;
+  category: "canon" | "boundary";
+  profiles: string[];
+  keywords: string[];
+  priority: number;
+  content: string;
 }
 
 const PERSONA_DIR = resolve(process.cwd(), "persona");
@@ -58,6 +69,69 @@ async function loadChatProfiles(): Promise<Record<string, string>> {
   return Object.fromEntries(entries);
 }
 
+async function loadPersonaSlices(): Promise<PersonaSlice[]> {
+  const sliceDir = resolve(PERSONA_DIR, "slices");
+  let filenames: string[];
+
+  try {
+    filenames = await readdir(sliceDir);
+  } catch (error) {
+    if ((error as { code?: string }).code === "ENOENT") return [];
+    throw error;
+  }
+
+  const slices = await Promise.all(
+    filenames
+      .filter((filename) => filename.endsWith(".md"))
+      .sort()
+      .map(async (filename) => {
+        const raw = await readFile(resolve(sliceDir, filename), "utf-8");
+        return parsePersonaSlice(filename, raw);
+      })
+  );
+
+  return slices;
+}
+
+function parsePersonaSlice(filename: string, raw: string): PersonaSlice {
+  const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/m.exec(raw);
+  const metadata = match ? parseSliceMetadata(match[1]) : {};
+  const content = (match ? match[2] : raw).trim();
+  const id = metadata.id ?? filename.replace(/\.md$/, "");
+
+  return {
+    id,
+    category: metadata.category === "boundary" ? "boundary" : "canon",
+    profiles: splitCsv(metadata.profiles),
+    keywords: splitCsv(metadata.keywords),
+    priority: parsePriority(metadata.priority),
+    content,
+  };
+}
+
+function parseSliceMetadata(raw: string): Record<string, string> {
+  const metadata: Record<string, string> = {};
+  for (const line of raw.split(/\r?\n/)) {
+    const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line.trim());
+    if (!match) continue;
+    metadata[match[1]] = match[2];
+  }
+  return metadata;
+}
+
+function splitCsv(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parsePriority(value: string | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 50;
+}
+
 export async function loadPersona(): Promise<PersonaContent> {
   const [
     identity,
@@ -68,7 +142,9 @@ export async function loadPersona(): Promise<PersonaContent> {
     coreMemory,
     toolUsage,
     chatProfiles,
+    runtimeCore,
     runtimeStateSeed,
+    slices,
   ] = await Promise.all([
     readPersonaFile("identity.md"),
     readPersonaFile("personality.md"),
@@ -78,7 +154,9 @@ export async function loadPersona(): Promise<PersonaContent> {
     readPersonaFile("core_memory.md"),
     readPersonaFile("tool_usage.md"),
     loadChatProfiles(),
+    readOptionalPersonaFile("runtime/core.md"),
     readOptionalPersonaFile("runtime/default_state.md"),
+    loadPersonaSlices(),
   ]);
 
   return {
@@ -90,6 +168,8 @@ export async function loadPersona(): Promise<PersonaContent> {
     coreMemory,
     toolUsage,
     chatProfiles,
+    runtimeCore,
     runtimeStateSeed,
+    slices,
   };
 }
