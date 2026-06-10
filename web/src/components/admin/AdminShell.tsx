@@ -6,7 +6,7 @@ export type AdminSection =
   | "reflection"
   | "dream"
   | "drafts"
-  | "logs"
+  | "tools"
   | "chat"
   | "settings";
 
@@ -56,10 +56,10 @@ const navItems: Array<{
     description: "内容队列",
   },
   {
-    section: "logs",
+    section: "tools",
     index: "06",
-    label: "日志",
-    description: "工具调用",
+    label: "工具",
+    description: "调用与日志",
   },
   {
     section: "chat",
@@ -71,7 +71,7 @@ const navItems: Array<{
     section: "settings",
     index: "08",
     label: "配置",
-    description: ".env 只读",
+    description: ".env 编辑",
   },
 ];
 

@@ -6,6 +6,7 @@ import { DashboardPage } from "./components/admin/DashboardPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
 import { PlaceholderPage } from "./components/admin/PlaceholderPage";
+import { ToolsAdminPage } from "./components/admin/ToolsAdminPage";
 import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
 
@@ -15,7 +16,7 @@ const sections: AdminSection[] = [
   "reflection",
   "dream",
   "drafts",
-  "logs",
+  "tools",
   "chat",
   "settings",
 ];
@@ -29,6 +30,10 @@ function readSectionFromLocation(): AdminSection {
   if (legacyHashValue === "ops") {
     window.history.replaceState(null, "", pathForSection("reflection"));
     return "reflection";
+  }
+  if (legacyHashValue === "logs") {
+    window.history.replaceState(null, "", pathForSection("tools"));
+    return "tools";
   }
   if (sections.includes(legacyHashValue as AdminSection)) {
     const section = legacyHashValue as AdminSection;
@@ -45,6 +50,10 @@ function readSectionFromLocation(): AdminSection {
   if (value === "ops") {
     window.history.replaceState(null, "", pathForSection("reflection"));
     return "reflection";
+  }
+  if (value === "logs") {
+    window.history.replaceState(null, "", pathForSection("tools"));
+    return "tools";
   }
   return sections.includes(value as AdminSection) ? (value as AdminSection) : "overview";
 }
@@ -101,15 +110,8 @@ export default function App() {
       );
     }
 
-    if (activeSection === "logs") {
-      return (
-        <PlaceholderPage
-          eyebrow="Observability"
-          title="工具调用日志"
-          summary="这里用于追踪工具调用、失败原因、耗时和风险等级。先做可读性，再做筛选和详情抽屉。"
-          items={["工具名称", "调用状态", "风险等级", "耗时与阻断原因"]}
-        />
-      );
+    if (activeSection === "tools") {
+      return <ToolsAdminPage adminToken={adminToken} />;
     }
 
     return <ConfigCenterPage adminToken={adminToken} />;

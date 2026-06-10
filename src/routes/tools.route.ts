@@ -3,7 +3,44 @@ import { toolRegistry } from "../tools/tool-registry.js";
 import { toolExecutor } from "../tools/tool-executor.js";
 import { prisma } from "../db/prisma.js";
 import { requireAdminAuth } from "./admin-auth.js";
+import { env } from "../utils/env.js";
+import { Prisma } from "@prisma/client";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
+
+function clampLimit(value: unknown, fallback = 50): number {
+  const parsed = parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), 200);
+}
+
+function cleanString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function cleanDate(value: unknown): Date | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function effectiveToolState(tool: {
+  enabled: boolean;
+  riskLevel: string;
+}): { effectiveEnabled: boolean; disabledReason: string | null } {
+  if (!tool.enabled) {
+    return { effectiveEnabled: false, disabledReason: "Tool is disabled" };
+  }
+  if (!env.TOOLS_ENABLED) {
+    return { effectiveEnabled: false, disabledReason: "Tool layer is disabled" };
+  }
+  if (tool.riskLevel === "medium" && !env.TOOLS_ALLOW_MEDIUM_RISK) {
+    return { effectiveEnabled: false, disabledReason: "Medium risk tools are disabled" };
+  }
+  if (tool.riskLevel === "high" && !env.TOOLS_ALLOW_HIGH_RISK) {
+    return { effectiveEnabled: false, disabledReason: "High risk tools are disabled" };
+  }
+  return { effectiveEnabled: true, disabledReason: null };
+}
 
 export async function toolsRoute(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", async (request) => {
@@ -14,11 +51,24 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
     const tools = toolRegistry.listAll().map((t) => ({
       name: t.name,
       description: t.description,
+      parameters: t.parameters ?? null,
       riskLevel: t.riskLevel,
       enabled: t.enabled,
+      ...effectiveToolState(t),
       ownerOnly: t.ownerOnly ?? false,
     }));
-    return reply.send({ tools });
+    return reply.send({
+      tools,
+      policy: {
+        enabled: env.TOOLS_ENABLED,
+        autoExecuteLowRisk: env.TOOLS_AUTO_EXECUTE_LOW_RISK,
+        allowMediumRisk: env.TOOLS_ALLOW_MEDIUM_RISK,
+        allowHighRisk: env.TOOLS_ALLOW_HIGH_RISK,
+        maxCallsPerMessage: env.TOOL_MAX_CALLS_PER_MESSAGE,
+        timeoutMs: env.TOOL_TIMEOUT_MS,
+        logInputOutput: env.TOOL_LOG_INPUT_OUTPUT,
+      },
+    });
   });
 
   app.post("/v1/tools/:toolName/execute", async (request, reply) => {
@@ -58,13 +108,27 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/v1/tool-logs", async (request, reply) => {
-    const query = request.query as { userId?: string; limit?: string };
-    const limit = Math.min(parseInt(query.limit ?? "20", 10), 100);
+    const query = request.query as {
+      userId?: string;
+      toolName?: string;
+      status?: string;
+      riskLevel?: string;
+      blocked?: string;
+      channel?: string;
+      conversationId?: string;
+      from?: string;
+      to?: string;
+      q?: string;
+      limit?: string;
+    };
+    const limit = clampLimit(query.limit, 50);
 
     let internalUserId: string | undefined;
     if (query.userId) {
-      const user = await prisma.user.findUnique({
-        where: { externalId: query.userId },
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [{ id: query.userId }, { externalId: query.userId }],
+        },
       });
       if (!user) {
         return reply.status(404).send({ error: "User not found" });
@@ -72,8 +136,40 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
       internalUserId = user.id;
     }
 
+    const where: Prisma.ToolCallLogWhereInput = {};
+    if (internalUserId) where.userId = internalUserId;
+    if (cleanString(query.toolName)) where.toolName = query.toolName;
+    if (cleanString(query.status)) where.status = query.status;
+    if (cleanString(query.riskLevel)) where.riskLevel = query.riskLevel;
+    if (cleanString(query.channel)) where.channel = query.channel;
+    if (cleanString(query.conversationId)) where.conversationId = query.conversationId;
+    if (query.blocked === "true") where.blocked = true;
+    if (query.blocked === "false") where.blocked = false;
+
+    const from = cleanDate(query.from);
+    const to = cleanDate(query.to);
+    if (from || to) {
+      where.createdAt = {
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
+      };
+    }
+
+    const search = cleanString(query.q);
+    if (search) {
+      where.OR = [
+        { toolName: { contains: search, mode: "insensitive" } },
+        { status: { contains: search, mode: "insensitive" } },
+        { error: { contains: search, mode: "insensitive" } },
+        { blockReason: { contains: search, mode: "insensitive" } },
+        { channel: { contains: search, mode: "insensitive" } },
+        { conversationId: { contains: search, mode: "insensitive" } },
+        { messageId: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
     const logs = await prisma.toolCallLog.findMany({
-      where: internalUserId ? { userId: internalUserId } : undefined,
+      where,
       orderBy: { createdAt: "desc" },
       take: limit,
       select: {
@@ -83,6 +179,13 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
         status: true,
         blocked: true,
         blockReason: true,
+        userId: true,
+        conversationId: true,
+        messageId: true,
+        channel: true,
+        input: true,
+        output: true,
+        error: true,
         durationMs: true,
         createdAt: true,
       },

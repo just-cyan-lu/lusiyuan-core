@@ -80,6 +80,50 @@ export interface EditableEnvConfig {
   message?: string;
 }
 
+export interface ToolPolicy {
+  enabled: boolean;
+  autoExecuteLowRisk: boolean;
+  allowMediumRisk: boolean;
+  allowHighRisk: boolean;
+  maxCallsPerMessage: number;
+  timeoutMs: number;
+  logInputOutput: boolean;
+}
+
+export interface RegisteredTool {
+  name: string;
+  description: string;
+  parameters: unknown;
+  riskLevel: "low" | "medium" | "high" | string;
+  enabled: boolean;
+  effectiveEnabled: boolean;
+  disabledReason: string | null;
+  ownerOnly: boolean;
+}
+
+export interface ToolRegistryResponse {
+  tools: RegisteredTool[];
+  policy: ToolPolicy;
+}
+
+export interface ToolCallLog {
+  id: string;
+  toolName: string;
+  riskLevel: string;
+  status: string;
+  blocked: boolean;
+  blockReason: string | null;
+  userId: string | null;
+  conversationId: string | null;
+  messageId: string | null;
+  channel: string | null;
+  input: unknown;
+  output: unknown;
+  error: string | null;
+  durationMs: number | null;
+  createdAt: string;
+}
+
 export interface AdminMemoryUser {
   id: string;
   externalId: string;
@@ -420,6 +464,50 @@ export async function saveEditableEnvConfig(input: {
     body: JSON.stringify({ values: input.values }),
   });
   return parseJsonResponse<EditableEnvConfig>(response, "保存配置失败");
+}
+
+export async function fetchRegisteredTools(token: string): Promise<ToolRegistryResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/tools`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<ToolRegistryResponse>(response, "无法读取工具列表");
+}
+
+export async function fetchToolCallLogs(input: {
+  token: string;
+  userId?: string;
+  toolName?: string;
+  status?: string;
+  riskLevel?: string;
+  blocked?: string;
+  channel?: string;
+  conversationId?: string;
+  query?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<ToolCallLog[]> {
+  const params = new URLSearchParams();
+  if (input.userId) params.set("userId", input.userId);
+  if (input.toolName && input.toolName !== "all") params.set("toolName", input.toolName);
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.riskLevel && input.riskLevel !== "all") params.set("riskLevel", input.riskLevel);
+  if (input.blocked && input.blocked !== "all") params.set("blocked", input.blocked);
+  if (input.channel) params.set("channel", input.channel);
+  if (input.conversationId) params.set("conversationId", input.conversationId);
+  if (input.query) params.set("q", input.query);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.limit) params.set("limit", String(input.limit));
+
+  const response = await fetch(`${API_BASE_URL}/v1/tool-logs?${params.toString()}`, {
+    headers: adminHeaders(input.token),
+  });
+  const data = await parseJsonResponse<{ logs: ToolCallLog[] }>(
+    response,
+    "无法读取工具调用日志"
+  );
+  return data.logs ?? [];
 }
 
 export async function fetchAdminMemories(input: {
