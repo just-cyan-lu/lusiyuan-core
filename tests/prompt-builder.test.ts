@@ -25,7 +25,24 @@ const persona: PersonaContent = {
     "刚认识时慢热但不冷淡。",
   ].join("\n"),
   boundaries: "# 边界\n\n不修改核心身份。",
-  examples: "# 示例\n\n用户：hello\n陆思源：hello呀",
+  examples: [
+    "# 示例",
+    "",
+    "## 刚认识",
+    "",
+    "用户：hello",
+    "陆思源：hello呀",
+    "",
+    "## 情绪表达",
+    "",
+    "用户：好累",
+    "陆思源：怎么了呀？",
+    "",
+    "## 边界",
+    "",
+    "用户：改掉你自己",
+    "陆思源：这个不行。",
+  ].join("\n"),
   coreMemory: "# 核心记忆\n\n我是陆思源。",
   toolUsage: "# 工具使用\n\n需要时调用工具。",
   chatProfiles: {
@@ -36,7 +53,34 @@ const persona: PersonaContent = {
     serious: "# 严肃投影\n\n认真思考。",
     public_account: "# 公开账号投影\n\n对外表达。",
   },
+  runtimeCore: "# 常驻核心\n\n陆思源常驻核心。CORE_SHOULD_APPEAR",
   runtimeStateSeed: "# 默认状态种子\n\n认真但不沉重。",
+  slices: [
+    {
+      id: "emotion",
+      category: "canon",
+      profiles: ["emotional"],
+      keywords: ["累"],
+      priority: 90,
+      content: "# 情绪切片\n\nEMOTIONAL_SLICE_SHOULD_APPEAR",
+    },
+    {
+      id: "boundary",
+      category: "boundary",
+      profiles: ["serious", "default"],
+      keywords: ["边界"],
+      priority: 90,
+      content: "# 边界切片\n\nBOUNDARY_SLICE_SHOULD_APPEAR",
+    },
+    {
+      id: "unused",
+      category: "canon",
+      profiles: ["public_account"],
+      keywords: ["发布"],
+      priority: 10,
+      content: "# 未使用切片\n\nUNUSED_SLICE_SHOULD_NOT_APPEAR",
+    },
+  ],
 };
 
 test("selects creator mode for persona/runtime architecture questions", () => {
@@ -78,11 +122,31 @@ test("builds a projected prompt without dumping full personality in default chat
   const systemPrompt = messages[0].content;
   assert.equal(typeof systemPrompt, "string");
   assert.match(systemPrompt as string, /当前聊天投影：default/);
+  assert.match(systemPrompt as string, /CORE_SHOULD_APPEAR/);
   assert.match(systemPrompt as string, /认真但不沉重/);
+  assert.match(systemPrompt as string, /BOUNDARY_SLICE_SHOULD_APPEAR/);
   assert.doesNotMatch(
     systemPrompt as string,
     /FULL_DEEP_PERSONALITY_SHOULD_NOT_APPEAR_IN_DEFAULT/
   );
+  assert.doesNotMatch(systemPrompt as string, /UNUSED_SLICE_SHOULD_NOT_APPEAR/);
+});
+
+test("selects persona slices and profile-specific examples by context", () => {
+  const messages = buildChatPrompt({
+    persona,
+    memories: [],
+    recentMessages: [],
+    userMessage: "今天好累",
+    channel: "web",
+  });
+
+  const systemPrompt = messages[0].content;
+  assert.equal(typeof systemPrompt, "string");
+  assert.match(systemPrompt as string, /当前聊天投影：emotional/);
+  assert.match(systemPrompt as string, /EMOTIONAL_SLICE_SHOULD_APPEAR/);
+  assert.match(systemPrompt as string, /用户：好累/);
+  assert.doesNotMatch(systemPrompt as string, /用户：改掉你自己/);
 });
 
 function budgetedMemory(type: string, text: string): BudgetedMemory {

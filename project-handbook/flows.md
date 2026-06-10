@@ -49,7 +49,11 @@ chat.service.ts
 ```text
 完整人设
 ↓
-persona-projection 选择本轮需要的切片
+runtime/core 提供每轮固定核心
+↓
+persona-projection 判断本轮聊天场景
+↓
+persona-projection 挑选本轮需要的人设切片
 ↓
 chat_profile 决定当前场景怎么说话
 ↓
@@ -60,7 +64,7 @@ runtime default_state 提供默认状态种子
 prompt-builder 生成最终 prompt
 ```
 
-重点：完整人设仍然完整保存，但日常聊天不会直接全量塞给模型。
+重点：完整人设仍然完整保存，但日常聊天不会直接全量塞给模型。现在的切片选择不是随机抽样，而是看聊天投影、关键词和切片优先级。以后如果接向量检索，也应该在切片层接入。
 
 ## 记忆是怎么进入聊天的
 

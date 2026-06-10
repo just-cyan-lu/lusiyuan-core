@@ -90,7 +90,7 @@ lusiyuan-core 后端
 
 - `src/core/chat.service.ts`：聊天主流程。
 - `src/core/prompt-builder.ts`：组装给模型看的内容。
-- `src/core/persona-projection.ts`：选择本轮聊天投影。
+- `src/core/persona-projection.ts`：选择本轮聊天投影和人设切片。
 - `src/routes/chat.route.ts`：HTTP 聊天入口。
 
 ---
@@ -117,6 +117,10 @@ lusiyuan-core 后端
 - `persona/speaking_style.md`：说话风格。
 - `persona/boundaries.md`：边界。
 - `persona/examples.md`：回复示例。
+- `persona/runtime/core.md`：每轮聊天固定带上的常驻核心。
+- `persona/slices/`：按问题检索的人设切片。
+
+`personality.md` 是完整依据，不会在日常聊天里整篇塞给模型。实际聊天时，会固定带上常驻核心，再按本轮问题挑少量相关切片。
 
 ### Chat Profile
 
@@ -511,6 +515,7 @@ pnpm telegram:dev
 项目已经有 Runtime Lite 的前置骨架：
 
 - `persona/chat_profiles/`：稳定聊天投影。
+- `persona/runtime/core.md`：每轮聊天固定带上的常驻核心。
 - `persona/runtime/default_state.md`：默认运行态种子。
 - `src/core/persona-projection.ts`：选择聊天投影和人设切片。
 
