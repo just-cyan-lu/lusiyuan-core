@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   API_BASE_URL,
+  fetchEditableEnvConfig,
   fetchRuntimeConfig,
+  saveEditableEnvConfig,
+  type EditableEnvConfig,
+  type EnvConfigField,
   type RuntimeConfig,
   type RuntimeProvider,
 } from "../../api/lusiyuan-api";
@@ -13,8 +17,12 @@ interface ConfigCenterPageProps {
 
 interface ConfigState {
   runtime: RuntimeConfig | null;
+  envConfig: EditableEnvConfig | null;
   loading: boolean;
+  saving: boolean;
   error: string | null;
+  saveError: string | null;
+  saveMessage: string | null;
 }
 
 interface Finding {
@@ -150,23 +158,83 @@ function buildFindings(runtime: RuntimeConfig | null): Finding[] {
   return findings;
 }
 
+function formValuesFromConfig(config: EditableEnvConfig): Record<string, string> {
+  return Object.fromEntries(config.fields.map((field) => [field.key, field.value ?? ""]));
+}
+
+function groupEnvFields(fields: EnvConfigField[]): Array<[string, EnvConfigField[]]> {
+  const groups = new Map<string, EnvConfigField[]>();
+  for (const field of fields) {
+    const group = groups.get(field.group) ?? [];
+    group.push(field);
+    groups.set(field.group, group);
+  }
+  return Array.from(groups.entries());
+}
+
+function changedConfigValues(
+  fields: EnvConfigField[],
+  values: Record<string, string>
+): Record<string, string | boolean | number> {
+  const changed: Record<string, string | boolean | number> = {};
+  for (const field of fields) {
+    const nextValue = values[field.key] ?? "";
+    if (field.secret && nextValue === "") continue;
+    if (!field.secret && nextValue === field.value) continue;
+
+    if (field.type === "boolean") {
+      changed[field.key] = nextValue === "true";
+    } else if (field.type === "integer") {
+      changed[field.key] = parseInt(nextValue, 10);
+    } else if (field.type === "number") {
+      changed[field.key] = parseFloat(nextValue);
+    } else {
+      changed[field.key] = nextValue;
+    }
+  }
+  return changed;
+}
+
 export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
   const [state, setState] = useState<ConfigState>({
     runtime: null,
+    envConfig: null,
     loading: false,
+    saving: false,
     error: null,
+    saveError: null,
+    saveMessage: null,
   });
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
 
   async function loadConfig() {
     if (!adminToken) {
-      setState({ runtime: null, loading: false, error: null });
+      setState({
+        runtime: null,
+        envConfig: null,
+        loading: false,
+        saving: false,
+        error: null,
+        saveError: null,
+        saveMessage: null,
+      });
       return;
     }
 
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const runtime = await fetchRuntimeConfig(adminToken);
-      setState({ runtime, loading: false, error: null });
+      const [runtime, envConfig] = await Promise.all([
+        fetchRuntimeConfig(adminToken),
+        fetchEditableEnvConfig(adminToken),
+      ]);
+      setFormValues(formValuesFromConfig(envConfig));
+      setState((current) => ({
+        ...current,
+        runtime,
+        envConfig,
+        loading: false,
+        error: null,
+      }));
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -181,14 +249,34 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
 
     async function load() {
       if (!adminToken) {
-        setState({ runtime: null, loading: false, error: null });
+        setState({
+          runtime: null,
+          envConfig: null,
+          loading: false,
+          saving: false,
+          error: null,
+          saveError: null,
+          saveMessage: null,
+        });
         return;
       }
 
       setState((current) => ({ ...current, loading: true, error: null }));
       try {
-        const runtime = await fetchRuntimeConfig(adminToken);
-        if (!cancelled) setState({ runtime, loading: false, error: null });
+        const [runtime, envConfig] = await Promise.all([
+          fetchRuntimeConfig(adminToken),
+          fetchEditableEnvConfig(adminToken),
+        ]);
+        if (!cancelled) {
+          setFormValues(formValuesFromConfig(envConfig));
+          setState((current) => ({
+            ...current,
+            runtime,
+            envConfig,
+            loading: false,
+            error: null,
+          }));
+        }
       } catch (error) {
         if (!cancelled) {
           setState((current) => ({
@@ -207,6 +295,8 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
   }, [adminToken]);
 
   const runtime = state.runtime;
+  const envConfig = state.envConfig;
+  const editableGroups = useMemo(() => groupEnvFields(envConfig?.fields ?? []), [envConfig]);
   const activeProvider = useMemo(
     () => runtime?.providers.find((provider) => provider.active) ?? null,
     [runtime]
@@ -216,6 +306,46 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     [runtime]
   );
   const findings = useMemo(() => buildFindings(runtime), [runtime]);
+
+  async function saveConfig() {
+    if (!adminToken || !envConfig) return;
+    setState((current) => ({
+      ...current,
+      saving: true,
+      saveError: null,
+      saveMessage: null,
+    }));
+
+    try {
+      const values = changedConfigValues(envConfig.fields, formValues);
+      if (Object.keys(values).length === 0) {
+        setState((current) => ({
+          ...current,
+          saving: false,
+          saveMessage: "没有需要保存的改动。",
+        }));
+        return;
+      }
+
+      const nextConfig = await saveEditableEnvConfig({
+        token: adminToken,
+        values,
+      });
+      setFormValues(formValuesFromConfig(nextConfig));
+      setState((current) => ({
+        ...current,
+        envConfig: nextConfig,
+        saving: false,
+        saveMessage: `已保存 ${nextConfig.updatedKeys?.length ?? Object.keys(values).length} 项到 .env。重启后端后生效。`,
+      }));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        saving: false,
+        saveError: friendlyErrorMessage(error),
+      }));
+    }
+  }
 
   if (!adminToken) {
     return (
@@ -237,17 +367,27 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             <div className="text-xs font-semibold text-[#8a6f5a]">Configuration</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">配置中心</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              这里读取运行时配置摘要。密钥仍由 `.env` 管理，页面只展示是否配置、是否启用和当前限制值。
+              这里可以编辑白名单内的 `.env` 配置。保存会写回文件，但当前后端进程需要重启后才会使用新值。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadConfig()}
-            disabled={state.loading}
-            className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
-          >
-            {state.loading ? "刷新中" : "刷新配置"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void loadConfig()}
+              disabled={state.loading || state.saving}
+              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
+            >
+              {state.loading ? "刷新中" : "刷新配置"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveConfig()}
+              disabled={!envConfig || state.loading || state.saving}
+              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+            >
+              {state.saving ? "保存中" : "保存到 .env"}
+            </button>
+          </div>
         </div>
 
         {state.error && (
@@ -255,7 +395,35 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             {state.error}
           </div>
         )}
+        {state.saveError && (
+          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+            {state.saveError}
+          </div>
+        )}
+        {state.saveMessage && (
+          <div className="mt-5 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+            {state.saveMessage}
+          </div>
+        )}
       </section>
+
+      <Panel
+        title="编辑 .env"
+        subtitle={envConfig ? `${envConfig.envPath} · 保存后需要重启后端生效` : "读取可编辑配置"}
+      >
+        {envConfig ? (
+          <EnvConfigEditor
+            groups={editableGroups}
+            values={formValues}
+            disabled={state.saving}
+            onChange={(key, value) =>
+              setFormValues((current) => ({ ...current, [key]: value }))
+            }
+          />
+        ) : (
+          <LoadingHint loading={state.loading} />
+        )}
+      </Panel>
 
       <section className="grid gap-5 xl:grid-cols-4">
         <SummaryCard
@@ -395,6 +563,134 @@ function Panel({
       </div>
       {children}
     </section>
+  );
+}
+
+function EnvConfigEditor({
+  groups,
+  values,
+  disabled,
+  onChange,
+}: {
+  groups: Array<[string, EnvConfigField[]]>;
+  values: Record<string, string>;
+  disabled: boolean;
+  onChange: (key: string, value: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
+        保存会写入 `.env` 文件。API key / token / secret 留空表示不修改原值；保存后的配置需要重启后端服务才会生效。
+      </div>
+      {groups.map(([group, fields], index) => (
+        <details
+          key={group}
+          open={index < 3}
+          className="rounded-lg border border-[#d9e2ec] bg-white"
+        >
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[#172033]">
+            {group}
+            <span className="ml-2 text-xs font-normal text-[#7b8ca2]">
+              {fields.length} 项
+            </span>
+          </summary>
+          <div className="grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
+            {fields.map((field) => (
+              <EnvConfigFieldControl
+                key={field.key}
+                field={field}
+                value={values[field.key] ?? ""}
+                disabled={disabled}
+                onChange={(value) => onChange(field.key, value)}
+              />
+            ))}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function EnvConfigFieldControl({
+  field,
+  value,
+  disabled,
+  onChange,
+}: {
+  field: EnvConfigField;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3">
+      <span className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
+          <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>
+            {field.key}
+          </span>
+        </span>
+        <span
+          className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
+            field.fromFile
+              ? "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
+              : "border-[#d9e2ec] bg-white text-[#7b8ca2]"
+          }`}
+        >
+          {field.fromFile ? "env" : "默认"}
+        </span>
+      </span>
+
+      <div className="mt-3">
+        {field.type === "boolean" ? (
+          <select
+            value={value || "false"}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            className="field-input"
+          >
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        ) : field.type === "select" ? (
+          <select
+            value={value}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            className="field-input"
+          >
+            {(field.options ?? []).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={value}
+            type={field.type === "secret" ? "password" : field.type === "string" ? "text" : "number"}
+            min={field.min}
+            max={field.max}
+            step={field.type === "number" ? "0.01" : undefined}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={
+              field.type === "secret"
+                ? field.configured
+                  ? "已配置，留空不修改"
+                  : "输入新值"
+                : undefined
+            }
+            className="field-input"
+          />
+        )}
+      </div>
+
+      {field.description && (
+        <p className="mt-2 text-xs leading-5 text-[#7b8ca2]">{field.description}</p>
+      )}
+    </label>
   );
 }
 

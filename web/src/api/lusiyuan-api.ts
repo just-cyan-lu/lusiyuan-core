@@ -48,6 +48,38 @@ export interface RuntimeConfig {
   limits: Record<string, number>;
 }
 
+export type EnvConfigFieldType =
+  | "string"
+  | "secret"
+  | "boolean"
+  | "integer"
+  | "number"
+  | "select";
+
+export interface EnvConfigField {
+  key: string;
+  group: string;
+  label: string;
+  type: EnvConfigFieldType;
+  value: string;
+  configured: boolean;
+  fromFile: boolean;
+  secret: boolean;
+  restartRequired: boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
+  description?: string;
+}
+
+export interface EditableEnvConfig {
+  envPath: string;
+  restartRequired: boolean;
+  fields: EnvConfigField[];
+  updatedKeys?: string[];
+  message?: string;
+}
+
 export interface AdminMemoryUser {
   id: string;
   externalId: string;
@@ -366,6 +398,28 @@ export async function fetchRuntimeConfig(token: string): Promise<RuntimeConfig> 
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeConfig>(response, "无法读取运行配置");
+}
+
+export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/config/env`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<EditableEnvConfig>(response, "无法读取可编辑配置");
+}
+
+export async function saveEditableEnvConfig(input: {
+  token: string;
+  values: Record<string, string | boolean | number>;
+}): Promise<EditableEnvConfig> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/config/env`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ values: input.values }),
+  });
+  return parseJsonResponse<EditableEnvConfig>(response, "保存配置失败");
 }
 
 export async function fetchAdminMemories(input: {
