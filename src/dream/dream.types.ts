@@ -45,13 +45,6 @@ export interface DreamSourceToolCall {
   createdAt: Date;
 }
 
-export interface DreamSourceDraft {
-  id: string;
-  content: string;
-  status: string;
-  createdAt: Date;
-}
-
 export interface DreamSourceReflectionReport {
   id: string;
   summary: string;
@@ -73,11 +66,9 @@ export interface DreamContext {
   messages: DreamSourceMessage[];
   memories: DreamSourceMemory[];
   toolCalls: DreamSourceToolCall[];
-  drafts: DreamSourceDraft[];
   reflectionReports: DreamSourceReflectionReport[];
   memoryProposals: DreamSourceMemoryProposal[];
   // reserved for v0.8+
-  externalInboxItems?: unknown[];
   assetReviews?: unknown[];
   sourceStats: Record<string, number>;
 }

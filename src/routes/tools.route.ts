@@ -39,6 +39,9 @@ function effectiveToolState(tool: {
   if (tool.riskLevel === "high" && !env.TOOLS_ALLOW_HIGH_RISK) {
     return { effectiveEnabled: false, disabledReason: "High risk tools are disabled" };
   }
+  if (tool.riskLevel === "low" && !env.TOOLS_AUTO_EXECUTE_LOW_RISK) {
+    return { effectiveEnabled: false, disabledReason: "Low risk auto execution is disabled" };
+  }
   return { effectiveEnabled: true, disabledReason: null };
 }
 
@@ -54,6 +57,7 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
       parameters: t.parameters ?? null,
       riskLevel: t.riskLevel,
       enabled: t.enabled,
+      accessMode: t.accessMode ?? (t.enabled ? (t.ownerOnly ? "owner_only" : "on") : "off"),
       ...effectiveToolState(t),
       ownerOnly: t.ownerOnly ?? false,
     }));

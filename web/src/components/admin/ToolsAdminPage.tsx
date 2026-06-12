@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  fetchEditableEnvConfig,
   fetchRegisteredTools,
   fetchToolCallLogs,
+  saveEditableEnvConfig,
+  type EditableEnvConfig,
+  type EnvConfigField,
   type RegisteredTool,
   type ToolCallLog,
   type ToolPolicy,
@@ -9,6 +13,7 @@ import {
 import { StatusPill } from "./StatusPill";
 
 type DatePreset = "24h" | "7d" | "30d" | "all" | "custom";
+type ToolAccessMode = "off" | "owner_only" | "on";
 
 interface ToolsAdminPageProps {
   adminToken: string;
@@ -17,9 +22,13 @@ interface ToolsAdminPageProps {
 interface ToolsState {
   tools: RegisteredTool[];
   policy: ToolPolicy | null;
+  envConfig: EditableEnvConfig | null;
   logs: ToolCallLog[];
   loading: boolean;
+  saving: boolean;
   error: string | null;
+  saveError: string | null;
+  saveMessage: string | null;
 }
 
 const datePresetOptions: Array<{ value: DatePreset; label: string }> = [
@@ -29,6 +38,71 @@ const datePresetOptions: Array<{ value: DatePreset; label: string }> = [
   { value: "all", label: "全部时间" },
   { value: "custom", label: "自定义" },
 ];
+
+const policyConfigKeys = [
+  "TOOLS_ENABLED",
+  "TOOLS_AUTO_EXECUTE_LOW_RISK",
+  "TOOLS_ALLOW_MEDIUM_RISK",
+  "TOOLS_ALLOW_HIGH_RISK",
+  "TOOL_MAX_CALLS_PER_MESSAGE",
+  "TOOL_TIMEOUT_MS",
+  "TOOL_LOG_INPUT_OUTPUT",
+];
+
+const toolGuides: Record<
+  string,
+  {
+    purpose: string;
+    usage: string;
+    trigger: string;
+    modeKey: string;
+    configKeys: string[];
+  }
+> = {
+  search_memories: {
+    purpose: "按语义检索当前用户相关的长期记忆，返回记忆 id、类型、摘要、重要度等。",
+    usage: "用户问“我之前说过什么”“我的偏好是什么”“之前那个决策是什么”时会用到。",
+    trigger: "模型判断当前回复需要额外查长期记忆时触发；受全局工具层和记忆检索开关影响。",
+    modeKey: "TOOL_SEARCH_MEMORIES_MODE",
+    configKeys: ["MEMORY_RETRIEVAL_ENABLED"],
+  },
+  summarize_recent_conversation: {
+    purpose: "读取最近消息并调用模型总结对话，提炼关键点、潜在记忆、决策和未解决问题。",
+    usage: "用户要求“总结这段对话”“提炼要点”“看看有什么值得记住”时使用。",
+    trigger: "模型判断需要对当前或指定 conversation 做即时总结时触发。",
+    modeKey: "TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE",
+    configKeys: [],
+  },
+  web_search: {
+    purpose: "通过 Tavily 搜索公网信息，返回答案摘要和搜索结果列表。",
+    usage: "用户问最新信息、新闻、外部资料、技术文档时使用；只读搜索，不会执行外部动作。",
+    trigger: "模型判断本地知识不足或问题明显需要联网时触发；可通过访问模式限制为 owner only。",
+    modeKey: "TOOL_WEB_SEARCH_MODE",
+    configKeys: ["TAVILY_ENABLED", "TAVILY_API_KEYS", "TAVILY_API_KEY", "TAVILY_MAX_RESULTS", "TAVILY_SEARCH_DEPTH"],
+  },
+  read_page: {
+    purpose: "读取指定 URL 的正文内容，可用 Jina、Playwright 或连接已登录 Chrome 的 CDP。",
+    usage: "用户发链接并要求“帮我看这页”“总结这个页面”“读取登录后的页面”时使用。",
+    trigger: "模型看到需要读取网页内容时触发；截图或 JS 页面会倾向 Playwright/CDP；可通过访问模式限制为 owner only。",
+    modeKey: "TOOL_READ_PAGE_MODE",
+    configKeys: [
+      "JINA_ENABLED",
+      "JINA_API_KEY",
+      "PLAYWRIGHT_ENABLED",
+      "PLAYWRIGHT_SCREENSHOT_ENABLED",
+      "PLAYWRIGHT_MAX_PAGE_TEXT_CHARS",
+      "CDP_BROWSER_ENABLED",
+      "CDP_BROWSER_PORT",
+    ],
+  },
+  send_intermediate_message: {
+    purpose: "在最终回复前发送一条中间消息，让工具调用过程更自然，例如“我去查一下”。",
+    usage: "主要给模型内部使用，不需要用户手动调用。没有这个工具时，系统仍可在工具调用前发送 provider 自带文本或 MiniMax fallback 反应；有它时，模型可以主动请求额外中间消息。",
+    trigger: "模型决定先给用户一个短反应再继续调用工具时触发。它不是 MiniMax 专用工具。",
+    modeKey: "TOOL_SEND_INTERMEDIATE_MESSAGE_MODE",
+    configKeys: [],
+  },
+};
 
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -129,6 +203,26 @@ function statusLabel(value: string, blocked?: boolean): string {
   return value;
 }
 
+function accessModeLabel(value: ToolAccessMode): string {
+  if (value === "off") return "off";
+  if (value === "owner_only") return "owner only";
+  return "on";
+}
+
+function resolveAccessMode(
+  value: string | undefined,
+  fallback: ToolAccessMode
+): ToolAccessMode {
+  if (value === "off" || value === "owner_only" || value === "on") return value;
+  return fallback;
+}
+
+function nextAccessMode(value: ToolAccessMode): ToolAccessMode {
+  if (value === "on") return "owner_only";
+  if (value === "owner_only") return "off";
+  return "on";
+}
+
 function shortId(value: string | null): string {
   if (!value) return "无";
   return value.length > 14 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value;
@@ -169,14 +263,63 @@ function logSummary(logs: ToolCallLog[]) {
   return { success, failed, blocked, averageDuration };
 }
 
+function formValuesFromConfig(config: EditableEnvConfig): Record<string, string> {
+  return Object.fromEntries(config.fields.map((field) => [field.key, field.value ?? ""]));
+}
+
+function fieldsByKey(config: EditableEnvConfig | null): Map<string, EnvConfigField> {
+  return new Map((config?.fields ?? []).map((field) => [field.key, field]));
+}
+
+function pickEnvFields(
+  fieldMap: Map<string, EnvConfigField>,
+  keys: string[]
+): EnvConfigField[] {
+  return keys
+    .map((key) => fieldMap.get(key))
+    .filter((field): field is EnvConfigField => Boolean(field));
+}
+
+function uniqueKeys(keys: string[]): string[] {
+  return Array.from(new Set(keys));
+}
+
+function changedConfigValues(
+  fields: EnvConfigField[],
+  values: Record<string, string>
+): Record<string, string | boolean | number> {
+  const changed: Record<string, string | boolean | number> = {};
+  for (const field of fields) {
+    const nextValue = values[field.key] ?? "";
+    if (field.secret && nextValue === "") continue;
+    if (!field.secret && nextValue === field.value) continue;
+
+    if (field.type === "boolean") {
+      changed[field.key] = nextValue === "true";
+    } else if (field.type === "integer") {
+      changed[field.key] = parseInt(nextValue, 10);
+    } else if (field.type === "number") {
+      changed[field.key] = parseFloat(nextValue);
+    } else {
+      changed[field.key] = nextValue;
+    }
+  }
+  return changed;
+}
+
 export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   const [state, setState] = useState<ToolsState>({
     tools: [],
     policy: null,
+    envConfig: null,
     logs: [],
     loading: false,
+    saving: false,
     error: null,
+    saveError: null,
+    saveMessage: null,
   });
+  const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [selectedLog, setSelectedLog] = useState<ToolCallLog | null>(null);
   const [toolName, setToolName] = useState("all");
   const [status, setStatus] = useState("all");
@@ -189,10 +332,25 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [limit, setLimit] = useState("80");
+  const [deleteKeys, setDeleteKeys] = useState<string[]>([]);
+  const [deleteSecretValueIndexes, setDeleteSecretValueIndexes] = useState<Record<string, number[]>>({});
 
   async function loadTools() {
     if (!adminToken) {
-      setState({ tools: [], policy: null, logs: [], loading: false, error: null });
+      setState({
+        tools: [],
+        policy: null,
+        envConfig: null,
+        logs: [],
+        loading: false,
+        saving: false,
+        error: null,
+        saveError: null,
+        saveMessage: null,
+      });
+      setConfigValues({});
+      setDeleteKeys([]);
+      setDeleteSecretValueIndexes({});
       setSelectedLog(null);
       return;
     }
@@ -200,7 +358,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
       const range = resolveDateRange(datePreset, customFrom, customTo);
-      const [registry, logs] = await Promise.all([
+      const [registry, logs, envConfig] = await Promise.all([
         fetchRegisteredTools(adminToken),
         fetchToolCallLogs({
           token: adminToken,
@@ -214,13 +372,21 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
           limit: parseInt(limit, 10),
           ...range,
         }),
+        fetchEditableEnvConfig(adminToken),
       ]);
+      setConfigValues(formValuesFromConfig(envConfig));
+      setDeleteKeys([]);
+      setDeleteSecretValueIndexes({});
       setState({
         tools: registry.tools ?? [],
         policy: registry.policy,
+        envConfig,
         logs,
         loading: false,
+        saving: false,
         error: null,
+        saveError: null,
+        saveMessage: null,
       });
       setSelectedLog((current) => logs.find((log) => log.id === current?.id) ?? logs[0] ?? null);
     } catch (error) {
@@ -240,10 +406,132 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   const summary = useMemo(() => logSummary(state.logs), [state.logs]);
   const enabledTools = state.tools.filter((tool) => tool.effectiveEnabled).length;
   const ownerOnlyTools = state.tools.filter((tool) => tool.ownerOnly).length;
+  const envFieldMap = useMemo(() => fieldsByKey(state.envConfig), [state.envConfig]);
+  const toolConfigKeys = useMemo(
+    () =>
+      uniqueKeys(
+        state.tools.flatMap((tool) => {
+          const guide = toolGuides[tool.name];
+          return guide ? [guide.modeKey, ...guide.configKeys] : [];
+        })
+      ),
+    [state.tools]
+  );
+  const editableFields = useMemo(
+    () => pickEnvFields(envFieldMap, uniqueKeys([...policyConfigKeys, ...toolConfigKeys])),
+    [envFieldMap, toolConfigKeys]
+  );
   const toolOptions = useMemo(
     () => [...state.tools].sort((a, b) => a.name.localeCompare(b.name)),
     [state.tools]
   );
+
+  async function saveToolConfig() {
+    if (!adminToken || !state.envConfig) return;
+    setState((current) => ({
+      ...current,
+      saving: true,
+      saveError: null,
+      saveMessage: null,
+    }));
+    try {
+      const keysToDelete = deleteKeys.filter((key) =>
+        editableFields.some((field) => field.key === key)
+      );
+      const secretIndexesToDelete: Record<string, number[]> = Object.fromEntries(
+        Object.entries(deleteSecretValueIndexes)
+          .map(([key, indexes]) => [
+            key,
+            indexes
+              .filter((index, position, all) => all.indexOf(index) === position)
+              .filter(() =>
+                editableFields.some((field) => field.key === key && field.secret)
+              ),
+          ])
+          .filter((entry) => entry[1].length > 0)
+      );
+      const values = changedConfigValues(
+        editableFields.filter(
+          (field) =>
+            !keysToDelete.includes(field.key) &&
+            !Object.prototype.hasOwnProperty.call(secretIndexesToDelete, field.key)
+        ),
+        configValues
+      );
+      if (
+        Object.keys(values).length === 0 &&
+        keysToDelete.length === 0 &&
+        Object.keys(secretIndexesToDelete).length === 0
+      ) {
+        setState((current) => ({
+          ...current,
+          saving: false,
+          saveMessage: "没有需要保存的工具配置改动。",
+        }));
+        return;
+      }
+      const nextConfig = await saveEditableEnvConfig({
+        token: adminToken,
+        values,
+        deleteKeys: keysToDelete,
+        deleteSecretValueIndexes: secretIndexesToDelete,
+      });
+      setConfigValues(formValuesFromConfig(nextConfig));
+      setDeleteKeys([]);
+      setDeleteSecretValueIndexes({});
+      setState((current) => ({
+        ...current,
+        envConfig: nextConfig,
+        saving: false,
+        saveMessage: `已保存 ${nextConfig.updatedKeys?.length ?? Object.keys(values).length} 项、删除 ${nextConfig.deletedKeys?.length ?? keysToDelete.length} 项到 .env。重启后端后生效。`,
+      }));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        saving: false,
+        saveError: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  function handleConfigChange(key: string, value: string) {
+    setConfigValues((current) => ({ ...current, [key]: value }));
+    setDeleteKeys((current) => current.filter((item) => item !== key));
+    setDeleteSecretValueIndexes((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function markConfigDeleted(key: string) {
+    setConfigValues((current) => ({ ...current, [key]: "" }));
+    setDeleteKeys((current) => (current.includes(key) ? current : [...current, key]));
+  }
+
+  function restoreConfigDelete(key: string) {
+    setDeleteKeys((current) => current.filter((item) => item !== key));
+  }
+
+  function markSecretValueDeleted(key: string, index: number) {
+    setDeleteSecretValueIndexes((current) => {
+      const indexes = current[key] ?? [];
+      return {
+        ...current,
+        [key]: indexes.includes(index) ? indexes : [...indexes, index],
+      };
+    });
+  }
+
+  function restoreSecretValueDelete(key: string, index: number) {
+    setDeleteSecretValueIndexes((current) => {
+      const indexes = (current[key] ?? []).filter((item) => item !== index);
+      const next = { ...current };
+      if (indexes.length > 0) next[key] = indexes;
+      else delete next[key];
+      return next;
+    });
+  }
 
   if (!adminToken) {
     return (
@@ -265,17 +553,27 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             <div className="text-xs font-semibold text-[#8a6f5a]">Tool Console</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">工具调用</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              查看已注册工具、运行策略、最近调用结果和阻断原因。当前页面只读，不会手动触发工具执行。
+              查看已注册工具、运行策略、最近调用结果和阻断原因。页面可以编辑工具相关 `.env` 配置，但不会手动触发工具执行。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadTools()}
-            disabled={state.loading}
-            className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
-          >
-            {state.loading ? "刷新中" : "刷新工具"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void loadTools()}
+              disabled={state.loading || state.saving}
+              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
+            >
+              {state.loading ? "刷新中" : "刷新工具"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveToolConfig()}
+              disabled={!state.envConfig || state.loading || state.saving}
+              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+            >
+              {state.saving ? "保存中" : "保存工具配置"}
+            </button>
+          </div>
         </div>
 
         {state.error && (
@@ -283,35 +581,119 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             {state.error}
           </div>
         )}
+        {state.saveError && (
+          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+            {state.saveError}
+          </div>
+        )}
+        {state.saveMessage && (
+          <div className="mt-5 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+            {state.saveMessage}
+          </div>
+        )}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="注册工具" value={String(state.tools.length)} detail={`${enabledTools} 个当前可执行`} />
+        <MetricCard label="注册工具" value={String(state.tools.length)} detail={`${enabledTools} 个当前可用`} />
         <MetricCard label="Owner Only" value={String(ownerOnlyTools)} detail="只允许 owner 上下文调用" />
         <MetricCard label="近端日志" value={String(state.logs.length)} detail={`成功 ${summary.success} / 失败 ${summary.failed}`} />
         <MetricCard label="平均耗时" value={formatDuration(summary.averageDuration)} detail={`阻断 ${summary.blocked} 次`} />
       </section>
 
       {state.policy && (
-        <Panel title="工具策略" subtitle="来自当前后端进程的运行时配置">
+        <Panel title="工具策略" subtitle="保存写入 .env；当前后端进程重启后生效">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <PolicyItem label="工具层" active={state.policy.enabled} detail={state.policy.enabled ? "已启用" : "全局关闭"} />
-            <PolicyItem label="低风险自动执行" active={state.policy.autoExecuteLowRisk} detail={state.policy.autoExecuteLowRisk ? "允许" : "关闭"} />
-            <PolicyItem label="中风险工具" active={state.policy.allowMediumRisk} detail={state.policy.allowMediumRisk ? "允许" : "阻断"} />
-            <PolicyItem label="高风险工具" active={state.policy.allowHighRisk} detail={state.policy.allowHighRisk ? "允许" : "阻断"} />
-            <PolicyItem label="单消息上限" active detail={`${state.policy.maxCallsPerMessage} 次`} />
-            <PolicyItem label="执行超时" active detail={formatDuration(state.policy.timeoutMs)} />
-            <PolicyItem label="入参出参日志" active={state.policy.logInputOutput} detail={state.policy.logInputOutput ? "记录" : "不记录"} />
+            <PolicyConfigItem
+              label="工具层"
+              field={envFieldMap.get("TOOLS_ENABLED")}
+              value={configValues.TOOLS_ENABLED}
+              runtimeText={state.policy.enabled ? "运行中：on" : "运行中：off"}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+            />
+            <PolicyConfigItem
+              label="低风险自动执行"
+              field={envFieldMap.get("TOOLS_AUTO_EXECUTE_LOW_RISK")}
+              value={configValues.TOOLS_AUTO_EXECUTE_LOW_RISK}
+              runtimeText={state.policy.autoExecuteLowRisk ? "运行中：on" : "运行中：off"}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+            />
+            <PolicyConfigItem
+              label="中风险工具"
+              field={envFieldMap.get("TOOLS_ALLOW_MEDIUM_RISK")}
+              value={configValues.TOOLS_ALLOW_MEDIUM_RISK}
+              runtimeText={state.policy.allowMediumRisk ? "运行中：on" : "运行中：off"}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+            />
+            <PolicyConfigItem
+              label="高风险工具"
+              field={envFieldMap.get("TOOLS_ALLOW_HIGH_RISK")}
+              value={configValues.TOOLS_ALLOW_HIGH_RISK}
+              runtimeText={state.policy.allowHighRisk ? "运行中：on" : "运行中：off"}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+            />
+            <PolicyConfigItem
+              label="单消息上限"
+              field={envFieldMap.get("TOOL_MAX_CALLS_PER_MESSAGE")}
+              value={configValues.TOOL_MAX_CALLS_PER_MESSAGE}
+              runtimeText={`运行中：${state.policy.maxCallsPerMessage} 次`}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+              unit="次"
+            />
+            <PolicyConfigItem
+              label="执行超时"
+              field={envFieldMap.get("TOOL_TIMEOUT_MS")}
+              value={configValues.TOOL_TIMEOUT_MS}
+              runtimeText={`运行中：${formatDuration(state.policy.timeoutMs)}`}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+              unit="ms"
+            />
+            <PolicyConfigItem
+              label="入参出参日志"
+              field={envFieldMap.get("TOOL_LOG_INPUT_OUTPUT")}
+              value={configValues.TOOL_LOG_INPUT_OUTPUT}
+              runtimeText={state.policy.logInputOutput ? "运行中：on" : "运行中：off"}
+              disabled={state.saving}
+              onChange={handleConfigChange}
+            />
+          </div>
+          <div className="mt-4 rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
+            这些配置保存后会写入 `.env`。工具注册表和运行策略在后端启动时读取，所以需要重启后端服务才会真正改变执行行为。
           </div>
         </Panel>
       )}
 
       <Panel title="已注册工具" subtitle="来自内置 Tool Registry">
         {state.tools.length > 0 ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {toolOptions.map((tool) => (
-              <ToolCard key={tool.name} tool={tool} />
-            ))}
+          <div className="space-y-2">
+            {toolOptions.map((tool) => {
+              const guide = toolGuides[tool.name];
+              const modeField = guide ? envFieldMap.get(guide.modeKey) : undefined;
+              return (
+                <ToolCard
+                  key={tool.name}
+                  tool={tool}
+                  guide={guide}
+                  modeField={modeField}
+                  modeValue={modeField ? configValues[modeField.key] : undefined}
+                  envFields={pickEnvFields(envFieldMap, guide?.configKeys ?? [])}
+                  configValues={configValues}
+                  deletedKeys={deleteKeys}
+                  deletedSecretValueIndexes={deleteSecretValueIndexes}
+                  configDisabled={state.saving}
+                  onConfigChange={handleConfigChange}
+                  onDeleteConfig={markConfigDeleted}
+                  onRestoreConfig={restoreConfigDelete}
+                  onDeleteSecretValue={markSecretValueDeleted}
+                  onRestoreSecretValue={restoreSecretValueDelete}
+                />
+              );
+            })}
           </div>
         ) : (
           <EmptyState loading={state.loading} text="还没有读取到工具注册表。" />
@@ -488,61 +870,195 @@ function Panel({
   );
 }
 
-function PolicyItem({
+function PolicyConfigItem({
   label,
-  active,
-  detail,
+  field,
+  value,
+  runtimeText,
+  disabled,
+  onChange,
+  unit,
 }: {
   label: string;
-  active: boolean;
-  detail: string;
+  field?: EnvConfigField;
+  value?: string;
+  runtimeText: string;
+  disabled: boolean;
+  onChange: (key: string, value: string) => void;
+  unit?: string;
 }) {
+  const currentValue = value || field?.value || "";
+  const isBoolean = field?.type === "boolean";
+  const booleanOn = currentValue === "true";
+
   return (
     <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-medium text-[#172033]">{label}</div>
-        <StatusPill active={active} label={active ? "on" : "off"} />
+        {field && isBoolean ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(field.key, booleanOn ? "false" : "true")}
+            className="rounded-full disabled:opacity-60"
+          >
+            <StatusPill active={booleanOn} label={booleanOn ? "on" : "off"} />
+          </button>
+        ) : (
+          <StatusPill active label="可编辑" />
+        )}
       </div>
-      <div className="mt-2 text-xs text-[#66758a]">{detail}</div>
+      {field && !isBoolean && (
+        <div className="mt-3 flex items-center gap-2">
+          {field.type === "select" ? (
+            <select
+              value={currentValue}
+              disabled={disabled}
+              onChange={(event) => onChange(field.key, event.target.value)}
+              className="field-input bg-white"
+            >
+              {(field.options ?? []).map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={currentValue}
+              disabled={disabled}
+              type={field.type === "integer" || field.type === "number" ? "number" : "text"}
+              min={field.min}
+              max={field.max}
+              step={field.type === "number" ? "0.01" : undefined}
+              onChange={(event) => onChange(field.key, event.target.value)}
+              className="field-input bg-white"
+            />
+          )}
+          {unit && <span className="shrink-0 text-xs text-[#66758a]">{unit}</span>}
+        </div>
+      )}
+      <div className="mt-2 truncate text-xs text-[#66758a]" title={field?.key}>
+        {runtimeText}
+        {field ? ` · ${field.key}` : ""}
+      </div>
     </div>
   );
 }
 
-function ToolCard({ tool }: { tool: RegisteredTool }) {
+function ToolCard({
+  tool,
+  guide,
+  modeField,
+  modeValue,
+  envFields,
+  configValues,
+  deletedKeys,
+  deletedSecretValueIndexes,
+  configDisabled,
+  onConfigChange,
+  onDeleteConfig,
+  onRestoreConfig,
+  onDeleteSecretValue,
+  onRestoreSecretValue,
+}: {
+  tool: RegisteredTool;
+  guide?: (typeof toolGuides)[string];
+  modeField?: EnvConfigField;
+  modeValue?: string;
+  envFields: EnvConfigField[];
+  configValues: Record<string, string>;
+  deletedKeys: string[];
+  deletedSecretValueIndexes: Record<string, number[]>;
+  configDisabled: boolean;
+  onConfigChange: (key: string, value: string) => void;
+  onDeleteConfig: (key: string) => void;
+  onRestoreConfig: (key: string) => void;
+  onDeleteSecretValue: (key: string, index: number) => void;
+  onRestoreSecretValue: (key: string, index: number) => void;
+}) {
+  const runtimeAccessMode = resolveAccessMode(
+    tool.accessMode,
+    tool.enabled ? (tool.ownerOnly ? "owner_only" : "on") : "off"
+  );
+
   return (
-    <article className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="truncate font-semibold text-[#172033]" title={tool.name}>{tool.name}</h4>
-          <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#617188]" title={tool.description}>
+    <details className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff]">
+      <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <h4 className="min-w-[12rem] shrink-0 truncate font-semibold text-[#172033]" title={tool.name}>
+            {tool.name}
+          </h4>
+          <p className="hidden min-w-0 truncate text-sm text-[#617188] md:block" title={tool.description}>
             {tool.description}
           </p>
         </div>
-        <StatusPill
-          active={tool.effectiveEnabled}
-          label={tool.effectiveEnabled ? "可执行" : "不可执行"}
-        />
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-[#66758a]">
-          {riskLabel(tool.riskLevel)}
-        </span>
-        {tool.ownerOnly && (
-          <span className="rounded-full border border-[#e4d8b6] bg-[#fff9e8] px-2.5 py-1 text-[#7d6a34]">
-            Owner only
+        <div className="flex shrink-0 items-center gap-2 text-xs">
+          <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-[#66758a]">
+            {riskLabel(tool.riskLevel)}
           </span>
-        )}
-        {!tool.enabled && (
-          <span className="rounded-full border border-[#ead4c8] bg-[#fff6f1] px-2.5 py-1 text-[#8d6048]">
-            注册关闭
-          </span>
-        )}
-      </div>
+          {modeField && (
+            <ToolAccessModeButton
+              field={modeField}
+              value={modeValue}
+              runtimeMode={runtimeAccessMode}
+              disabled={configDisabled}
+              onChange={onConfigChange}
+            />
+          )}
+          {!modeField && tool.ownerOnly && (
+            <span className="hidden rounded-full border border-[#e4d8b6] bg-[#fff9e8] px-2.5 py-1 text-[#7d6a34] sm:inline-flex">
+              Owner only
+            </span>
+          )}
+          {!modeField && !tool.enabled && (
+            <span className="hidden rounded-full border border-[#ead4c8] bg-[#fff6f1] px-2.5 py-1 text-[#8d6048] sm:inline-flex">
+              注册关闭
+            </span>
+          )}
+          <StatusPill
+            active={tool.effectiveEnabled}
+            label={tool.effectiveEnabled ? "当前可用" : "当前不可用"}
+          />
+        </div>
+      </summary>
+      <div className="border-t border-[#d9e2ec] p-4">
       {tool.disabledReason && (
         <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
           {tool.disabledReason}
         </div>
       )}
+      <div className="mt-4 grid gap-3 text-sm leading-6">
+        <GuideRow label="功能" value={guide?.purpose ?? tool.description} />
+        <GuideRow label="怎么用" value={guide?.usage ?? "由模型根据用户意图自动调用。"} />
+        <GuideRow label="触发" value={guide?.trigger ?? "聊天服务提供工具列表后，由模型按需触发。"} />
+      </div>
+      <details className="mt-3 rounded-lg border border-[#d9e2ec] bg-white">
+        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[#66758a]">
+          可编辑配置
+          <span className="ml-2 text-[#9aa8b8]">{envFields.length > 0 ? `${envFields.length} 项` : "无单独配置"}</span>
+        </summary>
+        <div className="border-t border-[#d9e2ec] p-3">
+          {envFields.length > 0 ? (
+            <ConfigFieldsGrid
+              fields={envFields}
+              values={configValues}
+              deletedKeys={deletedKeys}
+              deletedSecretValueIndexes={deletedSecretValueIndexes}
+              disabled={configDisabled}
+              onChange={onConfigChange}
+              onDelete={onDeleteConfig}
+              onRestore={onRestoreConfig}
+              onDeleteSecretValue={onDeleteSecretValue}
+              onRestoreSecretValue={onRestoreSecretValue}
+            />
+          ) : (
+            <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2 text-xs leading-5 text-[#66758a]">
+              这个工具没有独立 env 配置，主要受全局 TOOLS_ENABLED、风险策略和代码注册状态控制。
+            </div>
+          )}
+        </div>
+      </details>
       {Boolean(tool.parameters) && (
         <details className="mt-3 rounded-lg border border-[#d9e2ec] bg-white">
           <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[#66758a]">
@@ -553,7 +1069,301 @@ function ToolCard({ tool }: { tool: RegisteredTool }) {
           </pre>
         </details>
       )}
-    </article>
+      </div>
+    </details>
+  );
+}
+
+function ToolAccessModeButton({
+  field,
+  value,
+  runtimeMode,
+  disabled,
+  onChange,
+}: {
+  field: EnvConfigField;
+  value?: string;
+  runtimeMode: ToolAccessMode;
+  disabled: boolean;
+  onChange: (key: string, value: string) => void;
+}) {
+  const currentMode = resolveAccessMode(value || field.value, runtimeMode);
+  const draftChanged = currentMode !== runtimeMode;
+  const className =
+    currentMode === "off"
+      ? "border-[#ead4c8] bg-[#fff6f1] text-[#8d6048] hover:bg-[#ffefe7]"
+      : currentMode === "owner_only"
+        ? "border-[#e4d8b6] bg-[#fff9e8] text-[#7d6a34] hover:bg-[#fff4d6]"
+        : "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d] hover:bg-[#e2f3ea]";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onChange(field.key, nextAccessMode(currentMode));
+      }}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition disabled:opacity-60 ${className}`}
+      title={`${field.label} · 点击切换 on → owner only → off · 运行中：${accessModeLabel(runtimeMode)} · 配置项：${field.key}`}
+    >
+      <span>{draftChanged ? "待保存" : "模式"}</span>
+      <span>{accessModeLabel(currentMode)}</span>
+    </button>
+  );
+}
+
+function GuideRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[4rem_1fr]">
+      <div className="text-xs font-semibold text-[#7b8ca2]">{label}</div>
+      <div className="text-[#475569]">{value}</div>
+    </div>
+  );
+}
+
+function ConfigFieldsGrid({
+  fields,
+  values,
+  deletedKeys = [],
+  deletedSecretValueIndexes = {},
+  disabled,
+  onChange,
+  onDelete,
+  onRestore,
+  onDeleteSecretValue,
+  onRestoreSecretValue,
+}: {
+  fields: EnvConfigField[];
+  values: Record<string, string>;
+  deletedKeys?: string[];
+  deletedSecretValueIndexes?: Record<string, number[]>;
+  disabled: boolean;
+  onChange: (key: string, value: string) => void;
+  onDelete?: (key: string) => void;
+  onRestore?: (key: string) => void;
+  onDeleteSecretValue?: (key: string, index: number) => void;
+  onRestoreSecretValue?: (key: string, index: number) => void;
+}) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {fields.map((field) => (
+        <ConfigFieldControl
+          key={field.key}
+          field={field}
+          value={values[field.key] ?? ""}
+          deleted={deletedKeys.includes(field.key)}
+          deletedSecretValueIndexes={deletedSecretValueIndexes[field.key] ?? []}
+          disabled={disabled}
+          onChange={(value) => onChange(field.key, value)}
+          onDelete={onDelete ? () => onDelete(field.key) : undefined}
+          onRestore={onRestore ? () => onRestore(field.key) : undefined}
+          onDeleteSecretValue={
+            onDeleteSecretValue
+              ? (index) => onDeleteSecretValue(field.key, index)
+              : undefined
+          }
+          onRestoreSecretValue={
+            onRestoreSecretValue
+              ? (index) => onRestoreSecretValue(field.key, index)
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConfigFieldControl({
+  field,
+  value,
+  deleted,
+  deletedSecretValueIndexes,
+  disabled,
+  onChange,
+  onDelete,
+  onRestore,
+  onDeleteSecretValue,
+  onRestoreSecretValue,
+}: {
+  field: EnvConfigField;
+  value: string;
+  deleted: boolean;
+  deletedSecretValueIndexes: number[];
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onDelete?: () => void;
+  onRestore?: () => void;
+  onDeleteSecretValue?: (index: number) => void;
+  onRestoreSecretValue?: (index: number) => void;
+}) {
+  const canDelete = field.secret && field.fromFile && field.configured;
+  const maskedValues =
+    field.maskedValues && field.maskedValues.length > 0
+      ? field.maskedValues
+      : field.maskedValue
+        ? [field.maskedValue]
+        : [];
+
+  return (
+    <div
+      className={`rounded-lg border px-3 py-3 ${
+        deleted ? "border-[#ead4c8] bg-[#fff6f1]" : "border-[#d9e2ec] bg-white"
+      }`}
+    >
+      <span className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
+          <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>
+            {field.key}
+          </span>
+        </span>
+        <span
+          className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
+            field.fromFile
+              ? "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
+              : "border-[#d9e2ec] bg-[#f8fbff] text-[#7b8ca2]"
+          }`}
+        >
+          {field.fromFile ? "env" : "默认"}
+        </span>
+      </span>
+
+      {field.secret && field.configured && maskedValues.length > 0 && (
+        <div className="mt-3 space-y-2 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[11px] text-[#7b8ca2]">
+              当前 key{maskedValues.length > 1 ? ` · ${maskedValues.length} 个` : ""}
+            </div>
+            {canDelete && maskedValues.length > 1 && (
+              deleted ? (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={onRestore}
+                  className="shrink-0 rounded-md border border-[#c9d7e6] bg-white px-2.5 py-1 text-xs font-medium text-[#66758a] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                >
+                  撤销全部
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={onDelete}
+                  className="shrink-0 rounded-md border border-[#ead4c8] bg-white px-2.5 py-1 text-xs font-medium text-[#8d6048] transition hover:bg-[#fff6f1] disabled:opacity-60"
+                >
+                  删除全部
+                </button>
+              )
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {maskedValues.map((maskedValue, index) => {
+              const itemDeleted = deleted || deletedSecretValueIndexes.includes(index);
+              return (
+                <div
+                  key={`${field.key}-${index}`}
+                  className={`flex items-center justify-between gap-3 rounded-md border px-2.5 py-2 ${
+                    itemDeleted
+                      ? "border-[#ead4c8] bg-[#fff6f1]"
+                      : "border-[#e5edf5] bg-white"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-[#9aa8b8]">#{index + 1}</div>
+                    <div className="truncate font-mono text-xs text-[#334155]" title={maskedValue}>
+                      {maskedValue}
+                    </div>
+                  </div>
+                  {canDelete && (
+                    itemDeleted ? (
+                      <button
+                        type="button"
+                        disabled={disabled || deleted}
+                        onClick={() => onRestoreSecretValue?.(index)}
+                        className="shrink-0 rounded-md border border-[#c9d7e6] bg-white px-2.5 py-1 text-xs font-medium text-[#66758a] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                      >
+                        撤销
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => onDeleteSecretValue?.(index)}
+                        className="shrink-0 rounded-md border border-[#ead4c8] bg-white px-2.5 py-1 text-xs font-medium text-[#8d6048] transition hover:bg-[#fff6f1] disabled:opacity-60"
+                      >
+                        删除
+                      </button>
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {deleted && (
+        <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
+          已标记删除。点击“保存工具配置”后会从 `.env` 移除这条 key。
+        </div>
+      )}
+      {!deleted && deletedSecretValueIndexes.length > 0 && (
+        <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
+          已标记删除 {deletedSecretValueIndexes.length} 个 key。点击“保存工具配置”后会从逗号列表中移除。
+        </div>
+      )}
+
+      <div className="mt-3">
+        {field.type === "boolean" ? (
+          <select
+            value={value || "false"}
+            disabled={disabled || deleted}
+            onChange={(event) => onChange(event.target.value)}
+            className="field-input bg-[#f8fbff]"
+          >
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        ) : field.type === "select" ? (
+          <select
+            value={value}
+            disabled={disabled || deleted}
+            onChange={(event) => onChange(event.target.value)}
+            className="field-input bg-[#f8fbff]"
+          >
+            {(field.options ?? []).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={value}
+            type={field.type === "secret" ? "password" : field.type === "string" ? "text" : "number"}
+            min={field.min}
+            max={field.max}
+            step={field.type === "number" ? "0.01" : undefined}
+            disabled={disabled || deleted}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={
+              field.type === "secret"
+                ? field.configured
+                  ? "输入新值会覆盖当前 key 列表"
+                  : "输入新值"
+                : undefined
+            }
+            className="field-input bg-[#f8fbff]"
+          />
+        )}
+      </div>
+
+      {field.description && (
+        <p className="mt-2 text-xs leading-5 text-[#7b8ca2]">{field.description}</p>
+      )}
+    </div>
   );
 }
 

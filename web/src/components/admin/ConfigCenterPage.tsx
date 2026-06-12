@@ -34,11 +34,9 @@ interface Finding {
 const featureLabels: Record<string, string> = {
   memoryRetrieval: "记忆检索",
   tools: "工具调用",
-  drafts: "草稿",
   reflection: "Reflection",
   dream: "Dream",
   dreamAutoRun: "Dream 自动运行",
-  externalInbox: "外部收件箱",
   webSearch: "Web Search",
   pageReader: "页面读取",
   mcp: "MCP",

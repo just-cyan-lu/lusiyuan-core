@@ -18,6 +18,10 @@ export class ActionPolicy {
       return { allowed: false, requiresApproval: false, reason: "Owner only" };
     }
 
+    if (!env.TOOLS_ENABLED) {
+      return { allowed: false, requiresApproval: false, reason: "Tool layer is disabled" };
+    }
+
     if (tool.riskLevel === "high" && !env.TOOLS_ALLOW_HIGH_RISK) {
       return {
         allowed: false,
@@ -34,8 +38,12 @@ export class ActionPolicy {
       };
     }
 
-    if (!env.TOOLS_ENABLED) {
-      return { allowed: false, requiresApproval: false, reason: "Tool layer is disabled" };
+    if (tool.riskLevel === "low" && !env.TOOLS_AUTO_EXECUTE_LOW_RISK) {
+      return {
+        allowed: false,
+        requiresApproval: true,
+        reason: "Low risk auto execution is disabled",
+      };
     }
 
     return { allowed: true, requiresApproval: false };

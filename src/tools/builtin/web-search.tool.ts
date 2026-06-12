@@ -1,5 +1,6 @@
 import { webSearchService } from "../../web-search/web-search.service.js";
 import { env } from "../../utils/env.js";
+import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
 interface WebSearchInput {
@@ -29,7 +30,6 @@ export const webSearchTool: ToolDefinition<WebSearchInput, WebSearchOutput> = {
   description:
     "使用 Tavily 搜索引擎搜索网页。返回搜索结果列表（标题、URL、摘要）和可能的答案摘要。适用于查找最新信息、新闻、技术文档等。",
   riskLevel: "low",
-  ownerOnly: true,
-  enabled: env.TAVILY_ENABLED,
+  ...toolAccessState(env.TOOL_WEB_SEARCH_MODE, env.TAVILY_ENABLED),
   handler,
 };

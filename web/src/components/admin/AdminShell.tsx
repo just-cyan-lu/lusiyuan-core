@@ -5,7 +5,7 @@ export type AdminSection =
   | "memory"
   | "reflection"
   | "dream"
-  | "drafts"
+  | "platforms"
   | "tools"
   | "chat"
   | "settings";
@@ -50,10 +50,10 @@ const navItems: Array<{
     description: "Dream Cycle",
   },
   {
-    section: "drafts",
+    section: "platforms",
     index: "05",
-    label: "草稿",
-    description: "内容队列",
+    label: "平台",
+    description: "外部平台工作台",
   },
   {
     section: "tools",

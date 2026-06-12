@@ -64,35 +64,6 @@ function inferParametersSchema(toolName: string): {
         required: ["url"],
       };
 
-    case "sync_external_inbox":
-      return {
-        type: "object",
-        properties: {
-          platform: {
-            type: "string",
-            enum: ["xiaohongshu"],
-            description: "平台名称",
-          },
-        },
-        required: ["platform"],
-      };
-
-    case "list_external_inbox":
-      return {
-        type: "object",
-        properties: {
-          platform: {
-            type: "string",
-            enum: ["xiaohongshu"],
-            description: "平台名称（可选，不传则列出所有平台）",
-          },
-          limit: {
-            type: "number",
-            description: "返回条目数量限制，默认 50",
-          },
-        },
-      };
-
     default:
       // Fallback for unknown tools
       return {

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { normalizeToolAccessMode } from "../tools/tool-access.js";
 
 function requireEnv(key: string): string {
   const val = process.env[key];
@@ -128,13 +129,37 @@ export const env = {
     process.env.TOOLS_AUTO_EXECUTE_LOW_RISK !== "false",
   TOOLS_ALLOW_MEDIUM_RISK: process.env.TOOLS_ALLOW_MEDIUM_RISK === "true",
   TOOLS_ALLOW_HIGH_RISK: process.env.TOOLS_ALLOW_HIGH_RISK === "true",
-  DRAFTS_ENABLED: process.env.DRAFTS_ENABLED !== "false",
   TOOL_MAX_CALLS_PER_MESSAGE: parseInt(
     process.env.TOOL_MAX_CALLS_PER_MESSAGE ?? "3",
     10
   ),
   TOOL_TIMEOUT_MS: parseInt(process.env.TOOL_TIMEOUT_MS ?? "10000", 10),
   TOOL_LOG_INPUT_OUTPUT: process.env.TOOL_LOG_INPUT_OUTPUT !== "false",
+  TOOL_SEARCH_MEMORIES_MODE: normalizeToolAccessMode(
+    process.env.TOOL_SEARCH_MEMORIES_MODE,
+    "on",
+    "TOOL_SEARCH_MEMORIES_MODE"
+  ),
+  TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE: normalizeToolAccessMode(
+    process.env.TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE,
+    "on",
+    "TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE"
+  ),
+  TOOL_WEB_SEARCH_MODE: normalizeToolAccessMode(
+    process.env.TOOL_WEB_SEARCH_MODE,
+    "owner_only",
+    "TOOL_WEB_SEARCH_MODE"
+  ),
+  TOOL_READ_PAGE_MODE: normalizeToolAccessMode(
+    process.env.TOOL_READ_PAGE_MODE,
+    "owner_only",
+    "TOOL_READ_PAGE_MODE"
+  ),
+  TOOL_SEND_INTERMEDIATE_MESSAGE_MODE: normalizeToolAccessMode(
+    process.env.TOOL_SEND_INTERMEDIATE_MESSAGE_MODE,
+    "on",
+    "TOOL_SEND_INTERMEDIATE_MESSAGE_MODE"
+  ),
   MCP_ENABLED: process.env.MCP_ENABLED === "true",
 
   // Reflection Agent (v0.7)
@@ -186,7 +211,6 @@ export const env = {
   // Context limits
   DREAM_MAX_MESSAGES: parseInt(process.env.DREAM_MAX_MESSAGES ?? "120", 10),
   DREAM_MAX_TOOL_CALLS: parseInt(process.env.DREAM_MAX_TOOL_CALLS ?? "50", 10),
-  DREAM_MAX_DRAFTS: parseInt(process.env.DREAM_MAX_DRAFTS ?? "30", 10),
   DREAM_MAX_REFLECTION_REPORTS: parseInt(
     process.env.DREAM_MAX_REFLECTION_REPORTS ?? "10",
     10
@@ -278,15 +302,4 @@ export const env = {
   // CDP Browser — connect to user's Chrome (v0.8.1)
   CDP_BROWSER_ENABLED: process.env.CDP_BROWSER_ENABLED === "true",
   CDP_BROWSER_PORT: parseInt(process.env.CDP_BROWSER_PORT ?? "9222", 10),
-
-  // External Inbox (v0.8.1)
-  EXTERNAL_INBOX_ENABLED: process.env.EXTERNAL_INBOX_ENABLED === "true",
-  EXTERNAL_INBOX_AUTO_SUMMARIZE:
-    process.env.EXTERNAL_INBOX_AUTO_SUMMARIZE !== "false",
-  EXTERNAL_INBOX_AUTO_CREATE_DRAFT:
-    process.env.EXTERNAL_INBOX_AUTO_CREATE_DRAFT !== "false",
-  EXTERNAL_INBOX_MAX_ITEMS_PER_SYNC: parseInt(
-    process.env.EXTERNAL_INBOX_MAX_ITEMS_PER_SYNC ?? "50",
-    10
-  ),
 } as const;

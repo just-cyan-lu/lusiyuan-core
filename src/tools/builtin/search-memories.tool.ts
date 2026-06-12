@@ -1,4 +1,6 @@
 import { memoryService } from "../../core/memory.service.js";
+import { env } from "../../utils/env.js";
+import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
 interface SearchMemoriesInput {
@@ -46,6 +48,6 @@ export const searchMemoriesTool: ToolDefinition<
   name: "search_memories",
   description: "根据 query 语义搜索陆思源长期记忆",
   riskLevel: "low",
-  enabled: true,
+  ...toolAccessState(env.TOOL_SEARCH_MEMORIES_MODE),
   handler,
 };

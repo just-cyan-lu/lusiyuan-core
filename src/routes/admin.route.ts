@@ -119,6 +119,23 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     type: "integer",
     min: 1,
   },
+  ...[
+    ["TOOL_SEARCH_MEMORIES_MODE", "search_memories"],
+    ["TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE", "summarize_recent_conversation"],
+    ["TOOL_WEB_SEARCH_MODE", "web_search"],
+    ["TOOL_READ_PAGE_MODE", "read_page"],
+    ["TOOL_SEND_INTERMEDIATE_MESSAGE_MODE", "send_intermediate_message"],
+  ].map(([key, toolName]) => ({
+    key,
+    group: "工具 / 访问模式",
+    label: `${toolName} 访问模式`,
+    type: "select" as const,
+    defaultValue: toolName === "web_search" || toolName === "read_page"
+      ? "owner_only"
+      : "on",
+    options: ["off", "owner_only", "on"],
+    description: "off=关闭工具；owner_only=仅 owner 可用；on=普通可用。",
+  })),
   {
     key: "TELEGRAM_ENABLED",
     group: "渠道",
@@ -228,7 +245,7 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["TOOLS_AUTO_EXECUTE_LOW_RISK", "低风险工具自动执行", "安全"],
     ["TOOLS_ALLOW_MEDIUM_RISK", "允许中风险工具", "安全"],
     ["TOOLS_ALLOW_HIGH_RISK", "允许高风险工具", "安全"],
-    ["DRAFTS_ENABLED", "草稿启用", "功能"],
+    ["TOOL_LOG_INPUT_OUTPUT", "记录工具入参出参", "安全"],
     ["MCP_ENABLED", "MCP 启用", "功能"],
     ["REFLECTION_ENABLED", "Reflection 启用", "功能"],
     ["REFLECTION_OWNER_ONLY", "Reflection 仅 Owner", "安全"],
@@ -251,9 +268,6 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["PLAYWRIGHT_ENABLED", "Playwright Reader", "功能"],
     ["PLAYWRIGHT_SCREENSHOT_ENABLED", "Playwright 截图", "功能"],
     ["CDP_BROWSER_ENABLED", "CDP Browser", "功能"],
-    ["EXTERNAL_INBOX_ENABLED", "External Inbox", "功能"],
-    ["EXTERNAL_INBOX_AUTO_SUMMARIZE", "Inbox 自动总结", "功能"],
-    ["EXTERNAL_INBOX_AUTO_CREATE_DRAFT", "Inbox 自动草稿", "功能"],
   ].map(([key, label, group]) => ({
     key,
     group,
@@ -275,7 +289,6 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["DREAM_MIN_SOURCE_EVENTS", "Dream 最小源事件", "限制"],
     ["DREAM_MAX_MESSAGES", "Dream 最大消息", "限制"],
     ["DREAM_MAX_TOOL_CALLS", "Dream 最大工具调用", "限制"],
-    ["DREAM_MAX_DRAFTS", "Dream 最大草稿", "限制"],
     ["DREAM_MAX_REFLECTION_REPORTS", "Dream 最大复盘报告", "限制"],
     ["DREAM_MAX_MEMORY_PROPOSALS", "Dream 最大记忆提案", "限制"],
     ["DREAM_MIN_EVIDENCE_COUNT", "Dream 最小证据数", "限制"],
@@ -285,7 +298,6 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["TAVILY_MAX_RESULTS", "Tavily 最大结果数", "限制"],
     ["PLAYWRIGHT_MAX_PAGE_TEXT_CHARS", "Playwright 最大文本字符", "限制"],
     ["CDP_BROWSER_PORT", "CDP Browser 端口", "限制"],
-    ["EXTERNAL_INBOX_MAX_ITEMS_PER_SYNC", "Inbox 单次最大条数", "限制"],
   ].map(([key, label, group]) => ({
     key,
     group,
@@ -345,6 +357,13 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     label: "Tavily API Key",
     type: "secret",
     description: "留空保存表示不修改现有密钥。",
+  },
+  {
+    key: "TAVILY_API_KEYS",
+    group: "搜索密钥",
+    label: "Tavily API Keys",
+    type: "secret",
+    description: "多个 key 用英文逗号分隔。代码会优先读取 TAVILY_API_KEYS，再 fallback 到 TAVILY_API_KEY。",
   },
   {
     key: "TAVILY_SEARCH_DEPTH",
@@ -576,6 +595,30 @@ function formatEnvValue(value: string, descriptor: EnvConfigDescriptor): string 
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n")}"`;
 }
 
+function maskEnvValue(value: string): string {
+  if (!value) return "";
+  if (value.length <= 8) return `${value.slice(0, 2)}...${value.slice(-2)}`;
+  if (value.length <= 16) return `${value.slice(0, 4)}...${value.slice(-4)}`;
+  return `${value.slice(0, 6)}...${value.slice(-6)}`;
+}
+
+function splitSecretValues(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function maskSecretValues(value: string): string[] {
+  return splitSecretValues(value).map(maskEnvValue);
+}
+
+function deleteSecretValueIndexes(value: string, indexes: Set<number>): string {
+  return splitSecretValues(value)
+    .filter((_item, index) => !indexes.has(index))
+    .join(",");
+}
+
 function normalizeConfigValue(
   descriptor: EnvConfigDescriptor,
   value: unknown
@@ -630,20 +673,22 @@ function normalizeConfigValue(
 
 function writeEnvContent(
   original: string,
-  updates: Map<string, string>
+  updates: Map<string, string>,
+  deletes = new Set<string>()
 ): string {
   const lines = original.split(/\r?\n/);
   const seen = new Set<string>();
-  const next = lines.map((line) => {
+  const next = lines.flatMap((line) => {
     const match = line.match(/^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*)$/);
-    if (!match) return line;
+    if (!match) return [line];
     const key = match[2];
+    if (deletes.has(key) && !updates.has(key)) return [];
     const value = updates.get(key);
-    if (value === undefined) return line;
+    if (value === undefined) return [line];
     const descriptor = editableEnvConfigByKey.get(key);
-    if (!descriptor) return line;
+    if (!descriptor) return [line];
     seen.add(key);
-    return `${match[1]}${key}${match[3]}${formatEnvValue(value, descriptor)}`;
+    return [`${match[1]}${key}${match[3]}${formatEnvValue(value, descriptor)}`];
   });
 
   const missing = Array.from(updates.entries()).filter(([key]) => !seen.has(key));
@@ -682,6 +727,12 @@ async function readEditableEnvConfig() {
         value,
         configured: configured(fileValue ?? processValue ?? ""),
         fromFile: fileValues.has(descriptor.key),
+        maskedValue: descriptor.type === "secret"
+          ? maskEnvValue(fileValue ?? processValue ?? "")
+          : undefined,
+        maskedValues: descriptor.type === "secret"
+          ? maskSecretValues(fileValue ?? processValue ?? "")
+          : undefined,
         secret: descriptor.type === "secret",
         restartRequired: true,
       };
@@ -806,11 +857,9 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       features: {
         memoryRetrieval: env.MEMORY_RETRIEVAL_ENABLED,
         tools: env.TOOLS_ENABLED,
-        drafts: env.DRAFTS_ENABLED,
         reflection: env.REFLECTION_ENABLED,
         dream: env.DREAM_ENABLED,
         dreamAutoRun: env.DREAM_AUTO_RUN,
-        externalInbox: env.EXTERNAL_INBOX_ENABLED,
         webSearch: env.TAVILY_ENABLED,
         pageReader: env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED || env.CDP_BROWSER_ENABLED,
         mcp: env.MCP_ENABLED,
@@ -837,13 +886,22 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/v1/admin/config/env", async (request, reply) => {
-    const body = request.body as { values?: Record<string, unknown> };
-    if (!body.values || typeof body.values !== "object") {
-      throw routeError("values is required", 400);
+    const body = request.body as {
+      values?: Record<string, unknown>;
+      deleteKeys?: string[];
+      deleteSecretValueIndexes?: Record<string, number[]>;
+    };
+    if (
+      (!body.values || typeof body.values !== "object") &&
+      (!Array.isArray(body.deleteKeys) || body.deleteKeys.length === 0) &&
+      (!body.deleteSecretValueIndexes ||
+        Object.keys(body.deleteSecretValueIndexes).length === 0)
+    ) {
+      throw routeError("values, deleteKeys, or deleteSecretValueIndexes is required", 400);
     }
 
     const updates = new Map<string, string>();
-    for (const [key, value] of Object.entries(body.values)) {
+    for (const [key, value] of Object.entries(body.values ?? {})) {
       const descriptor = editableEnvConfigByKey.get(key);
       if (!descriptor) {
         throw routeError(`Unsupported config key: ${key}`, 400);
@@ -852,19 +910,71 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       if (normalized !== null) updates.set(key, normalized);
     }
 
-    if (updates.size > 0) {
+    const deletes = new Set<string>();
+    for (const key of body.deleteKeys ?? []) {
+      if (!editableEnvConfigByKey.has(key)) {
+        throw routeError(`Unsupported config key: ${key}`, 400);
+      }
+      if (!updates.has(key)) deletes.add(key);
+    }
+
+    const secretValueDeletes = new Map<string, Set<number>>();
+    for (const [key, indexes] of Object.entries(body.deleteSecretValueIndexes ?? {})) {
+      const descriptor = editableEnvConfigByKey.get(key);
+      if (!descriptor) {
+        throw routeError(`Unsupported config key: ${key}`, 400);
+      }
+      if (descriptor.type !== "secret") {
+        throw routeError(`${key} is not a secret config`, 400);
+      }
+      if (!Array.isArray(indexes)) {
+        throw routeError(`${key} delete indexes must be an array`, 400);
+      }
+      const normalizedIndexes = indexes.map((index) => {
+        const parsed = Number(index);
+        if (!Number.isInteger(parsed) || parsed < 0) {
+          throw routeError(`${key} delete indexes must be non-negative integers`, 400);
+        }
+        return parsed;
+      });
+      if (normalizedIndexes.length > 0 && !updates.has(key) && !deletes.has(key)) {
+        secretValueDeletes.set(key, new Set(normalizedIndexes));
+      }
+    }
+
+    if (updates.size > 0 || deletes.size > 0 || secretValueDeletes.size > 0) {
       let current = "";
       try {
         current = await readFile(envFilePath(), "utf8");
       } catch {
         current = "";
       }
-      await writeFile(envFilePath(), writeEnvContent(current, updates), "utf8");
+
+      if (secretValueDeletes.size > 0) {
+        const fileValues = parseEnvFile(current);
+        for (const [key, indexes] of secretValueDeletes) {
+          const nextValue = deleteSecretValueIndexes(fileValues.get(key) ?? "", indexes);
+          if (nextValue) {
+            updates.set(key, nextValue);
+          } else {
+            deletes.add(key);
+          }
+        }
+      }
+
+      await writeFile(envFilePath(), writeEnvContent(current, updates, deletes), "utf8");
     }
 
     return reply.send({
       ...(await readEditableEnvConfig()),
       updatedKeys: Array.from(updates.keys()),
+      deletedKeys: Array.from(deletes),
+      deletedSecretValueIndexes: Object.fromEntries(
+        Array.from(secretValueDeletes.entries()).map(([key, indexes]) => [
+          key,
+          Array.from(indexes),
+        ])
+      ),
       message: "Config saved to .env. Restart the backend service to apply changes.",
     });
   });

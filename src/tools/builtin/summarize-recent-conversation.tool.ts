@@ -1,5 +1,7 @@
 import { prisma } from "../../db/prisma.js";
 import { modelProvider } from "../../core/model-provider.js";
+import { env } from "../../utils/env.js";
+import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
 interface SummarizeRecentConversationInput {
@@ -88,6 +90,6 @@ export const summarizeRecentConversationTool: ToolDefinition<
   name: "summarize_recent_conversation",
   description: "总结最近的对话内容，提炼关键点、可能的记忆和未解决问题",
   riskLevel: "low",
-  enabled: true,
+  ...toolAccessState(env.TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE),
   handler,
 };

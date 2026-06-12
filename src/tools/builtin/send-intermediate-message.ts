@@ -1,5 +1,7 @@
 // send-intermediate-message.ts — Send intermediate messages during conversation
 
+import { env } from "../../utils/env.js";
+import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
 export const sendIntermediateMessageTool: ToolDefinition<
@@ -38,8 +40,8 @@ export const sendIntermediateMessageTool: ToolDefinition<
     required: ["content"],
   },
 
-  enabled: true,
   riskLevel: "low",
+  ...toolAccessState(env.TOOL_SEND_INTERMEDIATE_MESSAGE_MODE),
 
   async handler(input: { content: string; style?: string }, _context: ToolExecutionContext) {
     const { content, style } = input;
