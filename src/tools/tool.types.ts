@@ -1,3 +1,5 @@
+import type { ToolAccessMode } from "./tool-access.js";
+
 export type ToolRiskLevel = "low" | "medium" | "high";
 
 export interface ToolExecutionContext {
@@ -22,6 +24,7 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   parameters?: ToolParametersSchema;
   riskLevel: ToolRiskLevel;
   ownerOnly?: boolean;
+  accessMode?: ToolAccessMode;
   enabled: boolean;
   handler: ToolHandler<TInput, TOutput>;
 }

@@ -64,6 +64,8 @@ export interface EnvConfigField {
   value: string;
   configured: boolean;
   fromFile: boolean;
+  maskedValue?: string;
+  maskedValues?: string[];
   secret: boolean;
   restartRequired: boolean;
   options?: string[];
@@ -77,6 +79,8 @@ export interface EditableEnvConfig {
   restartRequired: boolean;
   fields: EnvConfigField[];
   updatedKeys?: string[];
+  deletedKeys?: string[];
+  deletedSecretValueIndexes?: Record<string, number[]>;
   message?: string;
 }
 
@@ -96,6 +100,7 @@ export interface RegisteredTool {
   parameters: unknown;
   riskLevel: "low" | "medium" | "high" | string;
   enabled: boolean;
+  accessMode?: "off" | "owner_only" | "on";
   effectiveEnabled: boolean;
   disabledReason: string | null;
   ownerOnly: boolean;
@@ -454,6 +459,8 @@ export async function fetchEditableEnvConfig(token: string): Promise<EditableEnv
 export async function saveEditableEnvConfig(input: {
   token: string;
   values: Record<string, string | boolean | number>;
+  deleteKeys?: string[];
+  deleteSecretValueIndexes?: Record<string, number[]>;
 }): Promise<EditableEnvConfig> {
   const response = await fetch(`${API_BASE_URL}/v1/admin/config/env`, {
     method: "PATCH",
@@ -461,7 +468,11 @@ export async function saveEditableEnvConfig(input: {
       ...adminHeaders(input.token),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ values: input.values }),
+    body: JSON.stringify({
+      values: input.values,
+      deleteKeys: input.deleteKeys,
+      deleteSecretValueIndexes: input.deleteSecretValueIndexes,
+    }),
   });
   return parseJsonResponse<EditableEnvConfig>(response, "保存配置失败");
 }

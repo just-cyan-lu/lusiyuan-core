@@ -9,13 +9,11 @@ import { chatRoute } from "./routes/chat.route.js";
 import { channelsRoute } from "./routes/channels.route.js";
 import { weixinRoute } from "./channels/weixin/weixin.route.js";
 import { toolsRoute } from "./routes/tools.route.js";
-import { draftsRoute } from "./routes/drafts.route.js";
 import { reflectionRoute } from "./routes/reflection.route.js";
 import { dreamRoute } from "./routes/dream.route.js";
 import { adminRoute } from "./routes/admin.route.js";
 import { webSearchRoute } from "./routes/web-search.route.js";
 import { pageReaderRoute } from "./routes/page-reader.route.js";
-import { externalInboxRoute } from "./routes/external-inbox.route.js";
 import { env } from "./utils/env.js";
 import { createTelegramBot } from "./channels/telegram/telegram.bot.js";
 import { startDreamScheduler } from "./dream/dream-scheduler.js";
@@ -51,13 +49,11 @@ export function buildApp() {
   void app.register(channelsRoute);
   void app.register(weixinRoute);
   void app.register(toolsRoute);
-  void app.register(draftsRoute);
   void app.register(reflectionRoute);
   void app.register(dreamRoute);
   void app.register(adminRoute);
   void app.register(webSearchRoute);
   void app.register(pageReaderRoute);
-  void app.register(externalInboxRoute);
 
   // Serve web frontend (production build)
   const webDistPath = path.join(__dirname, "../web/dist");

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
 import { ConfigCenterPage } from "./components/admin/ConfigCenterPage";
 import { DashboardPage } from "./components/admin/DashboardPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
-import { PlaceholderPage } from "./components/admin/PlaceholderPage";
+import { PlatformsPage, XiaohongshuPlatformPage } from "./components/admin/PlatformsPage";
 import { ToolsAdminPage } from "./components/admin/ToolsAdminPage";
 import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
@@ -15,33 +15,45 @@ const sections: AdminSection[] = [
   "memory",
   "reflection",
   "dream",
-  "drafts",
+  "platforms",
   "tools",
   "chat",
   "settings",
 ];
 
+interface AdminRoute {
+  section: AdminSection;
+  platformId?: string;
+}
+
 function pathForSection(section: AdminSection): string {
   return section === "overview" ? "/admin" : `/admin/${section}`;
 }
 
-function readSectionFromLocation(): AdminSection {
+function readRouteFromLocation(): AdminRoute {
   const legacyHashValue = window.location.hash.replace(/^#\/?/, "");
   if (legacyHashValue === "ops") {
     window.history.replaceState(null, "", pathForSection("reflection"));
-    return "reflection";
+    return { section: "reflection" };
   }
   if (legacyHashValue === "logs") {
     window.history.replaceState(null, "", pathForSection("tools"));
-    return "tools";
+    return { section: "tools" };
   }
   if (sections.includes(legacyHashValue as AdminSection)) {
     const section = legacyHashValue as AdminSection;
     window.history.replaceState(null, "", pathForSection(section));
-    return section;
+    return { section };
   }
 
   const path = window.location.pathname.replace(/\/+$/, "");
+  if (path.startsWith("/admin/platforms/")) {
+    return {
+      section: "platforms",
+      platformId: path.slice("/admin/platforms/".length),
+    };
+  }
+
   const value = path.startsWith("/admin/")
     ? path.slice("/admin/".length)
     : path === "/admin" || path === "" || path === "/"
@@ -49,29 +61,36 @@ function readSectionFromLocation(): AdminSection {
       : "";
   if (value === "ops") {
     window.history.replaceState(null, "", pathForSection("reflection"));
-    return "reflection";
+    return { section: "reflection" };
   }
   if (value === "logs") {
     window.history.replaceState(null, "", pathForSection("tools"));
-    return "tools";
+    return { section: "tools" };
   }
-  return sections.includes(value as AdminSection) ? (value as AdminSection) : "overview";
+  return {
+    section: sections.includes(value as AdminSection) ? (value as AdminSection) : "overview",
+  };
 }
 
 export default function App() {
-  const [activeSection, setActiveSection] = useState<AdminSection>(readSectionFromLocation);
+  const [route, setRoute] = useState<AdminRoute>(readRouteFromLocation);
   const [adminToken, setAdminToken] = useState(getStoredAdminToken);
 
   useEffect(() => {
-    const onPopState = () => setActiveSection(readSectionFromLocation());
+    const onPopState = () => setRoute(readRouteFromLocation());
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  function handleNavigate(section: AdminSection) {
+  const handleNavigate = useCallback((section: AdminSection) => {
     window.history.pushState(null, "", pathForSection(section));
-    setActiveSection(section);
-  }
+    setRoute({ section });
+  }, []);
+
+  const handleOpenPlatform = useCallback((platformId: string) => {
+    window.history.pushState(null, "", `/admin/platforms/${platformId}`);
+    setRoute({ section: "platforms", platformId });
+  }, []);
 
   function handleAdminTokenChange(token: string) {
     setAdminToken(token);
@@ -79,47 +98,43 @@ export default function App() {
   }
 
   const content = useMemo(() => {
-    if (activeSection === "overview") {
+    if (route.section === "overview") {
       return <DashboardPage adminToken={adminToken} />;
     }
 
-    if (activeSection === "chat") {
+    if (route.section === "chat") {
       return <ChatPage />;
     }
 
-    if (activeSection === "memory") {
+    if (route.section === "memory") {
       return <MemoryAdminPage adminToken={adminToken} />;
     }
 
-    if (activeSection === "reflection") {
+    if (route.section === "reflection") {
       return <ReflectionPage adminToken={adminToken} />;
     }
 
-    if (activeSection === "dream") {
+    if (route.section === "dream") {
       return <DreamPage adminToken={adminToken} />;
     }
 
-    if (activeSection === "drafts") {
-      return (
-        <PlaceholderPage
-          eyebrow="Draft Desk"
-          title="草稿管理"
-          summary="草稿会作为内容生产的轻量审核台：查看、批准、拒绝、标记发送。"
-          items={["草稿列表", "状态筛选", "详情预览", "状态流转"]}
-        />
-      );
+    if (route.section === "platforms") {
+      if (route.platformId === "xiaohongshu") {
+        return <XiaohongshuPlatformPage onBack={() => handleNavigate("platforms")} />;
+      }
+      return <PlatformsPage onOpenPlatform={handleOpenPlatform} />;
     }
 
-    if (activeSection === "tools") {
+    if (route.section === "tools") {
       return <ToolsAdminPage adminToken={adminToken} />;
     }
 
     return <ConfigCenterPage adminToken={adminToken} />;
-  }, [activeSection, adminToken]);
+  }, [route, adminToken, handleNavigate, handleOpenPlatform]);
 
   return (
     <AdminShell
-      activeSection={activeSection}
+      activeSection={route.section}
       adminToken={adminToken}
       apiBaseUrl={API_BASE_URL}
       onAdminTokenChange={handleAdminTokenChange}

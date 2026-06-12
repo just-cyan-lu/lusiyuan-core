@@ -8,7 +8,6 @@ import type {
   DreamSourceMessage,
   DreamSourceMemory,
   DreamSourceToolCall,
-  DreamSourceDraft,
   DreamSourceReflectionReport,
   DreamSourceMemoryProposal,
 } from "./dream.types.js";
@@ -24,12 +23,11 @@ export class DreamContextBuilder {
   async build(input: BuildDreamContextInput): Promise<DreamContext> {
     const { from, to, userId, conversationId } = input;
 
-    const [messages, memories, toolCalls, drafts, reflectionReports, memoryProposals] =
+    const [messages, memories, toolCalls, reflectionReports, memoryProposals] =
       await Promise.all([
         this.fetchMessages(from, to, userId, conversationId),
         this.fetchMemories(from, to, userId),
         this.fetchToolCalls(from, to),
-        this.fetchDrafts(from, to),
         this.fetchReflectionReports(from, to),
         this.fetchMemoryProposals(from, to),
       ]);
@@ -38,7 +36,6 @@ export class DreamContextBuilder {
       messages: messages.length,
       memories: memories.length,
       toolCalls: toolCalls.length,
-      drafts: drafts.length,
       reflectionReports: reflectionReports.length,
       memoryProposals: memoryProposals.length,
     };
@@ -48,7 +45,6 @@ export class DreamContextBuilder {
       messages,
       memories,
       toolCalls,
-      drafts,
       reflectionReports,
       memoryProposals,
       sourceStats,
@@ -144,22 +140,6 @@ export class DreamContextBuilder {
     return rows.map((r) => ({
       id: r.id,
       toolName: r.toolName,
-      status: r.status,
-      createdAt: r.createdAt,
-    }));
-  }
-
-  private async fetchDrafts(from: Date, to: Date): Promise<DreamSourceDraft[]> {
-    const rows = await prisma.draft.findMany({
-      where: { createdAt: { gte: from, lte: to } },
-      orderBy: { createdAt: "desc" },
-      take: env.DREAM_MAX_DRAFTS,
-      select: { id: true, content: true, status: true, createdAt: true },
-    });
-
-    return rows.map((r) => ({
-      id: r.id,
-      content: redactPrivateData(r.content),
       status: r.status,
       createdAt: r.createdAt,
     }));
