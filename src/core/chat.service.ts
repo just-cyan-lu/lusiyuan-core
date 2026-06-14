@@ -384,6 +384,17 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     })
     .catch((err) => console.warn("[chat] relationship state update failed:", err));
 
+  relationshipStateService
+    .observeIdentitySignals({
+      userId: user.id,
+      conversationId: conversation.id,
+      messageId: userMessage.id,
+      channel: input.channel,
+      userMessage: input.message,
+      displayName: input.display_name,
+    })
+    .catch((err) => console.warn("[chat] identity proposal update failed:", err));
+
   return {
     reply,
     conversation_id: input.conversation_id,

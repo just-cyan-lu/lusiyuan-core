@@ -182,6 +182,35 @@ export interface RelationshipDetailResponse {
   events: RelationshipStateEvent[];
 }
 
+export interface IdentityLinkProposal {
+  id: string;
+  sourceUserId: string;
+  targetPersonId: string;
+  targetUserId: string | null;
+  reason: string;
+  evidence: unknown;
+  confidence: number;
+  status: string;
+  source: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sourceUser: RelationshipUser;
+  targetUser: RelationshipUser | null;
+  targetPerson: PersonIdentity;
+}
+
+export interface IdentityLinkProposalListResponse {
+  proposals: IdentityLinkProposal[];
+}
+
+export interface IdentityLinkProposalReviewResponse {
+  proposal: IdentityLinkProposal;
+  relationship?: RelationshipState;
+  events?: RelationshipStateEvent[];
+}
+
 export interface RelationshipUpdateInput {
   token: string;
   relationshipId: string;
@@ -708,6 +737,52 @@ export async function linkRelationshipUser(input: {
     body: JSON.stringify({ user_id: input.userId }),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "绑定用户身份失败");
+}
+
+export async function fetchIdentityLinkProposals(input: {
+  token: string;
+  status?: string;
+  limit?: number;
+}): Promise<IdentityLinkProposalListResponse> {
+  const params = new URLSearchParams();
+  if (input.status) params.set("status", input.status);
+  if (input.limit) params.set("limit", String(input.limit));
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/identity-link-proposals${query ? `?${query}` : ""}`,
+    {
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<IdentityLinkProposalListResponse>(response, "无法读取身份怀疑");
+}
+
+export async function approveIdentityLinkProposal(input: {
+  token: string;
+  proposalId: string;
+}): Promise<IdentityLinkProposalReviewResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/identity-link-proposals/${input.proposalId}/approve`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<IdentityLinkProposalReviewResponse>(response, "确认身份合并失败");
+}
+
+export async function rejectIdentityLinkProposal(input: {
+  token: string;
+  proposalId: string;
+}): Promise<IdentityLinkProposalReviewResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/identity-link-proposals/${input.proposalId}/reject`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<IdentityLinkProposalReviewResponse>(response, "忽略身份怀疑失败");
 }
 
 export async function resetRelationshipState(input: {

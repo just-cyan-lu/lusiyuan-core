@@ -10,13 +10,19 @@
 
 **PersonIdentity**
 
-现实层面的同一个人。系统不会靠昵称、头像、语气自动判断两个渠道账号是不是同一个人。
+现实层面的同一个人。系统可以怀疑两个渠道账号可能是同一个人，但不会自动确认。
 
 一个新的 `User` 第一次需要关系状态时，会自动生成一个只包含自己的 `PersonIdentity`。如果 admin 明确确认两个渠道账号是同一个现实用户，可以把它们绑定到同一个 `PersonIdentity`。
 
 **IdentityLink**
 
 把一个渠道账号 `User` 连接到一个现实身份 `PersonIdentity`。比如 `telegram:123` 和 `weixin:abc` 可以通过两个 `IdentityLink` 指向同一个 `PersonIdentity`。
+
+**IdentityLinkProposal**
+
+身份怀疑提案。聊天时如果用户明确说“我是某某”，或者显示名和已有现实身份很像，系统会写一条待审核提案。
+
+它只是“怀疑”，不会合并账号，也不会改变关系状态。只有 admin 审核通过后，才会真正写入 `IdentityLink`，并把关系状态合并到同一个 `PersonIdentity` 上。
 
 **Conversation**
 
@@ -137,7 +143,7 @@ Dream 深度整理报告，可能会产生 MemoryProposal。
 
 陆思源面对某个现实身份时的关系状态。每个 `PersonIdentity` 一份。
 
-它保存熟悉度、信任度、亲近感、关系张力、互动风格、关系摘要和最近信号。普通聊天可以让程序直接小幅更新它，不需要 admin 审核；admin 仍然可以手动修改、重置，或把其他渠道账号绑定进同一个现实身份。
+它保存熟悉度、信任度、亲近感、关系张力、互动风格、关系摘要和最近信号。普通聊天可以让程序直接小幅更新它，不需要 admin 审核；admin 仍然可以手动修改、重置，或审核身份怀疑后把其他渠道账号绑定进同一个现实身份。
 
 它不等于长期记忆。长期记忆仍然走 MemoryProposal；RelationshipState 只是“这段关系现在怎么相处”的状态。
 

@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  approveIdentityLinkProposal,
+  fetchIdentityLinkProposals,
   fetchRelationshipDetail,
   fetchRelationships,
   linkRelationshipUser,
+  rejectIdentityLinkProposal,
   resetRelationshipState,
   updateRelationshipState,
+  type IdentityLinkProposal,
   type RelationshipState,
   type RelationshipStateEvent,
 } from "../../api/lusiyuan-api";
@@ -15,6 +19,7 @@ interface RelationshipStatePageProps {
 
 interface PageState {
   relationships: RelationshipState[];
+  proposals: IdentityLinkProposal[];
   selected: RelationshipState | null;
   events: RelationshipStateEvent[];
   loading: boolean;
@@ -68,6 +73,45 @@ function linkedUsersText(relationship: RelationshipState): string {
     .join(" / ");
 }
 
+function proposalUserLabel(user: { externalId: string; displayName: string | null }): string {
+  return user.displayName ?? user.externalId;
+}
+
+function proposalTargetLabel(proposal: IdentityLinkProposal): string {
+  return (
+    proposal.targetPerson.label ??
+    proposal.targetUser?.displayName ??
+    proposal.targetUser?.externalId ??
+    proposal.targetPersonId
+  );
+}
+
+function proposalTargetUsersText(proposal: IdentityLinkProposal): string {
+  const links = proposal.targetPerson.identityLinks ?? [];
+  if (links.length === 0) return "暂无已绑定账号";
+  return links.map((link) => proposalUserLabel(link.user)).join(" / ");
+}
+
+function proposalEvidenceText(proposal: IdentityLinkProposal): string {
+  const evidence =
+    proposal.evidence && typeof proposal.evidence === "object" && !Array.isArray(proposal.evidence)
+      ? (proposal.evidence as Record<string, unknown>)
+      : {};
+  const preview =
+    typeof evidence.userMessagePreview === "string" && evidence.userMessagePreview.trim()
+      ? `消息：${evidence.userMessagePreview}`
+      : "";
+  const hints = Array.isArray(evidence.matchedHints)
+    ? evidence.matchedHints.filter((item): item is string => typeof item === "string")
+    : [];
+  const terms = Array.isArray(evidence.matchedTerms)
+    ? evidence.matchedTerms.filter((item): item is string => typeof item === "string")
+    : [];
+  return [preview, hints.length > 0 ? `线索：${hints.join(" / ")}` : "", terms.length > 0 ? `匹配：${terms.join(" / ")}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function formFromRelationship(relationship: RelationshipState): RelationshipForm {
   return {
     relationshipLabel: relationship.relationshipLabel,
@@ -86,6 +130,8 @@ function eventTypeLabel(type: string): string {
   if (type === "chat_relationship_update") return "聊天更新";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
+  if (type === "identity_merge") return "身份合并";
+  if (type === "identity_link_added") return "身份绑定";
   return type;
 }
 
@@ -95,6 +141,7 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
   const [form, setForm] = useState<RelationshipForm | null>(null);
   const [pageState, setPageState] = useState<PageState>({
     relationships: [],
+    proposals: [],
     selected: null,
     events: [],
     loading: false,
@@ -107,6 +154,7 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
     if (!adminToken) {
       setPageState({
         relationships: [],
+        proposals: [],
         selected: null,
         events: [],
         loading: false,
@@ -120,11 +168,18 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
 
     setPageState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const data = await fetchRelationships({
-        token: adminToken,
-        q: nextQuery,
-        limit: 80,
-      });
+      const [data, proposalData] = await Promise.all([
+        fetchRelationships({
+          token: adminToken,
+          q: nextQuery,
+          limit: 80,
+        }),
+        fetchIdentityLinkProposals({
+          token: adminToken,
+          status: "pending",
+          limit: 30,
+        }),
+      ]);
       const selectedId = preferredId ?? pageState.selected?.id ?? data.relationships[0]?.id;
       const selected = selectedId
         ? data.relationships.find((relationship) => relationship.id === selectedId) ??
@@ -145,6 +200,7 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
       setPageState((current) => ({
         ...current,
         relationships: data.relationships,
+        proposals: proposalData.proposals,
         selected: detailRelationship,
         events,
         loading: false,
@@ -284,13 +340,45 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
     }
   }
 
+  async function reviewIdentityProposal(proposalId: string, action: "approve" | "reject") {
+    if (!adminToken) return;
+    const confirmed =
+      action === "approve"
+        ? window.confirm("确认这是同一个现实用户吗？通过后会合并关系状态。")
+        : true;
+    if (!confirmed) return;
+
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const result =
+        action === "approve"
+          ? await approveIdentityLinkProposal({ token: adminToken, proposalId })
+          : await rejectIdentityLinkProposal({ token: adminToken, proposalId });
+      await loadList(query, result.relationship?.id ?? pageState.selected?.id);
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        message:
+          action === "approve"
+            ? "身份已确认并合并到同一个现实身份。"
+            : "这条身份怀疑已忽略。",
+      }));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
   if (!adminToken) {
     return (
       <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
         <div className="text-xs font-semibold text-[#8a6f5a]">Relationship State</div>
         <h2 className="mt-3 text-3xl font-semibold text-[#172033]">关系状态</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
-          请先在顶部输入 Admin Token。这里会显示陆思源和每个用户之间的熟悉度、信任度、亲近感和关系张力。
+          请先在顶部输入 Admin Token。这里会显示陆思源和每个现实身份之间的熟悉度、信任度、亲近感和关系张力。
         </p>
       </section>
     );
@@ -304,7 +392,7 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
             <div className="text-xs font-semibold text-[#8a6f5a]">Relationship State</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">关系状态</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              每个用户一份关系状态。程序会在聊天后直接小幅更新，admin 可以查看、修正或重置。
+              每个现实身份一份关系状态。程序会在聊天后直接小幅更新关系，也会把疑似同一人的线索提交给 admin 审核。
             </p>
           </div>
 
@@ -345,6 +433,77 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
             {pageState.message}
           </div>
         )}
+      </section>
+
+      <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[#172033]">身份怀疑</h3>
+            <p className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+              系统只会怀疑，不会自动确认。通过后才会把渠道账号合并到同一个现实身份。
+            </p>
+          </div>
+          <div className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-medium text-[#66758a]">
+            {pageState.proposals.length} 条待审核
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          {pageState.proposals.length > 0 ? (
+            pageState.proposals.map((proposal) => (
+              <div
+                key={proposal.id}
+                className="grid gap-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-4 lg:grid-cols-[1fr_auto]"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-[#172033]">
+                      {proposalUserLabel(proposal.sourceUser)}
+                    </span>
+                    <span className="text-xs text-[#7b8ca2]">可能是</span>
+                    <span className="text-sm font-semibold text-[#172033]">
+                      {proposalTargetLabel(proposal)}
+                    </span>
+                    <span className="rounded-full border border-[#c9d6e5] bg-white px-2 py-0.5 text-xs text-[#66758a]">
+                      {Math.round(proposal.confidence * 100)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs leading-6 text-[#617188]">
+                    {proposal.reason}
+                  </div>
+                  <div className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+                    {proposalEvidenceText(proposal) || "暂无详细证据。"}
+                  </div>
+                  <div className="mt-1 truncate text-xs text-[#7b8ca2]">
+                    已有身份账号：{proposalTargetUsersText(proposal)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    disabled={pageState.saving}
+                    onClick={() => void reviewIdentityProposal(proposal.id, "approve")}
+                    className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
+                  >
+                    通过
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pageState.saving}
+                    onClick={() => void reviewIdentityProposal(proposal.id, "reject")}
+                    className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    忽略
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+              暂无待审核的身份怀疑。
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">

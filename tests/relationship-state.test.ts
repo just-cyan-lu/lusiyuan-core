@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { RelationshipState } from "@prisma/client";
-import { deriveRelationshipStatePatch } from "../src/runtime/relationship-state.service.js";
+import {
+  deriveRelationshipStatePatch,
+  extractIdentityHints,
+} from "../src/runtime/relationship-state.service.js";
 
 const baseRelationship: RelationshipState = {
   id: "relationship-1",
@@ -49,4 +52,10 @@ test("boundary pressure increases relationship tension", () => {
   assert.ok((patch.tension ?? 0) > baseRelationship.tension);
   assert.ok((patch.trust ?? 100) < baseRelationship.trust);
   assert.match(patch.interactionStyle ?? "", /边界/);
+});
+
+test("extracts explicit identity hints for admin review", () => {
+  assert.deepEqual(extractIdentityHints("我是你之前在微信聊过的 cyan"), ["cyan"]);
+  assert.deepEqual(extractIdentityHints("我叫小蓝，这次换 telegram 了"), ["小蓝"]);
+  assert.deepEqual(extractIdentityHints("我是微信用户"), []);
 });
