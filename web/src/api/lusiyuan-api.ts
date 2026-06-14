@@ -118,10 +118,29 @@ export interface RelationshipUser {
   displayName: string | null;
 }
 
+export interface IdentityLink {
+  id: string;
+  personId: string;
+  userId: string;
+  source: string;
+  verifiedBy: string | null;
+  createdAt: string;
+  user: RelationshipUser;
+}
+
+export interface PersonIdentity {
+  id: string;
+  label: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  identityLinks: IdentityLink[];
+}
+
 export interface RelationshipState {
   id: string;
-  userId: string;
-  user?: RelationshipUser;
+  personId: string;
+  person?: PersonIdentity;
   relationshipLabel: string;
   familiarity: number;
   trust: number;
@@ -140,7 +159,8 @@ export interface RelationshipState {
 export interface RelationshipStateEvent {
   id: string;
   relationshipStateId: string;
-  userId: string;
+  personId: string;
+  userId: string | null;
   eventType: string;
   source: string | null;
   summary: string;
@@ -672,6 +692,22 @@ export async function updateRelationshipState(
     body: JSON.stringify(body),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "保存关系状态失败");
+}
+
+export async function linkRelationshipUser(input: {
+  token: string;
+  relationshipId: string;
+  userId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/link-user`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ user_id: input.userId }),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "绑定用户身份失败");
 }
 
 export async function resetRelationshipState(input: {

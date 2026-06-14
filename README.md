@@ -163,7 +163,7 @@ Runtime State 是陆思源的当前状态。
 
 ### Relationship State
 
-Relationship State 是陆思源和某个用户之间的关系状态。
+Relationship State 是陆思源和某个现实身份之间的关系状态。
 
 比如：
 
@@ -177,6 +177,8 @@ Relationship State 是陆思源和某个用户之间的关系状态。
 它和 Runtime State 不一样。Runtime State 是“陆思源整体现在怎么样”；Relationship State 是“陆思源和这个人现在是什么关系”。
 
 普通聊天可以让程序直接小幅更新 Relationship State，不需要 admin 审核。admin 仍然可以在后台查看、修改和重置。
+
+跨渠道身份不会自动猜测。`telegram:123`、`weixin:abc`、`web:uuid` 默认是不同渠道账号；只有 admin 明确绑定后，才会共享同一个现实身份和同一份关系状态。
 
 ### Memory
 
@@ -540,7 +542,8 @@ pnpm telegram:dev
 - `RuntimeState`：数据库里的全局当前状态。
 - `RuntimeEvent`：记录聊天、复盘、梦境、自启动这些发生过的事。
 - `RuntimeStateEvent`：记录真正写入 RuntimeState 的状态变化。
-- `RelationshipState`：记录陆思源和每个用户之间的关系状态。
+- `PersonIdentity` / `IdentityLink`：把多个渠道账号手动绑定到同一个现实身份。
+- `RelationshipState`：记录陆思源和每个现实身份之间的关系状态。
 - `RelationshipStateEvent`：记录关系状态每次为什么变化。
 - 运行态更新策略：支持规则校准，也支持 LLM 提议 statePatch 后由程序校验写入；只在 owner、复盘、梦境、自启动和 admin 这些受控入口生效。
 - `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。

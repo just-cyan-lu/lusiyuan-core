@@ -31,6 +31,7 @@ interface ApplyRelationshipPatchInput {
   eventType: string;
   source: string;
   summary?: string;
+  userId?: string;
   conversationId?: string;
   messageId?: string;
   channel?: string;
@@ -48,7 +49,7 @@ const defaultRelationshipState = {
   statusNote: "默认关系状态已初始化。",
 } satisfies Omit<
   Prisma.RelationshipStateCreateInput,
-  "user"
+  "person"
 >;
 
 function clampInt(value: number, min: number, max: number): number {
@@ -102,7 +103,7 @@ function relationshipLabelFrom(state: {
 function snapshotRelationshipState(state: RelationshipState): Prisma.InputJsonObject {
   return {
     id: state.id,
-    userId: state.userId,
+    personId: state.personId,
     relationshipLabel: state.relationshipLabel,
     familiarity: state.familiarity,
     trust: state.trust,
@@ -236,13 +237,45 @@ export function deriveRelationshipStatePatch(
 }
 
 export const relationshipStateService = {
-  async getOrCreate(userId: string): Promise<RelationshipState> {
-    return prisma.relationshipState.upsert({
+  async getOrCreatePersonForUser(userId: string) {
+    const existingLink = await prisma.identityLink.findUnique({
       where: { userId },
+      include: { person: true },
+    });
+    if (existingLink) return existingLink.person;
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, externalId: true, displayName: true, createdAt: true },
+    });
+
+    return prisma.$transaction(async (tx) => {
+      const person = await tx.personIdentity.create({
+        data: {
+          label: user.displayName ?? user.externalId,
+          note: "由 User 自动生成的单人身份。",
+          createdAt: user.createdAt,
+        },
+      });
+      await tx.identityLink.create({
+        data: {
+          personId: person.id,
+          userId: user.id,
+          source: "auto_singleton",
+        },
+      });
+      return person;
+    });
+  },
+
+  async getOrCreate(userId: string): Promise<RelationshipState> {
+    const person = await this.getOrCreatePersonForUser(userId);
+    return prisma.relationshipState.upsert({
+      where: { personId: person.id },
       update: {},
       create: {
         ...defaultRelationshipState,
-        user: { connect: { id: userId } },
+        person: { connect: { id: person.id } },
       },
     });
   },
@@ -258,12 +291,24 @@ export const relationshipStateService = {
               { summary: { contains: q, mode: "insensitive" } },
               { recentSignal: { contains: q, mode: "insensitive" } },
               {
-                user: {
+                person: {
                   is: {
                     OR: [
                       { id: { contains: q, mode: "insensitive" } },
-                      { externalId: { contains: q, mode: "insensitive" } },
-                      { displayName: { contains: q, mode: "insensitive" } },
+                      { label: { contains: q, mode: "insensitive" } },
+                      {
+                        identityLinks: {
+                          some: {
+                            user: {
+                              OR: [
+                                { id: { contains: q, mode: "insensitive" } },
+                                { externalId: { contains: q, mode: "insensitive" } },
+                                { displayName: { contains: q, mode: "insensitive" } },
+                              ],
+                            },
+                          },
+                        },
+                      },
                     ],
                   },
                 },
@@ -272,7 +317,16 @@ export const relationshipStateService = {
           }
         : {},
       include: {
-        user: { select: { id: true, externalId: true, displayName: true } },
+        person: {
+          include: {
+            identityLinks: {
+              include: {
+                user: { select: { id: true, externalId: true, displayName: true } },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
       },
       orderBy: [{ updatedAt: "desc" }],
       take: clampInt(limit, 1, 200),
@@ -291,11 +345,165 @@ export const relationshipStateService = {
     const relationship = await prisma.relationshipState.findUniqueOrThrow({
       where: { id: relationshipId },
       include: {
-        user: { select: { id: true, externalId: true, displayName: true } },
+        person: {
+          include: {
+            identityLinks: {
+              include: {
+                user: { select: { id: true, externalId: true, displayName: true } },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
       },
     });
     const events = await this.listEvents(relationshipId, limit);
     return { relationship, events };
+  },
+
+  async linkUserToPerson(input: {
+    relationshipId: string;
+    userId: string;
+    source?: string;
+    verifiedBy?: string;
+  }): Promise<RelationshipState> {
+    const target = await prisma.relationshipState.findUniqueOrThrow({
+      where: { id: input.relationshipId },
+    });
+    const sourceLink = await prisma.identityLink.findUnique({
+      where: { userId: input.userId },
+      include: {
+        person: {
+          include: {
+            relationshipState: true,
+            identityLinks: { select: { id: true } },
+          },
+        },
+      },
+    });
+
+    if (sourceLink?.personId === target.personId) return target;
+
+    return prisma.$transaction(async (tx) => {
+      let updatedTarget = target;
+      const source = input.source ?? "admin_manual";
+
+      if (!sourceLink) {
+        await tx.identityLink.create({
+          data: {
+            personId: target.personId,
+            userId: input.userId,
+            source,
+            verifiedBy: input.verifiedBy,
+          },
+        });
+        await tx.relationshipStateEvent.create({
+          data: {
+            relationshipStateId: target.id,
+            personId: target.personId,
+            userId: input.userId,
+            eventType: "identity_link_added",
+            source,
+            summary: "Admin 把一个渠道账号绑定到当前现实身份。",
+            before: snapshotRelationshipState(target),
+            after: snapshotRelationshipState(target),
+          },
+        });
+      } else {
+        const sourceState = sourceLink.person.relationshipState;
+        const sourceLinkCount = sourceLink.person.identityLinks.length;
+
+        if (sourceState && sourceLinkCount <= 1) {
+          const merged = {
+            familiarity: Math.max(target.familiarity, sourceState.familiarity),
+            trust: Math.max(target.trust, sourceState.trust),
+            closeness: Math.max(target.closeness, sourceState.closeness),
+            tension: Math.max(target.tension, sourceState.tension),
+          };
+          const patch: RelationshipStatePatch = {
+            ...merged,
+            relationshipLabel: relationshipLabelFrom(merged),
+            summary: [
+              target.summary,
+              sourceState.summary,
+              "已由 admin 确认跨渠道身份为同一个人，并合并关系状态。",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+            recentSignal: "admin 手动绑定了另一个渠道账号，关系状态已合并。",
+            statusNote: "由身份绑定合并关系状态；后续多个渠道会共享这一份关系。",
+            metadata: metadataWith(target.metadata, {
+              lastIdentityMerge: {
+                at: new Date().toISOString(),
+                sourcePersonId: sourceLink.personId,
+                linkedUserId: input.userId,
+                source,
+              },
+            }),
+          };
+
+          updatedTarget = await tx.relationshipState.update({
+            where: { id: target.id },
+            data: normalizePatch(patch),
+          });
+          await tx.relationshipStateEvent.updateMany({
+            where: { relationshipStateId: sourceState.id },
+            data: {
+              relationshipStateId: target.id,
+              personId: target.personId,
+            },
+          });
+          await tx.relationshipState.delete({ where: { id: sourceState.id } });
+          await tx.relationshipStateEvent.create({
+            data: {
+              relationshipStateId: updatedTarget.id,
+              personId: updatedTarget.personId,
+              userId: input.userId,
+              eventType: "identity_merge",
+              source,
+              summary: "Admin 确认跨渠道同一人，合并关系状态。",
+              patch: patch as Prisma.InputJsonObject,
+              before: snapshotRelationshipState(target),
+              after: snapshotRelationshipState(updatedTarget),
+            },
+          });
+        } else {
+          await tx.relationshipStateEvent.create({
+            data: {
+              relationshipStateId: target.id,
+              personId: target.personId,
+              userId: input.userId,
+              eventType: "identity_link_added",
+              source,
+              summary: "Admin 把一个渠道账号绑定到当前现实身份。",
+              before: snapshotRelationshipState(target),
+              after: snapshotRelationshipState(target),
+            },
+          });
+        }
+
+        await tx.identityLink.update({
+          where: { userId: input.userId },
+          data: {
+            personId: target.personId,
+            source,
+            verifiedBy: input.verifiedBy,
+          },
+        });
+
+        const remainingLinks = await tx.identityLink.count({
+          where: { personId: sourceLink.personId },
+        });
+        const remainingState = await tx.relationshipState.count({
+          where: { personId: sourceLink.personId },
+        });
+        if (remainingLinks === 0 && remainingState === 0) {
+          await tx.personIdentity.delete({ where: { id: sourceLink.personId } });
+        }
+      }
+
+      return updatedTarget;
+    });
   },
 
   async applyPatch(input: ApplyRelationshipPatchInput): Promise<RelationshipState> {
@@ -312,7 +520,8 @@ export const relationshipStateService = {
       await tx.relationshipStateEvent.create({
         data: {
           relationshipStateId: updated.id,
-          userId: updated.userId,
+          personId: updated.personId,
+          userId: input.userId,
           eventType: input.eventType,
           source: input.source,
           summary: input.summary ?? summarizePatch(input.patch),
@@ -337,6 +546,7 @@ export const relationshipStateService = {
       eventType: "chat_relationship_update",
       source: input.isOwner ? "owner_chat_rules" : "chat_rules",
       summary: summarizePatch(patch),
+      userId: input.userId,
       conversationId: input.conversationId,
       messageId: input.messageId,
       channel: input.channel,

@@ -18,7 +18,7 @@
 
 - 全局 `RuntimeState`：保存当前心情、精力、压力、社交电量、当前目标、最近关注和正在做的事。
 - `RuntimeEvent`：记录陆思源经历过什么，普通聊天也会进入这里。
-- `RelationshipState`：保存陆思源和每个用户之间的关系状态。
+- `RelationshipState`：保存陆思源和每个现实身份之间的关系状态。
 
 还缺的是更细的长期目标、自我叙事拆分，以及更完整的 RuntimeEvent 内部过程。
 
@@ -83,7 +83,7 @@ LLM 可以提议状态变化，但不能直接改状态。
 
 陆思源面对某个用户时的关系状态。
 
-当前已实现第一版：每个用户一份 `RelationshipState`。普通聊天可以直接让程序小幅更新这份关系，不需要 admin 审核；admin 仍然可以手动修正或重置。
+当前已实现第一版：每个现实身份一份 `RelationshipState`。普通聊天可以直接让程序小幅更新这份关系，不需要 admin 审核；admin 仍然可以手动修正、重置，或把多个渠道账号绑定成同一个现实身份。
 
 它和 `RuntimeState` 的区别很重要：
 
@@ -103,6 +103,16 @@ LLM 可以提议状态变化，但不能直接改状态。
 - 对方长期偏好摘要
 
 不要保存敏感隐私原文，只保存低敏、有用、可解释的关系摘要。正式长期记忆仍然走 MemoryProposal；RelationshipState 只是关系温度和互动方式。
+
+### User / PersonIdentity / IdentityLink
+
+`User` 是渠道账号，比如 `telegram:123`、`weixin:abc`、`web:uuid`。
+
+`PersonIdentity` 是现实层面的同一个人。系统默认不会猜两个渠道账号是不是同一个人。新用户会先自动拥有一个只包含自己的 PersonIdentity。
+
+`IdentityLink` 负责把 User 连接到 PersonIdentity。只有 owner/admin 明确确认时，才把多个 User 绑定到同一个 PersonIdentity。
+
+这避免了误合并：昵称相似、说话像、头像像，都不能自动合并。
 
 ### RuntimeEvent
 

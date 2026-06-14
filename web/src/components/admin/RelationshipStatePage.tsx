@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   fetchRelationshipDetail,
   fetchRelationships,
+  linkRelationshipUser,
   resetRelationshipState,
   updateRelationshipState,
   type RelationshipState,
@@ -51,11 +52,20 @@ function formatDate(value: string | null): string {
 }
 
 function userLabel(relationship: RelationshipState): string {
-  return (
-    relationship.user?.displayName ??
-    relationship.user?.externalId ??
-    relationship.userId
-  );
+  return relationship.person?.label ?? primaryUserLabel(relationship) ?? relationship.personId;
+}
+
+function primaryUserLabel(relationship: RelationshipState): string | null {
+  const user = relationship.person?.identityLinks[0]?.user;
+  return user?.displayName ?? user?.externalId ?? null;
+}
+
+function linkedUsersText(relationship: RelationshipState): string {
+  const links = relationship.person?.identityLinks ?? [];
+  if (links.length === 0) return "暂无绑定账号";
+  return links
+    .map((link) => link.user.displayName ?? link.user.externalId)
+    .join(" / ");
 }
 
 function formFromRelationship(relationship: RelationshipState): RelationshipForm {
@@ -81,6 +91,7 @@ function eventTypeLabel(type: string): string {
 
 export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps) {
   const [query, setQuery] = useState("");
+  const [linkUserId, setLinkUserId] = useState("");
   const [form, setForm] = useState<RelationshipForm | null>(null);
   const [pageState, setPageState] = useState<PageState>({
     relationships: [],
@@ -244,6 +255,35 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
     }
   }
 
+  async function linkUserToSelectedPerson() {
+    if (!adminToken || !pageState.selected || !linkUserId.trim()) return;
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail = await linkRelationshipUser({
+        token: adminToken,
+        relationshipId: pageState.selected.id,
+        userId: linkUserId.trim(),
+      });
+      const list = await fetchRelationships({ token: adminToken, q: query, limit: 80 });
+      setPageState((current) => ({
+        ...current,
+        relationships: list.relationships,
+        selected: detail.relationship,
+        events: detail.events,
+        saving: false,
+        message: "用户身份已绑定到当前现实身份。",
+      }));
+      setForm(formFromRelationship(detail.relationship));
+      setLinkUserId("");
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
   if (!adminToken) {
     return (
       <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
@@ -356,6 +396,9 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
                         <div className="mt-1 text-xs text-[#7b8ca2]">
                           {relationship.relationshipLabel}
                         </div>
+                        <div className="mt-1 truncate text-xs text-[#7b8ca2]">
+                          {linkedUsersText(relationship)}
+                        </div>
                       </div>
                       <div className="text-xs text-[#7b8ca2]">
                         {formatDate(relationship.updatedAt)}
@@ -388,7 +431,17 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
                     {userLabel(pageState.selected)}
                   </div>
                   <div className="mt-2 text-sm text-[#617188]">
-                    {pageState.selected.user?.externalId ?? pageState.selected.userId}
+                    Person ID: {pageState.selected.personId}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(pageState.selected.person?.identityLinks ?? []).map((link) => (
+                      <span
+                        key={link.id}
+                        className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#334155]"
+                      >
+                        {link.user.displayName ?? link.user.externalId}
+                      </span>
+                    ))}
                   </div>
                 </div>
                 <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
@@ -424,6 +477,28 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
             <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
               <h3 className="text-base font-semibold text-[#172033]">详情与修正</h3>
               <div className="mt-4 grid gap-4">
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+                  <div className="text-xs font-semibold text-[#7b8ca2]">绑定其他渠道账号</div>
+                  <div className="mt-3 flex flex-col gap-2 md:flex-row">
+                    <input
+                      className="field-input"
+                      value={linkUserId}
+                      onChange={(event) => setLinkUserId(event.target.value)}
+                      placeholder="User externalId / id，例如 telegram:123"
+                    />
+                    <button
+                      type="button"
+                      disabled={!linkUserId.trim() || pageState.saving}
+                      onClick={() => void linkUserToSelectedPerson()}
+                      className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
+                    >
+                      绑定
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs leading-6 text-[#7b8ca2]">
+                    只有明确确认是同一个现实用户时再绑定。绑定后多个渠道会共用这一份关系状态。
+                  </p>
+                </div>
                 <Field label="关系标签">
                   <input
                     className="field-input"

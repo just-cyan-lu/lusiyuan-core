@@ -5,7 +5,7 @@ import { deriveRelationshipStatePatch } from "../src/runtime/relationship-state.
 
 const baseRelationship: RelationshipState = {
   id: "relationship-1",
-  userId: "user-1",
+  personId: "person-1",
   relationshipLabel: "刚认识",
   familiarity: 8,
   trust: 8,

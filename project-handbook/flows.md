@@ -164,7 +164,8 @@ owner 后续查看、修改、批准或丢弃
 - `RuntimeState`：保存全局心情、精力、压力、当前目标、最近关注和正在做的事。
 - `RuntimeEvent`：保存聊天、复盘、梦境、自启动检查这些“发生过的事”。
 - `RuntimeStateEvent`：只保存真正写入 RuntimeState 的状态变化记录。
-- `RelationshipState`：保存陆思源和每个用户之间的熟悉度、信任度、亲近感和关系张力。
+- `PersonIdentity` / `IdentityLink`：把渠道账号手动绑定到现实身份，不自动猜测。
+- `RelationshipState`：保存陆思源和每个现实身份之间的熟悉度、信任度、亲近感和关系张力。
 - `RelationshipStateEvent`：保存关系状态变化记录。
 - 更新策略：`rules` 是规则校准；`llm` 是 LLM 提议 statePatch，再由程序校验。它只在允许改长期状态的入口生效。
 
@@ -183,7 +184,7 @@ owner 后续查看、修改、批准或丢弃
 ↓
 写 RuntimeEvent：记录这轮聊天发生了什么
 ↓
-按程序规则小幅更新这个用户的 RelationshipState
+按程序规则小幅更新这个现实身份的 RelationshipState
 ↓
 如果不是 owner：不改 RuntimeState，等待复盘或梦境整理
 ↓
