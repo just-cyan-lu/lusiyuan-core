@@ -20,7 +20,7 @@ model User {
 
   conversations Conversation[]
   memories      Memory[]
-  relationshipState  RelationshipState?
+  identityLink  IdentityLink?
   relationshipEvents RelationshipStateEvent[]
 
   @@map("app_users")
@@ -224,9 +224,42 @@ model RuntimeEvent {
 }
 
 /// Per-user relationship state between Lusiyuan and one person.
+model PersonIdentity {
+  id        String   @id @default(cuid())
+  label     String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  identityLinks      IdentityLink[]
+  relationshipState  RelationshipState?
+  relationshipEvents RelationshipStateEvent[]
+
+  @@index([label])
+  @@map("person_identities")
+}
+
+/// Link between one channel account and one real-person identity.
+model IdentityLink {
+  id         String   @id @default(cuid())
+  personId   String
+  userId     String   @unique
+  source     String   @default("auto_singleton")
+  verifiedBy String?
+  createdAt  DateTime @default(now())
+
+  person PersonIdentity @relation(fields: [personId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+  @@index([source])
+  @@map("identity_links")
+}
+
+/// Relationship state between Lusiyuan and one real-person identity.
 model RelationshipState {
   id                String   @id @default(cuid())
-  userId            String   @unique
+  personId          String   @unique
   relationshipLabel String   @default("刚认识")
   familiarity       Int      @default(8)
   trust             Int      @default(8)
@@ -241,19 +274,20 @@ model RelationshipState {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  user   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person PersonIdentity           @relation(fields: [personId], references: [id], onDelete: Cascade)
   events RelationshipStateEvent[]
 
-  @@index([userId])
+  @@index([personId])
   @@index([updatedAt])
   @@map("relationship_states")
 }
 
-/// Timeline of relationship state changes for one user.
+/// Timeline of relationship state changes for one real-person identity.
 model RelationshipStateEvent {
   id                  String   @id @default(cuid())
   relationshipStateId String
-  userId              String
+  personId            String
+  userId              String?
   eventType           String
   source              String?
   summary             String
@@ -266,9 +300,11 @@ model RelationshipStateEvent {
   createdAt           DateTime @default(now())
 
   relationshipState RelationshipState @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person            PersonIdentity    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  user              User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([relationshipStateId])
+  @@index([personId])
   @@index([userId])
   @@index([eventType])
   @@index([source])

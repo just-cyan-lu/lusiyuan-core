@@ -827,6 +827,21 @@ async function resolveMemoryOwnerId(
   return user.id;
 }
 
+async function resolveUserInternalId(inputUserId: unknown): Promise<string> {
+  const userId = cleanString(inputUserId);
+  if (!userId) throw routeError("user_id is required", 400);
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ id: userId }, { externalId: userId }],
+    },
+    select: { id: true },
+  });
+
+  if (!user) throw routeError("User not found", 404);
+  return user.id;
+}
+
 function shouldRegenerateEmbedding(data: Prisma.MemoryUpdateInput): boolean {
   return Boolean(
     data.content !== undefined ||
@@ -1035,6 +1050,19 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       eventType: "manual_update",
       source: "admin",
       summary: cleanString(body.eventSummary) ?? "Admin 手动调整关系状态。",
+    });
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.post("/v1/admin/relationships/:relationshipId/link-user", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    await relationshipStateService.linkUserToPerson({
+      relationshipId,
+      userId: await resolveUserInternalId(body.user_id),
+      source: "admin_manual",
+      verifiedBy: cleanString(body.verified_by) ?? "admin",
     });
     const detail = await relationshipStateService.getDetail(relationshipId, 20);
     return reply.send(detail);
