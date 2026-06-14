@@ -104,13 +104,24 @@ Dream 深度整理报告，可能会产生 MemoryProposal。
 
 陆思源当前整体状态，比如心情、精力、压力、社交电量、当前目标、最近关注、正在做的事和最近事件。
 
-目前是全局一份状态，key 是 `global`。聊天可以用规则轻量更新，也可以切到 LLM 提议 statePatch 后由程序校验写入；admin 也可以手动修正。
+目前是全局一份状态，key 是 `global`。普通聊天不会直接改它。允许修改它的入口是 owner 对话、Reflection 复盘、Dream Cycle 梦境整理、autonomy tick 自启动检查和 admin 手动修正。
 
 `metadata` 用来保存更细的内在详情，比如内在天气、情绪色调、当前需要、内部张力、还在想的问题、关系信号和话题信号。
 
+**RuntimeEvent**
+
+陆思源经历过的事件日志。普通聊天、owner 对话、复盘、梦境、自启动检查都会写到这里。
+
+它回答的是“发生了什么”，不代表状态一定变了。里面会保存事件类型、来源、摘要、重要度、主题、情绪/精力/压力/社交信号，以及这件事是否有资格影响长期状态。
+
 **RuntimeStateEvent**
 
-运行态变化记录。比如规则观察、LLM 观察、手动调整、重置。它保存变化摘要、patch、变化前后快照和来源信息。
+运行态变化记录。比如 owner 对话校准、复盘更新、梦境更新、自启动更新、手动调整、重置。它保存变化摘要、patch、变化前后快照和来源信息。
+
+区别很重要：
+
+- `RuntimeEvent`：发生了什么。
+- `RuntimeStateEvent`：长期状态真的什么时候变了。
 
 ## 还没有实现但计划中的表
 
@@ -120,8 +131,4 @@ Runtime Lite 后续还建议新增：
 
 陆思源面对某个用户时的关系状态，比如熟悉度、信任度、互动风格、关系摘要。
 
-**RuntimeEvent**
-
-进入陆思源系统的完整事件日志。它可以保存 perception、statePatch、stance、expressionPlan、afterthought 等内部结构。
-
-现在已有的 `RuntimeStateEvent` 只记录运行态变化，不等于完整 RuntimeEvent。
+现在已有的 `RuntimeEvent` 还是第一版，perception、statePatch、stance、expressionPlan、afterthought 这些更细结构还没有完全展开。

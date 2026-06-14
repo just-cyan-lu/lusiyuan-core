@@ -75,6 +75,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     });
   }
 
+  const owner = isOwner(input.user_id);
+
   let userMessage: { id: string };
   try {
     userMessage = await prisma.message.create({
@@ -144,7 +146,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       channel: input.channel,
       conversationId: conversation.id,
       messageId: userMessage.id,
-      isOwner: isOwner(input.user_id), // use externalId (e.g. "telegram:1848918705"), not internal DB id
+      isOwner: owner, // use externalId (e.g. "telegram:1848918705"), not internal DB id
     };
 
     console.log(`[chat] externalId: ${input.user_id}, isOwner: ${toolContext.isOwner}`);
@@ -358,6 +360,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       channel: input.channel,
       userMessage: input.message,
       assistantReply: reply,
+      isOwner: owner,
     })
     .catch((err) => console.warn("[chat] runtime state update failed:", err));
 

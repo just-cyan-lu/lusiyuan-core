@@ -17,6 +17,7 @@ import { pageReaderRoute } from "./routes/page-reader.route.js";
 import { env } from "./utils/env.js";
 import { createTelegramBot } from "./channels/telegram/telegram.bot.js";
 import { startDreamScheduler } from "./dream/dream-scheduler.js";
+import { startRuntimeAutonomyScheduler } from "./runtime/runtime-autonomy-scheduler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,6 +94,9 @@ export function buildApp() {
 
   // Start Dream Cycle scheduler if enabled
   startDreamScheduler(app.log);
+
+  // Start runtime autonomy scheduler if enabled
+  startRuntimeAutonomyScheduler(app.log);
 
   return app;
 }

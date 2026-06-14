@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { RuntimeState } from "@prisma/client";
 import {
+  deriveRuntimeEventFromChatTurn,
   deriveRuntimeStatePatch,
   validateRuntimeStateProposal,
 } from "../src/runtime/runtime-state.service.js";
@@ -56,6 +57,42 @@ test("derives a focused runtime patch from runtime design messages", () => {
   assert.equal(patch.currentFocus, "运行体结构和项目实现");
   assert.equal(patch.currentGoal, "把陆思源的持续状态系统做稳。");
   assert.ok((patch.energyLevel ?? 0) > baseState.energyLevel);
+});
+
+test("records ordinary chat as runtime event without global state mutation permission", () => {
+  const event = deriveRuntimeEventFromChatTurn({
+    userId: "user-1",
+    conversationId: "conversation-1",
+    channel: "web",
+    userMessage: "今天真的好累，感觉没人懂我",
+    assistantReply: "我在，先别急着撑住。",
+    isOwner: false,
+  });
+
+  const impact = event.stateImpact as Record<string, unknown>;
+
+  assert.equal(event.eventType, "chat_turn");
+  assert.equal(event.source, "chat");
+  assert.equal(impact.canMutateRuntimeState, false);
+  assert.equal(impact.mutationGate, "ordinary_chat_observe_only");
+});
+
+test("marks owner chat events as eligible for controlled runtime state updates", () => {
+  const event = deriveRuntimeEventFromChatTurn({
+    userId: "owner-1",
+    conversationId: "conversation-1",
+    channel: "web",
+    userMessage: "我们继续调整思源的运行体和数据库结构",
+    assistantReply: "可以，我把状态入口收束好。",
+    isOwner: true,
+  });
+
+  const impact = event.stateImpact as Record<string, unknown>;
+
+  assert.equal(event.source, "owner_chat");
+  assert.equal(impact.canMutateRuntimeState, true);
+  assert.equal(impact.mutationGate, "owner_chat_allowed");
+  assert.equal(event.topic, "运行体结构和项目实现");
 });
 
 test("validates LLM runtime proposals with bounded numeric changes", () => {

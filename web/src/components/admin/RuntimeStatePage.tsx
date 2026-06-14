@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   fetchRuntimeState,
   resetRuntimeState,
+  runRuntimeAutonomyTick,
   updateRuntimeState,
+  type RuntimeEvent,
   type RuntimeState,
   type RuntimeStateEvent,
 } from "../../api/lusiyuan-api";
@@ -15,6 +17,7 @@ interface RuntimeStatePageProps {
 interface RuntimePageState {
   state: RuntimeState | null;
   events: RuntimeStateEvent[];
+  runtimeEvents: RuntimeEvent[];
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -44,7 +47,7 @@ const updateModeLabels: Record<string, string> = {
 };
 
 const updateStrategyLabels: Record<string, string> = {
-  rules: "规则轻量更新",
+  rules: "规则校准",
   llm: "LLM 提议校验",
 };
 
@@ -105,8 +108,22 @@ function eventTypeLabel(type: string): string {
   if (type === "chat_observation_rules") return "规则观察";
   if (type === "chat_observation_llm") return "LLM 观察";
   if (type === "chat_observation_failed") return "观察失败";
+  if (type === "owner_chat_state_rules") return "Owner 对话校准";
+  if (type === "owner_chat_state_llm") return "Owner LLM 校准";
+  if (type === "owner_chat_state_failed") return "Owner 校准失败";
+  if (type === "reflection_state_update") return "复盘更新";
+  if (type === "dream_state_update") return "梦境更新";
+  if (type === "autonomy_state_update") return "自启动更新";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
+  return type;
+}
+
+function runtimeEventTypeLabel(type: string): string {
+  if (type === "chat_turn") return "聊天事件";
+  if (type === "reflection_report") return "复盘事件";
+  if (type === "dream_cycle") return "梦境事件";
+  if (type === "autonomy_tick") return "自启动检查";
   return type;
 }
 
@@ -121,6 +138,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
   const [pageState, setPageState] = useState<RuntimePageState>({
     state: null,
     events: [],
+    runtimeEvents: [],
     loading: false,
     saving: false,
     error: null,
@@ -133,6 +151,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       setPageState({
         state: null,
         events: [],
+        runtimeEvents: [],
         loading: false,
         saving: false,
         error: null,
@@ -149,6 +168,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         ...current,
         state: data.state,
         events: data.events,
+        runtimeEvents: data.runtimeEvents ?? [],
         loading: false,
         error: null,
       }));
@@ -170,6 +190,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         setPageState({
           state: null,
           events: [],
+          runtimeEvents: [],
           loading: false,
           saving: false,
           error: null,
@@ -187,6 +208,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             ...current,
             state: data.state,
             events: data.events,
+            runtimeEvents: data.runtimeEvents ?? [],
             loading: false,
             error: null,
           }));
@@ -232,6 +254,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         ...current,
         state: data.state,
         events: data.events,
+        runtimeEvents: data.runtimeEvents ?? [],
         saving: false,
         message: "运行态已保存。",
       }));
@@ -260,8 +283,37 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         ...current,
         state: data.state,
         events: data.events,
+        runtimeEvents: data.runtimeEvents ?? [],
         saving: false,
         message: "运行态已重置。",
+      }));
+      setForm(formFromState(data.state));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  async function runAutonomyCheck() {
+    if (!adminToken) return;
+    setPageState((current) => ({
+      ...current,
+      saving: true,
+      error: null,
+      message: null,
+    }));
+    try {
+      const data = await runRuntimeAutonomyTick(adminToken);
+      setPageState((current) => ({
+        ...current,
+        state: data.state,
+        events: data.events,
+        runtimeEvents: data.runtimeEvents ?? [],
+        saving: false,
+        message: "自启动检查已完成。",
       }));
       setForm(formFromState(data.state));
     } catch (error) {
@@ -296,7 +348,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="text-xs font-semibold text-[#8a6f5a]">Runtime State</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">陆思源运行态</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              数据库里的当前状态。聊天会轻量更新这里；你也可以手动校准。
+              数据库里的当前状态。普通聊天只记录事件；长期状态由 owner 对话、复盘、梦境、自启动和手动校准更新。
             </p>
           </div>
 
@@ -315,6 +367,14 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
             >
               {pageState.saving ? "保存中" : "保存"}
+            </button>
+            <button
+              type="button"
+              disabled={pageState.saving}
+              onClick={() => void runAutonomyCheck()}
+              className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              自启动检查
             </button>
             <button
               type="button"
@@ -354,7 +414,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                 </div>
                 <StatusPill
                   active={runtime.autoUpdateEnabled}
-                  label={runtime.autoUpdateEnabled ? "自动更新" : "手动模式"}
+                  label={runtime.autoUpdateEnabled ? "受控自动" : "手动模式"}
                 />
               </div>
 
@@ -410,7 +470,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
               <h3 className="text-base font-semibold text-[#172033]">内在详情</h3>
               <p className="mt-1 text-xs leading-6 text-[#7b8ca2]">
-                LLM 提议模式会填充这些细节；规则模式通常只更新主状态。
+                LLM 提议校验、复盘和梦境会填充这些细节；普通聊天只留下事件材料。
               </p>
               <div className="mt-4 grid gap-3">
                 <InfoBlock label="内在天气" value={metadataText(runtimeMetadata, "innerWeather")} />
@@ -456,14 +516,14 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                       setForm({ ...form, updateStrategy: event.target.value })
                     }
                   >
-                    <option value="rules">规则轻量更新</option>
+                    <option value="rules">规则校准</option>
                     <option value="llm">LLM 提议校验</option>
                   </select>
                 </Field>
               </div>
 
               <div className="mt-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-xs leading-6 text-[#617188]">
-                规则轻量更新更稳定省资源；LLM 提议校验会在每轮聊天后额外调用一次模型，先提出 statePatch，再由程序限制字段、长度和单次变化幅度。
+                规则校准更稳定省资源；LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、复盘、梦境或自启动。普通聊天不会直接改这里。
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -505,7 +565,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                     setForm({ ...form, autoUpdateEnabled: event.target.checked })
                   }
                 />
-                聊天后自动更新运行态
+                允许受控入口自动校准长期状态
               </label>
 
               <div className="mt-4 grid gap-4">
@@ -543,8 +603,48 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-semibold text-[#172033]">状态事件</h3>
-                <p className="mt-1 text-xs text-[#7b8ca2]">最近 12 条运行态变化</p>
+                <h3 className="text-base font-semibold text-[#172033]">运行事件</h3>
+                <p className="mt-1 text-xs text-[#7b8ca2]">最近 12 条经历和观察，普通聊天会记录在这里</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {pageState.runtimeEvents.length > 0 ? (
+                pageState.runtimeEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="grid gap-3 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 md:grid-cols-[9rem_1fr_7rem_11rem]"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-[#172033]">
+                        {runtimeEventTypeLabel(event.eventType)}
+                      </div>
+                      <div className="mt-1 text-xs text-[#7b8ca2]">
+                        {event.source ?? "unknown"}
+                      </div>
+                    </div>
+                    <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
+                    <div className="text-xs leading-6 text-[#7b8ca2]">
+                      <div>{event.topic ?? "暂无主题"}</div>
+                      <div>重要度 {event.importance}</div>
+                    </div>
+                    <div className="text-xs text-[#7b8ca2] md:text-right">
+                      {formatDate(event.createdAt)}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                  暂无运行事件。
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-[#172033]">状态变更</h3>
+                <p className="mt-1 text-xs text-[#7b8ca2]">最近 12 条真正写入 RuntimeState 的变化</p>
               </div>
             </div>
             <div className="mt-4 grid gap-3">
@@ -570,7 +670,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                 ))
               ) : (
                 <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
-                  暂无状态事件。
+                  暂无状态变更。
                 </div>
               )}
             </div>

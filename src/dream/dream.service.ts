@@ -8,6 +8,7 @@ import { dailyNoteService } from "./daily-note.service.js";
 import { dreamSignalExtractor } from "./dream-signal-extractor.js";
 import { dreamDiaryWriter } from "./dream-diary-writer.js";
 import { dreamConsolidator } from "./dream-consolidator.js";
+import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import type { MemoryProposalOwnership } from "../reflection/memory-proposal-ownership.js";
 import type {
   CreateDreamJobInput,
@@ -118,6 +119,22 @@ export class DreamService {
             metadata: { reason: "not_enough_events", totalEvents },
           },
         });
+        await runtimeStateService
+          .observeDreamCycle({
+            jobId,
+            status: "completed",
+            phase: "skipped",
+            summary: `材料不足，跳过梦境整理（${totalEvents} < ${env.DREAM_MIN_SOURCE_EVENTS}）。`,
+            signalCount: 0,
+            proposalCount: 0,
+            riskCount: 0,
+            userId,
+            conversationId,
+            channel,
+          })
+          .catch((err) =>
+            console.warn("[dream] runtime event update failed:", err)
+          );
         return { jobId, status: "completed", signalCount: 0, proposalCount: 0, riskCount: 0 };
       }
 
@@ -193,6 +210,25 @@ export class DreamService {
 
       // ── Complete ──────────────────────────────────────────────────────────
       await this.completeJob(jobId, "completed");
+
+      await runtimeStateService
+        .observeDreamCycle({
+          jobId,
+          status: "completed",
+          phase: "completed",
+          summary: dailyNote.summary,
+          dailyNoteId: dailyNote.id,
+          diaryEntryId: diaryEntry?.id,
+          signalCount: signals.length,
+          proposalCount: consolidation?.memoryProposals.length ?? 0,
+          riskCount: consolidation?.riskFlags.length ?? 0,
+          userId,
+          conversationId,
+          channel,
+        })
+        .catch((err) =>
+          console.warn("[dream] runtime event/state update failed:", err)
+        );
 
       return {
         jobId,

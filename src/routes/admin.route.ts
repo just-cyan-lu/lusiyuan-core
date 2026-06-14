@@ -267,6 +267,7 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["DREAM_ALLOW_MEMORY_PROPOSALS", "Dream 允许记忆提案", "功能"],
     ["DREAM_ALLOW_GROWTH_LOG_PROPOSALS", "Dream 允许成长日志提案", "功能"],
     ["DREAM_REDACT_PRIVATE_DATA", "Dream 隐私脱敏", "安全"],
+    ["RUNTIME_AUTONOMY_AUTO_RUN", "运行态自启动", "功能"],
     ["TAVILY_ENABLED", "Tavily Web Search", "功能"],
     ["JINA_ENABLED", "Jina Reader", "功能"],
     ["PLAYWRIGHT_ENABLED", "Playwright Reader", "功能"],
@@ -354,6 +355,20 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     type: "select",
     defaultValue: "owner_only",
     options: ["owner_only", "private", "internal"],
+  },
+  {
+    key: "RUNTIME_AUTONOMY_CRON",
+    group: "Runtime",
+    label: "Autonomy Cron",
+    type: "string",
+    defaultValue: "*/30 * * * *",
+  },
+  {
+    key: "RUNTIME_AUTONOMY_TIMEZONE",
+    group: "Runtime",
+    label: "Autonomy Timezone",
+    type: "string",
+    defaultValue: "Asia/Shanghai",
   },
   {
     key: "TAVILY_API_KEY",
@@ -906,6 +921,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         reflection: env.REFLECTION_ENABLED,
         dream: env.DREAM_ENABLED,
         dreamAutoRun: env.DREAM_AUTO_RUN,
+        runtimeAutonomy: env.RUNTIME_AUTONOMY_AUTO_RUN,
         webSearch: env.TAVILY_ENABLED,
         pageReader: env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED || env.CDP_BROWSER_ENABLED,
         mcp: env.MCP_ENABLED,
@@ -928,11 +944,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/v1/admin/runtime/state", async (_request, reply) => {
-    const [state, events] = await Promise.all([
+    const [state, events, runtimeEvents] = await Promise.all([
       runtimeStateService.getOrCreate(),
       runtimeStateService.listEvents(12),
+      runtimeStateService.listRuntimeEvents(12),
     ]);
-    return reply.send({ state, events });
+    return reply.send({ state, events, runtimeEvents });
   });
 
   app.patch("/v1/admin/runtime/state", async (request, reply) => {
@@ -943,20 +960,48 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       source: "admin",
       summary: cleanString(body.summary) ?? "Admin 手动更新运行态。",
     });
-    const events = await runtimeStateService.listEvents(12);
-    return reply.send({ state, events });
+    const [events, runtimeEvents] = await Promise.all([
+      runtimeStateService.listEvents(12),
+      runtimeStateService.listRuntimeEvents(12),
+    ]);
+    return reply.send({ state, events, runtimeEvents });
   });
 
   app.post("/v1/admin/runtime/state/reset", async (_request, reply) => {
     const state = await runtimeStateService.reset("admin");
-    const events = await runtimeStateService.listEvents(12);
-    return reply.send({ state, events });
+    const [events, runtimeEvents] = await Promise.all([
+      runtimeStateService.listEvents(12),
+      runtimeStateService.listRuntimeEvents(12),
+    ]);
+    return reply.send({ state, events, runtimeEvents });
   });
 
   app.get("/v1/admin/runtime/state/events", async (request, reply) => {
     const query = request.query as { limit?: string };
     const events = await runtimeStateService.listEvents(clampLimit(query.limit, 30));
     return reply.send({ events });
+  });
+
+  app.get("/v1/admin/runtime/events", async (request, reply) => {
+    const query = request.query as { limit?: string };
+    const runtimeEvents = await runtimeStateService.listRuntimeEvents(
+      clampLimit(query.limit, 30)
+    );
+    return reply.send({ runtimeEvents });
+  });
+
+  app.post("/v1/admin/runtime/autonomy/tick", async (_request, reply) => {
+    const result = await runtimeStateService.runAutonomyTick();
+    const [events, runtimeEvents] = await Promise.all([
+      runtimeStateService.listEvents(12),
+      runtimeStateService.listRuntimeEvents(12),
+    ]);
+    return reply.send({
+      state: result.state,
+      event: result.event,
+      events,
+      runtimeEvents,
+    });
   });
 
   app.get("/v1/admin/config/env", async (_request, reply) => {
