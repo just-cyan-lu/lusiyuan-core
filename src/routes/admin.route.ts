@@ -6,6 +6,10 @@ import { memoryService } from "../core/memory.service.js";
 import { Prisma } from "@prisma/client";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  runtimeStateService,
+  type RuntimeStatePatch,
+} from "../runtime/runtime-state.service.js";
 
 function configured(value: string | string[]): boolean {
   return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
@@ -405,6 +409,48 @@ function boundedNumber(
 
 function jsonInput(value: unknown): Prisma.InputJsonValue | undefined {
   return value === undefined ? undefined : (value as Prisma.InputJsonValue);
+}
+
+function hasOwn(object: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function runtimeStatePatchFromBody(body: Record<string, unknown>): RuntimeStatePatch {
+  const patch: RuntimeStatePatch = {};
+
+  if (hasOwn(body, "moodLabel")) patch.moodLabel = cleanNullableString(body.moodLabel) ?? "";
+  if (hasOwn(body, "moodScore")) {
+    patch.moodScore = boundedNumber(body.moodScore, 0, -100, 100);
+  }
+  if (hasOwn(body, "energyLevel")) {
+    patch.energyLevel = boundedNumber(body.energyLevel, 62, 0, 100);
+  }
+  if (hasOwn(body, "stressLevel")) {
+    patch.stressLevel = boundedNumber(body.stressLevel, 24, 0, 100);
+  }
+  if (hasOwn(body, "socialBattery")) {
+    patch.socialBattery = boundedNumber(body.socialBattery, 58, 0, 100);
+  }
+  if (hasOwn(body, "currentGoal")) patch.currentGoal = cleanNullableString(body.currentGoal) ?? null;
+  if (hasOwn(body, "currentFocus")) patch.currentFocus = cleanNullableString(body.currentFocus) ?? null;
+  if (hasOwn(body, "currentActivity")) {
+    patch.currentActivity = cleanNullableString(body.currentActivity) ?? null;
+  }
+  if (hasOwn(body, "recentEventSummary")) {
+    patch.recentEventSummary = cleanNullableString(body.recentEventSummary) ?? null;
+  }
+  if (hasOwn(body, "statusNote")) patch.statusNote = cleanNullableString(body.statusNote) ?? null;
+  if (hasOwn(body, "autoUpdateEnabled")) {
+    patch.autoUpdateEnabled =
+      body.autoUpdateEnabled === true || body.autoUpdateEnabled === "true";
+  }
+  if (hasOwn(body, "updateMode")) patch.updateMode = cleanString(body.updateMode);
+  if (hasOwn(body, "updateStrategy")) {
+    patch.updateStrategy = cleanString(body.updateStrategy);
+  }
+  if (hasOwn(body, "metadata")) patch.metadata = jsonInput(body.metadata);
+
+  return patch;
 }
 
 function memoryScope(value: unknown, fallback = "user"): string {
@@ -879,6 +925,38 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         dreamMaxLookbackDays: env.DREAM_MAX_LOOKBACK_DAYS,
       },
     });
+  });
+
+  app.get("/v1/admin/runtime/state", async (_request, reply) => {
+    const [state, events] = await Promise.all([
+      runtimeStateService.getOrCreate(),
+      runtimeStateService.listEvents(12),
+    ]);
+    return reply.send({ state, events });
+  });
+
+  app.patch("/v1/admin/runtime/state", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const state = await runtimeStateService.applyPatch({
+      patch: runtimeStatePatchFromBody(body),
+      eventType: "manual_update",
+      source: "admin",
+      summary: cleanString(body.summary) ?? "Admin 手动更新运行态。",
+    });
+    const events = await runtimeStateService.listEvents(12);
+    return reply.send({ state, events });
+  });
+
+  app.post("/v1/admin/runtime/state/reset", async (_request, reply) => {
+    const state = await runtimeStateService.reset("admin");
+    const events = await runtimeStateService.listEvents(12);
+    return reply.send({ state, events });
+  });
+
+  app.get("/v1/admin/runtime/state/events", async (request, reply) => {
+    const query = request.query as { limit?: string };
+    const events = await runtimeStateService.listEvents(clampLimit(query.limit, 30));
+    return reply.send({ events });
   });
 
   app.get("/v1/admin/config/env", async (_request, reply) => {

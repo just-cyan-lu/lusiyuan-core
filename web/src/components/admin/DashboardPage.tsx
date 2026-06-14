@@ -3,10 +3,12 @@ import {
   fetchChannelStatus,
   fetchHealthStatus,
   fetchRuntimeConfig,
+  fetchRuntimeState,
   type ChannelStatus,
   type HealthStatus,
   type RuntimeConfig,
   type RuntimeProvider,
+  type RuntimeState,
 } from "../../api/lusiyuan-api";
 import { StatusPill } from "./StatusPill";
 
@@ -18,6 +20,7 @@ interface DashboardState {
   health: HealthStatus | null;
   channels: ChannelStatus | null;
   runtime: RuntimeConfig | null;
+  runtimeState: RuntimeState | null;
   error: string | null;
   loading: boolean;
 }
@@ -63,6 +66,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
     health: null,
     channels: null,
     runtime: null,
+    runtimeState: null,
     error: null,
     loading: true,
   });
@@ -77,9 +81,21 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           fetchHealthStatus(),
           fetchChannelStatus(),
         ]);
-        const runtime = adminToken ? await fetchRuntimeConfig(adminToken) : null;
+        const [runtime, runtimeStateResponse] = adminToken
+          ? await Promise.all([
+              fetchRuntimeConfig(adminToken),
+              fetchRuntimeState(adminToken),
+            ])
+          : [null, null];
         if (!cancelled) {
-          setState({ health, channels, runtime, error: null, loading: false });
+          setState({
+            health,
+            channels,
+            runtime,
+            runtimeState: runtimeStateResponse?.state ?? null,
+            error: null,
+            loading: false,
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -149,6 +165,29 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
       </section>
 
       <section className="grid gap-5 lg:grid-cols-3">
+        <Panel title="陆思源运行态" subtitle="数据库里的当前状态">
+          {state.runtimeState ? (
+            <div className="grid gap-3">
+              <div>
+                <div className="text-xs text-[#7b8ca2]">最近心情</div>
+                <div className="mt-1 text-xl font-semibold text-[#172033]">
+                  {state.runtimeState.moodLabel}
+                </div>
+              </div>
+              <ConfigRow label="精力" enabled={state.runtimeState.energyLevel >= 45} />
+              <ConfigRow label="自动更新" enabled={state.runtimeState.autoUpdateEnabled} />
+              <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm text-[#334155]">
+                更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则轻量更新"}
+              </div>
+              <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm leading-6 text-[#334155]">
+                {state.runtimeState.currentActivity ?? "暂无正在做的事。"}
+              </div>
+            </div>
+          ) : (
+            <TokenHint />
+          )}
+        </Panel>
+
         <Panel title="渠道状态" subtitle="公开状态，可无 token 读取">
           <div className="grid gap-3">
             <ChannelRow

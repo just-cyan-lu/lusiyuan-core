@@ -48,6 +48,66 @@ export interface RuntimeConfig {
   limits: Record<string, number>;
 }
 
+export interface RuntimeState {
+  id: string;
+  key: string;
+  moodLabel: string;
+  moodScore: number;
+  energyLevel: number;
+  stressLevel: number;
+  socialBattery: number;
+  currentGoal: string | null;
+  currentFocus: string | null;
+  currentActivity: string | null;
+  recentEventSummary: string | null;
+  statusNote: string | null;
+  autoUpdateEnabled: boolean;
+  updateMode: string;
+  updateStrategy: string;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RuntimeStateEvent {
+  id: string;
+  runtimeStateId: string;
+  eventType: string;
+  source: string | null;
+  summary: string;
+  patch: unknown;
+  before: unknown;
+  after: unknown;
+  userId: string | null;
+  conversationId: string | null;
+  messageId: string | null;
+  channel: string | null;
+  createdAt: string;
+}
+
+export interface RuntimeStateResponse {
+  state: RuntimeState;
+  events: RuntimeStateEvent[];
+}
+
+export interface RuntimeStateUpdateInput {
+  token: string;
+  moodLabel?: string;
+  moodScore?: number;
+  energyLevel?: number;
+  stressLevel?: number;
+  socialBattery?: number;
+  currentGoal?: string | null;
+  currentFocus?: string | null;
+  currentActivity?: string | null;
+  recentEventSummary?: string | null;
+  statusNote?: string | null;
+  autoUpdateEnabled?: boolean;
+  updateMode?: string;
+  updateStrategy?: string;
+  summary?: string;
+}
+
 export type EnvConfigFieldType =
   | "string"
   | "secret"
@@ -447,6 +507,36 @@ export async function fetchRuntimeConfig(token: string): Promise<RuntimeConfig> 
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeConfig>(response, "无法读取运行配置");
+}
+
+export async function fetchRuntimeState(token: string): Promise<RuntimeStateResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/runtime/state`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<RuntimeStateResponse>(response, "无法读取陆思源运行态");
+}
+
+export async function updateRuntimeState(
+  input: RuntimeStateUpdateInput
+): Promise<RuntimeStateResponse> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/runtime/state`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<RuntimeStateResponse>(response, "保存运行态失败");
+}
+
+export async function resetRuntimeState(token: string): Promise<RuntimeStateResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/runtime/state/reset`, {
+    method: "POST",
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<RuntimeStateResponse>(response, "重置运行态失败");
 }
 
 export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {

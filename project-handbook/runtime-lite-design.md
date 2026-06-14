@@ -14,7 +14,9 @@
 - Dream Cycle
 - 工具系统
 
-但还缺一个真正的数据库运行态。也就是说，陆思源现在有记忆和人设，但“当前心情、当前目标、最近状态、和这个用户的关系状态”还没有成为正式数据。
+现在已经先落地了第一块数据库运行态：全局 `RuntimeState`。它保存当前心情、精力、压力、社交电量、当前目标、最近关注和正在做的事。
+
+还缺的是更完整的事件理解链路，以及“和这个用户的关系状态”。
 
 Runtime Lite 要解决这个问题。
 
@@ -43,6 +45,10 @@ LLM 可以提议状态变化，但不能直接改状态。
 ### RuntimeState
 
 陆思源整体当前状态。
+
+当前已实现第一版：全局一份 `RuntimeState`，key 为 `global`。聊天可以规则轻量更新，也可以切到 LLM 提议 statePatch 后由程序校验写入；admin 可以手动校准。
+
+为了避免一开始拆太多表，更细的内在状态先放在 `metadata`：内在天气、情绪色调、当前需要、内部张力、还在想的问题、关系信号和话题信号。
 
 可以包含：
 
@@ -90,6 +96,10 @@ LLM 可以提议状态变化，但不能直接改状态。
 - replyMessageId：对应的可见回复
 
 这些先放在 JSON 字段里，不一开始拆成很多表。
+
+当前已实现的是 `RuntimeStateEvent`：它只记录运行态变化，不等于完整 RuntimeEvent。
+
+现在已经有 LLM 提议 statePatch 的轻量链路，但它还不是完整 RuntimeEvent。完整 RuntimeEvent 还会记录 perception、stance、expressionPlan、afterthought 等更完整的内部过程。
 
 ## 聊天流程
 

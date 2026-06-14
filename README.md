@@ -512,18 +512,20 @@ pnpm telegram:dev
 
 ## 当前 Runtime 状态
 
-项目已经有 Runtime Lite 的前置骨架：
+项目已经有 Runtime Lite 的第一块正式能力：
 
 - `persona/chat_profiles/`：稳定聊天投影。
 - `persona/runtime/core.md`：每轮聊天固定带上的常驻核心。
 - `persona/runtime/default_state.md`：默认运行态种子。
 - `src/core/persona-projection.ts`：选择聊天投影和人设切片。
+- `RuntimeState` / `RuntimeStateEvent`：数据库里的全局运行态和状态变化记录。
+- 运行态更新策略：支持规则轻量更新，也支持 LLM 提议 statePatch 后由程序校验写入。
+- `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、编辑和控制页面。
 
 还没有完成的正式 Runtime：
 
-- `RuntimeState` 数据库表。
 - `RelationshipState` 数据库表。
-- `RuntimeEvent` 数据库表。
-- 状态更新校验和持久化。
+- 完整 `RuntimeEvent` 数据库表。
+- 更细的长期目标、未解决问题、自我叙事和关系状态拆分。
 
 正式设计看 `project-handbook/runtime-lite-design.md`。

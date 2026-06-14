@@ -154,26 +154,31 @@ owner 后续查看、修改、批准或丢弃
 
 草稿适合内容创作和回复预案，不适合自动代表陆思源对外行动。
 
-## Runtime Lite 将来怎么接入
+## Runtime Lite 当前怎么接入
 
-当前聊天链路还没有真正的数据库 RuntimeState。已经有的是：
+当前聊天链路已经接入第一版数据库 RuntimeState：
 
 - `chat_profiles/`：稳定聊天投影。
 - `runtime/default_state.md`：默认状态种子。
 - `persona-projection.ts`：Prompt Compiler 雏形。
+- `RuntimeState`：保存全局心情、精力、压力、当前目标、最近关注和正在做的事。
+- `RuntimeStateEvent`：保存状态变化记录。
+- 更新策略：`rules` 是规则轻量观察；`llm` 是 LLM 提议 statePatch，再由程序校验。
 
-正式 Runtime Lite 接入后，流程会变成：
+当前流程是：
 
 ```text
 用户消息
 ↓
-RuntimeEvent 入库
+读取 RuntimeState
 ↓
-Perception 识别事件
+编译 prompt 并生成回复
 ↓
-程序校验并更新 RuntimeState / RelationshipState
+保存回复
 ↓
-再进入当前 prompt 编译和聊天回复
+按当前更新策略观察本轮对话
+↓
+更新 RuntimeState 并写 RuntimeStateEvent
 ```
 
-也就是说，LLM 不直接改状态；它只提议，程序决定是否接受。
+如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是完整 RuntimeEvent、RelationshipState，以及更细的长期目标、自我叙事拆分。
