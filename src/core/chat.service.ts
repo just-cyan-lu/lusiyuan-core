@@ -10,6 +10,7 @@ import { convertToolsForLLM } from "../tools/tool-converter.js";
 import { isOwner } from "../tools/policy/owner-check.js";
 import { env } from "../utils/env.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
+import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import {
   buildDuplicatedChatOutput,
   buildExternalMessageLookup,
@@ -94,7 +95,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     throw err;
   }
 
-  const [persona, memories, recentMessages, runtimeState] = await Promise.all([
+  const [persona, memories, recentMessages, runtimeState, relationshipState] = await Promise.all([
     loadPersona(),
     memoryService.retrieveRelevantMemories(user.id, input.message),
     prisma.message
@@ -110,6 +111,12 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         console.warn("[chat] runtime state unavailable:", err);
         return undefined;
       }),
+    relationshipStateService
+      .formatForPrompt(user.id)
+      .catch((err) => {
+        console.warn("[chat] relationship state unavailable:", err);
+        return undefined;
+      }),
   ]);
 
   const availableTools = env.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
@@ -123,6 +130,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     userMessage: input.message,
     channel: input.channel,
     runtimeState,
+    relationshipState,
   });
 
   // If user sent images, append them to the last user message
@@ -363,6 +371,18 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       isOwner: owner,
     })
     .catch((err) => console.warn("[chat] runtime state update failed:", err));
+
+  relationshipStateService
+    .observeChatTurn({
+      userId: user.id,
+      conversationId: conversation.id,
+      messageId: assistantMessage.id,
+      channel: input.channel,
+      userMessage: input.message,
+      assistantReply: reply,
+      isOwner: owner,
+    })
+    .catch((err) => console.warn("[chat] relationship state update failed:", err));
 
   return {
     reply,

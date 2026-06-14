@@ -123,12 +123,18 @@ Dream 深度整理报告，可能会产生 MemoryProposal。
 - `RuntimeEvent`：发生了什么。
 - `RuntimeStateEvent`：长期状态真的什么时候变了。
 
-## 还没有实现但计划中的表
-
-Runtime Lite 后续还建议新增：
-
 **RelationshipState**
 
-陆思源面对某个用户时的关系状态，比如熟悉度、信任度、互动风格、关系摘要。
+陆思源面对某个用户时的关系状态。每个用户一份。
+
+它保存熟悉度、信任度、亲近感、关系张力、互动风格、关系摘要和最近信号。普通聊天可以让程序直接小幅更新它，不需要 admin 审核；admin 仍然可以手动修改或重置。
+
+它不等于长期记忆。长期记忆仍然走 MemoryProposal；RelationshipState 只是“这段关系现在怎么相处”的状态。
+
+**RelationshipStateEvent**
+
+关系状态变化记录。比如聊天更新、手动调整、重置。它保存变化摘要、patch、变化前后快照和来源信息。
+
+## 还没有展开的结构
 
 现在已有的 `RuntimeEvent` 还是第一版，perception、statePatch、stance、expressionPlan、afterthought 这些更细结构还没有完全展开。
