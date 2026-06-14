@@ -215,6 +215,13 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     defaultValue: "http://localhost:64111",
   },
   {
+    key: "ADMIN_DATABASE_CLEAR_PASSWORD",
+    group: "安全",
+    label: "清空数据库确认密码",
+    type: "secret",
+    description: "设置中心清空测试数据时需要输入。留空保存表示不修改现有密码。",
+  },
+  {
     key: "MAX_MESSAGE_LENGTH",
     group: "限制",
     label: "单条消息最大长度",
@@ -629,6 +636,46 @@ async function buildMemoryWhere(
 
 function envFilePath(): string {
   return path.join(process.cwd(), ".env");
+}
+
+const databaseDataTables = [
+  "channel_events",
+  "chat_messages",
+  "chat_conversations",
+  "tool_call_logs",
+  "memory_embeddings",
+  "memories",
+  "runtime_state_events",
+  "runtime_states",
+  "runtime_events",
+  "identity_link_proposals",
+  "relationship_state_events",
+  "relationship_states",
+  "identity_links",
+  "person_identities",
+  "memory_change_proposals",
+  "reflection_risk_flags",
+  "growth_log_proposals",
+  "reflection_reports",
+  "reflection_jobs",
+  "dream_daily_notes",
+  "dream_signals",
+  "dream_diary_entries",
+  "dream_consolidation_reports",
+  "dream_locks",
+  "dream_jobs",
+  "external_page_snapshots",
+  "app_users",
+] as const;
+
+async function clearDatabaseData() {
+  const tableSql = databaseDataTables.map((table) => `"${table}"`).join(", ");
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableSql} RESTART IDENTITY CASCADE`);
+  return {
+    tableCount: databaseDataTables.length,
+    tables: [...databaseDataTables],
+    clearedAt: new Date().toISOString(),
+  };
 }
 
 function parseEnvFile(content: string): Map<string, string> {
@@ -1102,6 +1149,29 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       reviewedBy: cleanString(body.reviewed_by) ?? "admin",
     });
     return reply.send({ proposal });
+  });
+
+  app.post("/v1/admin/database/clear", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const expectedPassword = env.ADMIN_DATABASE_CLEAR_PASSWORD.trim();
+    if (!expectedPassword) {
+      throw routeError("ADMIN_DATABASE_CLEAR_PASSWORD is not configured", 503);
+    }
+
+    if (cleanString(body.confirmText) !== "清空数据库") {
+      throw routeError("confirmText must be 清空数据库", 400);
+    }
+
+    if (cleanString(body.password) !== expectedPassword) {
+      throw routeError("Clear database password is incorrect", 403);
+    }
+
+    const result = await clearDatabaseData();
+    return reply.send({
+      ok: true,
+      ...result,
+      message: "数据库业务数据已清空。.env、persona、project-handbook 和 migration 记录未修改。",
+    });
   });
 
   app.get("/v1/admin/config/env", async (_request, reply) => {

@@ -339,6 +339,8 @@ npx prisma migrate reset --force
 pnpm db:migrate
 ```
 
+开发期也可以在 admin 的“配置中心”里清空数据库业务数据。这个按钮需要 Admin Token、`.env` 里的 `ADMIN_DATABASE_CLEAR_PASSWORD`，还要输入确认文字。它只清聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物和工具日志，不会修改 `.env`、persona、项目文档或 Prisma migration 记录。
+
 ### 5. 启动后端
 
 ```bash
