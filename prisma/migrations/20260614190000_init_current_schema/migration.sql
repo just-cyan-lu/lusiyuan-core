@@ -1,6 +1,9 @@
 -- Enable pgvector for memory embeddings.
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
 CREATE TABLE "app_users" (
     "id" TEXT NOT NULL,
@@ -101,21 +104,153 @@ CREATE TABLE "tool_call_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "drafts" (
+CREATE TABLE "runtime_states" (
     "id" TEXT NOT NULL,
-    "userId" TEXT,
-    "conversationId" TEXT,
-    "channel" TEXT,
-    "type" TEXT NOT NULL,
-    "title" TEXT,
-    "content" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'draft',
+    "key" TEXT NOT NULL DEFAULT 'global',
+    "moodLabel" TEXT NOT NULL DEFAULT '平稳',
+    "moodScore" INTEGER NOT NULL DEFAULT 10,
+    "energyLevel" INTEGER NOT NULL DEFAULT 62,
+    "stressLevel" INTEGER NOT NULL DEFAULT 24,
+    "socialBattery" INTEGER NOT NULL DEFAULT 58,
+    "currentGoal" TEXT,
+    "currentFocus" TEXT,
+    "currentActivity" TEXT,
+    "recentEventSummary" TEXT,
+    "statusNote" TEXT,
+    "autoUpdateEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "updateMode" TEXT NOT NULL DEFAULT 'balanced',
+    "updateStrategy" TEXT NOT NULL DEFAULT 'rules',
     "metadata" JSONB,
-    "createdByTool" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "drafts_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "runtime_states_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "runtime_state_events" (
+    "id" TEXT NOT NULL,
+    "runtimeStateId" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "source" TEXT,
+    "summary" TEXT NOT NULL,
+    "patch" JSONB,
+    "before" JSONB,
+    "after" JSONB,
+    "userId" TEXT,
+    "conversationId" TEXT,
+    "messageId" TEXT,
+    "channel" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "runtime_state_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "runtime_events" (
+    "id" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "source" TEXT NOT NULL,
+    "summary" TEXT NOT NULL,
+    "importance" INTEGER NOT NULL DEFAULT 30,
+    "topic" TEXT,
+    "moodSignal" TEXT,
+    "energySignal" TEXT,
+    "stressSignal" TEXT,
+    "socialSignal" TEXT,
+    "stateImpact" JSONB,
+    "payload" JSONB,
+    "userId" TEXT,
+    "conversationId" TEXT,
+    "messageId" TEXT,
+    "channel" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'observed',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "runtime_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "person_identities" (
+    "id" TEXT NOT NULL,
+    "label" TEXT,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "person_identities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "identity_links" (
+    "id" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'auto_singleton',
+    "verifiedBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "identity_links_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "identity_link_proposals" (
+    "id" TEXT NOT NULL,
+    "sourceUserId" TEXT NOT NULL,
+    "targetPersonId" TEXT NOT NULL,
+    "targetUserId" TEXT,
+    "reason" TEXT NOT NULL,
+    "evidence" JSONB,
+    "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.65,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "source" TEXT NOT NULL DEFAULT 'rules',
+    "reviewedBy" TEXT,
+    "reviewedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "identity_link_proposals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "relationship_states" (
+    "id" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "relationshipLabel" TEXT NOT NULL DEFAULT '刚认识',
+    "familiarity" INTEGER NOT NULL DEFAULT 8,
+    "trust" INTEGER NOT NULL DEFAULT 8,
+    "closeness" INTEGER NOT NULL DEFAULT 5,
+    "tension" INTEGER NOT NULL DEFAULT 0,
+    "interactionStyle" TEXT,
+    "summary" TEXT,
+    "recentSignal" TEXT,
+    "statusNote" TEXT,
+    "metadata" JSONB,
+    "lastInteractionAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "relationship_states_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "relationship_state_events" (
+    "id" TEXT NOT NULL,
+    "relationshipStateId" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "userId" TEXT,
+    "eventType" TEXT NOT NULL,
+    "source" TEXT,
+    "summary" TEXT NOT NULL,
+    "patch" JSONB,
+    "before" JSONB,
+    "after" JSONB,
+    "conversationId" TEXT,
+    "messageId" TEXT,
+    "channel" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "relationship_state_events_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -352,23 +487,6 @@ CREATE TABLE "external_page_snapshots" (
     CONSTRAINT "external_page_snapshots_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "external_inbox_items" (
-    "id" TEXT NOT NULL,
-    "platform" TEXT NOT NULL,
-    "sourceId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
-    "content" TEXT NOT NULL,
-    "authorName" TEXT,
-    "postTitle" TEXT,
-    "postUrl" TEXT,
-    "summary" TEXT,
-    "draftId" TEXT,
-    "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "external_inbox_items_pkey" PRIMARY KEY ("id")
-);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "app_users_externalId_key" ON "app_users"("externalId");
 
@@ -433,33 +551,100 @@ CREATE INDEX "tool_call_logs_status_idx" ON "tool_call_logs"("status");
 CREATE INDEX "tool_call_logs_createdAt_idx" ON "tool_call_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "drafts_userId_idx" ON "drafts"("userId");
+CREATE UNIQUE INDEX "runtime_states_key_key" ON "runtime_states"("key");
 
 -- CreateIndex
-CREATE INDEX "drafts_conversationId_idx" ON "drafts"("conversationId");
+CREATE INDEX "runtime_state_events_runtimeStateId_idx" ON "runtime_state_events"("runtimeStateId");
 
 -- CreateIndex
-CREATE INDEX "drafts_type_idx" ON "drafts"("type");
+CREATE INDEX "runtime_state_events_eventType_idx" ON "runtime_state_events"("eventType");
 
 -- CreateIndex
-CREATE INDEX "drafts_status_idx" ON "drafts"("status");
+CREATE INDEX "runtime_state_events_source_idx" ON "runtime_state_events"("source");
 
 -- CreateIndex
-CREATE INDEX "drafts_createdAt_idx" ON "drafts"("createdAt");
+CREATE INDEX "runtime_state_events_createdAt_idx" ON "runtime_state_events"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "runtime_events_eventType_idx" ON "runtime_events"("eventType");
+
+-- CreateIndex
+CREATE INDEX "runtime_events_source_idx" ON "runtime_events"("source");
+
+-- CreateIndex
+CREATE INDEX "runtime_events_status_idx" ON "runtime_events"("status");
+
+-- CreateIndex
+CREATE INDEX "runtime_events_userId_idx" ON "runtime_events"("userId");
+
+-- CreateIndex
+CREATE INDEX "runtime_events_conversationId_idx" ON "runtime_events"("conversationId");
+
+-- CreateIndex
+CREATE INDEX "runtime_events_createdAt_idx" ON "runtime_events"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "person_identities_label_idx" ON "person_identities"("label");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "identity_links_userId_key" ON "identity_links"("userId");
+
+-- CreateIndex
+CREATE INDEX "identity_links_personId_idx" ON "identity_links"("personId");
+
+-- CreateIndex
+CREATE INDEX "identity_links_source_idx" ON "identity_links"("source");
+
+-- CreateIndex
+CREATE INDEX "identity_link_proposals_sourceUserId_idx" ON "identity_link_proposals"("sourceUserId");
+
+-- CreateIndex
+CREATE INDEX "identity_link_proposals_targetPersonId_idx" ON "identity_link_proposals"("targetPersonId");
+
+-- CreateIndex
+CREATE INDEX "identity_link_proposals_targetUserId_idx" ON "identity_link_proposals"("targetUserId");
+
+-- CreateIndex
+CREATE INDEX "identity_link_proposals_status_idx" ON "identity_link_proposals"("status");
+
+-- CreateIndex
+CREATE INDEX "identity_link_proposals_confidence_idx" ON "identity_link_proposals"("confidence");
+
+-- CreateIndex
+CREATE INDEX "identity_link_proposals_createdAt_idx" ON "identity_link_proposals"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "relationship_states_personId_key" ON "relationship_states"("personId");
+
+-- CreateIndex
+CREATE INDEX "relationship_states_personId_idx" ON "relationship_states"("personId");
+
+-- CreateIndex
+CREATE INDEX "relationship_states_updatedAt_idx" ON "relationship_states"("updatedAt");
+
+-- CreateIndex
+CREATE INDEX "relationship_state_events_relationshipStateId_idx" ON "relationship_state_events"("relationshipStateId");
+
+-- CreateIndex
+CREATE INDEX "relationship_state_events_personId_idx" ON "relationship_state_events"("personId");
+
+-- CreateIndex
+CREATE INDEX "relationship_state_events_userId_idx" ON "relationship_state_events"("userId");
+
+-- CreateIndex
+CREATE INDEX "relationship_state_events_eventType_idx" ON "relationship_state_events"("eventType");
+
+-- CreateIndex
+CREATE INDEX "relationship_state_events_source_idx" ON "relationship_state_events"("source");
+
+-- CreateIndex
+CREATE INDEX "relationship_state_events_createdAt_idx" ON "relationship_state_events"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "memory_embeddings_memoryId_idx" ON "memory_embeddings"("memoryId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "memory_embeddings_memoryId_provider_model_dimensions_key" ON "memory_embeddings"("memoryId", "provider", "model", "dimensions");
-
--- CreateIndex
-CREATE INDEX IF NOT EXISTS "memory_embeddings_hnsw_idx"
-  ON "memory_embeddings"
-  USING hnsw ("embedding" vector_cosine_ops)
-  WHERE "provider" = 'siliconflow'
-    AND "model" = 'Qwen/Qwen3-Embedding-4B'
-    AND "dimensions" = 1024;
 
 -- CreateIndex
 CREATE INDEX "reflection_jobs_status_idx" ON "reflection_jobs"("status");
@@ -593,18 +778,6 @@ CREATE INDEX "external_page_snapshots_tool_idx" ON "external_page_snapshots"("to
 -- CreateIndex
 CREATE INDEX "external_page_snapshots_createdAt_idx" ON "external_page_snapshots"("createdAt");
 
--- CreateIndex
-CREATE INDEX "external_inbox_items_platform_idx" ON "external_inbox_items"("platform");
-
--- CreateIndex
-CREATE INDEX "external_inbox_items_type_idx" ON "external_inbox_items"("type");
-
--- CreateIndex
-CREATE INDEX "external_inbox_items_syncedAt_idx" ON "external_inbox_items"("syncedAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "external_inbox_items_platform_sourceId_key" ON "external_inbox_items"("platform", "sourceId");
-
 -- AddForeignKey
 ALTER TABLE "chat_conversations" ADD CONSTRAINT "chat_conversations_userId_fkey" FOREIGN KEY ("userId") REFERENCES "app_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -613,6 +786,36 @@ ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_conversationId_fkey" F
 
 -- AddForeignKey
 ALTER TABLE "memories" ADD CONSTRAINT "memories_userId_fkey" FOREIGN KEY ("userId") REFERENCES "app_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "runtime_state_events" ADD CONSTRAINT "runtime_state_events_runtimeStateId_fkey" FOREIGN KEY ("runtimeStateId") REFERENCES "runtime_states"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "identity_links" ADD CONSTRAINT "identity_links_personId_fkey" FOREIGN KEY ("personId") REFERENCES "person_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "identity_links" ADD CONSTRAINT "identity_links_userId_fkey" FOREIGN KEY ("userId") REFERENCES "app_users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "identity_link_proposals" ADD CONSTRAINT "identity_link_proposals_sourceUserId_fkey" FOREIGN KEY ("sourceUserId") REFERENCES "app_users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "identity_link_proposals" ADD CONSTRAINT "identity_link_proposals_targetPersonId_fkey" FOREIGN KEY ("targetPersonId") REFERENCES "person_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "identity_link_proposals" ADD CONSTRAINT "identity_link_proposals_targetUserId_fkey" FOREIGN KEY ("targetUserId") REFERENCES "app_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_states" ADD CONSTRAINT "relationship_states_personId_fkey" FOREIGN KEY ("personId") REFERENCES "person_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_state_events" ADD CONSTRAINT "relationship_state_events_relationshipStateId_fkey" FOREIGN KEY ("relationshipStateId") REFERENCES "relationship_states"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_state_events" ADD CONSTRAINT "relationship_state_events_personId_fkey" FOREIGN KEY ("personId") REFERENCES "person_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_state_events" ADD CONSTRAINT "relationship_state_events_userId_fkey" FOREIGN KEY ("userId") REFERENCES "app_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "memory_embeddings" ADD CONSTRAINT "memory_embeddings_memoryId_fkey" FOREIGN KEY ("memoryId") REFERENCES "memories"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -94,6 +94,7 @@ export const env = {
   WEB_ORIGIN: process.env.WEB_ORIGIN ?? "http://localhost:64111",
 
   ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN ?? "",
+  ADMIN_DATABASE_CLEAR_PASSWORD: process.env.ADMIN_DATABASE_CLEAR_PASSWORD ?? "",
   OWNER_USER_IDS: (process.env.OWNER_USER_IDS ?? "").split(",").filter(Boolean),
   MAX_MESSAGE_LENGTH: parseInt(process.env.MAX_MESSAGE_LENGTH ?? "4000", 10),
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   API_BASE_URL,
+  clearDatabaseData,
   fetchEditableEnvConfig,
   fetchRuntimeConfig,
   saveEditableEnvConfig,
@@ -20,9 +21,12 @@ interface ConfigState {
   envConfig: EditableEnvConfig | null;
   loading: boolean;
   saving: boolean;
+  clearing: boolean;
   error: string | null;
   saveError: string | null;
   saveMessage: string | null;
+  dangerError: string | null;
+  dangerMessage: string | null;
 }
 
 interface Finding {
@@ -199,11 +203,16 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     envConfig: null,
     loading: false,
     saving: false,
+    clearing: false,
     error: null,
     saveError: null,
     saveMessage: null,
+    dangerError: null,
+    dangerMessage: null,
   });
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [clearPassword, setClearPassword] = useState("");
+  const [clearConfirmText, setClearConfirmText] = useState("");
 
   async function loadConfig() {
     if (!adminToken) {
@@ -212,9 +221,12 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         envConfig: null,
         loading: false,
         saving: false,
+        clearing: false,
         error: null,
         saveError: null,
         saveMessage: null,
+        dangerError: null,
+        dangerMessage: null,
       });
       return;
     }
@@ -252,9 +264,12 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           envConfig: null,
           loading: false,
           saving: false,
+          clearing: false,
           error: null,
           saveError: null,
           saveMessage: null,
+          dangerError: null,
+          dangerMessage: null,
         });
         return;
       }
@@ -345,6 +360,46 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     }
   }
 
+  async function clearAllDatabaseData() {
+    if (!adminToken) return;
+    if (clearConfirmText.trim() !== "清空数据库" || !clearPassword.trim()) return;
+    if (
+      !window.confirm(
+        "确定要清空数据库里的全部业务数据吗？聊天、记忆、运行态、关系状态、Dream/Reflection 记录都会被删除。"
+      )
+    ) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      clearing: true,
+      dangerError: null,
+      dangerMessage: null,
+    }));
+
+    try {
+      const result = await clearDatabaseData({
+        token: adminToken,
+        password: clearPassword,
+        confirmText: clearConfirmText.trim(),
+      });
+      setClearPassword("");
+      setClearConfirmText("");
+      setState((current) => ({
+        ...current,
+        clearing: false,
+        dangerMessage: `${result.message} 已清空 ${result.tableCount} 张业务表。`,
+      }));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        clearing: false,
+        dangerError: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
   if (!adminToken) {
     return (
       <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
@@ -404,6 +459,66 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           </div>
         )}
       </section>
+
+      <Panel title="危险操作" subtitle="仅用于开发期清理测试数据">
+        <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <h4 className="text-sm font-semibold text-[#172033]">清空数据库业务数据</h4>
+              <p className="mt-2 text-sm leading-6 text-[#8d6048]">
+                会删除聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物、工具日志和页面快照。不会修改 `.env`、persona、项目文档或 migration 记录。
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={
+                state.clearing ||
+                clearPassword.trim().length === 0 ||
+                clearConfirmText.trim() !== "清空数据库"
+              }
+              onClick={() => void clearAllDatabaseData()}
+              className="h-10 shrink-0 rounded-lg border border-[#c77e63] bg-[#a6573f] px-4 text-sm font-semibold text-white transition hover:bg-[#934b35] disabled:cursor-not-allowed disabled:border-[#d9b8aa] disabled:bg-[#d9b8aa]"
+            >
+              {state.clearing ? "清空中" : "清空数据库"}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-xs font-semibold text-[#8d6048]">清空密码</span>
+              <input
+                type="password"
+                value={clearPassword}
+                disabled={state.clearing}
+                onChange={(event) => setClearPassword(event.target.value)}
+                className="field-input bg-white"
+                placeholder="输入 .env 中的确认密码"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-semibold text-[#8d6048]">确认文字</span>
+              <input
+                value={clearConfirmText}
+                disabled={state.clearing}
+                onChange={(event) => setClearConfirmText(event.target.value)}
+                className="field-input bg-white"
+                placeholder="输入：清空数据库"
+              />
+            </label>
+          </div>
+
+          {state.dangerError && (
+            <div className="mt-4 rounded-lg border border-[#d7a28e] bg-white px-4 py-3 text-sm text-[#8d6048]">
+              {state.dangerError}
+            </div>
+          )}
+          {state.dangerMessage && (
+            <div className="mt-4 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+              {state.dangerMessage}
+            </div>
+          )}
+        </div>
+      </Panel>
 
       <Panel
         title="编辑 .env"

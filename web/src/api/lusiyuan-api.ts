@@ -280,6 +280,14 @@ export interface EditableEnvConfig {
   message?: string;
 }
 
+export interface ClearDatabaseResponse {
+  ok: boolean;
+  tableCount: number;
+  tables: string[];
+  clearedAt: string;
+  message: string;
+}
+
 export interface ToolPolicy {
   enabled: boolean;
   autoExecuteLowRisk: boolean;
@@ -822,6 +830,25 @@ export async function saveEditableEnvConfig(input: {
     }),
   });
   return parseJsonResponse<EditableEnvConfig>(response, "保存配置失败");
+}
+
+export async function clearDatabaseData(input: {
+  token: string;
+  password: string;
+  confirmText: string;
+}): Promise<ClearDatabaseResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/database/clear`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      password: input.password,
+      confirmText: input.confirmText,
+    }),
+  });
+  return parseJsonResponse<ClearDatabaseResponse>(response, "清空数据库失败");
 }
 
 export async function fetchRegisteredTools(token: string): Promise<ToolRegistryResponse> {
