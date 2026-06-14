@@ -37,6 +37,34 @@ interface ApplyRelationshipPatchInput {
   channel?: string;
 }
 
+interface ObserveIdentitySignalInput {
+  userId: string;
+  conversationId: string;
+  messageId?: string;
+  channel: string;
+  userMessage: string;
+  displayName?: string | null;
+}
+
+interface IdentityCandidateUser {
+  id: string;
+  externalId: string;
+  displayName: string | null;
+}
+
+interface IdentityCandidatePerson {
+  id: string;
+  label: string | null;
+  identityLinks: Array<{ user: IdentityCandidateUser }>;
+}
+
+interface IdentityCandidateMatch {
+  confidence: number;
+  matchedHints: string[];
+  matchedTerms: string[];
+  targetUserId?: string;
+}
+
 const defaultRelationshipState = {
   relationshipLabel: "刚认识",
   familiarity: 8,
@@ -74,6 +102,10 @@ function readRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function serviceError(message: string, statusCode: number) {
+  return Object.assign(new Error(message), { statusCode });
 }
 
 function metadataWith(
@@ -151,6 +183,174 @@ function summarizePatch(patch: RelationshipStatePatch): string {
     patch.tension !== undefined ? `张力 ${patch.tension}` : "",
   ].filter(Boolean);
   return parts.length > 0 ? parts.join("；") : "关系状态已更新。";
+}
+
+function normalizeIdentityToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[\s"'“”‘’`，,。.!！?？:：；;、()（）[\]【】<>《》]+/gu, "");
+}
+
+function cleanIdentityHint(value: string): string {
+  return value
+    .trim()
+    .replace(/^[@\s"'“”‘’`，,。.!！?？:：；;、()（）[\]【】<>《》]+/gu, "")
+    .replace(/[@\s"'“”‘’`，,。.!！?？:：；;、()（）[\]【】<>《》]+$/gu, "");
+}
+
+const identityStopWords = new Set([
+  "我",
+  "你",
+  "他",
+  "她",
+  "之前",
+  "以前",
+  "上次",
+  "刚才",
+  "那个",
+  "这个",
+  "小号",
+  "账号",
+  "用户",
+  "微信",
+  "weixin",
+  "telegram",
+  "tg",
+  "web",
+  "网页",
+  "owner",
+  "admin",
+  "陆思源",
+  "思源",
+  "lusiyuan",
+]);
+
+function isUsefulIdentityHint(value: string): boolean {
+  const normalized = normalizeIdentityToken(value);
+  if (normalized.length < 2 || normalized.length > 32) return false;
+  if (identityStopWords.has(normalized)) return false;
+  if (/^[a-z0-9_.-]+$/iu.test(normalized) && normalized.length < 3) return false;
+  if (/^(你|之前|以前|上次|刚才|那个|这个)/u.test(normalized)) return false;
+  if (/^(微信|网页|web|telegram|tg)?用户\d*$/iu.test(normalized)) return false;
+  if (/^(游客|访客)\d*$/u.test(normalized)) return false;
+  return true;
+}
+
+function uniqueIdentityHints(values: string[]): string[] {
+  const seen = new Set<string>();
+  const hints: string[] = [];
+  for (const value of values) {
+    const hint = cleanIdentityHint(value);
+    const key = normalizeIdentityToken(hint);
+    if (!isUsefulIdentityHint(hint) || seen.has(key)) continue;
+    seen.add(key);
+    hints.push(hint);
+  }
+  return hints;
+}
+
+export function extractIdentityHints(message: string): string[] {
+  const patterns = [
+    /我是(?:你)?(?:之前|以前|上次|刚才)?(?:在|用)?(?:微信|weixin|wx|telegram|tg|网页|web)?(?:上|里)?(?:聊过的|认识的|那个|的)\s*([@A-Za-z0-9_.\-\u4e00-\u9fa5]{2,32})/giu,
+    /(?:微信|weixin|wx|telegram|tg|网页|web)(?:上|里)?(?:的)?(?:我|账号|号)?(?:是|叫)\s*([@A-Za-z0-9_.\-\u4e00-\u9fa5]{2,32})/giu,
+    /(?:我叫|叫我|我是)\s*([@A-Za-z0-9_.\-\u4e00-\u9fa5]{2,32})/giu,
+  ];
+  const hints: string[] = [];
+  for (const pattern of patterns) {
+    for (const match of message.matchAll(pattern)) {
+      if (match[1]) hints.push(match[1]);
+    }
+  }
+  return uniqueIdentityHints(hints);
+}
+
+function identityTermValues(value: string | null | undefined): string[] {
+  if (!value) return [];
+  const trimmed = cleanIdentityHint(value);
+  const pieces = [trimmed];
+  const afterColon = trimmed.split(":").pop();
+  if (afterColon && afterColon !== trimmed) pieces.push(afterColon);
+  const afterSlash = trimmed.split("/").pop();
+  if (afterSlash && afterSlash !== trimmed) pieces.push(afterSlash);
+  return uniqueIdentityHints(pieces);
+}
+
+function identityTermsForCandidate(candidate: IdentityCandidatePerson) {
+  const terms: Array<{ value: string; normalized: string; userId?: string }> = [];
+  for (const value of identityTermValues(candidate.label)) {
+    terms.push({ value, normalized: normalizeIdentityToken(value) });
+  }
+  for (const link of candidate.identityLinks) {
+    for (const value of identityTermValues(link.user.displayName)) {
+      terms.push({
+        value,
+        normalized: normalizeIdentityToken(value),
+        userId: link.user.id,
+      });
+    }
+    for (const value of identityTermValues(link.user.externalId)) {
+      terms.push({
+        value,
+        normalized: normalizeIdentityToken(value),
+        userId: link.user.id,
+      });
+    }
+  }
+  const seen = new Set<string>();
+  return terms.filter((term) => {
+    const key = `${term.normalized}:${term.userId ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return term.normalized.length > 0;
+  });
+}
+
+function matchIdentityCandidate(
+  hints: string[],
+  explicitHints: Set<string>,
+  candidate: IdentityCandidatePerson
+): IdentityCandidateMatch | null {
+  const terms = identityTermsForCandidate(candidate);
+  let confidence = 0;
+  let targetUserId: string | undefined;
+  const matchedHints = new Set<string>();
+  const matchedTerms = new Set<string>();
+
+  for (const hint of hints) {
+    const normalizedHint = normalizeIdentityToken(hint);
+    const explicit = explicitHints.has(normalizedHint);
+    for (const term of terms) {
+      let score = 0;
+      if (normalizedHint === term.normalized) {
+        score = explicit ? 0.84 : 0.72;
+      } else if (
+        normalizedHint.length >= 3 &&
+        term.normalized.length >= 3 &&
+        (normalizedHint.includes(term.normalized) || term.normalized.includes(normalizedHint))
+      ) {
+        score = explicit ? 0.72 : 0.62;
+      }
+
+      if (score > confidence) {
+        confidence = score;
+        targetUserId = term.userId;
+      }
+      if (score >= 0.62) {
+        matchedHints.add(hint);
+        matchedTerms.add(term.value);
+      }
+    }
+  }
+
+  if (confidence < 0.62) return null;
+  return {
+    confidence,
+    matchedHints: Array.from(matchedHints),
+    matchedTerms: Array.from(matchedTerms),
+    targetUserId,
+  };
 }
 
 export function deriveRelationshipStatePatch(
@@ -280,6 +480,17 @@ export const relationshipStateService = {
     });
   },
 
+  async getOrCreateForPerson(personId: string): Promise<RelationshipState> {
+    return prisma.relationshipState.upsert({
+      where: { personId },
+      update: {},
+      create: {
+        ...defaultRelationshipState,
+        person: { connect: { id: personId } },
+      },
+    });
+  },
+
   async list(limit = 80, search?: string) {
     const q = cleanText(search, 80);
     return prisma.relationshipState.findMany({
@@ -359,6 +570,34 @@ export const relationshipStateService = {
     });
     const events = await this.listEvents(relationshipId, limit);
     return { relationship, events };
+  },
+
+  async listIdentityLinkProposals(status = "pending", limit = 50) {
+    const where =
+      status && status !== "all"
+        ? {
+            status,
+          }
+        : {};
+    return prisma.identityLinkProposal.findMany({
+      where,
+      include: {
+        sourceUser: { select: { id: true, externalId: true, displayName: true } },
+        targetUser: { select: { id: true, externalId: true, displayName: true } },
+        targetPerson: {
+          include: {
+            identityLinks: {
+              include: {
+                user: { select: { id: true, externalId: true, displayName: true } },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+      take: clampInt(limit, 1, 100),
+    });
   },
 
   async linkUserToPerson(input: {
@@ -506,6 +745,97 @@ export const relationshipStateService = {
     });
   },
 
+  async approveIdentityLinkProposal(input: { proposalId: string; reviewedBy?: string }) {
+    const proposal = await prisma.identityLinkProposal.findUniqueOrThrow({
+      where: { id: input.proposalId },
+    });
+    if (proposal.status !== "pending") {
+      throw serviceError("Identity proposal is not pending", 409);
+    }
+
+    const reviewer = input.reviewedBy ?? "admin";
+    const reviewedAt = new Date();
+    const targetState = await this.getOrCreateForPerson(proposal.targetPersonId);
+    const relationship = await this.linkUserToPerson({
+      relationshipId: targetState.id,
+      userId: proposal.sourceUserId,
+      source: "identity_proposal_approved",
+      verifiedBy: reviewer,
+    });
+
+    const [reviewedProposal] = await prisma.$transaction([
+      prisma.identityLinkProposal.update({
+        where: { id: proposal.id },
+        data: {
+          status: "approved",
+          reviewedBy: reviewer,
+          reviewedAt,
+        },
+        include: {
+          sourceUser: { select: { id: true, externalId: true, displayName: true } },
+          targetUser: { select: { id: true, externalId: true, displayName: true } },
+          targetPerson: {
+            include: {
+              identityLinks: {
+                include: {
+                  user: { select: { id: true, externalId: true, displayName: true } },
+                },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          },
+        },
+      }),
+      prisma.identityLinkProposal.updateMany({
+        where: {
+          sourceUserId: proposal.sourceUserId,
+          status: "pending",
+          id: { not: proposal.id },
+        },
+        data: {
+          status: "superseded",
+          reviewedBy: reviewer,
+          reviewedAt,
+        },
+      }),
+    ]);
+
+    const detail = await this.getDetail(relationship.id, 20);
+    return { proposal: reviewedProposal, ...detail };
+  },
+
+  async rejectIdentityLinkProposal(input: { proposalId: string; reviewedBy?: string }) {
+    const proposal = await prisma.identityLinkProposal.findUniqueOrThrow({
+      where: { id: input.proposalId },
+    });
+    if (proposal.status !== "pending") {
+      throw serviceError("Identity proposal is not pending", 409);
+    }
+
+    return prisma.identityLinkProposal.update({
+      where: { id: proposal.id },
+      data: {
+        status: "rejected",
+        reviewedBy: input.reviewedBy ?? "admin",
+        reviewedAt: new Date(),
+      },
+      include: {
+        sourceUser: { select: { id: true, externalId: true, displayName: true } },
+        targetUser: { select: { id: true, externalId: true, displayName: true } },
+        targetPerson: {
+          include: {
+            identityLinks: {
+              include: {
+                user: { select: { id: true, externalId: true, displayName: true } },
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
+      },
+    });
+  },
+
   async applyPatch(input: ApplyRelationshipPatchInput): Promise<RelationshipState> {
     const before = await prisma.relationshipState.findUniqueOrThrow({
       where: { id: input.relationshipId },
@@ -551,6 +881,104 @@ export const relationshipStateService = {
       messageId: input.messageId,
       channel: input.channel,
     });
+  },
+
+  async observeIdentitySignals(input: ObserveIdentitySignalInput) {
+    const sourceUser = await prisma.user.findUniqueOrThrow({
+      where: { id: input.userId },
+      select: { id: true, externalId: true, displayName: true },
+    });
+    const currentPerson = await this.getOrCreatePersonForUser(input.userId);
+    const explicitHints = extractIdentityHints(input.userMessage);
+    const hints = uniqueIdentityHints([
+      ...explicitHints,
+      input.displayName ?? "",
+      sourceUser.displayName ?? "",
+    ]);
+    if (hints.length === 0) return [];
+
+    const explicitHintSet = new Set(explicitHints.map((hint) => normalizeIdentityToken(hint)));
+    const candidates = await prisma.personIdentity.findMany({
+      where: {
+        id: { not: currentPerson.id },
+      },
+      include: {
+        identityLinks: {
+          include: {
+            user: { select: { id: true, externalId: true, displayName: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 300,
+    });
+
+    const proposals = [];
+    for (const candidate of candidates) {
+      const match = matchIdentityCandidate(hints, explicitHintSet, candidate);
+      if (!match) continue;
+
+      const reason = explicitHints.length > 0
+        ? "用户在消息里自称了身份，且和已有现实身份相似，需要 admin 审核。"
+        : "当前显示名和已有现实身份相似，需要 admin 审核。";
+      const evidence: Prisma.InputJsonObject = {
+        rule: explicitHints.length > 0 ? "explicit_self_identification" : "display_name_similarity",
+        channel: input.channel,
+        conversationId: input.conversationId,
+        messageId: input.messageId ?? null,
+        userMessagePreview: cleanText(input.userMessage, 180) ?? "",
+        sourceUser: {
+          id: sourceUser.id,
+          externalId: sourceUser.externalId,
+          displayName: sourceUser.displayName,
+          currentPersonId: currentPerson.id,
+        },
+        matchedHints: match.matchedHints,
+        matchedTerms: match.matchedTerms,
+        targetPerson: {
+          id: candidate.id,
+          label: candidate.label,
+          users: candidate.identityLinks.map((link) => ({
+            id: link.user.id,
+            externalId: link.user.externalId,
+            displayName: link.user.displayName,
+          })),
+        },
+      };
+
+      const existing = await prisma.identityLinkProposal.findFirst({
+        where: {
+          sourceUserId: input.userId,
+          targetPersonId: candidate.id,
+          status: "pending",
+        },
+      });
+      const proposal = existing
+        ? await prisma.identityLinkProposal.update({
+            where: { id: existing.id },
+            data: {
+              reason,
+              evidence,
+              confidence: match.confidence,
+              targetUserId: match.targetUserId,
+              source: "identity_rules",
+            },
+          })
+        : await prisma.identityLinkProposal.create({
+            data: {
+              sourceUserId: input.userId,
+              targetPersonId: candidate.id,
+              targetUserId: match.targetUserId,
+              reason,
+              evidence,
+              confidence: match.confidence,
+              source: "identity_rules",
+            },
+          });
+      proposals.push(proposal);
+    }
+
+    return proposals;
   },
 
   async reset(relationshipId: string, source = "admin"): Promise<RelationshipState> {

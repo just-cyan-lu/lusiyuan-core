@@ -26,7 +26,7 @@
 - `src/core/prompt-builder.ts`：把 persona、记忆、状态和对话历史编译成给模型看的消息。
 - `src/core/persona-projection.ts`：选择当前聊天投影，避免把完整人设整包塞给模型。
 - `src/runtime/runtime-state.service.ts`：读取运行态，记录 RuntimeEvent，并只允许 owner、复盘、梦境、自启动和 admin 更新长期状态。
-- `src/runtime/relationship-state.service.ts`：读取和更新每个现实身份的关系状态，聊天后直接小幅更新，admin 可以修正或绑定渠道账号。
+- `src/runtime/relationship-state.service.ts`：读取和更新每个现实身份的关系状态，聊天后直接小幅更新，也会生成待审核的身份怀疑，admin 可以修正、审核或绑定渠道账号。
 - `src/runtime/runtime-autonomy-scheduler.ts`：可选的运行态自启动定时器，默认关闭。
 - `src/routes/chat.route.ts`：HTTP 聊天接口。
 
@@ -166,7 +166,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 - `web/`：React 前端。
 - `src/routes/admin.route.ts`：管理后台 API。
 - `web/src/components/admin/RuntimeStatePage.tsx`：陆思源运行态可视化、事件日志、状态变更和自启动控制页。
-- `web/src/components/admin/RelationshipStatePage.tsx`：现实身份关系状态可视化、渠道账号绑定、编辑和变更记录页。
+- `web/src/components/admin/RelationshipStatePage.tsx`：现实身份关系状态可视化、身份怀疑审核、渠道账号绑定、编辑和变更记录页。
 - `src/routes/*`：各功能的 HTTP 接口。
 
 ## 数据库

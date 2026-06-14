@@ -1075,6 +1075,35 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send(detail);
   });
 
+  app.get("/v1/admin/identity-link-proposals", async (request, reply) => {
+    const query = request.query as { status?: string; limit?: string };
+    const proposals = await relationshipStateService.listIdentityLinkProposals(
+      cleanString(query.status) ?? "pending",
+      clampLimit(query.limit, 50)
+    );
+    return reply.send({ proposals });
+  });
+
+  app.post("/v1/admin/identity-link-proposals/:proposalId/approve", async (request, reply) => {
+    const { proposalId } = request.params as { proposalId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const result = await relationshipStateService.approveIdentityLinkProposal({
+      proposalId,
+      reviewedBy: cleanString(body.reviewed_by) ?? "admin",
+    });
+    return reply.send(result);
+  });
+
+  app.post("/v1/admin/identity-link-proposals/:proposalId/reject", async (request, reply) => {
+    const { proposalId } = request.params as { proposalId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const proposal = await relationshipStateService.rejectIdentityLinkProposal({
+      proposalId,
+      reviewedBy: cleanString(body.reviewed_by) ?? "admin",
+    });
+    return reply.send({ proposal });
+  });
+
   app.get("/v1/admin/config/env", async (_request, reply) => {
     return reply.send(await readEditableEnvConfig());
   });

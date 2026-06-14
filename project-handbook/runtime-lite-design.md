@@ -83,7 +83,7 @@ LLM 可以提议状态变化，但不能直接改状态。
 
 陆思源面对某个用户时的关系状态。
 
-当前已实现第一版：每个现实身份一份 `RelationshipState`。普通聊天可以直接让程序小幅更新这份关系，不需要 admin 审核；admin 仍然可以手动修正、重置，或把多个渠道账号绑定成同一个现实身份。
+当前已实现第一版：每个现实身份一份 `RelationshipState`。普通聊天可以直接让程序小幅更新这份关系，不需要 admin 审核；admin 仍然可以手动修正、重置，或审核身份怀疑后把多个渠道账号绑定成同一个现实身份。
 
 它和 `RuntimeState` 的区别很重要：
 
@@ -108,11 +108,13 @@ LLM 可以提议状态变化，但不能直接改状态。
 
 `User` 是渠道账号，比如 `telegram:123`、`weixin:abc`、`web:uuid`。
 
-`PersonIdentity` 是现实层面的同一个人。系统默认不会猜两个渠道账号是不是同一个人。新用户会先自动拥有一个只包含自己的 PersonIdentity。
+`PersonIdentity` 是现实层面的同一个人。新用户会先自动拥有一个只包含自己的 PersonIdentity。
+
+`IdentityLinkProposal` 是“身份怀疑”。如果用户明确说“我是某某”，或显示名和已有身份很像，系统会把怀疑提交给 admin。
 
 `IdentityLink` 负责把 User 连接到 PersonIdentity。只有 owner/admin 明确确认时，才把多个 User 绑定到同一个 PersonIdentity。
 
-这避免了误合并：昵称相似、说话像、头像像，都不能自动合并。
+这避免了误合并：昵称相似、说话像、头像像，都不能自动合并。当前系统最多只会怀疑，审核通过才会合并关系状态。
 
 ### RuntimeEvent
 
