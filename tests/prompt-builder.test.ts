@@ -149,6 +149,23 @@ test("selects persona slices and profile-specific examples by context", () => {
   assert.doesNotMatch(systemPrompt as string, /用户：改掉你自己/);
 });
 
+test("includes database relationship state in the prompt", () => {
+  const messages = buildChatPrompt({
+    persona,
+    memories: [],
+    recentMessages: [],
+    userMessage: "今天吃什么呀",
+    channel: "web",
+    relationshipState: "# 数据库关系状态\n\n- 关系标签：熟悉稳定\n- 信任度：72/100",
+  });
+
+  const systemPrompt = messages[0].content;
+  assert.equal(typeof systemPrompt, "string");
+  assert.match(systemPrompt as string, /数据库关系状态/);
+  assert.match(systemPrompt as string, /关系标签：熟悉稳定/);
+  assert.match(systemPrompt as string, /当前聊天投影：close_friend/);
+});
+
 function budgetedMemory(type: string, text: string): BudgetedMemory {
   return {
     finalScore: 1,

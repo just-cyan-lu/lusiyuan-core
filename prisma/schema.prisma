@@ -20,6 +20,8 @@ model User {
 
   conversations Conversation[]
   memories      Memory[]
+  relationshipState  RelationshipState?
+  relationshipEvents RelationshipStateEvent[]
 
   @@map("app_users")
 }
@@ -219,6 +221,59 @@ model RuntimeEvent {
   @@index([conversationId])
   @@index([createdAt])
   @@map("runtime_events")
+}
+
+/// Per-user relationship state between Lusiyuan and one person.
+model RelationshipState {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  relationshipLabel String   @default("刚认识")
+  familiarity       Int      @default(8)
+  trust             Int      @default(8)
+  closeness         Int      @default(5)
+  tension           Int      @default(0)
+  interactionStyle  String?
+  summary           String?
+  recentSignal      String?
+  statusNote        String?
+  metadata          Json?
+  lastInteractionAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events RelationshipStateEvent[]
+
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("relationship_states")
+}
+
+/// Timeline of relationship state changes for one user.
+model RelationshipStateEvent {
+  id                  String   @id @default(cuid())
+  relationshipStateId String
+  userId              String
+  eventType           String
+  source              String?
+  summary             String
+  patch               Json?
+  before              Json?
+  after               Json?
+  conversationId      String?
+  messageId           String?
+  channel             String?
+  createdAt           DateTime @default(now())
+
+  relationshipState RelationshipState @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([relationshipStateId])
+  @@index([userId])
+  @@index([eventType])
+  @@index([source])
+  @@index([createdAt])
+  @@map("relationship_state_events")
 }
 
 /// Vector embeddings attached to long-term memories.

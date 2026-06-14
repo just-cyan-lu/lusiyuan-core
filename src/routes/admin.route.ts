@@ -10,6 +10,10 @@ import {
   runtimeStateService,
   type RuntimeStatePatch,
 } from "../runtime/runtime-state.service.js";
+import {
+  relationshipPatchFromAdminBody,
+  relationshipStateService,
+} from "../runtime/relationship-state.service.js";
 
 function configured(value: string | string[]): boolean {
   return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
@@ -1002,6 +1006,45 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       events,
       runtimeEvents,
     });
+  });
+
+  app.get("/v1/admin/relationships", async (request, reply) => {
+    const query = request.query as { limit?: string; q?: string };
+    const relationships = await relationshipStateService.list(
+      clampLimit(query.limit, 80),
+      query.q
+    );
+    return reply.send({ relationships });
+  });
+
+  app.get("/v1/admin/relationships/:relationshipId", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.patch("/v1/admin/relationships/:relationshipId", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const current = await prisma.relationshipState.findUniqueOrThrow({
+      where: { id: relationshipId },
+    });
+    await relationshipStateService.applyPatch({
+      relationshipId,
+      patch: relationshipPatchFromAdminBody(current, body),
+      eventType: "manual_update",
+      source: "admin",
+      summary: cleanString(body.eventSummary) ?? "Admin 手动调整关系状态。",
+    });
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.post("/v1/admin/relationships/:relationshipId/reset", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    await relationshipStateService.reset(relationshipId, "admin");
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
   });
 
   app.get("/v1/admin/config/env", async (_request, reply) => {

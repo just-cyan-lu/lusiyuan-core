@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export type AdminSection =
   | "overview"
   | "runtime"
+  | "relationships"
   | "memory"
   | "reflection"
   | "dream"
@@ -39,44 +40,50 @@ const navItems: Array<{
     description: "心情 / 状态",
   },
   {
-    section: "memory",
+    section: "relationships",
     index: "03",
+    label: "关系",
+    description: "用户关系状态",
+  },
+  {
+    section: "memory",
+    index: "04",
     label: "记忆",
     description: "记忆库 / 提案",
   },
   {
     section: "reflection",
-    index: "04",
+    index: "05",
     label: "复盘",
     description: "Reflection",
   },
   {
     section: "dream",
-    index: "05",
+    index: "06",
     label: "梦境",
     description: "Dream Cycle",
   },
   {
     section: "platforms",
-    index: "06",
+    index: "07",
     label: "平台",
     description: "外部平台工作台",
   },
   {
     section: "tools",
-    index: "07",
+    index: "08",
     label: "工具",
     description: "调用与日志",
   },
   {
     section: "chat",
-    index: "08",
+    index: "09",
     label: "聊天",
     description: "Web Chat",
   },
   {
     section: "settings",
-    index: "09",
+    index: "10",
     label: "配置",
     description: ".env 编辑",
   },

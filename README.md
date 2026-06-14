@@ -161,6 +161,23 @@ Runtime State 是陆思源的当前状态。
 
 正式设计见 `project-handbook/runtime-lite-design.md`。
 
+### Relationship State
+
+Relationship State 是陆思源和某个用户之间的关系状态。
+
+比如：
+
+- 熟悉度
+- 信任度
+- 亲近感
+- 关系张力
+- 互动风格
+- 最近这段关系的信号
+
+它和 Runtime State 不一样。Runtime State 是“陆思源整体现在怎么样”；Relationship State 是“陆思源和这个人现在是什么关系”。
+
+普通聊天可以让程序直接小幅更新 Relationship State，不需要 admin 审核。admin 仍然可以在后台查看、修改和重置。
+
 ### Memory
 
 Memory 是长期记忆。
@@ -523,12 +540,14 @@ pnpm telegram:dev
 - `RuntimeState`：数据库里的全局当前状态。
 - `RuntimeEvent`：记录聊天、复盘、梦境、自启动这些发生过的事。
 - `RuntimeStateEvent`：记录真正写入 RuntimeState 的状态变化。
+- `RelationshipState`：记录陆思源和每个用户之间的关系状态。
+- `RelationshipStateEvent`：记录关系状态每次为什么变化。
 - 运行态更新策略：支持规则校准，也支持 LLM 提议 statePatch 后由程序校验写入；只在 owner、复盘、梦境、自启动和 admin 这些受控入口生效。
 - `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。
+- `web/src/components/admin/RelationshipStatePage.tsx`：admin 里的用户关系状态页面。
 
 还没有完成的正式 Runtime：
 
-- `RelationshipState` 数据库表。
 - 更细的 RuntimeEvent 内部过程，比如 perception、stance、expressionPlan、afterthought。
 - 更细的长期目标、未解决问题、自我叙事拆分。
 

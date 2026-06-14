@@ -6,6 +6,7 @@ import { DashboardPage } from "./components/admin/DashboardPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
 import { PlatformsPage, XiaohongshuPlatformPage } from "./components/admin/PlatformsPage";
+import { RelationshipStatePage } from "./components/admin/RelationshipStatePage";
 import { RuntimeStatePage } from "./components/admin/RuntimeStatePage";
 import { ToolsAdminPage } from "./components/admin/ToolsAdminPage";
 import { ChatPage } from "./components/ChatPage";
@@ -14,6 +15,7 @@ import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
 const sections: AdminSection[] = [
   "overview",
   "runtime",
+  "relationships",
   "memory",
   "reflection",
   "dream",
@@ -110,6 +112,10 @@ export default function App() {
 
     if (route.section === "runtime") {
       return <RuntimeStatePage adminToken={adminToken} />;
+    }
+
+    if (route.section === "relationships") {
+      return <RelationshipStatePage adminToken={adminToken} />;
     }
 
     if (route.section === "memory") {

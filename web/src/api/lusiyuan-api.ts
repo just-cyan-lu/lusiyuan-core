@@ -112,6 +112,71 @@ export interface RuntimeStateResponse {
   runtimeEvents: RuntimeEvent[];
 }
 
+export interface RelationshipUser {
+  id: string;
+  externalId: string;
+  displayName: string | null;
+}
+
+export interface RelationshipState {
+  id: string;
+  userId: string;
+  user?: RelationshipUser;
+  relationshipLabel: string;
+  familiarity: number;
+  trust: number;
+  closeness: number;
+  tension: number;
+  interactionStyle: string | null;
+  summary: string | null;
+  recentSignal: string | null;
+  statusNote: string | null;
+  metadata: unknown;
+  lastInteractionAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RelationshipStateEvent {
+  id: string;
+  relationshipStateId: string;
+  userId: string;
+  eventType: string;
+  source: string | null;
+  summary: string;
+  patch: unknown;
+  before: unknown;
+  after: unknown;
+  conversationId: string | null;
+  messageId: string | null;
+  channel: string | null;
+  createdAt: string;
+}
+
+export interface RelationshipListResponse {
+  relationships: RelationshipState[];
+}
+
+export interface RelationshipDetailResponse {
+  relationship: RelationshipState;
+  events: RelationshipStateEvent[];
+}
+
+export interface RelationshipUpdateInput {
+  token: string;
+  relationshipId: string;
+  relationshipLabel?: string;
+  familiarity?: number;
+  trust?: number;
+  closeness?: number;
+  tension?: number;
+  interactionStyle?: string | null;
+  summary?: string | null;
+  recentSignal?: string | null;
+  statusNote?: string | null;
+  eventSummary?: string;
+}
+
 export interface RuntimeStateUpdateInput {
   token: string;
   moodLabel?: string;
@@ -567,6 +632,57 @@ export async function runRuntimeAutonomyTick(token: string): Promise<RuntimeStat
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeStateResponse>(response, "自启动检查失败");
+}
+
+export async function fetchRelationships(input: {
+  token: string;
+  q?: string;
+  limit?: number;
+}): Promise<RelationshipListResponse> {
+  const params = new URLSearchParams();
+  if (input.q) params.set("q", input.q);
+  if (input.limit) params.set("limit", String(input.limit));
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships${query ? `?${query}` : ""}`, {
+    headers: adminHeaders(input.token),
+  });
+  return parseJsonResponse<RelationshipListResponse>(response, "无法读取关系状态");
+}
+
+export async function fetchRelationshipDetail(input: {
+  token: string;
+  relationshipId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}`, {
+    headers: adminHeaders(input.token),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "无法读取关系详情");
+}
+
+export async function updateRelationshipState(
+  input: RelationshipUpdateInput
+): Promise<RelationshipDetailResponse> {
+  const { token, relationshipId, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${relationshipId}`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "保存关系状态失败");
+}
+
+export async function resetRelationshipState(input: {
+  token: string;
+  relationshipId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/reset`, {
+    method: "POST",
+    headers: adminHeaders(input.token),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "重置关系状态失败");
 }
 
 export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {

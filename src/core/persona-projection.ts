@@ -24,6 +24,7 @@ interface BuildPersonaProjectionInput {
   userMessage: string;
   channel?: string;
   runtimeState?: string;
+  relationshipState?: string;
 }
 
 interface ProfileRule {
@@ -94,6 +95,7 @@ export function buildPersonaProjection(
     styleExamples: buildStyleExamples(input.persona, profileId),
     runtimeState: buildRuntimeState(input.persona, input.runtimeState),
     relationshipContext: buildRelationshipContext(
+      input.relationshipState,
       input.memories,
       input.recentMessages
     ),
@@ -129,6 +131,10 @@ export function selectChatProfile(input: BuildPersonaProjectionInput): string {
   }
 
   if (selected !== DEFAULT_CHAT_PROFILE_ID) return selected;
+
+  if (/关系标签：(?:熟悉稳定|亲近且信任)|亲近感：[7-9]\d|信任度：[7-9]\d/i.test(input.relationshipState ?? "")) {
+    return "close_friend";
+  }
 
   const hasCloseRelationship = input.memories.some((m) => {
     const text = `${m.memory.type}\n${m.text}`;
@@ -184,6 +190,7 @@ function buildRuntimeState(
 }
 
 function buildRelationshipContext(
+  relationshipState: string | undefined,
   memories: BudgetedMemory[],
   recentMessages: Message[]
 ): string {
@@ -191,6 +198,11 @@ function buildRelationshipContext(
   const relationshipMemories = memories.filter(
     (m) => m.memory.type === "relationship"
   );
+
+  if (relationshipState?.trim()) {
+    lines.push(truncate(relationshipState.trim(), 1100));
+    lines.push("");
+  }
 
   if (relationshipMemories.length > 0) {
     lines.push("## 关系记忆");

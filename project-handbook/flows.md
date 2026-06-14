@@ -164,6 +164,8 @@ owner 后续查看、修改、批准或丢弃
 - `RuntimeState`：保存全局心情、精力、压力、当前目标、最近关注和正在做的事。
 - `RuntimeEvent`：保存聊天、复盘、梦境、自启动检查这些“发生过的事”。
 - `RuntimeStateEvent`：只保存真正写入 RuntimeState 的状态变化记录。
+- `RelationshipState`：保存陆思源和每个用户之间的熟悉度、信任度、亲近感和关系张力。
+- `RelationshipStateEvent`：保存关系状态变化记录。
 - 更新策略：`rules` 是规则校准；`llm` 是 LLM 提议 statePatch，再由程序校验。它只在允许改长期状态的入口生效。
 
 当前流程是：
@@ -173,11 +175,15 @@ owner 后续查看、修改、批准或丢弃
 ↓
 读取 RuntimeState
 ↓
+读取 RelationshipState
+↓
 编译 prompt 并生成回复
 ↓
 保存回复
 ↓
 写 RuntimeEvent：记录这轮聊天发生了什么
+↓
+按程序规则小幅更新这个用户的 RelationshipState
 ↓
 如果不是 owner：不改 RuntimeState，等待复盘或梦境整理
 ↓
@@ -188,4 +194,4 @@ owner 后续查看、修改、批准或丢弃
 
 Reflection 完成后也会写 RuntimeEvent，并在允许自动校准时更新 RuntimeState。Dream Cycle 完成后同理。autonomy tick 会根据时间流逝和聊天密度判断：长时间没人聊会更想说话，连续聊天太多会变累。
 
-如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是 RelationshipState，以及更细的长期目标、自我叙事拆分。
+如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是把 RelationshipState 接入更深的 Reflection 总结，以及更细的长期目标、自我叙事拆分。

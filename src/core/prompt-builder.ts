@@ -11,6 +11,7 @@ interface BuildChatPromptInput {
   userMessage: string;
   channel?: string;
   runtimeState?: string;
+  relationshipState?: string;
   toolResults?: string;
 }
 
@@ -22,6 +23,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     userMessage,
     channel,
     runtimeState,
+    relationshipState,
     toolResults,
   } = input;
   const projection = buildPersonaProjection({
@@ -31,6 +33,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     userMessage,
     channel,
     runtimeState,
+    relationshipState,
   });
 
   const memorySection =
