@@ -175,9 +175,9 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 </div>
               </div>
               <ConfigRow label="精力" enabled={state.runtimeState.energyLevel >= 45} />
-              <ConfigRow label="自动更新" enabled={state.runtimeState.autoUpdateEnabled} />
+              <ConfigRow label="受控自动" enabled={state.runtimeState.autoUpdateEnabled} />
               <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm text-[#334155]">
-                更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则轻量更新"}
+                更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则校准"}
               </div>
               <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm leading-6 text-[#334155]">
                 {state.runtimeState.currentActivity ?? "暂无正在做的事。"}

@@ -3,6 +3,7 @@ import { env } from "../utils/env.js";
 import { buildReflectionContext } from "./reflection-context-builder.js";
 import { runReflectionAnalysis } from "./reflection-report-formatter.js";
 import { applyReflectionPolicy } from "./reflection-policy.js";
+import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import type { MemoryProposalOwnership } from "./memory-proposal-ownership.js";
 import type {
   CreateReflectionJobInput,
@@ -82,6 +83,23 @@ export class ReflectionService {
       await this.saveProposals(report.id, allowedProposals, ownership);
       await this.saveRiskFlags(report.id, allowedRiskFlags);
       await this.saveGrowthLogs(report.id, allowedGrowthLogs);
+
+      await runtimeStateService
+        .observeReflectionReport({
+          reportId: report.id,
+          jobId,
+          summary: report.summary,
+          confidence: report.confidence,
+          triggerType: job.triggerType,
+          userId: ownership.userId,
+          conversationId: ownership.conversationId,
+          channel: ownership.channel,
+          proposalCount: allowedProposals.length + allowedGrowthLogs.length,
+          riskCount: allowedRiskFlags.length,
+        })
+        .catch((err) =>
+          console.warn("[reflection] runtime event/state update failed:", err)
+        );
 
       await prisma.reflectionJob.update({
         where: { id: jobId },

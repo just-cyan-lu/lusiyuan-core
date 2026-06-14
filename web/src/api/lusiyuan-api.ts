@@ -85,9 +85,31 @@ export interface RuntimeStateEvent {
   createdAt: string;
 }
 
+export interface RuntimeEvent {
+  id: string;
+  eventType: string;
+  source: string;
+  summary: string;
+  importance: number;
+  topic: string | null;
+  moodSignal: string | null;
+  energySignal: string | null;
+  stressSignal: string | null;
+  socialSignal: string | null;
+  stateImpact: unknown;
+  payload: unknown;
+  userId: string | null;
+  conversationId: string | null;
+  messageId: string | null;
+  channel: string | null;
+  status: string;
+  createdAt: string;
+}
+
 export interface RuntimeStateResponse {
   state: RuntimeState;
   events: RuntimeStateEvent[];
+  runtimeEvents: RuntimeEvent[];
 }
 
 export interface RuntimeStateUpdateInput {
@@ -537,6 +559,14 @@ export async function resetRuntimeState(token: string): Promise<RuntimeStateResp
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeStateResponse>(response, "重置运行态失败");
+}
+
+export async function runRuntimeAutonomyTick(token: string): Promise<RuntimeStateResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/runtime/autonomy/tick`, {
+    method: "POST",
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<RuntimeStateResponse>(response, "自启动检查失败");
 }
 
 export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {

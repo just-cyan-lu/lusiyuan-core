@@ -191,6 +191,36 @@ model RuntimeStateEvent {
   @@map("runtime_state_events")
 }
 
+/// Event journal for things Lusiyuan experienced or processed.
+model RuntimeEvent {
+  id             String   @id @default(cuid())
+  eventType      String
+  source         String
+  summary        String
+  importance     Int      @default(30)
+  topic          String?
+  moodSignal     String?
+  energySignal   String?
+  stressSignal   String?
+  socialSignal   String?
+  stateImpact    Json?
+  payload        Json?
+  userId         String?
+  conversationId String?
+  messageId      String?
+  channel        String?
+  status         String   @default("observed")
+  createdAt      DateTime @default(now())
+
+  @@index([eventType])
+  @@index([source])
+  @@index([status])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("runtime_events")
+}
+
 /// Vector embeddings attached to long-term memories.
 model MemoryEmbedding {
   id          String                      @id @default(cuid())

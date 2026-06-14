@@ -269,6 +269,14 @@ export const env = {
     10
   ),
 
+  // Runtime autonomy
+  RUNTIME_AUTONOMY_AUTO_RUN:
+    process.env.RUNTIME_AUTONOMY_AUTO_RUN === "true",
+  RUNTIME_AUTONOMY_CRON:
+    process.env.RUNTIME_AUTONOMY_CRON ?? "*/30 * * * *",
+  RUNTIME_AUTONOMY_TIMEZONE:
+    process.env.RUNTIME_AUTONOMY_TIMEZONE ?? "Asia/Shanghai",
+
   // Tavily web search (v0.8.1)
   TAVILY_ENABLED: process.env.TAVILY_ENABLED === "true",
   // Comma-separated list of keys, e.g. "key1,key2,key3"

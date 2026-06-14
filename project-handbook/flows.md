@@ -162,8 +162,9 @@ owner 后续查看、修改、批准或丢弃
 - `runtime/default_state.md`：默认状态种子。
 - `persona-projection.ts`：Prompt Compiler 雏形。
 - `RuntimeState`：保存全局心情、精力、压力、当前目标、最近关注和正在做的事。
-- `RuntimeStateEvent`：保存状态变化记录。
-- 更新策略：`rules` 是规则轻量观察；`llm` 是 LLM 提议 statePatch，再由程序校验。
+- `RuntimeEvent`：保存聊天、复盘、梦境、自启动检查这些“发生过的事”。
+- `RuntimeStateEvent`：只保存真正写入 RuntimeState 的状态变化记录。
+- 更新策略：`rules` 是规则校准；`llm` 是 LLM 提议 statePatch，再由程序校验。它只在允许改长期状态的入口生效。
 
 当前流程是：
 
@@ -176,9 +177,15 @@ owner 后续查看、修改、批准或丢弃
 ↓
 保存回复
 ↓
-按当前更新策略观察本轮对话
+写 RuntimeEvent：记录这轮聊天发生了什么
 ↓
-更新 RuntimeState 并写 RuntimeStateEvent
+如果不是 owner：不改 RuntimeState，等待复盘或梦境整理
+↓
+如果是 owner 且允许自动校准：按 rules / llm 更新 RuntimeState
+↓
+写 RuntimeStateEvent
 ```
 
-如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是完整 RuntimeEvent、RelationshipState，以及更细的长期目标、自我叙事拆分。
+Reflection 完成后也会写 RuntimeEvent，并在允许自动校准时更新 RuntimeState。Dream Cycle 完成后同理。autonomy tick 会根据时间流逝和聊天密度判断：长时间没人聊会更想说话，连续聊天太多会变累。
+
+如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是 RelationshipState，以及更细的长期目标、自我叙事拆分。

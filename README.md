@@ -155,9 +155,11 @@ Runtime State 是陆思源的当前状态。
 - 当前目标是什么
 - 最近发生过什么
 
-当前项目里只有 `persona/runtime/default_state.md` 作为默认状态种子。它只是 fallback，不是真正实时状态。
+当前项目已经有数据库里的真实 `RuntimeState`。`persona/runtime/default_state.md` 只是默认状态种子，用来兜底和初始化。
 
-正式版计划见 `project-handbook/runtime-lite-design.md`。未来会把实时状态放进数据库。
+普通聊天不会直接改这个状态；它会先写入 `RuntimeEvent`。真正能改长期状态的入口是 owner 对话、Reflection 复盘、Dream Cycle 梦境整理、autonomy tick 自启动检查和 admin 手动调整。
+
+正式设计见 `project-handbook/runtime-lite-design.md`。
 
 ### Memory
 
@@ -518,14 +520,16 @@ pnpm telegram:dev
 - `persona/runtime/core.md`：每轮聊天固定带上的常驻核心。
 - `persona/runtime/default_state.md`：默认运行态种子。
 - `src/core/persona-projection.ts`：选择聊天投影和人设切片。
-- `RuntimeState` / `RuntimeStateEvent`：数据库里的全局运行态和状态变化记录。
-- 运行态更新策略：支持规则轻量更新，也支持 LLM 提议 statePatch 后由程序校验写入。
-- `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、编辑和控制页面。
+- `RuntimeState`：数据库里的全局当前状态。
+- `RuntimeEvent`：记录聊天、复盘、梦境、自启动这些发生过的事。
+- `RuntimeStateEvent`：记录真正写入 RuntimeState 的状态变化。
+- 运行态更新策略：支持规则校准，也支持 LLM 提议 statePatch 后由程序校验写入；只在 owner、复盘、梦境、自启动和 admin 这些受控入口生效。
+- `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。
 
 还没有完成的正式 Runtime：
 
 - `RelationshipState` 数据库表。
-- 完整 `RuntimeEvent` 数据库表。
-- 更细的长期目标、未解决问题、自我叙事和关系状态拆分。
+- 更细的 RuntimeEvent 内部过程，比如 perception、stance、expressionPlan、afterthought。
+- 更细的长期目标、未解决问题、自我叙事拆分。
 
 正式设计看 `project-handbook/runtime-lite-design.md`。
