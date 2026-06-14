@@ -98,13 +98,23 @@ Dream 深度整理报告，可能会产生 MemoryProposal。
 
 外部 inbox 的消息项，比如未来小红书评论、私信等。
 
-## 还没有实现但计划中的表
-
-Runtime Lite 正式版建议新增：
+## 运行体状态表
 
 **RuntimeState**
 
-陆思源当前整体状态，比如心情、精力、关注点、最近事件、当前目标。
+陆思源当前整体状态，比如心情、精力、压力、社交电量、当前目标、最近关注、正在做的事和最近事件。
+
+目前是全局一份状态，key 是 `global`。聊天可以用规则轻量更新，也可以切到 LLM 提议 statePatch 后由程序校验写入；admin 也可以手动修正。
+
+`metadata` 用来保存更细的内在详情，比如内在天气、情绪色调、当前需要、内部张力、还在想的问题、关系信号和话题信号。
+
+**RuntimeStateEvent**
+
+运行态变化记录。比如规则观察、LLM 观察、手动调整、重置。它保存变化摘要、patch、变化前后快照和来源信息。
+
+## 还没有实现但计划中的表
+
+Runtime Lite 后续还建议新增：
 
 **RelationshipState**
 
@@ -112,6 +122,6 @@ Runtime Lite 正式版建议新增：
 
 **RuntimeEvent**
 
-进入陆思源系统的事件日志。它可以保存 perception、statePatch、stance、expressionPlan、afterthought 等内部结构。
+进入陆思源系统的完整事件日志。它可以保存 perception、statePatch、stance、expressionPlan、afterthought 等内部结构。
 
-这三张表会让“运行态”从 md fallback 变成真正可更新的数据库状态。
+现在已有的 `RuntimeStateEvent` 只记录运行态变化，不等于完整 RuntimeEvent。

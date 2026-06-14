@@ -140,6 +140,57 @@ model ToolCallLog {
   @@map("tool_call_logs")
 }
 
+/// Current global runtime state for Lusiyuan.
+model RuntimeState {
+  id                 String   @id @default(cuid())
+  key                String   @unique @default("global")
+  moodLabel          String   @default("平稳")
+  moodScore          Int      @default(10)
+  energyLevel        Int      @default(62)
+  stressLevel        Int      @default(24)
+  socialBattery      Int      @default(58)
+  currentGoal        String?
+  currentFocus       String?
+  currentActivity    String?
+  recentEventSummary String?
+  statusNote         String?
+  autoUpdateEnabled  Boolean  @default(true)
+  updateMode         String   @default("balanced")
+  updateStrategy     String   @default("rules")
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  events RuntimeStateEvent[]
+
+  @@map("runtime_states")
+}
+
+/// Timeline of runtime state changes.
+model RuntimeStateEvent {
+  id             String   @id @default(cuid())
+  runtimeStateId String
+  eventType      String
+  source         String?
+  summary        String
+  patch          Json?
+  before         Json?
+  after          Json?
+  userId         String?
+  conversationId String?
+  messageId      String?
+  channel        String?
+  createdAt      DateTime @default(now())
+
+  runtimeState RuntimeState @relation(fields: [runtimeStateId], references: [id], onDelete: Cascade)
+
+  @@index([runtimeStateId])
+  @@index([eventType])
+  @@index([source])
+  @@index([createdAt])
+  @@map("runtime_state_events")
+}
+
 /// Vector embeddings attached to long-term memories.
 model MemoryEmbedding {
   id          String                      @id @default(cuid())

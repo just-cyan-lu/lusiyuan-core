@@ -25,6 +25,7 @@
 - `src/core/chat.service.ts`：聊天主流程。
 - `src/core/prompt-builder.ts`：把 persona、记忆、状态和对话历史编译成给模型看的消息。
 - `src/core/persona-projection.ts`：选择当前聊天投影，避免把完整人设整包塞给模型。
+- `src/runtime/runtime-state.service.ts`：读取和更新陆思源当前运行态，支持规则更新和 LLM statePatch 校验更新。
 - `src/routes/chat.route.ts`：HTTP 聊天接口。
 
 ## Persona 和聊天投影
@@ -162,6 +163,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 
 - `web/`：React 前端。
 - `src/routes/admin.route.ts`：管理后台 API。
+- `web/src/components/admin/RuntimeStatePage.tsx`：陆思源运行态可视化、详情和控制页。
 - `src/routes/*`：各功能的 HTTP 接口。
 
 ## 数据库
