@@ -131,6 +131,7 @@ export class DreamService {
             userId,
             conversationId,
             channel,
+            sourceMessageIds: context.messages.map((message) => message.id),
           })
           .catch((err) =>
             console.warn("[dream] runtime event update failed:", err)
@@ -225,6 +226,7 @@ export class DreamService {
           userId,
           conversationId,
           channel,
+          sourceMessageIds: context.messages.map((message) => message.id),
         })
         .catch((err) =>
           console.warn("[dream] runtime event/state update failed:", err)

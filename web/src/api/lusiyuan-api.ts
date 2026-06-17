@@ -80,7 +80,8 @@ export interface RuntimeStateEvent {
   after: unknown;
   userId: string | null;
   conversationId: string | null;
-  messageId: string | null;
+  sourceRuntimeEventIds: unknown;
+  sourceMessageIds: unknown;
   channel: string | null;
   createdAt: string;
 }

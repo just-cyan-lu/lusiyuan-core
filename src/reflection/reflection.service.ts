@@ -96,6 +96,7 @@ export class ReflectionService {
           channel: ownership.channel,
           proposalCount: allowedProposals.length + allowedGrowthLogs.length,
           riskCount: allowedRiskFlags.length,
+          sourceMessageIds: context.messages.map((message) => message.id),
         })
         .catch((err) =>
           console.warn("[reflection] runtime event/state update failed:", err)

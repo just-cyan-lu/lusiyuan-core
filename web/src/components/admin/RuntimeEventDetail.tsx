@@ -7,6 +7,7 @@ import {
   formatAdminDate,
   isRecord,
   readableValue,
+  textListFromJson,
 } from "./admin-detail-utils";
 
 interface RuntimeEventDetailProps {
@@ -28,13 +29,6 @@ const mutationGateLabels: Record<string, string> = {
   dream_allowed: "梦境允许校准",
   dream_observe_only: "梦境记录，不校准",
   autonomy_allowed: "自启动允许校准",
-};
-
-const stateEventTypesByRuntimeEvent: Record<string, string[]> = {
-  chat_turn: ["owner_chat_state_rules", "owner_chat_state_llm"],
-  reflection_report: ["reflection_state_update"],
-  dream_cycle: ["dream_state_update"],
-  autonomy_tick: ["autonomy_state_update"],
 };
 
 const deltaLabels: Record<string, string> = {
@@ -296,27 +290,16 @@ function findRelatedStateEvents(
 }
 
 function relationReason(event: RuntimeEvent, stateEvent: RuntimeStateEvent): string | null {
-  if (event.messageId && stateEvent.messageId === event.messageId) {
-    return "同一条消息触发的状态写入。";
+  const sourceRuntimeEventIds = textListFromJson(stateEvent.sourceRuntimeEventIds);
+  const sourceMessageIds = textListFromJson(stateEvent.sourceMessageIds);
+
+  if (sourceRuntimeEventIds.includes(event.id)) {
+    return "明确记录为这次状态变化的来源事件。";
   }
 
-  const expectedTypes = stateEventTypesByRuntimeEvent[event.eventType] ?? [];
-  if (!expectedTypes.includes(stateEvent.eventType)) return null;
-
-  if (event.conversationId && stateEvent.conversationId === event.conversationId) {
-    return "同一会话里的受控入口把事件整理成了状态变化。";
-  }
-
-  if (stateEvent.source === event.source && minutesBetween(event.createdAt, stateEvent.createdAt) <= 10) {
-    return "同一来源在短时间内完成了状态写入。";
+  if (event.messageId && sourceMessageIds.includes(event.messageId)) {
+    return "这条事件的消息被明确记录为状态变化来源。";
   }
 
   return null;
-}
-
-function minutesBetween(left: string, right: string): number {
-  const leftTime = new Date(left).getTime();
-  const rightTime = new Date(right).getTime();
-  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) return Number.POSITIVE_INFINITY;
-  return Math.abs(leftTime - rightTime) / 60_000;
 }

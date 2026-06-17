@@ -198,6 +198,8 @@ owner 后续查看、修改、批准或丢弃
 写 RuntimeStateEvent
 ```
 
+写 RuntimeStateEvent 时会顺手记录来源。单轮 owner 对话会记录对应的聊天事件和消息；Reflection / Dream 这种整理型入口会记录它们实际看过的多条消息；autonomy tick 如果因为连续聊天变累，会记录最近一批聊天事件。
+
 Reflection 完成后也会写 RuntimeEvent，并在允许自动校准时更新 RuntimeState。Dream Cycle 完成后同理。autonomy tick 会根据时间流逝和聊天密度判断：长时间没人聊会更想说话，连续聊天太多会变累。
 
 如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是把 RelationshipState 接入更深的 Reflection 总结，以及更细的长期目标、自我叙事拆分。

@@ -182,8 +182,9 @@ model RuntimeStateEvent {
   after          Json?
   userId         String?
   conversationId String?
-  messageId      String?
-  channel        String?
+  sourceRuntimeEventIds Json?
+  sourceMessageIds      Json?
+  channel               String?
   createdAt      DateTime @default(now())
 
   runtimeState RuntimeState @relation(fields: [runtimeStateId], references: [id], onDelete: Cascade)
