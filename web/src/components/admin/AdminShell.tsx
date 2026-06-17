@@ -4,6 +4,7 @@ export type AdminSection =
   | "overview"
   | "runtime"
   | "relationships"
+  | "conversations"
   | "memory"
   | "reflection"
   | "dream"
@@ -46,44 +47,50 @@ const navItems: Array<{
     description: "用户关系状态",
   },
   {
-    section: "memory",
+    section: "conversations",
     index: "04",
+    label: "对话",
+    description: "现实身份追溯",
+  },
+  {
+    section: "memory",
+    index: "05",
     label: "记忆",
     description: "记忆库 / 提案",
   },
   {
     section: "reflection",
-    index: "05",
+    index: "06",
     label: "复盘",
     description: "Reflection",
   },
   {
     section: "dream",
-    index: "06",
+    index: "07",
     label: "梦境",
     description: "Dream Cycle",
   },
   {
     section: "platforms",
-    index: "07",
+    index: "08",
     label: "平台",
     description: "外部平台工作台",
   },
   {
     section: "tools",
-    index: "08",
+    index: "09",
     label: "工具",
     description: "调用与日志",
   },
   {
     section: "chat",
-    index: "09",
-    label: "聊天",
+    index: "10",
+    label: "Web Chat",
     description: "Web Chat",
   },
   {
     section: "settings",
-    index: "10",
+    index: "11",
     label: "配置",
     description: ".env 编辑",
   },

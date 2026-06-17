@@ -899,6 +899,319 @@ async function resolveUserInternalId(inputUserId: unknown): Promise<string> {
   return user.id;
 }
 
+function ownerUserIdSet(): Set<string> {
+  return new Set(env.OWNER_USER_IDS);
+}
+
+function isOwnerExternalId(externalId: string): boolean {
+  return ownerUserIdSet().has(externalId);
+}
+
+function messagePreview(content: string, max = 96): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
+}
+
+function latestConversationMessage(conversation: {
+  messages: Array<{ role: string; content: string; createdAt: Date }>;
+}) {
+  return conversation.messages[0] ?? null;
+}
+
+async function listConversationPeople(input: { query?: string; limit?: number }) {
+  const q = cleanString(input.query);
+  const people = await prisma.personIdentity.findMany({
+    where: q
+      ? {
+          OR: [
+            { id: { contains: q, mode: "insensitive" } },
+            { label: { contains: q, mode: "insensitive" } },
+            { note: { contains: q, mode: "insensitive" } },
+            {
+              relationshipState: {
+                is: {
+                  OR: [
+                    { relationshipLabel: { contains: q, mode: "insensitive" } },
+                    { summary: { contains: q, mode: "insensitive" } },
+                    { recentSignal: { contains: q, mode: "insensitive" } },
+                    { statusNote: { contains: q, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+            {
+              identityLinks: {
+                some: {
+                  user: {
+                    OR: [
+                      { id: { contains: q, mode: "insensitive" } },
+                      { externalId: { contains: q, mode: "insensitive" } },
+                      { displayName: { contains: q, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : {},
+    include: {
+      relationshipState: true,
+      identityLinks: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              externalId: true,
+              displayName: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+    take: 220,
+  });
+
+  const userIds = people.flatMap((person) =>
+    person.identityLinks.map((link) => link.userId)
+  );
+  const conversations = userIds.length
+    ? await prisma.conversation.findMany({
+        where: { userId: { in: userIds } },
+        select: {
+          id: true,
+          userId: true,
+          channel: true,
+          externalConversationId: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { role: true, content: true, createdAt: true },
+          },
+        },
+      })
+    : [];
+
+  const conversationsByUser = new Map<string, typeof conversations>();
+  for (const conversation of conversations) {
+    const list = conversationsByUser.get(conversation.userId) ?? [];
+    list.push(conversation);
+    conversationsByUser.set(conversation.userId, list);
+  }
+
+  const summaries = people.map((person) => {
+    const identityLinks = person.identityLinks.map((link) => {
+      const userConversations = conversationsByUser.get(link.userId) ?? [];
+      const latest =
+        userConversations
+          .map(latestConversationMessage)
+          .filter(
+            (message): message is NonNullable<ReturnType<typeof latestConversationMessage>> =>
+              Boolean(message)
+          )
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+      return {
+        id: link.id,
+        personId: link.personId,
+        userId: link.userId,
+        source: link.source,
+        verifiedBy: link.verifiedBy,
+        createdAt: link.createdAt,
+        user: link.user,
+        conversationCount: userConversations.length,
+        messageCount: userConversations.reduce(
+          (sum, conversation) => sum + conversation._count.messages,
+          0
+        ),
+        lastMessageAt: latest?.createdAt ?? null,
+      };
+    });
+    const lastMessageAt =
+      identityLinks
+        .map((link) => link.lastMessageAt)
+        .filter((value): value is Date => Boolean(value))
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    const isOwner = identityLinks.some((link) =>
+      isOwnerExternalId(link.user.externalId)
+    );
+    return {
+      person: {
+        id: person.id,
+        label: person.label,
+        note: person.note,
+        createdAt: person.createdAt,
+        updatedAt: person.updatedAt,
+      },
+      relationship: person.relationshipState,
+      identityLinks,
+      isOwner,
+      lastMessageAt,
+      conversationCount: identityLinks.reduce(
+        (sum, link) => sum + link.conversationCount,
+        0
+      ),
+      messageCount: identityLinks.reduce((sum, link) => sum + link.messageCount, 0),
+    };
+  });
+
+  summaries.sort((a, b) => {
+    if (a.isOwner !== b.isOwner) return a.isOwner ? -1 : 1;
+    const aTime =
+      a.lastMessageAt?.getTime() ??
+      a.relationship?.lastInteractionAt?.getTime() ??
+      a.person.updatedAt.getTime();
+    const bTime =
+      b.lastMessageAt?.getTime() ??
+      b.relationship?.lastInteractionAt?.getTime() ??
+      b.person.updatedAt.getTime();
+    return bTime - aTime;
+  });
+
+  return summaries.slice(0, clampLimit(input.limit, 80));
+}
+
+async function getConversationPersonDetail(personId: string, conversationLimit: number) {
+  const person = await prisma.personIdentity.findUniqueOrThrow({
+    where: { id: personId },
+    include: {
+      relationshipState: true,
+      identityLinks: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              externalId: true,
+              displayName: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+
+  const userIds = person.identityLinks.map((link) => link.userId);
+  const conversations = userIds.length
+    ? await prisma.conversation.findMany({
+        where: { userId: { in: userIds } },
+        orderBy: { createdAt: "desc" },
+        take: clampLimit(conversationLimit, 80),
+        select: {
+          id: true,
+          userId: true,
+          channel: true,
+          externalConversationId: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { role: true, content: true, createdAt: true },
+          },
+        },
+      })
+    : [];
+
+  const conversationsByUser = new Map<string, typeof conversations>();
+  for (const conversation of conversations) {
+    const list = conversationsByUser.get(conversation.userId) ?? [];
+    list.push(conversation);
+    conversationsByUser.set(conversation.userId, list);
+  }
+
+  const users = person.identityLinks.map((link) => {
+    const userConversations = conversationsByUser.get(link.userId) ?? [];
+    userConversations.sort((a, b) => {
+      const aLatest = latestConversationMessage(a)?.createdAt ?? a.createdAt;
+      const bLatest = latestConversationMessage(b)?.createdAt ?? b.createdAt;
+      return bLatest.getTime() - aLatest.getTime();
+    });
+    return {
+      link: {
+        id: link.id,
+        personId: link.personId,
+        userId: link.userId,
+        source: link.source,
+        verifiedBy: link.verifiedBy,
+        createdAt: link.createdAt,
+      },
+      user: link.user,
+      isOwner: isOwnerExternalId(link.user.externalId),
+      conversations: userConversations.map((conversation) => {
+        const latest = latestConversationMessage(conversation);
+        return {
+          id: conversation.id,
+          userId: conversation.userId,
+          channel: conversation.channel,
+          externalConversationId: conversation.externalConversationId,
+          metadata: conversation.metadata,
+          createdAt: conversation.createdAt,
+          updatedAt: conversation.updatedAt,
+          messageCount: conversation._count.messages,
+          lastMessageAt: latest?.createdAt ?? null,
+          lastMessageRole: latest?.role ?? null,
+          lastMessagePreview: latest ? messagePreview(latest.content) : null,
+        };
+      }),
+    };
+  });
+
+  users.sort((a, b) => {
+    if (a.isOwner !== b.isOwner) return a.isOwner ? -1 : 1;
+    return a.user.externalId.localeCompare(b.user.externalId);
+  });
+
+  const lastMessageAt =
+    users
+      .flatMap((user) => user.conversations.map((conversation) => conversation.lastMessageAt))
+      .filter((value): value is Date => Boolean(value))
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+
+  return {
+    person: {
+      id: person.id,
+      label: person.label,
+      note: person.note,
+      createdAt: person.createdAt,
+      updatedAt: person.updatedAt,
+    },
+    relationship: person.relationshipState,
+    isOwner: users.some((user) => user.isOwner),
+    lastMessageAt,
+    users,
+  };
+}
+
+async function getConversationMessages(conversationId: string, limit: number) {
+  const conversation = await prisma.conversation.findUniqueOrThrow({
+    where: { id: conversationId },
+    include: {
+      user: {
+        select: { id: true, externalId: true, displayName: true },
+      },
+    },
+  });
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: "desc" },
+    take: clampLimit(limit, 120),
+  });
+  return {
+    conversation,
+    messages: messages.reverse(),
+  };
+}
+
 function shouldRegenerateEmbedding(data: Prisma.MemoryUpdateInput): boolean {
   return Boolean(
     data.content !== undefined ||
@@ -1085,6 +1398,35 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       events,
       runtimeEvents,
     });
+  });
+
+  app.get("/v1/admin/conversation-people", async (request, reply) => {
+    const query = request.query as { limit?: string; q?: string };
+    const people = await listConversationPeople({
+      query: query.q,
+      limit: clampLimit(query.limit, 80),
+    });
+    return reply.send({ people });
+  });
+
+  app.get("/v1/admin/conversation-people/:personId", async (request, reply) => {
+    const { personId } = request.params as { personId: string };
+    const query = request.query as { conversationLimit?: string };
+    const detail = await getConversationPersonDetail(
+      personId,
+      clampLimit(query.conversationLimit, 80)
+    );
+    return reply.send(detail);
+  });
+
+  app.get("/v1/admin/conversations/:conversationId/messages", async (request, reply) => {
+    const { conversationId } = request.params as { conversationId: string };
+    const query = request.query as { limit?: string };
+    const detail = await getConversationMessages(
+      conversationId,
+      clampLimit(query.limit, 120)
+    );
+    return reply.send(detail);
   });
 
   app.get("/v1/admin/relationships", async (request, reply) => {

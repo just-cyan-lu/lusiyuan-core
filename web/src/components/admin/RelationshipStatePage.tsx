@@ -17,6 +17,8 @@ import { StateChangeDetail } from "./StateChangeDetail";
 
 interface RelationshipStatePageProps {
   adminToken: string;
+  selectedRelationshipId?: string;
+  onOpenConversationPerson?: (personId: string) => void;
 }
 
 interface PageState {
@@ -159,7 +161,11 @@ const relationshipFieldLabels: Record<string, string> = {
   reason: "原因",
 };
 
-export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps) {
+export function RelationshipStatePage({
+  adminToken,
+  selectedRelationshipId,
+  onOpenConversationPerson,
+}: RelationshipStatePageProps) {
   const [query, setQuery] = useState("");
   const [linkUserId, setLinkUserId] = useState("");
   const [form, setForm] = useState<RelationshipForm | null>(null);
@@ -265,9 +271,9 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
   }
 
   useEffect(() => {
-    void loadList("");
+    void loadList("", selectedRelationshipId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminToken]);
+  }, [adminToken, selectedRelationshipId]);
 
   useEffect(() => {
     setSelectedEventId((current) =>
@@ -675,8 +681,21 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
                     ))}
                   </div>
                 </div>
-                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
-                  {pageState.selected.relationshipLabel}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (pageState.selected?.personId) {
+                        onOpenConversationPerson?.(pageState.selected.personId);
+                      }
+                    }}
+                    className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
+                  >
+                    查看对话记录
+                  </button>
+                  <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
+                    {pageState.selected.relationshipLabel}
+                  </div>
                 </div>
               </div>
 
