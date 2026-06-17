@@ -1,5 +1,6 @@
-import { Prisma, type RelationshipState } from "@prisma/client";
+import { Prisma, type RelationshipState, type RelationshipStateEvent } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
+import { env } from "../utils/env.js";
 
 export interface RelationshipStatePatch {
   relationshipLabel?: string;
@@ -64,6 +65,21 @@ interface IdentityCandidateMatch {
   matchedTerms: string[];
   targetUserId?: string;
 }
+
+interface RelationshipSignalDelta {
+  familiarity: number;
+  trust: number;
+  closeness: number;
+  tension: number;
+}
+
+const relationshipMutationEventTypes = [
+  "chat_relationship_update",
+  "relationship_review_update",
+  "manual_update",
+  "reset",
+  "identity_merge",
+] as const;
 
 const defaultRelationshipState = {
   relationshipLabel: "刚认识",
@@ -183,6 +199,173 @@ function summarizePatch(patch: RelationshipStatePatch): string {
     patch.tension !== undefined ? `张力 ${patch.tension}` : "",
   ].filter(Boolean);
   return parts.length > 0 ? parts.join("；") : "关系状态已更新。";
+}
+
+function patchToJson(patch: RelationshipStatePatch): Prisma.InputJsonObject {
+  const json: Record<string, Prisma.InputJsonValue | null> = {};
+  if (patch.relationshipLabel !== undefined) json.relationshipLabel = patch.relationshipLabel;
+  if (patch.familiarity !== undefined) json.familiarity = patch.familiarity;
+  if (patch.trust !== undefined) json.trust = patch.trust;
+  if (patch.closeness !== undefined) json.closeness = patch.closeness;
+  if (patch.tension !== undefined) json.tension = patch.tension;
+  if (patch.interactionStyle !== undefined) json.interactionStyle = patch.interactionStyle;
+  if (patch.summary !== undefined) json.summary = patch.summary;
+  if (patch.recentSignal !== undefined) json.recentSignal = patch.recentSignal;
+  if (patch.statusNote !== undefined) json.statusNote = patch.statusNote;
+  if (patch.metadata !== undefined) {
+    json.metadata =
+      patch.metadata === Prisma.JsonNull || patch.metadata === Prisma.DbNull
+        ? null
+        : (patch.metadata as Prisma.InputJsonValue);
+  }
+  if (patch.lastInteractionAt !== undefined) {
+    json.lastInteractionAt = patch.lastInteractionAt?.toISOString() ?? null;
+  }
+  return json as Prisma.InputJsonObject;
+}
+
+function deltasFromPatch(
+  state: RelationshipState,
+  patch: RelationshipStatePatch
+): RelationshipSignalDelta {
+  return {
+    familiarity: (patch.familiarity ?? state.familiarity) - state.familiarity,
+    trust: (patch.trust ?? state.trust) - state.trust,
+    closeness: (patch.closeness ?? state.closeness) - state.closeness,
+    tension: (patch.tension ?? state.tension) - state.tension,
+  };
+}
+
+function readNumber(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readSignalDelta(event: RelationshipStateEvent): RelationshipSignalDelta {
+  const patch = readRecord(event.patch);
+  const deltas = readRecord(patch.deltas);
+  return {
+    familiarity: readNumber(deltas.familiarity),
+    trust: readNumber(deltas.trust),
+    closeness: readNumber(deltas.closeness),
+    tension: readNumber(deltas.tension),
+  };
+}
+
+function clampDelta(value: number, maxDown: number, maxUp: number): number {
+  return clampInt(value, -Math.abs(maxDown), Math.abs(maxUp));
+}
+
+function weightedSignalDelta(event: RelationshipStateEvent): RelationshipSignalDelta {
+  const delta = readSignalDelta(event);
+  const weight = event.source?.startsWith("owner_") ? 1.25 : 1;
+  return {
+    familiarity: delta.familiarity * weight,
+    trust: delta.trust * weight,
+    closeness: delta.closeness * weight,
+    tension: delta.tension * weight,
+  };
+}
+
+function classifyRelationshipSignals(events: RelationshipStateEvent[]) {
+  const joined = events.map((event) => event.summary).join("\n");
+  return {
+    positive: (joined.match(/正向反馈|轻松|修复|稳定协作|谢谢|开心/g) ?? []).length,
+    vulnerable: (joined.match(/脆弱|压力|焦虑|难过|陪伴/g) ?? []).length,
+    boundary: (joined.match(/边界|控制|张力|服从|不许/g) ?? []).length,
+    collaboration: (joined.match(/协作|项目|设计|实现|架构/g) ?? []).length,
+  };
+}
+
+function reviewSignalDescription(counts: ReturnType<typeof classifyRelationshipSignals>): {
+  recentSignal: string;
+  interactionStyle: string;
+} {
+  if (counts.boundary >= 2) {
+    return {
+      recentSignal: "最近多次出现边界或控制相关张力，关系需要放慢，不要急着亲近。",
+      interactionStyle: "温和但更有边界，减少迎合，先稳定节奏和清晰表达。",
+    };
+  }
+  if (counts.vulnerable >= 2) {
+    return {
+      recentSignal: "最近多次出现脆弱或压力表达，对方更愿意暴露真实状态。",
+      interactionStyle: "先接住情绪，少讲大道理，回应要稳定、细致、不过度热情。",
+    };
+  }
+  if (counts.collaboration >= 2) {
+    return {
+      recentSignal: "最近多次进入稳定协作，关系里有共同推进事情的默契。",
+      interactionStyle: "偏协作模式，可以直接讨论结构、取舍和下一步，语气自然可靠。",
+    };
+  }
+  if (counts.positive >= 2) {
+    return {
+      recentSignal: "最近多次出现正向反馈，关系氛围更轻松。",
+      interactionStyle: "可以更自然一点，允许轻微玩笑和顺滑接话，但仍保持分寸。",
+    };
+  }
+  return {
+    recentSignal: "最近有连续互动，但信号还不强，关系稳定小幅累积。",
+    interactionStyle: "保持自然、礼貌和稳定，继续观察真实互动。",
+  };
+}
+
+export function deriveRelationshipReviewPatch(
+  state: RelationshipState,
+  events: RelationshipStateEvent[]
+): RelationshipStatePatch {
+  const totals = events.reduce<RelationshipSignalDelta>(
+    (acc, event) => {
+      const delta = weightedSignalDelta(event);
+      return {
+        familiarity: acc.familiarity + delta.familiarity,
+        trust: acc.trust + delta.trust,
+        closeness: acc.closeness + delta.closeness,
+        tension: acc.tension + delta.tension,
+      };
+    },
+    { familiarity: 0, trust: 0, closeness: 0, tension: 0 }
+  );
+  const bounded = {
+    familiarity: clampDelta(totals.familiarity, 4, 8),
+    trust: clampDelta(totals.trust, 8, 8),
+    closeness: clampDelta(totals.closeness, 6, 6),
+    tension: clampDelta(totals.tension, 8, 12),
+  };
+  const next = {
+    familiarity: clampInt(state.familiarity + bounded.familiarity, 0, 100),
+    trust: clampInt(state.trust + bounded.trust, 0, 100),
+    closeness: clampInt(state.closeness + bounded.closeness, 0, 100),
+    tension: clampInt(state.tension + bounded.tension, 0, 100),
+  };
+  const counts = classifyRelationshipSignals(events);
+  const description = reviewSignalDescription(counts);
+  const relationshipLabel = relationshipLabelFrom(next);
+  const newest = events.reduce<Date | null>(
+    (latest, event) => (latest && latest > event.createdAt ? latest : event.createdAt),
+    null
+  );
+
+  return {
+    ...next,
+    relationshipLabel,
+    interactionStyle: description.interactionStyle,
+    recentSignal: description.recentSignal,
+    summary: `最近 ${events.length} 次关系信号复盘后，关系判断为「${relationshipLabel}」。这次复盘不是被单句话触发，而是根据一段连续互动校准。`,
+    statusNote: "由关系复盘根据最近多次聊天信号更新；admin 可以手动修正。",
+    lastInteractionAt: newest,
+    metadata: metadataWith(state.metadata, {
+      lastRelationshipReview: {
+        at: new Date().toISOString(),
+        signalCount: events.length,
+        signalIds: events.map((event) => event.id),
+        deltas: bounded,
+        counts,
+        mode: "review_rules",
+      },
+    }),
+  };
 }
 
 function normalizeIdentityToken(value: string): string {
@@ -701,7 +884,7 @@ export const relationshipStateService = {
               eventType: "identity_merge",
               source,
               summary: "Admin 确认跨渠道同一人，合并关系状态。",
-              patch: patch as Prisma.InputJsonObject,
+              patch: patchToJson(patch),
               before: snapshotRelationshipState(target),
               after: snapshotRelationshipState(updatedTarget),
             },
@@ -836,11 +1019,116 @@ export const relationshipStateService = {
     });
   },
 
+  async listUnreviewedRelationshipSignals(relationshipId: string, limit = 50) {
+    const latestMutation = await prisma.relationshipStateEvent.findFirst({
+      where: {
+        relationshipStateId: relationshipId,
+        eventType: { in: Array.from(relationshipMutationEventTypes) },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return prisma.relationshipStateEvent.findMany({
+      where: {
+        relationshipStateId: relationshipId,
+        eventType: "chat_relationship_signal",
+        ...(latestMutation ? { createdAt: { gt: latestMutation.createdAt } } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      take: clampInt(limit, 1, 100),
+    });
+  },
+
+  async recordChatRelationshipSignal(input: {
+    state: RelationshipState;
+    turn: ObserveRelationshipTurnInput;
+    patch: RelationshipStatePatch;
+  }) {
+    const deltas = deltasFromPatch(input.state, input.patch);
+    const eventPatch: Prisma.InputJsonObject = {
+      proposedPatch: patchToJson(input.patch),
+      deltas: {
+        familiarity: deltas.familiarity,
+        trust: deltas.trust,
+        closeness: deltas.closeness,
+        tension: deltas.tension,
+      },
+      signal: {
+        mode: "review",
+        owner: Boolean(input.turn.isOwner),
+        userMessagePreview: cleanText(input.turn.userMessage, 120) ?? "",
+        assistantReplyPreview: cleanText(input.turn.assistantReply, 120) ?? "",
+      },
+    };
+
+    await prisma.relationshipStateEvent.create({
+      data: {
+        relationshipStateId: input.state.id,
+        personId: input.state.personId,
+        userId: input.turn.userId,
+        eventType: "chat_relationship_signal",
+        source: input.turn.isOwner ? "owner_chat_signal_rules" : "chat_signal_rules",
+        summary: `关系信号：${input.patch.recentSignal ?? summarizePatch(input.patch)}`,
+        patch: eventPatch,
+        before: snapshotRelationshipState(input.state),
+        after: snapshotRelationshipState(input.state),
+        conversationId: input.turn.conversationId,
+        messageId: input.turn.messageId,
+        channel: input.turn.channel,
+      },
+    });
+  },
+
+  async reviewRelationship(input: {
+    relationshipId: string;
+    source?: string;
+    limit?: number;
+  }): Promise<{
+    relationship: RelationshipState;
+    reviewed: boolean;
+    signalCount: number;
+    patch?: RelationshipStatePatch;
+  }> {
+    const state = await prisma.relationshipState.findUniqueOrThrow({
+      where: { id: input.relationshipId },
+    });
+    const signals = await this.listUnreviewedRelationshipSignals(
+      input.relationshipId,
+      input.limit ?? 50
+    );
+
+    if (signals.length === 0) {
+      return { relationship: state, reviewed: false, signalCount: 0 };
+    }
+
+    const patch = deriveRelationshipReviewPatch(state, signals);
+    const relationship = await this.applyPatch({
+      relationshipId: state.id,
+      patch,
+      eventType: "relationship_review_update",
+      source: input.source ?? "relationship_review_rules",
+      summary: summarizePatch(patch),
+    });
+
+    return { relationship, reviewed: true, signalCount: signals.length, patch };
+  },
+
+  async reviewRelationshipIfDue(relationshipId: string) {
+    const minSignals = clampInt(env.RELATIONSHIP_REVIEW_MIN_SIGNALS, 1, 50);
+    const signals = await this.listUnreviewedRelationshipSignals(relationshipId, minSignals);
+    if (signals.length < minSignals) return null;
+    return this.reviewRelationship({
+      relationshipId,
+      source: "relationship_review_rules",
+      limit: 50,
+    });
+  },
+
   async applyPatch(input: ApplyRelationshipPatchInput): Promise<RelationshipState> {
     const before = await prisma.relationshipState.findUniqueOrThrow({
       where: { id: input.relationshipId },
     });
-    const patchForEvent = input.patch as Prisma.InputJsonObject;
+    const patchForEvent = patchToJson(input.patch);
 
     return prisma.$transaction(async (tx) => {
       const updated = await tx.relationshipState.update({
@@ -870,6 +1158,12 @@ export const relationshipStateService = {
   async observeChatTurn(input: ObserveRelationshipTurnInput): Promise<void> {
     const state = await this.getOrCreate(input.userId);
     const patch = deriveRelationshipStatePatch(state, input);
+    if (env.RELATIONSHIP_UPDATE_MODE === "review") {
+      await this.recordChatRelationshipSignal({ state, turn: input, patch });
+      await this.reviewRelationshipIfDue(state.id);
+      return;
+    }
+
     await this.applyPatch({
       relationshipId: state.id,
       patch,

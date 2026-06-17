@@ -17,6 +17,7 @@
 2. `flows.md`：一条消息、一次工具调用、一次记忆更新是怎么走的。
 3. `data-map.md`：数据库里主要表分别代表什么。
 4. `runtime-lite-design.md`：正式版 Runtime Lite 设计，当前还没有完全实现。
+5. `runtime-feature-archive.md`：最近落地的运行态、关系状态、身份合并、admin 控制等功能归档。
 
 ## 更新规则
 
@@ -26,6 +27,7 @@
 - 改了调用链路：更新 `flows.md`。
 - 改了 Prisma 表或重要字段：更新 `data-map.md`。
 - 改了陆思源运行体、persona、状态系统：更新 `runtime-lite-design.md`。
+- 改了已落地的运行态、关系状态、身份合并、admin 控制：更新 `runtime-feature-archive.md`。
 - 如果只是修 bug、改 UI 样式、小范围重命名，通常不用更新这里。
 
 这个手册要保持短。它不是复制代码，而是告诉人“现在该去哪里看代码”。

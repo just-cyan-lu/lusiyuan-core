@@ -124,6 +124,14 @@ export const env = {
   MEMORY_VECTOR_INDEX_PROVIDER:
     process.env.MEMORY_VECTOR_INDEX_PROVIDER ?? "pgvector",
 
+  // Relationship state updates
+  RELATIONSHIP_UPDATE_MODE:
+    process.env.RELATIONSHIP_UPDATE_MODE === "immediate" ? "immediate" : "review",
+  RELATIONSHIP_REVIEW_MIN_SIGNALS: parseInt(
+    process.env.RELATIONSHIP_REVIEW_MIN_SIGNALS ?? "4",
+    10
+  ),
+
   // Tools
   TOOLS_ENABLED: process.env.TOOLS_ENABLED === "true",
   TOOLS_AUTO_EXECUTE_LOW_RISK:

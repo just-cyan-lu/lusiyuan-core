@@ -254,6 +254,15 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     type: "integer",
     min: 1,
   },
+  {
+    key: "RELATIONSHIP_UPDATE_MODE",
+    group: "关系状态",
+    label: "关系更新模式",
+    type: "select",
+    defaultValue: "review",
+    options: ["review", "immediate"],
+    description: "review=先记录多次聊天信号，再复盘更新；immediate=每轮聊天直接小幅更新。",
+  },
   ...[
     ["MEMORY_RETRIEVAL_ENABLED", "记忆检索启用", "功能"],
     ["TOOLS_ENABLED", "工具调用启用", "功能"],
@@ -294,6 +303,7 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["MEMORY_SEMANTIC_TOP_K", "Memory Semantic Top K", "记忆"],
     ["MEMORY_FINAL_TOP_K", "Memory Final Top K", "记忆"],
     ["MEMORY_MAX_TOTAL_CHARS", "Memory 最大字符", "记忆"],
+    ["RELATIONSHIP_REVIEW_MIN_SIGNALS", "关系复盘最小信号数", "关系状态"],
     ["TOOL_MAX_CALLS_PER_MESSAGE", "单条消息最大工具调用", "限制"],
     ["TOOL_TIMEOUT_MS", "工具超时 ms", "限制"],
     ["REFLECTION_DEFAULT_MESSAGE_LIMIT", "Reflection 默认消息数", "限制"],
@@ -1118,6 +1128,17 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   app.post("/v1/admin/relationships/:relationshipId/reset", async (request, reply) => {
     const { relationshipId } = request.params as { relationshipId: string };
     await relationshipStateService.reset(relationshipId, "admin");
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.post("/v1/admin/relationships/:relationshipId/review", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    await relationshipStateService.reviewRelationship({
+      relationshipId,
+      source: "admin_relationship_review",
+      limit: 50,
+    });
     const detail = await relationshipStateService.getDetail(relationshipId, 20);
     return reply.send(detail);
   });

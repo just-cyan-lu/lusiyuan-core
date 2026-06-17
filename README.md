@@ -176,7 +176,9 @@ Relationship State 是陆思源和某个现实身份之间的关系状态。
 
 它和 Runtime State 不一样。Runtime State 是“陆思源整体现在怎么样”；Relationship State 是“陆思源和这个人现在是什么关系”。
 
-普通聊天可以让程序直接小幅更新 Relationship State，不需要 admin 审核。admin 仍然可以在后台查看、修改和重置。
+普通聊天默认不会立刻改 Relationship State，而是先写入一条“关系信号”。当信号积累到一定数量，或 admin 手动点击复盘时，程序会把一段连续互动归纳成一次关系更新。旧的每轮聊天直接更新模式仍然保留，可以在配置里切换。
+
+admin 可以在后台查看、复盘、修改和重置关系状态。
 
 跨渠道身份不会自动确认。`telegram:123`、`weixin:abc`、`web:uuid` 默认是不同渠道账号；如果用户明确说自己是谁，或显示名很像已有身份，系统只会提交一条“身份怀疑”给 admin。只有 admin 审核通过后，才会共享同一个现实身份和同一份关系状态。
 
@@ -547,7 +549,7 @@ pnpm telegram:dev
 - `PersonIdentity` / `IdentityLink`：把多个渠道账号绑定到同一个现实身份。
 - `IdentityLinkProposal`：系统怀疑相似用户时写入的待审核提案，审核通过后才会合并。
 - `RelationshipState`：记录陆思源和每个现实身份之间的关系状态。
-- `RelationshipStateEvent`：记录关系状态每次为什么变化。
+- `RelationshipStateEvent`：记录关系信号和关系状态每次为什么变化。
 - 运行态更新策略：支持规则校准，也支持 LLM 提议 statePatch 后由程序校验写入；只在 owner、复盘、梦境、自启动和 admin 这些受控入口生效。
 - `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。
 - `web/src/components/admin/RelationshipStatePage.tsx`：admin 里的现实身份关系状态和身份怀疑审核页面。

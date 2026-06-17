@@ -83,14 +83,16 @@ LLM 可以提议状态变化，但不能直接改状态。
 
 陆思源面对某个用户时的关系状态。
 
-当前已实现第一版：每个现实身份一份 `RelationshipState`。普通聊天可以直接让程序小幅更新这份关系，不需要 admin 审核；admin 仍然可以手动修正、重置，或审核身份怀疑后把多个渠道账号绑定成同一个现实身份。
+当前已实现第一版：每个现实身份一份 `RelationshipState`。普通聊天默认先写 `chat_relationship_signal`，不直接改变最终关系；信号积累到阈值或 admin 手动点击复盘后，程序会写入一次 `relationship_review_update`。旧的每轮聊天直接更新模式还保留在配置里，方便测试和回退。
+
+admin 仍然可以手动修正、复盘、重置，或审核身份怀疑后把多个渠道账号绑定成同一个现实身份。
 
 它和 `RuntimeState` 的区别很重要：
 
 - `RuntimeState`：陆思源整体现在怎么样。
 - `RelationshipState`：陆思源和这个用户之间现在是什么关系。
 
-所以普通聊天不会乱改全局心情，但可以让“和这个人的熟悉度、信任度、亲近感、张力”慢慢变化。
+所以普通聊天不会乱改全局心情；关系也不是一句话一变，而是先沉淀信号，再按一段连续互动慢慢变化。
 
 可以包含：
 
@@ -168,7 +170,9 @@ LLM 生成回复
 ↓
 对于 RuntimeState：如果是普通聊天，到这里结束，等待复盘或梦境整理
 ↓
-同时按规则小幅更新 RelationshipState
+同时写 RelationshipStateEvent：chat_relationship_signal
+↓
+如果关系信号达到阈值，或 admin 手动复盘：更新 RelationshipState，并写 relationship_review_update
 ↓
 如果是 owner / reflection / dream / autonomy：必要时提议 statePatch
 ↓

@@ -6,6 +6,7 @@ import {
   fetchRelationships,
   linkRelationshipUser,
   rejectIdentityLinkProposal,
+  reviewRelationshipState,
   resetRelationshipState,
   updateRelationshipState,
   type IdentityLinkProposal,
@@ -127,7 +128,9 @@ function formFromRelationship(relationship: RelationshipState): RelationshipForm
 }
 
 function eventTypeLabel(type: string): string {
+  if (type === "chat_relationship_signal") return "关系信号";
   if (type === "chat_relationship_update") return "聊天更新";
+  if (type === "relationship_review_update") return "关系复盘";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
   if (type === "identity_merge") return "身份合并";
@@ -311,6 +314,34 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
     }
   }
 
+  async function reviewSelectedRelationship() {
+    if (!adminToken || !pageState.selected) return;
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail = await reviewRelationshipState({
+        token: adminToken,
+        relationshipId: pageState.selected.id,
+      });
+      setPageState((current) => ({
+        ...current,
+        relationships: current.relationships.map((relationship) =>
+          relationship.id === detail.relationship.id ? detail.relationship : relationship
+        ),
+        selected: detail.relationship,
+        events: detail.events,
+        saving: false,
+        message: "关系复盘已完成。",
+      }));
+      setForm(formFromRelationship(detail.relationship));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
   async function linkUserToSelectedPerson() {
     if (!adminToken || !pageState.selected || !linkUserId.trim()) return;
     setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
@@ -392,7 +423,7 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
             <div className="text-xs font-semibold text-[#8a6f5a]">Relationship State</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">关系状态</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              每个现实身份一份关系状态。程序会在聊天后直接小幅更新关系，也会把疑似同一人的线索提交给 admin 审核。
+              每个现实身份一份关系状态。聊天会先沉淀成关系信号，复盘后再更新关系；疑似同一人的线索会提交给 admin 审核。
             </p>
           </div>
 
@@ -411,6 +442,14 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
               className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
             >
               {pageState.saving ? "保存中" : "保存"}
+            </button>
+            <button
+              type="button"
+              disabled={!pageState.selected || pageState.saving}
+              onClick={() => void reviewSelectedRelationship()}
+              className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              复盘
             </button>
             <button
               type="button"
