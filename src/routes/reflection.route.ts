@@ -128,6 +128,12 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
     const query = request.query as {
       user_id?: string;
       status?: string;
+      risk_level?: string;
+      proposal_type?: string;
+      scope?: string;
+      type?: string;
+      report_id?: string;
+      q?: string;
       limit?: string;
       from?: string;
       to?: string;
@@ -135,6 +141,13 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
 
     const proposals = await reflectionProposalService.listProposals({
       status: query.status,
+      reportId: query.report_id,
+      userId: query.user_id,
+      riskLevel: query.risk_level,
+      proposalType: query.proposal_type,
+      scope: query.scope,
+      type: query.type,
+      query: query.q,
       limit: parseLimit(query.limit, 50),
       from: parseDate(query.from),
       to: parseDate(query.to),

@@ -52,14 +52,44 @@ export class ReflectionProposalService {
   async listProposals(opts: {
     status?: string;
     reportId?: string;
+    userId?: string;
+    riskLevel?: string;
+    proposalType?: string;
+    scope?: string;
+    type?: string;
+    query?: string;
     limit?: number;
     from?: Date;
     to?: Date;
   } = {}): Promise<MemoryProposal[]> {
+    const q = opts.query?.trim();
     return prisma.memoryProposal.findMany({
       where: {
-        ...(opts.status ? { status: opts.status } : {}),
+        ...(opts.status && opts.status !== "all" ? { status: opts.status } : {}),
         ...(opts.reportId ? { reportId: opts.reportId } : {}),
+        ...(opts.userId ? { userId: opts.userId } : {}),
+        ...(opts.riskLevel && opts.riskLevel !== "all" ? { riskLevel: opts.riskLevel } : {}),
+        ...(opts.proposalType && opts.proposalType !== "all"
+          ? { proposalType: opts.proposalType }
+          : {}),
+        ...(opts.scope && opts.scope !== "all" ? { scope: opts.scope } : {}),
+        ...(opts.type && opts.type !== "all" ? { type: opts.type } : {}),
+        ...(q
+          ? {
+              OR: [
+                { id: { contains: q, mode: "insensitive" } },
+                { reportId: { contains: q, mode: "insensitive" } },
+                { userId: { contains: q, mode: "insensitive" } },
+                { content: { contains: q, mode: "insensitive" } },
+                { summary: { contains: q, mode: "insensitive" } },
+                { reason: { contains: q, mode: "insensitive" } },
+                { targetMemoryId: { contains: q, mode: "insensitive" } },
+                { appliedMemoryId: { contains: q, mode: "insensitive" } },
+                { conversationId: { contains: q, mode: "insensitive" } },
+                { channel: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
         ...(opts.from || opts.to
           ? { createdAt: { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lte: opts.to } : {}) } }
           : {}),

@@ -1047,12 +1047,28 @@ export async function archiveAdminMemory(input: {
 export async function fetchMemoryProposals(input: {
   token: string;
   status?: string;
+  riskLevel?: string;
+  proposalType?: string;
+  scope?: string;
+  type?: string;
+  userId?: string;
+  reportId?: string;
+  query?: string;
   from?: string;
   to?: string;
   limit?: number;
 }): Promise<MemoryProposal[]> {
   const params = new URLSearchParams();
   if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.riskLevel && input.riskLevel !== "all") params.set("risk_level", input.riskLevel);
+  if (input.proposalType && input.proposalType !== "all") {
+    params.set("proposal_type", input.proposalType);
+  }
+  if (input.scope && input.scope !== "all") params.set("scope", input.scope);
+  if (input.type && input.type !== "all") params.set("type", input.type);
+  if (input.userId) params.set("user_id", input.userId);
+  if (input.reportId) params.set("report_id", input.reportId);
+  if (input.query) params.set("q", input.query);
   if (input.from) params.set("from", input.from);
   if (input.to) params.set("to", input.to);
   if (input.limit) params.set("limit", String(input.limit));

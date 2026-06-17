@@ -26,6 +26,7 @@ type MemoryActivityMetric = "count" | "importance";
 
 interface MemoryLibraryPageProps {
   adminToken: string;
+  focusMemoryId?: string | null;
 }
 
 interface MemoryFormState {
@@ -275,12 +276,14 @@ function mergeTypes(existing: string[], memories: AdminMemory[]): string[] {
   return Array.from(next).sort();
 }
 
-export function MemoryLibraryPage({ adminToken }: MemoryLibraryPageProps) {
-  const [statusFilter, setStatusFilter] = useState<MemoryStatusFilter>("active");
+export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPageProps) {
+  const [statusFilter, setStatusFilter] = useState<MemoryStatusFilter>(
+    focusMemoryId ? "all" : "active"
+  );
   const [scopeFilter, setScopeFilter] = useState<MemoryScopeFilter>("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(focusMemoryId ?? "");
   const [datePreset, setDatePreset] = useState<MemoryDatePreset>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
