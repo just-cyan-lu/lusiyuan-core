@@ -1,4 +1,12 @@
-import type { ReactNode } from "react";
+import {
+  DetailInfoLine,
+  RawJsonDetails,
+} from "./AdminDetailPrimitives";
+import {
+  formatAdminDate,
+  isRecord,
+  readableValue,
+} from "./admin-detail-utils";
 
 export interface StateChangeEventLike {
   id: string;
@@ -67,15 +75,15 @@ export function StateChangeDetail({
           <p className="mt-2 text-sm leading-7 text-[#334155]">{event.summary}</p>
         </div>
         <div className="rounded-full border border-[#c9d6e5] bg-white px-3 py-1 text-xs text-[#66758a]">
-          {formatDate(event.createdAt)}
+          {formatAdminDate(event.createdAt)}
         </div>
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-2">
-        <InfoLine label="来源" value={event.source ?? "unknown"} />
-        <InfoLine label="渠道" value={event.channel ?? "暂无"} />
-        <InfoLine label="用户" value={event.userId ?? "暂无"} />
-        <InfoLine label="会话" value={event.conversationId ?? "暂无"} />
+        <DetailInfoLine label="来源" value={event.source ?? "unknown"} />
+        <DetailInfoLine label="渠道" value={event.channel ?? "暂无"} />
+        <DetailInfoLine label="用户" value={event.userId ?? "暂无"} />
+        <DetailInfoLine label="会话" value={event.conversationId ?? "暂无"} />
       </div>
 
       <section className="mt-5">
@@ -105,7 +113,7 @@ export function StateChangeDetail({
         {patchEntries.length > 0 ? (
           <div className="mt-3 grid gap-2">
             {patchEntries.map((entry) => (
-              <InfoLine key={entry.key} label={entry.label} value={entry.value} />
+              <DetailInfoLine key={entry.key} label={entry.label} value={entry.value} />
             ))}
           </div>
         ) : (
@@ -116,14 +124,14 @@ export function StateChangeDetail({
       </section>
 
       <div className="mt-5 grid gap-3">
-        <RawDetails title="原始 patch" value={event.patch} />
-        <RawDetails title="变化前快照" value={event.before} />
-        <RawDetails title="变化后快照" value={event.after} />
+        <RawJsonDetails title="原始 patch" value={event.patch} />
+        <RawJsonDetails title="变化前快照" value={event.before} />
+        <RawJsonDetails title="变化后快照" value={event.after} />
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-2">
-        <InfoLine label="事件 ID" value={event.id} />
-        <InfoLine label="消息 ID" value={event.messageId ?? "暂无"} />
+        <DetailInfoLine label="事件 ID" value={event.id} />
+        <DetailInfoLine label="消息 ID" value={event.messageId ?? "暂无"} />
       </div>
     </div>
   );
@@ -174,15 +182,6 @@ function patchFieldLabel(key: string): string {
   return labels[key] ?? key;
 }
 
-function InfoLine({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="min-w-0 rounded-lg border border-[#d9e2ec] bg-white px-3 py-2">
-      <div className="text-[11px] font-semibold text-[#7b8ca2]">{label}</div>
-      <div className="mt-1 break-words text-sm leading-6 text-[#334155]">{value}</div>
-    </div>
-  );
-}
-
 function ValueBox({
   label,
   value,
@@ -195,44 +194,15 @@ function ValueBox({
   return (
     <div>
       <div className="text-[11px] font-semibold text-[#9aa8b8]">{label}</div>
-      <div className={`mt-1 break-words text-sm leading-6 ${strong ? "text-[#172033]" : "text-[#66758a]"}`}>
+      <div
+        className={`mt-1 break-words text-sm leading-6 ${
+          strong ? "text-[#172033]" : "text-[#66758a]"
+        }`}
+      >
         {readableValue(value)}
       </div>
     </div>
   );
-}
-
-function RawDetails({ title, value }: { title: string; value: unknown }) {
-  return (
-    <details className="rounded-lg border border-[#d9e2ec] bg-white">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[#334155]">
-        {title}
-      </summary>
-      <pre className="max-h-80 overflow-auto border-t border-[#edf2f7] px-4 py-3 text-xs leading-5 text-[#334155]">
-        {jsonText(value)}
-      </pre>
-    </details>
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function readableValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "暂无";
-  if (typeof value === "boolean") return value ? "是" : "否";
-  if (typeof value === "number") return String(value);
-  if (typeof value === "string") return value;
-  return jsonText(value);
-}
-
-function jsonText(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2) ?? "暂无";
-  } catch {
-    return String(value);
-  }
 }
 
 function stableStringify(value: unknown): string {
@@ -242,11 +212,4 @@ function stableStringify(value: unknown): string {
     sorted[key] = value[key];
   }
   return JSON.stringify(sorted);
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "暂无";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
 }

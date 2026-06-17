@@ -194,9 +194,12 @@ admin 可以：
 admin 里已经有几块和持续性主体相关的页面：
 
 - 运行态页面：看心情、精力、压力、社交电量、当前目标、最近事件，也能手动调整和触发自启动检查。
+- 运行事件解释：运行态页里的运行事件可以点开，看这件事是什么、有没有资格影响长期状态，以及最近是否找到对应状态写入。
 - 关系页面：看每个现实身份的关系状态、关系事件、身份怀疑，能手动复盘、绑定渠道账号、修改和重置关系。
 - 状态变化解释：运行态和关系页里的变更记录可以点开，看这次为什么写入、变化前后差异、程序准备写入的内容和原始记录。
 - 配置中心：能编辑部分 `.env` 配置，也有开发期清空数据库业务数据的入口。
+
+这里有一个分工：运行事件解释只看“发生了什么、能不能影响状态”；状态变化解释只看“最终写入后，状态实际改了什么”。不要把这两块做成重复功能。
 
 **为什么这样做**
 
@@ -205,8 +208,10 @@ admin 里已经有几块和持续性主体相关的页面：
 **以后要改看哪里**
 
 - `web/src/components/admin/RuntimeStatePage.tsx`
+- `web/src/components/admin/RuntimeEventDetail.tsx`
 - `web/src/components/admin/RelationshipStatePage.tsx`
 - `web/src/components/admin/StateChangeDetail.tsx`
+- `web/src/components/admin/AdminDetailPrimitives.tsx`
 - `web/src/components/admin/ConfigCenterPage.tsx`
 - `src/routes/admin.route.ts`
 

@@ -8,6 +8,7 @@ import {
   type RuntimeState,
   type RuntimeStateEvent,
 } from "../../api/lusiyuan-api";
+import { RuntimeEventDetail } from "./RuntimeEventDetail";
 import { StateChangeDetail } from "./StateChangeDetail";
 import { StatusPill } from "./StatusPill";
 
@@ -177,6 +178,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     message: null,
   });
   const [form, setForm] = useState<RuntimeFormState | null>(null);
+  const [selectedRuntimeEventId, setSelectedRuntimeEventId] = useState<string | null>(null);
   const [selectedStateEventId, setSelectedStateEventId] = useState<string | null>(null);
 
   async function loadState() {
@@ -270,6 +272,14 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     );
   }, [pageState.events]);
 
+  useEffect(() => {
+    setSelectedRuntimeEventId((current) =>
+      pageState.runtimeEvents.find((event) => event.id === current)?.id ??
+      pageState.runtimeEvents[0]?.id ??
+      null
+    );
+  }, [pageState.runtimeEvents]);
+
   const dirty = useMemo(() => {
     if (!pageState.state || !form) return false;
     return JSON.stringify(formFromState(pageState.state)) !== JSON.stringify(form);
@@ -281,6 +291,14 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       pageState.events[0] ??
       null,
     [pageState.events, selectedStateEventId]
+  );
+
+  const selectedRuntimeEvent = useMemo(
+    () =>
+      pageState.runtimeEvents.find((event) => event.id === selectedRuntimeEventId) ??
+      pageState.runtimeEvents[0] ??
+      null,
+    [pageState.runtimeEvents, selectedRuntimeEventId]
   );
 
   async function saveState() {
@@ -651,36 +669,57 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-semibold text-[#172033]">运行事件</h3>
-                <p className="mt-1 text-xs text-[#7b8ca2]">最近 12 条经历和观察，普通聊天会记录在这里</p>
+                <p className="mt-1 text-xs text-[#7b8ca2]">
+                  最近 12 条经历和观察；点开一条可以看它是否有资格影响长期状态。
+                </p>
               </div>
             </div>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               {pageState.runtimeEvents.length > 0 ? (
-                pageState.runtimeEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="grid gap-3 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 md:grid-cols-[9rem_1fr_7rem_11rem]"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-[#172033]">
-                        {runtimeEventTypeLabel(event.eventType)}
-                      </div>
-                      <div className="mt-1 text-xs text-[#7b8ca2]">
-                        {event.source ?? "unknown"}
-                      </div>
-                    </div>
-                    <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
-                    <div className="text-xs leading-6 text-[#7b8ca2]">
-                      <div>{event.topic ?? "暂无主题"}</div>
-                      <div>重要度 {event.importance}</div>
-                    </div>
-                    <div className="text-xs text-[#7b8ca2] md:text-right">
-                      {formatDate(event.createdAt)}
-                    </div>
+                <>
+                  <div className="grid gap-3 self-start">
+                    {pageState.runtimeEvents.map((event) => {
+                      const active = selectedRuntimeEvent?.id === event.id;
+                      return (
+                        <button
+                          key={event.id}
+                          type="button"
+                          onClick={() => setSelectedRuntimeEventId(event.id)}
+                          className={`grid gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_7rem_11rem] ${
+                            active
+                              ? "border-[#a9bfd7] bg-[#eaf2fb]"
+                              : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
+                          }`}
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-[#172033]">
+                              {runtimeEventTypeLabel(event.eventType)}
+                            </div>
+                            <div className="mt-1 text-xs text-[#7b8ca2]">
+                              {event.source ?? "unknown"}
+                            </div>
+                          </div>
+                          <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
+                          <div className="text-xs leading-6 text-[#7b8ca2]">
+                            <div>{event.topic ?? "暂无主题"}</div>
+                            <div>重要度 {event.importance}</div>
+                          </div>
+                          <div className="text-xs text-[#7b8ca2] md:text-right">
+                            {formatDate(event.createdAt)}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                ))
+                  <RuntimeEventDetail
+                    event={selectedRuntimeEvent}
+                    stateEvents={pageState.events}
+                    runtimeEventTypeLabel={runtimeEventTypeLabel}
+                    stateEventTypeLabel={eventTypeLabel}
+                  />
+                </>
               ) : (
-                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
                   暂无运行事件。
                 </div>
               )}
