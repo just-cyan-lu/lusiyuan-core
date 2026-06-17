@@ -107,10 +107,39 @@ export interface RuntimeEvent {
   createdAt: string;
 }
 
+export interface RuntimeSourceMessage {
+  id: string;
+  conversationId: string;
+  role: string;
+  content: string;
+  externalMessageId: string | null;
+  isIntermediate: boolean;
+  metadata: unknown;
+  createdAt: string;
+  conversation: {
+    id: string;
+    channel: string;
+    externalConversationId: string;
+    user: {
+      id: string;
+      externalId: string;
+      displayName: string | null;
+    };
+  };
+}
+
 export interface RuntimeStateResponse {
   state: RuntimeState;
   events: RuntimeStateEvent[];
   runtimeEvents: RuntimeEvent[];
+}
+
+export interface RuntimeStateEventSourcesResponse {
+  event: RuntimeStateEvent;
+  runtimeEvents: RuntimeEvent[];
+  messages: RuntimeSourceMessage[];
+  missingRuntimeEventIds: string[];
+  missingMessageIds: string[];
 }
 
 export interface RelationshipUser {
@@ -659,6 +688,22 @@ export async function fetchRuntimeState(token: string): Promise<RuntimeStateResp
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeStateResponse>(response, "无法读取陆思源运行态");
+}
+
+export async function fetchRuntimeStateEventSources(
+  token: string,
+  eventId: string
+): Promise<RuntimeStateEventSourcesResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/runtime/state/events/${encodeURIComponent(eventId)}/sources`,
+    {
+      headers: adminHeaders(token),
+    }
+  );
+  return parseJsonResponse<RuntimeStateEventSourcesResponse>(
+    response,
+    "无法读取状态变更来源"
+  );
 }
 
 export async function updateRuntimeState(

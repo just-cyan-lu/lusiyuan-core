@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  fetchRuntimeStateEventSources,
   fetchRuntimeState,
   resetRuntimeState,
   runRuntimeAutonomyTick,
@@ -7,9 +8,11 @@ import {
   type RuntimeEvent,
   type RuntimeState,
   type RuntimeStateEvent,
+  type RuntimeStateEventSourcesResponse,
 } from "../../api/lusiyuan-api";
 import { RuntimeEventDetail } from "./RuntimeEventDetail";
 import { StateChangeDetail } from "./StateChangeDetail";
+import { RuntimeStateSourceMaterials } from "./RuntimeStateSourceMaterials";
 import { StatusPill } from "./StatusPill";
 
 interface RuntimeStatePageProps {
@@ -20,6 +23,9 @@ interface RuntimePageState {
   state: RuntimeState | null;
   events: RuntimeStateEvent[];
   runtimeEvents: RuntimeEvent[];
+  sourceDetail: RuntimeStateEventSourcesResponse | null;
+  sourceLoading: boolean;
+  sourceError: string | null;
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -172,6 +178,9 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     state: null,
     events: [],
     runtimeEvents: [],
+    sourceDetail: null,
+    sourceLoading: false,
+    sourceError: null,
     loading: false,
     saving: false,
     error: null,
@@ -187,6 +196,9 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         state: null,
         events: [],
         runtimeEvents: [],
+        sourceDetail: null,
+        sourceLoading: false,
+        sourceError: null,
         loading: false,
         saving: false,
         error: null,
@@ -226,6 +238,9 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           state: null,
           events: [],
           runtimeEvents: [],
+          sourceDetail: null,
+          sourceLoading: false,
+          sourceError: null,
           loading: false,
           saving: false,
           error: null,
@@ -279,6 +294,50 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       null
     );
   }, [pageState.runtimeEvents]);
+
+  useEffect(() => {
+    if (!adminToken || !selectedStateEventId) {
+      setPageState((current) => ({
+        ...current,
+        sourceDetail: null,
+        sourceLoading: false,
+        sourceError: null,
+      }));
+      return;
+    }
+
+    let cancelled = false;
+    setPageState((current) => ({
+      ...current,
+      sourceDetail: null,
+      sourceLoading: true,
+      sourceError: null,
+    }));
+
+    fetchRuntimeStateEventSources(adminToken, selectedStateEventId)
+      .then((detail) => {
+        if (cancelled) return;
+        setPageState((current) => ({
+          ...current,
+          sourceDetail: detail,
+          sourceLoading: false,
+          sourceError: null,
+        }));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPageState((current) => ({
+          ...current,
+          sourceDetail: null,
+          sourceLoading: false,
+          sourceError: friendlyErrorMessage(error),
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminToken, selectedStateEventId]);
 
   const dirty = useMemo(() => {
     if (!pageState.state || !form) return false;
@@ -768,12 +827,20 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                       );
                     })}
                   </div>
-                  <StateChangeDetail
-                    event={selectedStateEvent}
-                    eventTypeLabel={eventTypeLabel}
-                    fieldLabels={runtimeFieldLabels}
-                    title="状态变化解释"
-                  />
+                  <div className="grid gap-4">
+                    <StateChangeDetail
+                      event={selectedStateEvent}
+                      eventTypeLabel={eventTypeLabel}
+                      fieldLabels={runtimeFieldLabels}
+                      title="状态变化解释"
+                    />
+                    <RuntimeStateSourceMaterials
+                      detail={pageState.sourceDetail}
+                      loading={pageState.sourceLoading}
+                      error={pageState.sourceError}
+                      runtimeEventTypeLabel={runtimeEventTypeLabel}
+                    />
+                  </div>
                 </>
               ) : (
                 <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">

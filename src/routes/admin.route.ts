@@ -1058,6 +1058,13 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send({ events });
   });
 
+  app.get("/v1/admin/runtime/state/events/:eventId/sources", async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const sources = await runtimeStateService.getEventSources(eventId);
+    if (!sources) throw routeError("Runtime state event not found", 404);
+    return reply.send(sources);
+  });
+
   app.get("/v1/admin/runtime/events", async (request, reply) => {
     const query = request.query as { limit?: string };
     const runtimeEvents = await runtimeStateService.listRuntimeEvents(
