@@ -111,7 +111,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 
 **是什么**
 
-工具是模型在回复过程中可以调用的外部能力，比如搜索记忆、读网页、生成草稿、查项目状态。
+工具是模型在回复过程中可以调用的外部能力，比如搜索记忆、读网页、查项目状态。
 
 **在哪里**
 
@@ -119,18 +119,6 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 - `src/tools/tool-executor.ts`：执行工具。
 - `src/tools/builtin/`：内置工具。
 - `src/tools/policy/`：工具权限和风险控制。
-
-## 草稿
-
-**是什么**
-
-草稿是“生成但不自动发送”的内容，比如回复草稿、文案草稿、脚本草稿。它需要人审核。
-
-**在哪里**
-
-- `src/drafts/`
-- `src/routes/drafts.route.ts`
-- `prisma/schema.prisma` 里的 `Draft`
 
 ## 外部信息读取
 
@@ -182,7 +170,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 
 **是什么**
 
-数据库保存用户、会话、消息、记忆、工具日志、草稿、Reflection、Dream、外部页面等。
+数据库保存用户、会话、消息、记忆、工具日志、Reflection、Dream、外部页面等。
 
 开发期清空测试数据走 admin 配置中心。它会清业务表，但保留 `.env`、persona、项目手册和 Prisma migration 记录。
 

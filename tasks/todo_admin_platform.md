@@ -16,7 +16,6 @@ Admin 平台需要对接的现有接口：
 | 模块 | 接口 |
 |------|------|
 | 记忆 | `GET /v1/users/:userId/memories` |
-| 草稿 | `GET /v1/drafts`、`GET /v1/drafts/:id`、`PATCH /v1/drafts/:id/status` |
 | 工具 | `GET /v1/tools`、`POST /v1/tools/:toolName/execute`、`GET /v1/tool-logs` |
 | 对话 | `GET /v1/conversations/:conversationId/messages` |
 | 渠道 | `GET /v1/channels/status` |
@@ -63,24 +62,18 @@ Admin 平台需要对接的现有接口：
 - [x] 查看 Dream Signal 列表（提取出的信号，带评分）
 - [x] 查看 Deep Sleep 整合结果（记忆提案、风险项、成长日志提案）
 
-### 5. 草稿管理
-
-- [ ] 列出所有草稿（按状态筛选：pending / approved / rejected）
-- [ ] 查看草稿详情
-- [ ] 更新草稿状态（approve / reject）
-
-### 6. 对话历史
+### 5. 对话历史
 
 - [ ] 列出用户列表
 - [ ] 查看某个用户的对话列表
 - [ ] 查看某个对话的消息记录
 
-### 7. 工具调用日志
+### 6. 工具调用日志
 
 - [ ] 查看 ToolCallLog 列表（按工具名、状态、时间筛选）
 - [ ] 查看单条日志详情（输入、输出、执行时长、是否被拦截）
 
-### 8. 渠道状态
+### 7. 渠道状态
 
 - [ ] 查看各渠道（Telegram、微信等）的连接状态
 
@@ -96,9 +89,9 @@ Admin 平台需要对接的现有接口：
 
 其次：
 
-4. 草稿管理
-5. 对话历史
-6. 工具调用日志
+4. 对话历史
+5. 工具调用日志
+6. 渠道状态
 
 ---
 
