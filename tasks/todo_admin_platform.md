@@ -5,6 +5,8 @@
 Core API 目前所有管理操作都只能通过 HTTP API 或 CLI 完成，没有图形界面。
 这份文档整理 Admin 平台需要覆盖的功能，作为前端仓库（lusiyuan-web）的规划参考。
 
+> 2026-06 更新：记忆库和记忆提案审核已经进入当前 admin。这里仍保留原始清单，但已实现项会标成完成。
+
 ---
 
 ## 已有的 API 基础
@@ -27,22 +29,22 @@ Admin 平台需要对接的现有接口：
 
 ### 1. 记忆管理
 
-- [ ] 列出某个用户的所有记忆（分页、按类型/重要度筛选）
-- [ ] 查看单条记忆详情（content、type、scope、importance、confidence、tags、entities、source）
-- [ ] 手动编辑记忆内容
-- [ ] 手动删除记忆
-- [ ] 手动新增记忆
+- [x] 列出记忆（按用户、状态、范围、类型、时间、关键词筛选）
+- [x] 查看单条记忆详情（content、type、scope、importance、confidence、tags、entities、source）
+- [x] 手动编辑记忆内容
+- [x] 手动归档记忆
+- [x] 手动新增记忆
 
 ### 2. 记忆提案审核
 
 > 目前只能 curl，是最迫切需要界面的功能
 
-- [ ] 列出待审核的 MemoryProposal（按 Reflection / Dream 来源分组）
-- [ ] 查看提案详情（proposalType、content、reason、confidence、riskLevel、sourceMessageIds）
-- [ ] 逐条批准 / 拒绝
-- [ ] 批准后一键 apply（写入 Memory 表）
-- [ ] 批量操作（全部批准、全部拒绝）
-- [ ] 查看已处理的历史提案
+- [x] 列出待审核的 MemoryProposal（可按状态、风险、类型、范围、关键词筛选）
+- [x] 查看提案详情（proposalType、content、reason、confidence、riskLevel、sourceMessageIds）
+- [x] 逐条批准 / 拒绝
+- [x] 批准后一键 apply（写入 Memory 表）
+- [x] 批量操作（当前筛选下批量批准、批量应用）
+- [x] 查看已处理的历史提案
 
 ### 3. Reflection
 

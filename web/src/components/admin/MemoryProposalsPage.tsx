@@ -12,10 +12,19 @@ import {
 import { StatusPill } from "./StatusPill";
 
 type ProposalStatusFilter = MemoryProposalStatus | "all";
-type ProposalAction = "approve" | "reject" | "apply" | "applyGlobal" | "revoke";
+type ProposalRiskFilter = "all" | "low" | "medium" | "high";
+type ProposalAction =
+  | "approve"
+  | "approveApply"
+  | "reject"
+  | "apply"
+  | "applyGlobal"
+  | "revoke";
+type ProposalBulkAction = "approvePending" | "applyApproved";
 
 interface MemoryProposalsPageProps {
   adminToken: string;
+  onOpenMemory?: (memoryId: string) => void;
 }
 
 const statusOptions: Array<{ value: ProposalStatusFilter; label: string }> = [
@@ -46,6 +55,23 @@ const riskLabels: Record<string, string> = {
   medium: "中风险",
   high: "高风险",
 };
+
+const riskOptions: Array<{ value: ProposalRiskFilter; label: string }> = [
+  { value: "all", label: "全部风险" },
+  { value: "low", label: "低风险" },
+  { value: "medium", label: "中风险" },
+  { value: "high", label: "高风险" },
+];
+
+const proposalTypeOptions = [
+  "all",
+  "create_memory",
+  "update_memory",
+  "supersede_memory",
+  "archive_memory",
+];
+
+const scopeOptions = ["all", "user", "global", "project"];
 
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -97,13 +123,18 @@ function toTextList(value: unknown): string[] {
 function isEnabledForAction(proposal: MemoryProposal | null, action: ProposalAction): boolean {
   if (!proposal) return false;
   if (action === "approve") return proposal.status === "pending";
+  if (action === "approveApply") return proposal.status === "pending";
   if (action === "reject") return proposal.status === "pending" || proposal.status === "approved";
   if (action === "apply" || action === "applyGlobal") return proposal.status === "approved";
   return proposal.status === "approved" || proposal.status === "applied";
 }
 
-export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
+export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposalsPageProps) {
   const [statusFilter, setStatusFilter] = useState<ProposalStatusFilter>("pending");
+  const [riskFilter, setRiskFilter] = useState<ProposalRiskFilter>("all");
+  const [proposalTypeFilter, setProposalTypeFilter] = useState("all");
+  const [scopeFilter, setScopeFilter] = useState("all");
+  const [query, setQuery] = useState("");
   const [proposals, setProposals] = useState<MemoryProposal[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -111,6 +142,7 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<ProposalAction | null>(null);
+  const [busyBulkAction, setBusyBulkAction] = useState<ProposalBulkAction | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const selectedProposal = useMemo(
@@ -129,9 +161,14 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
       const next = await fetchMemoryProposals({
         token: adminToken,
         status: statusFilter,
+        riskLevel: riskFilter,
+        proposalType: proposalTypeFilter,
+        scope: scopeFilter,
+        query: query.trim() || undefined,
         limit: 80,
       });
       setProposals(next);
+      setSelectedId((current) => next.find((proposal) => proposal.id === current)?.id ?? next[0]?.id ?? null);
     } catch (err) {
       setProposals([]);
       setError(friendlyErrorMessage(err));
@@ -152,10 +189,17 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
         const next = await fetchMemoryProposals({
           token: adminToken,
           status: statusFilter,
+          riskLevel: riskFilter,
+          proposalType: proposalTypeFilter,
+          scope: scopeFilter,
+          query: query.trim() || undefined,
           limit: 80,
         });
         if (!cancelled) {
           setProposals(next);
+          setSelectedId(
+            (current) => next.find((proposal) => proposal.id === current)?.id ?? next[0]?.id ?? null
+          );
           setError(null);
           setActionMessage(null);
           setActionError(null);
@@ -174,7 +218,7 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [adminToken, statusFilter]);
+  }, [adminToken, proposalTypeFilter, query, riskFilter, scopeFilter, statusFilter]);
 
   const statusSummary = useMemo(() => {
     return proposals.reduce<Record<string, number>>((acc, proposal) => {
@@ -191,32 +235,7 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
     setActionMessage(null);
 
     try {
-      const updated =
-        action === "approve"
-          ? await approveMemoryProposal({
-              token: adminToken,
-              proposalId: selectedProposal.id,
-            })
-          : action === "reject"
-            ? await rejectMemoryProposal({
-                token: adminToken,
-                proposalId: selectedProposal.id,
-                reason: rejectReason.trim() || undefined,
-              })
-            : action === "apply"
-              ? await applyMemoryProposal({
-                  token: adminToken,
-                  proposalId: selectedProposal.id,
-                })
-              : action === "applyGlobal"
-                ? await applyMemoryProposalGlobally({
-                    token: adminToken,
-                    proposalId: selectedProposal.id,
-                  })
-                : await revokeMemoryProposal({
-                    token: adminToken,
-                    proposalId: selectedProposal.id,
-                  });
+      const updated = await runSingleProposalAction(action, selectedProposal.id);
 
       setProposals((current) =>
         current.map((proposal) => (proposal.id === updated.id ? updated : proposal))
@@ -229,6 +248,80 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  async function runSingleProposalAction(
+    action: ProposalAction,
+    proposalId: string
+  ): Promise<MemoryProposal> {
+    if (action === "approve") {
+      return approveMemoryProposal({ token: adminToken, proposalId });
+    }
+    if (action === "approveApply") {
+      const approved = await approveMemoryProposal({ token: adminToken, proposalId });
+      return applyMemoryProposal({ token: adminToken, proposalId: approved.id });
+    }
+    if (action === "reject") {
+      return rejectMemoryProposal({
+        token: adminToken,
+        proposalId,
+        reason: rejectReason.trim() || undefined,
+      });
+    }
+    if (action === "apply") {
+      return applyMemoryProposal({ token: adminToken, proposalId });
+    }
+    if (action === "applyGlobal") {
+      return applyMemoryProposalGlobally({ token: adminToken, proposalId });
+    }
+    return revokeMemoryProposal({ token: adminToken, proposalId });
+  }
+
+  async function runBulkAction(action: ProposalBulkAction) {
+    if (!adminToken || busyBulkAction) return;
+    const targets = proposals.filter((proposal) =>
+      action === "approvePending" ? proposal.status === "pending" : proposal.status === "approved"
+    );
+    if (targets.length === 0) {
+      setActionError(action === "approvePending" ? "当前筛选下没有待批准提案。" : "当前筛选下没有已批准提案。");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      action === "approvePending"
+        ? `确认批准当前筛选下 ${targets.length} 条待审核提案吗？批准不会直接写入记忆。`
+        : `确认应用当前筛选下 ${targets.length} 条已批准提案到各自用户记忆吗？`
+    );
+    if (!confirmed) return;
+
+    setBusyBulkAction(action);
+    setActionError(null);
+    setActionMessage(null);
+
+    const updated: MemoryProposal[] = [];
+    const failed: string[] = [];
+    for (const proposal of targets) {
+      try {
+        const result =
+          action === "approvePending"
+            ? await approveMemoryProposal({ token: adminToken, proposalId: proposal.id })
+            : await applyMemoryProposal({ token: adminToken, proposalId: proposal.id });
+        updated.push(result);
+      } catch (err) {
+        failed.push(`${shortId(proposal.id)}: ${friendlyErrorMessage(err)}`);
+      }
+    }
+
+    setProposals((current) =>
+      current.map((proposal) => updated.find((item) => item.id === proposal.id) ?? proposal)
+    );
+    setActionMessage(
+      action === "approvePending"
+        ? `批量批准完成：成功 ${updated.length} 条，失败 ${failed.length} 条。`
+        : `批量应用完成：成功 ${updated.length} 条，失败 ${failed.length} 条。`
+    );
+    setActionError(failed.length > 0 ? failed.slice(0, 3).join("\n") : null);
+    setBusyBulkAction(null);
   }
 
   if (!adminToken) {
@@ -252,21 +345,75 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
             <div className="text-xs font-semibold text-[#8a6f5a]">Memory Review</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">记忆提案审核</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              逐条检查提案内容、理由、置信度和风险等级，再决定批准、拒绝或应用到长期记忆。
+              逐条检查提案内容、理由、置信度和风险等级，再决定批准、拒绝或应用到长期记忆。长期测试时优先处理低风险、用户范围的提案。
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void loadProposals()}
-            disabled={loading}
-            className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
-          >
-            {loading ? "刷新中" : "刷新队列"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void runBulkAction("approvePending")}
+              disabled={loading || busyBulkAction !== null}
+              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+            >
+              {busyBulkAction === "approvePending" ? "处理中" : "批准当前待审"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runBulkAction("applyApproved")}
+              disabled={loading || busyBulkAction !== null}
+              className="h-10 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 text-sm font-medium text-[#3f7b5d] transition hover:bg-[#e3f2e9] disabled:opacity-60"
+            >
+              {busyBulkAction === "applyApproved" ? "处理中" : "应用当前已批准"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadProposals()}
+              disabled={loading}
+              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
+            >
+              {loading ? "刷新中" : "刷新队列"}
+            </button>
+          </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
+          <label>
+            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">搜索</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="内容 / 理由 / ID / report"
+              className="field-input h-10"
+            />
+          </label>
+          <FilterSelect
+            label="风险"
+            value={riskFilter}
+            onChange={(value) => setRiskFilter(value as ProposalRiskFilter)}
+            options={riskOptions}
+          />
+          <FilterSelect
+            label="提案类型"
+            value={proposalTypeFilter}
+            onChange={setProposalTypeFilter}
+            options={proposalTypeOptions.map((value) => ({
+              value,
+              label: value === "all" ? "全部类型" : proposalTypeLabels[value] ?? value,
+            }))}
+          />
+          <FilterSelect
+            label="范围"
+            value={scopeFilter}
+            onChange={setScopeFilter}
+            options={scopeOptions.map((value) => ({
+              value,
+              label: value === "all" ? "全部范围" : value,
+            }))}
+          />
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
           {statusOptions.map((option) => {
             const active = statusFilter === option.value;
             return (
@@ -344,6 +491,7 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
           actionError={actionError}
           actionMessage={actionMessage}
           busyAction={busyAction}
+          onOpenMemory={onOpenMemory}
           onRejectReasonChange={setRejectReason}
           onRunAction={runAction}
         />
@@ -354,6 +502,7 @@ export function MemoryProposalsPage({ adminToken }: MemoryProposalsPageProps) {
 
 function actionMessageFor(action: ProposalAction): string {
   if (action === "approve") return "提案已批准，但还没有写入记忆。";
+  if (action === "approveApply") return "提案已批准并应用到当前用户记忆。";
   if (action === "reject") return "提案已拒绝。";
   if (action === "apply") return "提案已应用到当前用户记忆。";
   if (action === "applyGlobal") return "提案已作为全局记忆应用。";
@@ -423,6 +572,7 @@ function ProposalDetail({
   actionError,
   actionMessage,
   busyAction,
+  onOpenMemory,
   onRejectReasonChange,
   onRunAction,
 }: {
@@ -431,6 +581,7 @@ function ProposalDetail({
   actionError: string | null;
   actionMessage: string | null;
   busyAction: ProposalAction | null;
+  onOpenMemory?: (memoryId: string) => void;
   onRejectReasonChange: (value: string) => void;
   onRunAction: (action: ProposalAction) => Promise<void>;
 }) {
@@ -565,6 +716,13 @@ function ProposalDetail({
 
       <div className="mt-5 flex flex-wrap gap-2">
         <ActionButton
+          label="批准并应用"
+          action="approveApply"
+          proposal={proposal}
+          busyAction={busyAction}
+          onRunAction={onRunAction}
+        />
+        <ActionButton
           label="仅批准"
           action="approve"
           proposal={proposal}
@@ -599,8 +757,46 @@ function ProposalDetail({
           busyAction={busyAction}
           onRunAction={onRunAction}
         />
+        {proposal.appliedMemoryId && onOpenMemory && (
+          <button
+            type="button"
+            onClick={() => onOpenMemory(proposal.appliedMemoryId ?? "")}
+            className="h-10 rounded-lg border border-[#c9d7e6] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
+          >
+            查看已应用记忆
+          </button>
+        )}
       </div>
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>
+      <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="field-input h-10"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

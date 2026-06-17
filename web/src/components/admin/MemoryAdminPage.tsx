@@ -30,18 +30,37 @@ function readTabFromUrl(): MemoryAdminTab {
   return value === "proposals" ? "proposals" : "library";
 }
 
+function readMemoryFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get("memory");
+}
+
 export function MemoryAdminPage({ adminToken }: MemoryAdminPageProps) {
   const [activeTab, setActiveTab] = useState<MemoryAdminTab>(readTabFromUrl);
+  const [focusMemoryId, setFocusMemoryId] = useState<string | null>(readMemoryFromUrl);
 
   useEffect(() => {
-    const onPopState = () => setActiveTab(readTabFromUrl());
+    const onPopState = () => {
+      setActiveTab(readTabFromUrl());
+      setFocusMemoryId(readMemoryFromUrl());
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   function changeTab(next: MemoryAdminTab) {
     setActiveTab(next);
+    setFocusMemoryId(null);
     window.history.pushState(null, "", `/admin/memory?tab=${next}`);
+  }
+
+  function openMemory(memoryId: string) {
+    setActiveTab("library");
+    setFocusMemoryId(memoryId);
+    window.history.pushState(
+      null,
+      "",
+      `/admin/memory?tab=library&memory=${encodeURIComponent(memoryId)}`
+    );
   }
 
   return (
@@ -84,9 +103,13 @@ export function MemoryAdminPage({ adminToken }: MemoryAdminPageProps) {
       </section>
 
       {activeTab === "library" ? (
-        <MemoryLibraryPage adminToken={adminToken} />
+        <MemoryLibraryPage
+          key={focusMemoryId ?? "library"}
+          adminToken={adminToken}
+          focusMemoryId={focusMemoryId}
+        />
       ) : (
-        <MemoryProposalsPage adminToken={adminToken} />
+        <MemoryProposalsPage adminToken={adminToken} onOpenMemory={openMemory} />
       )}
     </div>
   );
