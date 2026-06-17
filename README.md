@@ -58,7 +58,7 @@ lusiyuan-core 后端
 这个项目不是只有聊天。它还包括：
 
 - 记忆系统：让陆思源以后能想起重要信息。
-- 工具系统：让陆思源可以查项目状态、搜索记忆、读网页、生成草稿。
+- 工具系统：让陆思源可以查项目状态、搜索记忆、读网页。
 - Reflection：复盘历史对话，生成记忆提案。
 - Dream Cycle：闲时整理最近发生的事，生成笔记、信号和内在日记。
 - 管理接口和网页前端：方便查看、审核、配置。
@@ -244,23 +244,11 @@ Tool 是模型可以调用的外部能力。
 - 搜索网页
 - 查看项目状态
 - 总结最近对话
-- 生成草稿
 
 对应代码：
 
 - `src/tools/`
 - `src/tools/builtin/`
-
-### Draft
-
-Draft 是草稿。
-
-草稿可以是回复、文案、脚本等。它只保存，不自动发送，需要人审核。
-
-对应代码：
-
-- `src/drafts/`
-- `src/routes/drafts.route.ts`
 
 ---
 
@@ -279,7 +267,6 @@ Draft 是草稿。
 | Reflection | 复盘并生成记忆提案 | `src/reflection/` |
 | Dream | 闲时整理、内在日记、信号提取 | `src/dream/` |
 | 工具系统 | 让模型调用外部能力 | `src/tools/` |
-| 草稿 | 保存待审核内容 | `src/drafts/` |
 | 网页读取 | 读 URL、页面、浏览器内容 | `src/page-reader/`, `src/cdp-browser/` |
 | 搜索 | Tavily 网页搜索 | `src/web-search/` |
 | 外部 inbox | 同步外部平台消息 | `src/external-inbox/` |
@@ -521,7 +508,6 @@ pnpm telegram:dev
 - `MemoryEmbedding`：记忆向量。
 - `MemoryProposal`：待审核记忆提案。
 - `ToolCallLog`：工具调用日志。
-- `Draft`：草稿。
 - `ReflectionJob` / `ReflectionReport`：反思任务和报告。
 - `DreamJob` / `DailyNote` / `DreamSignal` / `DreamDiaryEntry`：Dream Cycle 产物。
 
