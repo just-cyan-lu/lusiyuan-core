@@ -91,6 +91,7 @@ Reflection 是复盘系统。它读历史对话和现有记忆，生成记忆提
 
 - `src/reflection/`：复盘、报告、记忆提案、审核应用。
 - `src/routes/reflection.route.ts`：管理接口。
+- `web/src/components/admin/OpsPage.tsx`：admin 里的 Reflection 手动触发和报告查看。
 - `docs/reflection-agent-v0.7.md`：更细设计。
 
 ## Dream Cycle
@@ -103,6 +104,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 
 - `src/dream/`：Dream 的完整流程。
 - `src/routes/dream.route.ts`：管理接口。
+- `web/src/components/admin/OpsPage.tsx`：admin 里的 Dream 手动触发、作业状态、Morning Brief、Deep Sleep、Daily Note、Signal 和内在日记查看。
 - `docs/dream-cycle-v0.75.md`：更细设计。
 
 ## 工具系统
@@ -168,6 +170,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 - `web/src/components/admin/RuntimeStatePage.tsx`：陆思源运行态可视化、事件日志、状态变更和自启动控制页。
 - `web/src/components/admin/RuntimeStateSourceMaterials.tsx`：状态变更的来源追溯，展示它引用过的运行事件和消息。
 - `web/src/components/admin/RelationshipStatePage.tsx`：现实身份关系状态可视化、身份怀疑审核、渠道账号绑定、编辑和变更记录页。
+- `web/src/components/admin/OpsPage.tsx`：Reflection / Dream 工作台，负责手动触发和查看后台整理产物。
 - `web/src/components/admin/RuntimeEventDetail.tsx`：运行事件详情组件，用来解释一次事件是什么、有没有资格影响长期状态，以及最近是否找到对应状态写入。
 - `web/src/components/admin/StateChangeDetail.tsx`：状态变更详情组件，用来解释一次运行态或关系态为什么变、实际改了哪些字段。
 - `web/src/components/admin/AdminDetailPrimitives.tsx`：admin 详情页共用的小展示组件，避免事件详情和状态变更详情重复写相同 UI。

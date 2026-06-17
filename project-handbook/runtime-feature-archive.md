@@ -197,6 +197,7 @@ admin 里已经有几块和持续性主体相关的页面：
 - 运行态页面：看心情、精力、压力、社交电量、当前目标、最近事件，也能手动调整和触发自启动检查。
 - 运行事件解释：运行态页里的运行事件可以点开，看这件事是什么、有没有资格影响长期状态，以及最近是否找到对应状态写入。
 - 关系页面：看每个现实身份的关系状态、关系事件、身份怀疑，能手动复盘、绑定渠道账号、修改和重置关系。
+- Reflection / Dream 工作台：手动触发复盘或梦境循环，查看报告、作业状态、Morning Brief、Deep Sleep、Daily Note、Signal 和内在日记。
 - 状态变化解释：运行态和关系页里的变更记录可以点开，看这次为什么写入、变化前后差异、程序准备写入的内容和原始记录。
 - 来源材料追溯：运行态的状态变化还能继续看到它引用过的运行事件和消息内容，用来判断这次变化是不是真的有依据。
 - 配置中心：能编辑部分 `.env` 配置，也有开发期清空数据库业务数据的入口。
@@ -213,6 +214,7 @@ admin 里已经有几块和持续性主体相关的页面：
 - `web/src/components/admin/RuntimeStateSourceMaterials.tsx`
 - `web/src/components/admin/RuntimeEventDetail.tsx`
 - `web/src/components/admin/RelationshipStatePage.tsx`
+- `web/src/components/admin/OpsPage.tsx`
 - `web/src/components/admin/StateChangeDetail.tsx`
 - `web/src/components/admin/AdminDetailPrimitives.tsx`
 - `web/src/components/admin/ConfigCenterPage.tsx`

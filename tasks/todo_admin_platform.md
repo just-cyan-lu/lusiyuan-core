@@ -5,7 +5,7 @@
 Core API 目前所有管理操作都只能通过 HTTP API 或 CLI 完成，没有图形界面。
 这份文档整理 Admin 平台需要覆盖的功能，作为前端仓库（lusiyuan-web）的规划参考。
 
-> 2026-06 更新：记忆库和记忆提案审核已经进入当前 admin。这里仍保留原始清单，但已实现项会标成完成。
+> 2026-06 更新：记忆库、记忆提案审核、Reflection / Dream 工作台已经进入当前 admin。这里仍保留原始清单，但已实现项会标成完成。
 
 ---
 
@@ -48,19 +48,20 @@ Admin 平台需要对接的现有接口：
 
 ### 3. Reflection
 
-- [ ] 手动触发 Reflection（选择 scope / userId / 消息数量）
-- [ ] 查看 Reflection 报告列表
-- [ ] 查看单份报告详情（分析摘要、提案列表、风险标记）
-- [ ] 查看风险标记列表（RiskFlag），按严重程度筛选
+- [x] 手动触发 Reflection（选择复盘范围 / userId / conversationId / 消息数量）
+- [x] 查看 Reflection 报告列表
+- [x] 查看单份报告详情（分析摘要、提案列表、风险标记、成长日志）
+- [x] 查看风险标记列表（RiskFlag）
 
 ### 4. Dream Cycle
 
-- [ ] 手动触发 Dream（选择回溯时间范围）
-- [ ] 查看 Dream Job 状态（running / completed / failed）
-- [ ] 查看 Morning Brief（每次 Dream 的结果摘要）
-- [ ] 查看梦境日记（DreamDiary）列表和详情
-- [ ] 查看 Daily Note 列表
-- [ ] 查看 Dream Signal 列表（提取出的信号，带评分）
+- [x] 手动触发 Dream（选择回溯小时数，可选 userId）
+- [x] 查看 Dream Job 状态（running / completed / failed）
+- [x] 查看 Morning Brief（每次 Dream 的结果摘要）
+- [x] 查看梦境日记（DreamDiary）列表和内容
+- [x] 查看 Daily Note 列表
+- [x] 查看 Dream Signal 列表（提取出的信号，带评分）
+- [x] 查看 Deep Sleep 整合结果（记忆提案、风险项、成长日志提案）
 
 ### 5. 草稿管理
 
@@ -91,7 +92,7 @@ Admin 平台需要对接的现有接口：
 
 1. **记忆提案审核** — Reflection 和 Dream 生成的提案堆在数据库里，没有界面就没法用
 2. **记忆管理** — 查看和清理记忆，目前只能直接查数据库
-3. **Dream / Reflection 触发 + 结果查看** — 手动触发目前要 curl
+3. **Dream / Reflection 触发 + 结果查看** — 已进入 admin，后续主要是长期试用和细节打磨
 
 其次：
 

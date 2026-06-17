@@ -33,10 +33,10 @@ interface OpsPageProps {
 }
 
 const reflectionScopes: Array<{ value: ReflectionScope; label: string }> = [
-  { value: "conversation", label: "Conversation" },
-  { value: "user", label: "User" },
-  { value: "daily", label: "Daily" },
-  { value: "global_project", label: "Global Project" },
+  { value: "conversation", label: "单个会话" },
+  { value: "user", label: "单个用户" },
+  { value: "daily", label: "最近一天" },
+  { value: "global_project", label: "全局项目" },
 ];
 
 const historyDateOptions: Array<{ value: HistoryDatePreset; label: string }> = [
@@ -149,6 +149,14 @@ function shortId(value: string | null | undefined): string {
 function parseOptionalNumber(value: string): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function selectExistingOrFirst<T extends { id: string }>(
+  items: T[],
+  currentId: string | null
+): string | null {
+  if (currentId && items.some((item) => item.id === currentId)) return currentId;
+  return items[0]?.id ?? null;
 }
 
 function toTextList(value: unknown): string[] {
@@ -271,6 +279,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
     () => resolveHistoryRange(historyDatePreset, historyFromDate, historyToDate),
     [historyDatePreset, historyFromDate, historyToDate]
   );
+  const visiblePane = fixedPane ?? activePane;
 
   async function loadReflection() {
     if (!adminToken) return;
@@ -294,9 +303,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
       ]);
       setReports(nextReports);
       setRisks(nextRisks);
-      if (!selectedReportId && nextReports[0]) {
-        setSelectedReportId(nextReports[0].id);
-      }
+      setSelectedReportId((current) => selectExistingOrFirst(nextReports, current));
     } catch (error) {
       setReports([]);
       setRisks([]);
@@ -343,9 +350,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
       setDailyNotes(nextNotes);
       setSignals(nextSignals);
       setDiaryEntries(nextDiary);
-      if (!selectedDreamJobId && nextJobs[0]) {
-        setSelectedDreamJobId(nextJobs[0].id);
-      }
+      setSelectedDreamJobId((current) => selectExistingOrFirst(nextJobs, current));
     } catch (error) {
       setDreamJobs([]);
       setDailyNotes([]);
@@ -401,7 +406,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
         if (cancelled) return;
         setReports(nextReports);
         setRisks(nextRisks);
-        setSelectedReportId((current) => current ?? nextReports[0]?.id ?? null);
+        setSelectedReportId((current) => selectExistingOrFirst(nextReports, current));
         setPageError(null);
       } catch (error) {
         if (!cancelled) {
@@ -461,7 +466,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
         setDailyNotes(nextNotes);
         setSignals(nextSignals);
         setDiaryEntries(nextDiary);
-        setSelectedDreamJobId((current) => current ?? nextJobs[0]?.id ?? null);
+        setSelectedDreamJobId((current) => selectExistingOrFirst(nextJobs, current));
         setPageError(null);
       } catch (error) {
         if (!cancelled) {
@@ -547,16 +552,28 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
 
   async function runReflectionNow() {
     if (!adminToken) return;
-    setRunningReflection(true);
     setActionError(null);
     setActionMessage(null);
+
+    const userId = reflectionUserId.trim();
+    const conversationId = reflectionConversationId.trim();
+    if (reflectionScope === "conversation" && !conversationId) {
+      setActionError("选择“单个会话”时，需要先填写 Conversation ID。");
+      return;
+    }
+    if (reflectionScope === "user" && !userId) {
+      setActionError("选择“单个用户”时，需要先填写 User ID。");
+      return;
+    }
+
+    setRunningReflection(true);
 
     try {
       const result = await runReflection({
         token: adminToken,
         scope: reflectionScope,
-        userId: reflectionUserId.trim() || undefined,
-        conversationId: reflectionConversationId.trim() || undefined,
+        userId: reflectionScope === "user" ? userId : undefined,
+        conversationId: reflectionScope === "conversation" ? conversationId : undefined,
         messageLimit: parseOptionalNumber(reflectionMessageLimit),
       });
       setSelectedReportId(result.reportId);
@@ -787,7 +804,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
           </div>
         </div>
 
-        {activePane === "reflection" ? (
+        {visiblePane === "reflection" ? (
           <ReflectionPanel
             reports={reports}
             selectedReport={selectedReport}
@@ -894,7 +911,7 @@ function ReflectionRunCard({
       onRun={onRun}
     >
       <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Scope">
+        <Field label="复盘范围">
           <select
             value={reflectionScope}
             onChange={(event) => onScopeChange(event.target.value as ReflectionScope)}
@@ -907,7 +924,7 @@ function ReflectionRunCard({
             ))}
           </select>
         </Field>
-        <Field label="Message Limit">
+        <Field label="读取消息数">
           <input
             value={reflectionMessageLimit}
             onChange={(event) => onMessageLimitChange(event.target.value)}
@@ -920,16 +937,18 @@ function ReflectionRunCard({
           <input
             value={reflectionUserId}
             onChange={(event) => onUserIdChange(event.target.value)}
-            placeholder="scope=user 时填写"
-            className="field-input h-10"
+            placeholder="选择“单个用户”时填写"
+            disabled={reflectionScope !== "user"}
+            className="field-input h-10 disabled:opacity-50"
           />
         </Field>
         <Field label="Conversation ID">
           <input
             value={reflectionConversationId}
             onChange={(event) => onConversationIdChange(event.target.value)}
-            placeholder="conversation id / external id"
-            className="field-input h-10"
+            placeholder="选择“单个会话”时填写"
+            disabled={reflectionScope !== "conversation"}
+            className="field-input h-10 disabled:opacity-50"
           />
         </Field>
       </div>
@@ -970,7 +989,7 @@ function DreamRunCard({
             className="field-input h-10"
           />
         </Field>
-        <Field label="Lookback Hours">
+        <Field label="回看小时数">
           <input
             value={dreamLookbackHours}
             onChange={(event) => onLookbackHoursChange(event.target.value)}

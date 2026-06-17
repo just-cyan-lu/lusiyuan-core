@@ -45,3 +45,9 @@ select {
 .field-input:focus {
   border-color: #a9bfd7;
 }
+
+.field-input:disabled {
+  cursor: not-allowed;
+  background: #eef3f8;
+  color: #7b8ca2;
+}

@@ -285,7 +285,7 @@ Draft 是草稿。
 | 外部 inbox | 同步外部平台消息 | `src/external-inbox/` |
 | Telegram | Telegram Bot 接入 | `src/channels/telegram/` |
 | 微信桥接 | 微信入口 | `src/channels/weixin/` |
-| 管理接口 | 管理记忆、运行状态、配置等 | `src/routes/admin.route.ts` |
+| 管理接口 | 管理记忆、运行状态、配置、Reflection、Dream 等 | `src/routes/admin.route.ts`, `src/routes/reflection.route.ts`, `src/routes/dream.route.ts` |
 | 网页前端 | 聊天页和管理页 | `web/` |
 | 数据库结构 | 所有表定义 | `prisma/schema.prisma` |
 
@@ -470,6 +470,8 @@ REFLECTION_ENABLED=true
 pnpm reflection:run --daily
 ```
 
+也可以在 admin 的“Reflection”页面手动运行并查看报告详情。
+
 ### Dream Cycle
 
 ```env
@@ -481,6 +483,8 @@ DREAM_ENABLED=true
 ```bash
 pnpm dream:run
 ```
+
+也可以在 admin 的“Dream”页面手动运行，并查看作业状态、Morning Brief、Deep Sleep、Daily Note、Signal 和 Dream Diary。
 
 定时运行：
 
@@ -554,6 +558,7 @@ pnpm telegram:dev
 - `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。
 - `web/src/components/admin/RuntimeStateSourceMaterials.tsx`：admin 里查看一次状态变化背后的运行事件和消息来源。
 - `web/src/components/admin/RelationshipStatePage.tsx`：admin 里的现实身份关系状态和身份怀疑审核页面。
+- `web/src/components/admin/OpsPage.tsx`：admin 里的 Reflection / Dream 工作台，可以手动触发复盘或梦境循环，并查看报告、作业、Morning Brief、Deep Sleep、Daily Note、Signal 和内在日记。
 - `web/src/components/admin/RuntimeEventDetail.tsx`：admin 里的运行事件解释组件，用来看事件有没有资格影响长期状态。
 - `web/src/components/admin/StateChangeDetail.tsx`：admin 里的状态变化解释组件，用同一套方式展示变化前后、写入原因和原始记录。
 - `web/src/components/admin/AdminDetailPrimitives.tsx`：admin 详情页共用展示组件，避免运行事件详情和状态变化详情重复造一套 UI。

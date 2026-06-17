@@ -5,6 +5,57 @@ import { prisma } from "../db/prisma.js";
 import { env } from "../utils/env.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { Prisma } from "@prisma/client";
+import type { ReflectionScope } from "../reflection/reflection.types.js";
+
+const validReflectionScopes = new Set<ReflectionScope>([
+  "conversation",
+  "user",
+  "daily",
+  "global_project",
+]);
+
+interface ReflectionRunBody {
+  user_id?: string;
+  scope?: string;
+  conversation_id?: string;
+  message_limit?: number;
+}
+
+function normalizeReflectionRunBody(body: ReflectionRunBody = {}): {
+  scope: ReflectionScope;
+  userId?: string;
+  conversationId?: string;
+  messageLimit?: number;
+} {
+  const scope = (body.scope ?? "conversation") as ReflectionScope;
+  if (!validReflectionScopes.has(scope)) {
+    throw Object.assign(new Error(`Invalid reflection scope: ${body.scope}`), {
+      statusCode: 400,
+    });
+  }
+
+  const userId = body.user_id?.trim();
+  const conversationId = body.conversation_id?.trim();
+
+  if (scope === "conversation" && !conversationId) {
+    throw Object.assign(
+      new Error("conversation_id is required for conversation reflection"),
+      { statusCode: 400 }
+    );
+  }
+  if (scope === "user" && !userId) {
+    throw Object.assign(new Error("user_id is required for user reflection"), {
+      statusCode: 400,
+    });
+  }
+
+  return {
+    scope,
+    userId: scope === "user" ? userId : undefined,
+    conversationId: scope === "conversation" ? conversationId : undefined,
+    messageLimit: body.message_limit,
+  };
+}
 
 function parseLimit(value: string | undefined, fallback: number): number {
   const parsed = parseInt(value ?? "", 10);
@@ -37,23 +88,18 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
 
   // POST /v1/reflection/run — create job and run immediately
   app.post("/v1/reflection/run", async (request, reply) => {
-    const body = request.body as {
-      user_id?: string;
-      scope?: string;
-      conversation_id?: string;
-      message_limit?: number;
-    };
+    const body = normalizeReflectionRunBody(request.body as ReflectionRunBody);
 
     if (!env.REFLECTION_ENABLED) {
       return reply.status(503).send({ error: "Reflection is disabled" });
     }
 
     const report = await reflectionService.runManualReflection({
-      scope: (body.scope ?? "conversation") as never,
+      scope: body.scope,
       triggerType: "manual",
-      userId: body.scope === "user" ? body.user_id : undefined,
-      conversationId: body.conversation_id,
-      messageLimit: body.message_limit,
+      userId: body.userId,
+      conversationId: body.conversationId,
+      messageLimit: body.messageLimit,
     });
 
     return reply.send({ report_id: report.id, summary: report.summary });
@@ -61,19 +107,14 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
 
   // POST /v1/reflection/jobs — create job without running
   app.post("/v1/reflection/jobs", async (request, reply) => {
-    const body = request.body as {
-      user_id?: string;
-      scope?: string;
-      conversation_id?: string;
-      message_limit?: number;
-    };
+    const body = normalizeReflectionRunBody(request.body as ReflectionRunBody);
 
     const job = await reflectionService.createJob({
-      scope: (body.scope ?? "conversation") as never,
+      scope: body.scope,
       triggerType: "manual",
-      userId: body.scope === "user" ? body.user_id : undefined,
-      conversationId: body.conversation_id,
-      messageLimit: body.message_limit,
+      userId: body.userId,
+      conversationId: body.conversationId,
+      messageLimit: body.messageLimit,
     });
 
     return reply.send({ job_id: job.id, status: job.status });
