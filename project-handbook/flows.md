@@ -185,7 +185,9 @@ owner 后续查看、修改、批准或丢弃
 ↓
 写 RuntimeEvent：记录这轮聊天发生了什么
 ↓
-按程序规则小幅更新这个现实身份的 RelationshipState
+写 RelationshipStateEvent：记录这轮聊天里的关系信号
+↓
+如果关系信号达到阈值，或 admin 手动复盘：更新这个现实身份的 RelationshipState
 ↓
 如果消息或显示名像已有身份，写 IdentityLinkProposal，等待 admin 审核
 ↓

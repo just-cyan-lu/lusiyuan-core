@@ -26,7 +26,7 @@
 - `src/core/prompt-builder.ts`：把 persona、记忆、状态和对话历史编译成给模型看的消息。
 - `src/core/persona-projection.ts`：选择当前聊天投影，避免把完整人设整包塞给模型。
 - `src/runtime/runtime-state.service.ts`：读取运行态，记录 RuntimeEvent，并只允许 owner、复盘、梦境、自启动和 admin 更新长期状态。
-- `src/runtime/relationship-state.service.ts`：读取和更新每个现实身份的关系状态，聊天后直接小幅更新，也会生成待审核的身份怀疑，admin 可以修正、审核或绑定渠道账号。
+- `src/runtime/relationship-state.service.ts`：读取每个现实身份的关系状态，聊天后先记录关系信号，再由复盘更新关系；也会生成待审核的身份怀疑，admin 可以修正、复盘、审核或绑定渠道账号。
 - `src/runtime/runtime-autonomy-scheduler.ts`：可选的运行态自启动定时器，默认关闭。
 - `src/routes/chat.route.ts`：HTTP 聊天接口。
 

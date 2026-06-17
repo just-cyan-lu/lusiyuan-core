@@ -804,6 +804,17 @@ export async function resetRelationshipState(input: {
   return parseJsonResponse<RelationshipDetailResponse>(response, "重置关系状态失败");
 }
 
+export async function reviewRelationshipState(input: {
+  token: string;
+  relationshipId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/review`, {
+    method: "POST",
+    headers: adminHeaders(input.token),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "复盘关系状态失败");
+}
+
 export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {
   const response = await fetch(`${API_BASE_URL}/v1/admin/config/env`, {
     headers: adminHeaders(token),
