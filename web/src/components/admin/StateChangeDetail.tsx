@@ -6,6 +6,7 @@ import {
   formatAdminDate,
   isRecord,
   readableValue,
+  sourceIdListText,
 } from "./admin-detail-utils";
 
 export interface StateChangeEventLike {
@@ -18,7 +19,8 @@ export interface StateChangeEventLike {
   after: unknown;
   userId?: string | null;
   conversationId?: string | null;
-  messageId?: string | null;
+  sourceRuntimeEventIds?: unknown;
+  sourceMessageIds?: unknown;
   channel?: string | null;
   createdAt: string;
 }
@@ -84,6 +86,8 @@ export function StateChangeDetail({
         <DetailInfoLine label="渠道" value={event.channel ?? "暂无"} />
         <DetailInfoLine label="用户" value={event.userId ?? "暂无"} />
         <DetailInfoLine label="会话" value={event.conversationId ?? "暂无"} />
+        <DetailInfoLine label="来源事件" value={sourceIdListText(event.sourceRuntimeEventIds)} />
+        <DetailInfoLine label="来源消息" value={sourceIdListText(event.sourceMessageIds)} />
       </div>
 
       <section className="mt-5">
@@ -129,9 +133,8 @@ export function StateChangeDetail({
         <RawJsonDetails title="变化后快照" value={event.after} />
       </div>
 
-      <div className="mt-4 grid gap-2 md:grid-cols-2">
+      <div className="mt-4 grid gap-2">
         <DetailInfoLine label="事件 ID" value={event.id} />
-        <DetailInfoLine label="消息 ID" value={event.messageId ?? "暂无"} />
       </div>
     </div>
   );

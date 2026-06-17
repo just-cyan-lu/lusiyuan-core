@@ -64,6 +64,7 @@
 
 - `RuntimeEvent`：发生了什么。
 - `RuntimeStateEvent`：状态什么时候、为什么真的变了。
+- `sourceRuntimeEventIds` / `sourceMessageIds`：这次变化明确来自哪些运行事件和消息；如果一次复盘或梦境用了很多条消息，这里会保存多条来源。
 
 **为什么这样做**
 

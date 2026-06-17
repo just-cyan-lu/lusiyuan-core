@@ -545,7 +545,7 @@ pnpm telegram:dev
 - `src/core/persona-projection.ts`：选择聊天投影和人设切片。
 - `RuntimeState`：数据库里的全局当前状态。
 - `RuntimeEvent`：记录聊天、复盘、梦境、自启动这些发生过的事。
-- `RuntimeStateEvent`：记录真正写入 RuntimeState 的状态变化。
+- `RuntimeStateEvent`：记录真正写入 RuntimeState 的状态变化，并保存它来自哪些运行事件和消息；一次变化可以对应多条 message ID。
 - `PersonIdentity` / `IdentityLink`：把多个渠道账号绑定到同一个现实身份。
 - `IdentityLinkProposal`：系统怀疑相似用户时写入的待审核提案，审核通过后才会合并。
 - `RelationshipState`：记录陆思源和每个现实身份之间的关系状态。

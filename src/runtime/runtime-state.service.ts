@@ -55,7 +55,8 @@ interface ApplyRuntimeStatePatchInput {
   summary?: string;
   userId?: string;
   conversationId?: string;
-  messageId?: string;
+  sourceRuntimeEventIds?: Array<string | null | undefined>;
+  sourceMessageIds?: Array<string | null | undefined>;
   channel?: string;
 }
 
@@ -247,6 +248,37 @@ function cleanStringArray(value: unknown, maxItems: number, maxChars: number): s
     .map((item) => cleanText(item, maxChars))
     .filter((item): item is string => Boolean(item))
     .slice(0, maxItems);
+}
+
+function cleanSourceIds(
+  values?: Array<string | null | undefined>,
+  maxItems = 80
+): string[] | undefined {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values ?? []) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+    if (result.length >= maxItems) break;
+  }
+
+  return result.length > 0 ? result : undefined;
+}
+
+function cleanSourceRuntimeEventIds(
+  values?: Array<string | null | undefined>
+): string[] | undefined {
+  return cleanSourceIds(values);
+}
+
+function cleanSourceMessageIds(input: {
+  sourceMessageIds?: Array<string | null | undefined>;
+}): string[] | undefined {
+  return cleanSourceIds(input.sourceMessageIds);
 }
 
 function cleanConfidence(value: unknown): number {
@@ -753,6 +785,8 @@ export const runtimeStateService = {
     const before = await this.getOrCreate();
     const data = normalizePatch(input.patch);
     const patchForEvent = input.patch as Prisma.InputJsonObject;
+    const sourceRuntimeEventIds = cleanSourceRuntimeEventIds(input.sourceRuntimeEventIds);
+    const sourceMessageIds = cleanSourceMessageIds(input);
 
     const after = await prisma.$transaction(async (tx) => {
       const updated = await tx.runtimeState.update({
@@ -770,7 +804,8 @@ export const runtimeStateService = {
           after: snapshotRuntimeState(updated),
           userId: input.userId,
           conversationId: input.conversationId,
-          messageId: input.messageId,
+          sourceRuntimeEventIds,
+          sourceMessageIds,
           channel: input.channel,
         },
       });
@@ -810,7 +845,8 @@ export const runtimeStateService = {
     patch?: Prisma.InputJsonValue;
     userId?: string;
     conversationId?: string;
-    messageId?: string;
+    sourceRuntimeEventIds?: Array<string | null | undefined>;
+    sourceMessageIds?: Array<string | null | undefined>;
     channel?: string;
   }): Promise<void> {
     const state = await this.getOrCreate();
@@ -825,7 +861,8 @@ export const runtimeStateService = {
         after: snapshotRuntimeState(state),
         userId: input.userId,
         conversationId: input.conversationId,
-        messageId: input.messageId,
+        sourceRuntimeEventIds: cleanSourceRuntimeEventIds(input.sourceRuntimeEventIds),
+        sourceMessageIds: cleanSourceMessageIds(input),
         channel: input.channel,
       },
     });
@@ -879,13 +916,14 @@ export const runtimeStateService = {
     channel?: string | null;
     proposalCount?: number;
     riskCount?: number;
+    sourceMessageIds?: string[];
   }): Promise<void> {
     const state = await this.getOrCreate();
     const summary = cleanText(input.summary, 220) ?? "复盘完成。";
     const riskCount = clampInt(input.riskCount ?? 0, 0, 100);
     const proposalCount = clampInt(input.proposalCount ?? 0, 0, 100);
 
-    await this.recordRuntimeEvent({
+    const runtimeEvent = await this.recordRuntimeEvent({
       eventType: "reflection_report",
       source: "reflection",
       summary: `复盘完成：${summary}`,
@@ -947,6 +985,8 @@ export const runtimeStateService = {
       summary: summarizePatch(patch),
       userId: input.userId ?? undefined,
       conversationId: input.conversationId ?? undefined,
+      sourceRuntimeEventIds: [runtimeEvent.id],
+      sourceMessageIds: input.sourceMessageIds,
       channel: input.channel ?? undefined,
     });
   },
@@ -964,6 +1004,7 @@ export const runtimeStateService = {
     userId?: string | null;
     conversationId?: string | null;
     channel?: string | null;
+    sourceMessageIds?: string[];
   }): Promise<void> {
     const state = await this.getOrCreate();
     const signalCount = clampInt(input.signalCount ?? 0, 0, 999);
@@ -972,7 +1013,7 @@ export const runtimeStateService = {
     const summary = cleanText(input.summary, 220) ?? `Dream Cycle ${input.status}`;
     const completed = input.status === "completed" && input.phase !== "skipped";
 
-    await this.recordRuntimeEvent({
+    const runtimeEvent = await this.recordRuntimeEvent({
       eventType: "dream_cycle",
       source: "dream",
       summary: completed ? `梦境整理完成：${summary}` : `梦境周期记录：${summary}`,
@@ -1035,6 +1076,8 @@ export const runtimeStateService = {
       summary: summarizePatch(patch),
       userId: input.userId ?? undefined,
       conversationId: input.conversationId ?? undefined,
+      sourceRuntimeEventIds: [runtimeEvent.id],
+      sourceMessageIds: input.sourceMessageIds,
       channel: input.channel ?? undefined,
     });
   },
@@ -1043,7 +1086,7 @@ export const runtimeStateService = {
     const state = await this.getOrCreate();
     const twoHoursAgo = new Date(now.getTime() - 2 * 3600_000);
     const dayAgo = new Date(now.getTime() - 24 * 3600_000);
-    const [recentChatCount, dayChatCount, lastChat] = await Promise.all([
+    const [recentChatCount, dayChatCount, lastChat, recentChatEvents] = await Promise.all([
       prisma.runtimeEvent.count({
         where: { eventType: "chat_turn", createdAt: { gte: twoHoursAgo } },
       }),
@@ -1053,6 +1096,13 @@ export const runtimeStateService = {
       prisma.runtimeEvent.findFirst({
         where: { eventType: "chat_turn" },
         orderBy: { createdAt: "desc" },
+        select: { id: true, messageId: true, createdAt: true },
+      }),
+      prisma.runtimeEvent.findMany({
+        where: { eventType: "chat_turn", createdAt: { gte: twoHoursAgo } },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, messageId: true },
       }),
     ]);
 
@@ -1072,9 +1122,11 @@ export const runtimeStateService = {
       recentEventSummary: "自启动检查完成：状态保持平稳。",
       statusNote: "由 autonomy tick 根据时间流逝和聊天密度更新。",
     };
+    let sourceChatEvents: Array<{ id: string; messageId: string | null }> = [];
 
     if (recentChatCount >= 8) {
       summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，社交电量需要回落。`;
+      sourceChatEvents = recentChatEvents;
       patch = {
         moodLabel: "有点累，需要缓一下",
         moodScore: clampInt(state.moodScore - 2, -100, 100),
@@ -1090,6 +1142,7 @@ export const runtimeStateService = {
     } else if (hoursSinceLastChat === null || hoursSinceLastChat >= 12) {
       const quietHours = hoursSinceLastChat === null ? "很久" : `${Math.round(hoursSinceLastChat)} 小时`;
       summary = `自启动检查：已经 ${quietHours} 没有聊天，开始有一点想说话。`;
+      sourceChatEvents = lastChat ? [lastChat] : [];
       patch = {
         moodLabel: "安静久了，有点想说话",
         moodScore: clampInt(state.moodScore + 2, -100, 100),
@@ -1143,6 +1196,8 @@ export const runtimeStateService = {
       eventType: "autonomy_state_update",
       source: "autonomy",
       summary,
+      sourceRuntimeEventIds: [event.id, ...sourceChatEvents.map((sourceEvent) => sourceEvent.id)],
+      sourceMessageIds: sourceChatEvents.map((sourceEvent) => sourceEvent.messageId),
     });
 
     return { state: updated, event };
@@ -1176,7 +1231,7 @@ export const runtimeStateService = {
   async observeChatTurn(input: ObserveChatTurnInput): Promise<void> {
     const state = await this.getOrCreate();
     const runtimeEvent = deriveRuntimeEventFromChatTurn(input);
-    await this.recordRuntimeEvent(runtimeEvent);
+    const recordedEvent = await this.recordRuntimeEvent(runtimeEvent);
 
     if (!Boolean(input.isOwner) || !state.autoUpdateEnabled) return;
 
@@ -1190,7 +1245,8 @@ export const runtimeStateService = {
           summary: validated.summary,
           userId: input.userId,
           conversationId: input.conversationId,
-          messageId: input.messageId,
+          sourceRuntimeEventIds: [recordedEvent.id],
+          sourceMessageIds: [input.messageId],
           channel: input.channel,
         });
       } catch (error) {
@@ -1221,7 +1277,8 @@ export const runtimeStateService = {
       summary: summarizePatch(patch),
       userId: input.userId,
       conversationId: input.conversationId,
-      messageId: input.messageId,
+      sourceRuntimeEventIds: [recordedEvent.id],
+      sourceMessageIds: [input.messageId],
       channel: input.channel,
     });
   },
