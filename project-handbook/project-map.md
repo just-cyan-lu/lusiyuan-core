@@ -167,6 +167,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 - `src/routes/admin.route.ts`：管理后台 API。
 - `web/src/components/admin/RuntimeStatePage.tsx`：陆思源运行态可视化、事件日志、状态变更和自启动控制页。
 - `web/src/components/admin/RelationshipStatePage.tsx`：现实身份关系状态可视化、身份怀疑审核、渠道账号绑定、编辑和变更记录页。
+- `web/src/components/admin/StateChangeDetail.tsx`：状态变更详情组件，用来解释一次运行态或关系态为什么变、实际改了哪些字段。
 - `web/src/components/admin/ConfigCenterPage.tsx`：`.env` 配置中心和开发期清空数据库业务数据入口。
 - `src/routes/*`：各功能的 HTTP 接口。
 

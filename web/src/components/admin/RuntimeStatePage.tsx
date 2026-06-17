@@ -8,6 +8,7 @@ import {
   type RuntimeState,
   type RuntimeStateEvent,
 } from "../../api/lusiyuan-api";
+import { StateChangeDetail } from "./StateChangeDetail";
 import { StatusPill } from "./StatusPill";
 
 interface RuntimeStatePageProps {
@@ -49,6 +50,37 @@ const updateModeLabels: Record<string, string> = {
 const updateStrategyLabels: Record<string, string> = {
   rules: "规则校准",
   llm: "LLM 提议校验",
+};
+
+const runtimeFieldLabels: Record<string, string> = {
+  moodLabel: "心情",
+  moodScore: "心情指数",
+  energyLevel: "精力",
+  stressLevel: "压力",
+  socialBattery: "社交电量",
+  currentGoal: "当前目标",
+  currentFocus: "最近关注",
+  currentActivity: "正在做",
+  recentEventSummary: "最近事件",
+  statusNote: "状态备注",
+  autoUpdateEnabled: "自动校准",
+  updateMode: "更新模式",
+  updateStrategy: "更新策略",
+  metadata: "内在详情",
+  innerWeather: "内在天气",
+  emotionalTones: "情绪色调",
+  needs: "当前需要",
+  tensions: "内部张力",
+  openQuestions: "还在想的问题",
+  relationshipSignal: "关系信号",
+  topicSignals: "话题信号",
+  deltas: "变化量",
+  counts: "统计",
+  signal: "信号",
+  proposedPatch: "LLM 提议",
+  stateImpact: "状态影响",
+  metadataPatch: "内在详情补丁",
+  reason: "原因",
 };
 
 function friendlyErrorMessage(error: unknown): string {
@@ -145,6 +177,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     message: null,
   });
   const [form, setForm] = useState<RuntimeFormState | null>(null);
+  const [selectedStateEventId, setSelectedStateEventId] = useState<string | null>(null);
 
   async function loadState() {
     if (!adminToken) {
@@ -231,10 +264,24 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     };
   }, [adminToken]);
 
+  useEffect(() => {
+    setSelectedStateEventId((current) =>
+      pageState.events.find((event) => event.id === current)?.id ?? pageState.events[0]?.id ?? null
+    );
+  }, [pageState.events]);
+
   const dirty = useMemo(() => {
     if (!pageState.state || !form) return false;
     return JSON.stringify(formFromState(pageState.state)) !== JSON.stringify(form);
   }, [pageState.state, form]);
+
+  const selectedStateEvent = useMemo(
+    () =>
+      pageState.events.find((event) => event.id === selectedStateEventId) ??
+      pageState.events[0] ??
+      null,
+    [pageState.events, selectedStateEventId]
+  );
 
   async function saveState() {
     if (!adminToken || !form) return;
@@ -644,32 +691,53 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-semibold text-[#172033]">状态变更</h3>
-                <p className="mt-1 text-xs text-[#7b8ca2]">最近 12 条真正写入 RuntimeState 的变化</p>
+                <p className="mt-1 text-xs text-[#7b8ca2]">
+                  最近 12 条真正写入 RuntimeState 的变化；点开一条可以看为什么变、变了哪些字段。
+                </p>
               </div>
             </div>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
               {pageState.events.length > 0 ? (
-                pageState.events.map((event) => (
-                  <div
-                    key={event.id}
-                    className="grid gap-3 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 md:grid-cols-[9rem_1fr_11rem]"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-[#172033]">
-                        {eventTypeLabel(event.eventType)}
-                      </div>
-                      <div className="mt-1 text-xs text-[#7b8ca2]">
-                        {event.source ?? "unknown"}
-                      </div>
-                    </div>
-                    <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
-                    <div className="text-xs text-[#7b8ca2] md:text-right">
-                      {formatDate(event.createdAt)}
-                    </div>
+                <>
+                  <div className="grid gap-3 self-start">
+                    {pageState.events.map((event) => {
+                      const active = selectedStateEvent?.id === event.id;
+                      return (
+                        <button
+                          key={event.id}
+                          type="button"
+                          onClick={() => setSelectedStateEventId(event.id)}
+                          className={`grid gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_11rem] ${
+                            active
+                              ? "border-[#a9bfd7] bg-[#eaf2fb]"
+                              : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
+                          }`}
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-[#172033]">
+                              {eventTypeLabel(event.eventType)}
+                            </div>
+                            <div className="mt-1 text-xs text-[#7b8ca2]">
+                              {event.source ?? "unknown"}
+                            </div>
+                          </div>
+                          <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
+                          <div className="text-xs text-[#7b8ca2] md:text-right">
+                            {formatDate(event.createdAt)}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                ))
+                  <StateChangeDetail
+                    event={selectedStateEvent}
+                    eventTypeLabel={eventTypeLabel}
+                    fieldLabels={runtimeFieldLabels}
+                    title="状态变化解释"
+                  />
+                </>
               ) : (
-                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
                   暂无状态变更。
                 </div>
               )}

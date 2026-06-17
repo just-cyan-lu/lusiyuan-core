@@ -13,6 +13,7 @@ import {
   type RelationshipState,
   type RelationshipStateEvent,
 } from "../../api/lusiyuan-api";
+import { StateChangeDetail } from "./StateChangeDetail";
 
 interface RelationshipStatePageProps {
   adminToken: string;
@@ -138,10 +139,31 @@ function eventTypeLabel(type: string): string {
   return type;
 }
 
+const relationshipFieldLabels: Record<string, string> = {
+  relationshipLabel: "关系标签",
+  familiarity: "熟悉度",
+  trust: "信任度",
+  closeness: "亲近感",
+  tension: "关系张力",
+  interactionStyle: "互动风格",
+  summary: "关系摘要",
+  recentSignal: "最近信号",
+  statusNote: "备注",
+  lastInteractionAt: "最近互动",
+  metadata: "关系细节",
+  deltas: "变化量",
+  counts: "统计",
+  signal: "关系信号",
+  proposedPatch: "LLM 提议",
+  lastRelationshipReview: "最近关系复盘",
+  reason: "原因",
+};
+
 export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps) {
   const [query, setQuery] = useState("");
   const [linkUserId, setLinkUserId] = useState("");
   const [form, setForm] = useState<RelationshipForm | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [pageState, setPageState] = useState<PageState>({
     relationships: [],
     proposals: [],
@@ -247,6 +269,12 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken]);
 
+  useEffect(() => {
+    setSelectedEventId((current) =>
+      pageState.events.find((event) => event.id === current)?.id ?? pageState.events[0]?.id ?? null
+    );
+  }, [pageState.events, pageState.selected?.id]);
+
   const dirty = useMemo(() => {
     if (!pageState.selected || !form) return false;
     return (
@@ -254,6 +282,11 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
       JSON.stringify(form)
     );
   }, [pageState.selected, form]);
+
+  const selectedEvent = useMemo(
+    () => pageState.events.find((event) => event.id === selectedEventId) ?? pageState.events[0] ?? null,
+    [pageState.events, selectedEventId]
+  );
 
   async function saveRelationship() {
     if (!adminToken || !pageState.selected || !form) return;
@@ -731,30 +764,51 @@ export function RelationshipStatePage({ adminToken }: RelationshipStatePageProps
 
             <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
               <h3 className="text-base font-semibold text-[#172033]">关系变更</h3>
-              <p className="mt-1 text-xs text-[#7b8ca2]">最近 20 条程序或 admin 写入记录</p>
-              <div className="mt-4 grid gap-3">
+              <p className="mt-1 text-xs text-[#7b8ca2]">
+                最近 20 条程序或 admin 写入记录；点开一条可以看它是信号记录，还是实际改了关系状态。
+              </p>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[0.86fr_1.14fr]">
                 {pageState.events.length > 0 ? (
-                  pageState.events.map((event) => (
-                    <div
-                      key={event.id}
-                      className="grid gap-3 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 md:grid-cols-[8rem_1fr_10rem]"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-[#172033]">
-                          {eventTypeLabel(event.eventType)}
-                        </div>
-                        <div className="mt-1 text-xs text-[#7b8ca2]">
-                          {event.source ?? "unknown"}
-                        </div>
+                  <>
+                    <div className="grid gap-3 self-start">
+                      {pageState.events.map((event) => {
+                        const active = selectedEvent?.id === event.id;
+                        return (
+                          <button
+                            key={event.id}
+                            type="button"
+                            onClick={() => setSelectedEventId(event.id)}
+                            className={`grid gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[8rem_1fr_10rem] ${
+                              active
+                                ? "border-[#a9bfd7] bg-[#eaf2fb]"
+                                : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
+                            }`}
+                          >
+                            <div>
+                              <div className="text-sm font-semibold text-[#172033]">
+                                {eventTypeLabel(event.eventType)}
+                              </div>
+                              <div className="mt-1 text-xs text-[#7b8ca2]">
+                                {event.source ?? "unknown"}
+                              </div>
+                            </div>
+                            <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
+                            <div className="text-xs text-[#7b8ca2] md:text-right">
+                              {formatDate(event.createdAt)}
+                            </div>
+                          </button>
+                        );
+                      })}
                       </div>
-                      <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
-                      <div className="text-xs text-[#7b8ca2] md:text-right">
-                        {formatDate(event.createdAt)}
-                      </div>
-                    </div>
-                  ))
+                    <StateChangeDetail
+                      event={selectedEvent}
+                      eventTypeLabel={eventTypeLabel}
+                      fieldLabels={relationshipFieldLabels}
+                      title="关系变化解释"
+                    />
+                  </>
                 ) : (
-                  <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                  <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
                     暂无关系变更。
                   </div>
                 )}
