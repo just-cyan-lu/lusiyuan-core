@@ -553,7 +553,9 @@ pnpm telegram:dev
 - 运行态更新策略：支持规则校准，也支持 LLM 提议 statePatch 后由程序校验写入；只在 owner、复盘、梦境、自启动和 admin 这些受控入口生效。
 - `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。
 - `web/src/components/admin/RelationshipStatePage.tsx`：admin 里的现实身份关系状态和身份怀疑审核页面。
+- `web/src/components/admin/RuntimeEventDetail.tsx`：admin 里的运行事件解释组件，用来看事件有没有资格影响长期状态。
 - `web/src/components/admin/StateChangeDetail.tsx`：admin 里的状态变化解释组件，用同一套方式展示变化前后、写入原因和原始记录。
+- `web/src/components/admin/AdminDetailPrimitives.tsx`：admin 详情页共用展示组件，避免运行事件详情和状态变化详情重复造一套 UI。
 
 还没有完成的正式 Runtime：
 
