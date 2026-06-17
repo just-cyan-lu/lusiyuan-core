@@ -102,6 +102,8 @@ apply 后写入 Memory
 
 Reflection 的定位是“复盘员”，不是聊天时的即时大脑。
 
+admin 的“Reflection”页面可以手动触发这一流程，并直接查看报告、提案、风险项和成长日志。
+
 ## Dream Cycle 是怎么更新记忆的
 
 ```text
@@ -121,6 +123,8 @@ owner 审核后写入 Memory
 ```
 
 Dream 的定位是“闲时整理”，不是事实来源。DreamDiary 不能直接当成真实记忆。
+
+admin 的“Dream”页面可以手动触发这一流程，并查看作业状态、Morning Brief、Deep Sleep、Daily Note、Dream Signal 和 Dream Diary。
 
 ## 工具调用是怎么走的
 

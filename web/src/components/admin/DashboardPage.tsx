@@ -135,7 +135,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
             陆思源核心系统管理台
           </h2>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-[#617188] md:text-base">
-            这一版先把后台骨架立起来：运行状态、配置只读、业务入口和聊天页面统一收进一个工作台。后续每个模块再逐个接真实动作。
+            这里集中查看运行态、关系、记忆、Reflection、Dream、配置和聊天入口。长期测试时，先从这里看他最近发生了什么、状态为什么变化、哪些提案还需要审核。
           </p>
 
           {state.error && (
@@ -267,12 +267,12 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           )}
         </Panel>
 
-        <Panel title="下一步接入顺序" subtitle="先验收壳，再接业务">
+        <Panel title="后续接入顺序" subtitle="已经可用的入口继续保留，下一步补齐还缺的管理面">
           <div className="grid gap-3">
             {[
-              "记忆提案审核：单条 approve / reject / apply",
-              "Reflection / Dream：手动触发与报告详情",
-              "草稿与工具日志：列表、筛选、详情",
+              "草稿管理：列表、详情、审核状态",
+              "工具日志：列表、筛选、详情",
+              "渠道状态与对话历史：查看连接、用户和会话",
             ].map((item, index) => (
               <div
                 key={item}
