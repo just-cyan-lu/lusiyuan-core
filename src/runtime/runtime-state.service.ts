@@ -281,6 +281,28 @@ function cleanSourceMessageIds(input: {
   return cleanSourceIds(input.sourceMessageIds);
 }
 
+function sourceIdsFromJson(value: Prisma.JsonValue | null | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return cleanSourceIds(
+    value.map((item) => (typeof item === "string" ? item : undefined))
+  ) ?? [];
+}
+
+function orderBySourceIds<T extends { id: string }>(items: T[], sourceIds: string[]): T[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const ordered: T[] = [];
+  const seen = new Set<string>();
+
+  for (const id of sourceIds) {
+    const item = byId.get(id);
+    if (!item || seen.has(id)) continue;
+    ordered.push(item);
+    seen.add(id);
+  }
+
+  return ordered.concat(items.filter((item) => !seen.has(item.id)));
+}
+
 function cleanConfidence(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0.5;
@@ -778,6 +800,66 @@ export const runtimeStateService = {
       orderBy: { createdAt: "desc" },
       take: clampInt(limit, 1, 100),
     });
+  },
+
+  async getEventSources(eventId: string) {
+    const event = await prisma.runtimeStateEvent.findUnique({
+      where: { id: eventId },
+    });
+    if (!event) return null;
+
+    const sourceRuntimeEventIds = sourceIdsFromJson(event.sourceRuntimeEventIds);
+    const sourceMessageIds = sourceIdsFromJson(event.sourceMessageIds);
+
+    const [runtimeEvents, messages] = await Promise.all([
+      sourceRuntimeEventIds.length > 0
+        ? prisma.runtimeEvent.findMany({
+            where: { id: { in: sourceRuntimeEventIds } },
+            orderBy: { createdAt: "asc" },
+          })
+        : [],
+      sourceMessageIds.length > 0
+        ? prisma.message.findMany({
+            where: { id: { in: sourceMessageIds } },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              conversationId: true,
+              role: true,
+              content: true,
+              externalMessageId: true,
+              isIntermediate: true,
+              metadata: true,
+              createdAt: true,
+              conversation: {
+                select: {
+                  id: true,
+                  channel: true,
+                  externalConversationId: true,
+                  user: {
+                    select: {
+                      id: true,
+                      externalId: true,
+                      displayName: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : [],
+    ]);
+
+    const runtimeEventIdSet = new Set(runtimeEvents.map((item) => item.id));
+    const messageIdSet = new Set(messages.map((item) => item.id));
+
+    return {
+      event,
+      runtimeEvents: orderBySourceIds(runtimeEvents, sourceRuntimeEventIds),
+      messages: orderBySourceIds(messages, sourceMessageIds),
+      missingRuntimeEventIds: sourceRuntimeEventIds.filter((id) => !runtimeEventIdSet.has(id)),
+      missingMessageIds: sourceMessageIds.filter((id) => !messageIdSet.has(id)),
+    };
   },
 
   async applyPatch(input: ApplyRuntimeStatePatchInput): Promise<RuntimeState> {
