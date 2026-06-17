@@ -267,6 +267,7 @@ Tool 是模型可以调用的外部能力。
 | Reflection | 复盘并生成记忆提案 | `src/reflection/` |
 | Dream | 闲时整理、内在日记、信号提取 | `src/dream/` |
 | 工具系统 | 让模型调用外部能力 | `src/tools/` |
+| 对话追溯 | 按现实身份查看渠道账号、会话和消息 | `web/src/components/admin/ConversationHistoryPage.tsx`, `src/routes/admin.route.ts` |
 | 网页读取 | 读 URL、页面、浏览器内容 | `src/page-reader/`, `src/cdp-browser/` |
 | 搜索 | Tavily 网页搜索 | `src/web-search/` |
 | 外部 inbox | 同步外部平台消息 | `src/external-inbox/` |
@@ -544,6 +545,7 @@ pnpm telegram:dev
 - `web/src/components/admin/RuntimeStatePage.tsx`：admin 里的运行态可视化、事件日志、状态变更和自启动控制页面。
 - `web/src/components/admin/RuntimeStateSourceMaterials.tsx`：admin 里查看一次状态变化背后的运行事件和消息来源。
 - `web/src/components/admin/RelationshipStatePage.tsx`：admin 里的现实身份关系状态和身份怀疑审核页面。
+- `web/src/components/admin/ConversationHistoryPage.tsx`：admin 里的现实身份对话追溯页，从现实身份查看渠道账号、会话和消息；只看证据，不修改关系。
 - `web/src/components/admin/OpsPage.tsx`：admin 里的 Reflection / Dream 工作台，可以手动触发复盘或梦境循环，并查看报告、作业、Morning Brief、Deep Sleep、Daily Note、Signal 和内在日记。
 - `web/src/components/admin/RuntimeEventDetail.tsx`：admin 里的运行事件解释组件，用来看事件有没有资格影响长期状态。
 - `web/src/components/admin/StateChangeDetail.tsx`：admin 里的状态变化解释组件，用同一套方式展示变化前后、写入原因和原始记录。

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
 import { ConfigCenterPage } from "./components/admin/ConfigCenterPage";
+import { ConversationHistoryPage } from "./components/admin/ConversationHistoryPage";
 import { DashboardPage } from "./components/admin/DashboardPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
@@ -16,6 +17,7 @@ const sections: AdminSection[] = [
   "overview",
   "runtime",
   "relationships",
+  "conversations",
   "memory",
   "reflection",
   "dream",
@@ -28,6 +30,8 @@ const sections: AdminSection[] = [
 interface AdminRoute {
   section: AdminSection;
   platformId?: string;
+  relationshipId?: string;
+  conversationPersonId?: string;
 }
 
 function pathForSection(section: AdminSection): string {
@@ -55,6 +59,18 @@ function readRouteFromLocation(): AdminRoute {
     return {
       section: "platforms",
       platformId: path.slice("/admin/platforms/".length),
+    };
+  }
+  if (path.startsWith("/admin/relationships/")) {
+    return {
+      section: "relationships",
+      relationshipId: path.slice("/admin/relationships/".length),
+    };
+  }
+  if (path.startsWith("/admin/conversations/person/")) {
+    return {
+      section: "conversations",
+      conversationPersonId: path.slice("/admin/conversations/person/".length),
     };
   }
 
@@ -96,6 +112,16 @@ export default function App() {
     setRoute({ section: "platforms", platformId });
   }, []);
 
+  const handleOpenRelationship = useCallback((relationshipId: string) => {
+    window.history.pushState(null, "", `/admin/relationships/${relationshipId}`);
+    setRoute({ section: "relationships", relationshipId });
+  }, []);
+
+  const handleOpenConversationPerson = useCallback((personId: string) => {
+    window.history.pushState(null, "", `/admin/conversations/person/${personId}`);
+    setRoute({ section: "conversations", conversationPersonId: personId });
+  }, []);
+
   function handleAdminTokenChange(token: string) {
     setAdminToken(token);
     setStoredAdminToken(token);
@@ -115,7 +141,24 @@ export default function App() {
     }
 
     if (route.section === "relationships") {
-      return <RelationshipStatePage adminToken={adminToken} />;
+      return (
+        <RelationshipStatePage
+          adminToken={adminToken}
+          selectedRelationshipId={route.relationshipId}
+          onOpenConversationPerson={handleOpenConversationPerson}
+        />
+      );
+    }
+
+    if (route.section === "conversations") {
+      return (
+        <ConversationHistoryPage
+          adminToken={adminToken}
+          personId={route.conversationPersonId}
+          onOpenPerson={handleOpenConversationPerson}
+          onOpenRelationship={handleOpenRelationship}
+        />
+      );
     }
 
     if (route.section === "memory") {
@@ -142,7 +185,14 @@ export default function App() {
     }
 
     return <ConfigCenterPage adminToken={adminToken} />;
-  }, [route, adminToken, handleNavigate, handleOpenPlatform]);
+  }, [
+    route,
+    adminToken,
+    handleNavigate,
+    handleOpenPlatform,
+    handleOpenRelationship,
+    handleOpenConversationPerson,
+  ]);
 
   return (
     <AdminShell

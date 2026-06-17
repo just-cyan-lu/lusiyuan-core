@@ -241,6 +241,102 @@ export interface IdentityLinkProposalReviewResponse {
   events?: RelationshipStateEvent[];
 }
 
+export interface ConversationIdentityLinkSummary {
+  id: string;
+  personId: string;
+  userId: string;
+  source: string;
+  verifiedBy: string | null;
+  createdAt: string;
+  user: RelationshipUser & {
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  conversationCount: number;
+  messageCount: number;
+  lastMessageAt: string | null;
+}
+
+export interface ConversationPersonSummary {
+  person: Omit<PersonIdentity, "identityLinks">;
+  relationship: RelationshipState | null;
+  identityLinks: ConversationIdentityLinkSummary[];
+  isOwner: boolean;
+  lastMessageAt: string | null;
+  conversationCount: number;
+  messageCount: number;
+}
+
+export interface ConversationPeopleResponse {
+  people: ConversationPersonSummary[];
+}
+
+export interface ConversationUserDetail {
+  link: {
+    id: string;
+    personId: string;
+    userId: string;
+    source: string;
+    verifiedBy: string | null;
+    createdAt: string;
+  };
+  user: RelationshipUser & {
+    createdAt: string;
+    updatedAt: string;
+  };
+  isOwner: boolean;
+  conversations: ConversationSummary[];
+}
+
+export interface ConversationSummary {
+  id: string;
+  userId: string;
+  channel: string;
+  externalConversationId: string;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessageAt: string | null;
+  lastMessageRole: string | null;
+  lastMessagePreview: string | null;
+}
+
+export interface ConversationPersonDetailResponse {
+  person: Omit<PersonIdentity, "identityLinks">;
+  relationship: RelationshipState | null;
+  isOwner: boolean;
+  lastMessageAt: string | null;
+  users: ConversationUserDetail[];
+}
+
+export interface AdminConversation {
+  id: string;
+  userId: string;
+  channel: string;
+  externalConversationId: string;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+  user: RelationshipUser;
+}
+
+export interface AdminConversationMessage {
+  id: string;
+  conversationId: string;
+  role: string;
+  content: string;
+  externalMessageId: string | null;
+  isIntermediate: boolean;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface AdminConversationMessagesResponse {
+  conversation: AdminConversation;
+  messages: AdminConversationMessage[];
+}
+
 export interface RelationshipUpdateInput {
   token: string;
   relationshipId: string;
@@ -859,6 +955,60 @@ export async function reviewRelationshipState(input: {
     headers: adminHeaders(input.token),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "复盘关系状态失败");
+}
+
+export async function fetchConversationPeople(input: {
+  token: string;
+  query?: string;
+  limit?: number;
+}): Promise<ConversationPeopleResponse> {
+  const params = new URLSearchParams();
+  if (input.query) params.set("q", input.query);
+  if (input.limit) params.set("limit", String(input.limit));
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/conversation-people${query ? `?${query}` : ""}`,
+    {
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<ConversationPeopleResponse>(response, "无法读取对话身份列表");
+}
+
+export async function fetchConversationPersonDetail(input: {
+  token: string;
+  personId: string;
+  conversationLimit?: number;
+}): Promise<ConversationPersonDetailResponse> {
+  const params = new URLSearchParams();
+  if (input.conversationLimit) {
+    params.set("conversationLimit", String(input.conversationLimit));
+  }
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/conversation-people/${input.personId}${query ? `?${query}` : ""}`,
+    {
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<ConversationPersonDetailResponse>(response, "无法读取现实身份对话详情");
+}
+
+export async function fetchAdminConversationMessages(input: {
+  token: string;
+  conversationId: string;
+  limit?: number;
+}): Promise<AdminConversationMessagesResponse> {
+  const params = new URLSearchParams();
+  if (input.limit) params.set("limit", String(input.limit));
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/conversations/${input.conversationId}/messages${query ? `?${query}` : ""}`,
+    {
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<AdminConversationMessagesResponse>(response, "无法读取会话消息");
 }
 
 export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {

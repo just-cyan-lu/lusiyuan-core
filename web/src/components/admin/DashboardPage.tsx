@@ -272,7 +272,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
             {[
               "平台工具：各平台自己的回复草稿和互动记录",
               "工具日志：列表、筛选、详情",
-              "渠道状态与对话历史：查看连接、用户和会话",
+              "渠道状态：查看连接和平台入口",
             ].map((item, index) => (
               <div
                 key={item}

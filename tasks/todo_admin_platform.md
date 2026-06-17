@@ -17,7 +17,7 @@ Admin 平台需要对接的现有接口：
 |------|------|
 | 记忆 | `GET /v1/users/:userId/memories` |
 | 工具 | `GET /v1/tools`、`POST /v1/tools/:toolName/execute`、`GET /v1/tool-logs` |
-| 对话 | `GET /v1/conversations/:conversationId/messages` |
+| 对话追溯 | `GET /v1/admin/conversation-people`、`GET /v1/admin/conversation-people/:personId`、`GET /v1/admin/conversations/:conversationId/messages` |
 | 渠道 | `GET /v1/channels/status` |
 | Reflection | `POST /v1/reflection/run`、`GET /v1/reflection/reports`、`GET /v1/reflection/proposals`、`POST /v1/reflection/proposals/:id/approve`、`POST /v1/reflection/proposals/:id/reject`、`POST /v1/reflection/proposals/:id/apply`、`GET /v1/reflection/risks` |
 | Dream | `POST /v1/dream/run`、`GET /v1/dream/jobs/:id`、`GET /v1/dream/diary`、`GET /v1/dream/daily-notes`、`GET /v1/dream/signals`、`GET /v1/dream/jobs/:id/morning-brief` |
@@ -62,11 +62,14 @@ Admin 平台需要对接的现有接口：
 - [x] 查看 Dream Signal 列表（提取出的信号，带评分）
 - [x] 查看 Deep Sleep 整合结果（记忆提案、风险项、成长日志提案）
 
-### 5. 对话历史
+### 5. 对话追溯
 
-- [ ] 列出用户列表
-- [ ] 查看某个用户的对话列表
-- [ ] 查看某个对话的消息记录
+- [x] 按现实身份列出用户，owner 置顶、最近互动优先
+- [x] 支持搜索现实身份 / 渠道 user / 显示名
+- [x] 查看某个现实身份绑定的渠道账号
+- [x] 查看某个渠道账号的会话列表
+- [x] 查看某个会话的消息记录
+- [x] 和关系页面互相跳转，但关系修改仍留在关系页面
 
 ### 6. 工具调用日志
 
@@ -89,9 +92,8 @@ Admin 平台需要对接的现有接口：
 
 其次：
 
-4. 对话历史
-5. 工具调用日志
-6. 渠道状态
+4. 工具调用日志
+5. 渠道状态
 
 ---
 
