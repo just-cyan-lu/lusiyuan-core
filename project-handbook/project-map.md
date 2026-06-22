@@ -120,6 +120,36 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 - `src/tools/builtin/`：内置工具。
 - `src/tools/policy/`：工具权限和风险控制。
 
+## Skill 系统
+
+**是什么**
+
+Skill 是项目内部的正式能力流程，不等同于一段 prompt，也不等同于 Tool。
+
+现在已有的是 `xiaohongshu_reply`：小红书评论回复工作流。它用 LLM 判断评论是否需要回复、风险等级和回复口吻，然后生成待审核草稿。
+
+关闭 skill 时，小红书工作台不能生成回复草稿。帖子、评论和草稿都保存在数据库里，最终仍由 owner 手动审核。
+
+**在哪里**
+
+- `src/skills/skill-registry.ts`：Skill 列表。
+- `src/skills/xiaohongshu-reply/`：小红书回复 skill、prompt 配置和 LLM 草稿生成。
+- `web/src/components/admin/SkillsAdminPage.tsx`：admin 的 Skill 列表页和详情页。
+- `web/src/components/admin/PlatformsPage.tsx`：小红书帖子、评论和回复草稿工作台。
+
+## 表达学习
+
+**是什么**
+
+记录 owner 如何采用、修改、重写或放弃思源的回复，再把这次取舍分析成可检索的表达经验。它是跨平台底层，小红书只是第一个接入方。
+
+**在哪里**
+
+- `src/expression-learning/`：通用分析、保存、向量索引和检索。
+- `src/platforms/xiaohongshu/`：小红书 URL 导入、账号镜像、最终回复和同步入口。
+- `web/src/components/admin/ExpressionLearningPage.tsx`：查看、修正、停用和重新分析表达经验。
+- `project-handbook/expression-learning.md`：功能边界和当前流程。
+
 ## 外部信息读取
 
 **是什么**
@@ -129,9 +159,10 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 **在哪里**
 
 - `src/web-search/`：Tavily 搜索。
-- `src/page-reader/`：Jina / Playwright / CDP 页面读取。
+- `src/page-reader/`：Jina / Playwright 公开页面读取。
 - `src/external-inbox/`：外部消息箱。
-- `src/cdp-browser/`：连接本机 Chrome。
+- `src/mcp/mcp-client.ts`：本地 MCP stdio 客户端。
+- `src/mcp/chrome-devtools-mcp.service.ts`：只读连接已登录 Chrome，复用并保留页面。
 
 ## 渠道层
 
@@ -159,6 +190,7 @@ Dream 是闲时整理系统。它把最近发生的事整理成 DailyNote、Drea
 - `web/src/components/admin/RuntimeStateSourceMaterials.tsx`：状态变更的来源追溯，展示它引用过的运行事件和消息。
 - `web/src/components/admin/RelationshipStatePage.tsx`：现实身份关系状态可视化、身份怀疑审核、渠道账号绑定、编辑和变更记录页。
 - `web/src/components/admin/ConversationHistoryPage.tsx`：现实身份对话追溯页，只查看渠道账号、会话和消息，不修改关系。
+- `web/src/components/admin/SkillsAdminPage.tsx`：Skill 列表和详情页，查看小红书回复 skill、开关、prompt 和测试入口。
 - `web/src/components/admin/OpsPage.tsx`：Reflection / Dream 工作台，负责手动触发和查看后台整理产物。
 - `web/src/components/admin/RuntimeEventDetail.tsx`：运行事件详情组件，用来解释一次事件是什么、有没有资格影响长期状态，以及最近是否找到对应状态写入。
 - `web/src/components/admin/StateChangeDetail.tsx`：状态变更详情组件，用来解释一次运行态或关系态为什么变、实际改了哪些字段。

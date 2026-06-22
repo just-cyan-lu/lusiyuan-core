@@ -81,9 +81,9 @@ const toolGuides: Record<
     configKeys: ["TAVILY_ENABLED", "TAVILY_API_KEYS", "TAVILY_API_KEY", "TAVILY_MAX_RESULTS", "TAVILY_SEARCH_DEPTH"],
   },
   read_page: {
-    purpose: "读取指定 URL 的正文内容，可用 Jina、Playwright 或连接已登录 Chrome 的 CDP。",
+    purpose: "读取指定 URL 的正文内容，可用 Jina、Playwright 或连接已登录 Chrome 的 Chrome DevTools MCP。",
     usage: "用户发链接并要求“帮我看这页”“总结这个页面”“读取登录后的页面”时使用。",
-    trigger: "模型看到需要读取网页内容时触发；截图或 JS 页面会倾向 Playwright/CDP；可通过访问模式限制为 owner only。",
+    trigger: "模型看到需要读取网页内容时触发；截图页面倾向 Playwright，登录页面使用 Chrome DevTools MCP；可限制为 owner only。",
     modeKey: "TOOL_READ_PAGE_MODE",
     configKeys: [
       "JINA_ENABLED",
@@ -91,8 +91,11 @@ const toolGuides: Record<
       "PLAYWRIGHT_ENABLED",
       "PLAYWRIGHT_SCREENSHOT_ENABLED",
       "PLAYWRIGHT_MAX_PAGE_TEXT_CHARS",
-      "CDP_BROWSER_ENABLED",
-      "CDP_BROWSER_PORT",
+      "MCP_ENABLED",
+      "CHROME_DEVTOOLS_MCP_ENABLED",
+      "CHROME_DEVTOOLS_MCP_CONNECTION_MODE",
+      "CHROME_DEVTOOLS_MCP_BROWSER_URL",
+      "CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS",
     ],
   },
   send_intermediate_message: {

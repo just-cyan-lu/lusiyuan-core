@@ -1,12 +1,12 @@
 import { pageReaderService } from "../../page-reader/page-reader.service.js";
-import { cdpBrowserService } from "../../cdp-browser/cdp-browser.service.js";
+import { chromeDevtoolsMcpService } from "../../mcp/chrome-devtools-mcp.service.js";
 import { env } from "../../utils/env.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
 interface ReadPageInput {
   url: string;
-  tool?: "jina" | "playwright" | "cdp";
+  tool?: "jina" | "playwright" | "chrome-devtools-mcp";
   wait_ms?: number;
   screenshot?: boolean;
 }
@@ -23,11 +23,8 @@ async function handler(
   input: ReadPageInput,
   _context: ToolExecutionContext
 ): Promise<ReadPageOutput> {
-  if (input.tool === "cdp") {
-    const result = await cdpBrowserService.read({
-      url: input.url,
-      waitMs: input.wait_ms,
-    });
+  if (input.tool === "chrome-devtools-mcp") {
+    const result = await chromeDevtoolsMcpService.read(input.url, input.wait_ms);
     return {
       url: result.url,
       title: result.title,
@@ -57,12 +54,13 @@ export const readPageTool: ToolDefinition<ReadPageInput, ReadPageOutput> = {
     "读取网页内容并转换为纯文本。支持三种工具：\n" +
     "- jina（默认）：快速，适合大多数公开网页\n" +
     "- playwright：本地无头浏览器，支持 JS 渲染的页面，可选截图\n" +
-    "- cdp：连接用户已登录的 Chrome，适合需要登录的页面（如小红书通知）\n" +
+    "- chrome-devtools-mcp：只读连接用户已登录的 Chrome；页面会保留，不自动关闭\n" +
   "参数 wait_ms：等待页面 JS 渲染完成的毫秒数。对于动态加载的页面（如社交媒体、SPA 应用）建议传 2000-5000，静态页面不需要传。",
   riskLevel: "low",
   ...toolAccessState(
     env.TOOL_READ_PAGE_MODE,
-    env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED || env.CDP_BROWSER_ENABLED
+    env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED ||
+      (env.MCP_ENABLED && env.CHROME_DEVTOOLS_MCP_ENABLED)
   ),
   handler,
 };

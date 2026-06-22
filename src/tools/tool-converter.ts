@@ -44,12 +44,12 @@ function inferParametersSchema(toolName: string): {
           url: { type: "string", description: "要读取的网页 URL" },
           tool: {
             type: "string",
-            enum: ["jina", "playwright", "cdp"],
+            enum: ["jina", "playwright", "chrome-devtools-mcp"],
             description:
               "使用的工具：\n" +
               "- jina（默认）：快速，适合公开网页\n" +
               "- playwright：本地浏览器，支持 JS 渲染\n" +
-              "- cdp：连接用户已登录的 Chrome，**必须用于需要登录的页面**（如小红书通知、微博私信等）",
+              "- chrome-devtools-mcp：只读连接用户已登录的 Chrome，适合需要登录的页面；不会自动关闭页面",
           },
           wait_ms: {
             type: "number",

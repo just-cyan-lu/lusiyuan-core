@@ -18,12 +18,12 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  conversations Conversation[]
-  memories      Memory[]
-  identityLink  IdentityLink?
-  relationshipEvents RelationshipStateEvent[]
-  identityProposalsMade IdentityLinkProposal[] @relation("IdentityProposalSourceUser")
-  identityProposalsTargeted IdentityLinkProposal[] @relation("IdentityProposalTargetUser")
+  conversations             Conversation[]
+  memories                  Memory[]
+  identityLink              IdentityLink?
+  relationshipEvents        RelationshipStateEvent[]
+  identityProposalsMade     IdentityLinkProposal[]   @relation("IdentityProposalSourceUser")
+  identityProposalsTargeted IdentityLinkProposal[]   @relation("IdentityProposalTargetUser")
 
   @@map("app_users")
 }
@@ -60,10 +60,10 @@ model Message {
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
+  @@unique([conversationId, externalMessageId])
   @@index([conversationId])
   @@index([createdAt])
   @@index([externalMessageId])
-  @@unique([conversationId, externalMessageId])
   @@map("chat_messages")
 }
 
@@ -144,6 +144,181 @@ model ToolCallLog {
   @@map("tool_call_logs")
 }
 
+/// Admin-editable configuration for reusable skills.
+model SkillConfig {
+  id        String   @id @default(cuid())
+  skillId   String   @unique
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("skill_configs")
+}
+
+/// Xiaohongshu post tracked by the admin workbench.
+model XiaohongshuPost {
+  id           String    @id @default(cuid())
+  externalId   String?   @unique
+  url          String?
+  title        String
+  caption      String?
+  authorName   String?
+  postType     String    @default("daily")
+  imageCount   Int       @default(0)
+  imageAlts    Json?
+  status       String    @default("active")
+  source       String    @default("manual")
+  publishedAt  DateTime?
+  lastSyncedAt DateTime?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  comments XiaohongshuComment[]
+
+  @@index([status])
+  @@index([postType])
+  @@index([createdAt])
+  @@map("xiaohongshu_posts")
+}
+
+/// Xiaohongshu comment tracked for manual reply drafting.
+model XiaohongshuComment {
+  id               String    @id @default(cuid())
+  postId           String
+  externalId       String?
+  authorName       String?
+  content          String
+  commenterHistory String?
+  status           String    @default("pending")
+  replyNeed        String    @default("unknown")
+  source           String    @default("manual")
+  publishedAt      DateTime?
+  lastSyncedAt     DateTime?
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  post   XiaohongshuPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  drafts XiaohongshuReplyDraft[]
+  reply  XiaohongshuReply?
+
+  @@unique([postId, externalId])
+  @@index([postId])
+  @@index([status])
+  @@index([replyNeed])
+  @@index([createdAt])
+  @@map("xiaohongshu_comments")
+}
+
+/// Draft reply generated for a Xiaohongshu comment.
+model XiaohongshuReplyDraft {
+  id              String   @id @default(cuid())
+  commentId       String
+  originalContent String
+  content         String
+  risk            String
+  commentType     String
+  awareness       String?
+  voice           String?
+  boundary        String?
+  reason          String?
+  status          String   @default("draft")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  comment XiaohongshuComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
+  @@index([risk])
+  @@index([status])
+  @@index([createdAt])
+  @@map("xiaohongshu_reply_drafts")
+}
+
+/// Reply that actually appeared on the Xiaohongshu account.
+model XiaohongshuReply {
+  id           String    @id @default(cuid())
+  commentId    String    @unique
+  externalId   String?   @unique
+  content      String
+  authorMode   String    @default("owner_as_siyuan")
+  source       String    @default("manual")
+  publishedAt  DateTime?
+  lastSyncedAt DateTime?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  comment XiaohongshuComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([authorMode])
+  @@index([source])
+  @@index([publishedAt])
+  @@map("xiaohongshu_replies")
+}
+
+/// A reusable lesson learned from an owner's final response decision.
+model ExpressionLearningExample {
+  id              String    @id @default(cuid())
+  sourceRef       String    @unique
+  sourceType      String
+  sourceId        String?
+  platform        String
+  scene           String
+  scope           String    @default("platform")
+  contextText     String
+  draftText       String?
+  finalText       String?
+  outcome         String
+  ownerAction     String
+  ownerNote       String?
+  lesson          String
+  reasoning       String?
+  strategy        String?
+  tone            String?
+  avoidances      Json?
+  tags            Json?
+  confidence      Float     @default(0.7)
+  status          String    @default("active")
+  analysisVersion Int       @default(1)
+  embeddingStatus String    @default("pending")
+  embeddingError  String?
+  lastUsedAt      DateTime?
+  accessCount     Int       @default(0)
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  embeddings ExpressionLearningEmbedding[]
+
+  @@index([platform, scene, status])
+  @@index([scope, status])
+  @@index([outcome])
+  @@index([ownerAction])
+  @@index([createdAt])
+  @@map("expression_learning_examples")
+}
+
+/// Vector index for expression-learning examples.
+model ExpressionLearningEmbedding {
+  id          String                       @id @default(cuid())
+  exampleId   String
+  provider    String
+  model       String
+  dimensions  Int
+  contentHash String
+  embedding   Unsupported("vector(1024)")?
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+
+  example ExpressionLearningExample @relation(fields: [exampleId], references: [id], onDelete: Cascade)
+
+  @@unique([exampleId, provider, model, dimensions])
+  @@index([exampleId])
+  @@map("expression_learning_embeddings")
+}
+
 /// Current global runtime state for Lusiyuan.
 model RuntimeState {
   id                 String   @id @default(cuid())
@@ -172,20 +347,20 @@ model RuntimeState {
 
 /// Timeline of runtime state changes.
 model RuntimeStateEvent {
-  id             String   @id @default(cuid())
-  runtimeStateId String
-  eventType      String
-  source         String?
-  summary        String
-  patch          Json?
-  before         Json?
-  after          Json?
-  userId         String?
-  conversationId String?
+  id                    String   @id @default(cuid())
+  runtimeStateId        String
+  eventType             String
+  source                String?
+  summary               String
+  patch                 Json?
+  before                Json?
+  after                 Json?
+  userId                String?
+  conversationId        String?
   sourceRuntimeEventIds Json?
   sourceMessageIds      Json?
   channel               String?
-  createdAt      DateTime @default(now())
+  createdAt             DateTime @default(now())
 
   runtimeState RuntimeState @relation(fields: [runtimeStateId], references: [id], onDelete: Cascade)
 
@@ -291,21 +466,21 @@ model IdentityLinkProposal {
 
 /// Relationship state between Lusiyuan and one real-person identity.
 model RelationshipState {
-  id                String   @id @default(cuid())
-  personId          String   @unique
-  relationshipLabel String   @default("刚认识")
-  familiarity       Int      @default(8)
-  trust             Int      @default(8)
-  closeness         Int      @default(5)
-  tension           Int      @default(0)
+  id                String    @id @default(cuid())
+  personId          String    @unique
+  relationshipLabel String    @default("刚认识")
+  familiarity       Int       @default(8)
+  trust             Int       @default(8)
+  closeness         Int       @default(5)
+  tension           Int       @default(0)
   interactionStyle  String?
   summary           String?
   recentSignal      String?
   statusNote        String?
   metadata          Json?
   lastInteractionAt DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   person PersonIdentity           @relation(fields: [personId], references: [id], onDelete: Cascade)
   events RelationshipStateEvent[]
@@ -347,15 +522,15 @@ model RelationshipStateEvent {
 
 /// Vector embeddings attached to long-term memories.
 model MemoryEmbedding {
-  id          String                      @id @default(cuid())
+  id          String                       @id @default(cuid())
   memoryId    String
   provider    String
   model       String
   dimensions  Int
   contentHash String
   embedding   Unsupported("vector(1024)")?
-  createdAt   DateTime                    @default(now())
-  updatedAt   DateTime                    @updatedAt
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
 
   memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
 
@@ -413,30 +588,30 @@ model ReflectionReport {
 
 /// Proposed memory changes waiting for review or application.
 model MemoryProposal {
-  id              String    @id @default(cuid())
-  reportId        String
-  userId          String?
-  conversationId  String?
-  channel         String?
-  proposalType    String
-  targetMemoryId  String?
-  scope           String
-  type            String
-  content         String
-  summary         String?
-  tags            Json?
-  entities        Json?
-  reason          String
-  confidence      Float
-  riskLevel       String
-  status          String    @default("pending")
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  appliedMemoryId String?
+  id               String    @id @default(cuid())
+  reportId         String
+  userId           String?
+  conversationId   String?
+  channel          String?
+  proposalType     String
+  targetMemoryId   String?
+  scope            String
+  type             String
+  content          String
+  summary          String?
+  tags             Json?
+  entities         Json?
+  reason           String
+  confidence       Float
+  riskLevel        String
+  status           String    @default("pending")
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  appliedMemoryId  String?
   sourceMessageIds Json?
-  metadata        Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
@@ -499,21 +674,21 @@ model GrowthLogProposal {
 
 /// Dream cycle task that summarizes, extracts signals, and consolidates insights.
 model DreamJob {
-  id          String    @id @default(cuid())
-  status      String    @default("pending")
-  triggerType String
-  scope       String
-  userId      String?
+  id             String    @id @default(cuid())
+  status         String    @default("pending")
+  triggerType    String
+  scope          String
+  userId         String?
   conversationId String?
-  channel     String?
-  fromTime    DateTime?
-  toTime      DateTime?
-  phase       String?
-  error       String?
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  metadata    Json?
+  channel        String?
+  fromTime       DateTime?
+  toTime         DateTime?
+  phase          String?
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  metadata       Json?
 
   dailyNotes   DailyNote[]
   signals      DreamSignal[]
@@ -529,7 +704,7 @@ model DreamJob {
 
 /// Daily summary note generated by the dream cycle.
 model DailyNote {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   jobId       String?
   date        DateTime
   scope       String
@@ -540,9 +715,9 @@ model DailyNote {
   keyPoints   Json?
   sourceStats Json?
   riskSummary Json?
-  status      String    @default("active")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
@@ -555,22 +730,22 @@ model DailyNote {
 
 /// Signal extracted from messages, memories, tools, or reflection reports.
 model DreamSignal {
-  id           String   @id @default(cuid())
-  jobId        String?
-  signalType   String
-  content      String
-  summary      String?
-  confidence   Float
-  strength     Float
-  riskLevel    String   @default("low")
-  sourceTypes  Json?
-  sourceIds    Json?
-  evidenceCount Int     @default(0)
-  tags         Json?
-  entities     Json?
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  jobId         String?
+  signalType    String
+  content       String
+  summary       String?
+  confidence    Float
+  strength      Float
+  riskLevel     String   @default("low")
+  sourceTypes   Json?
+  sourceIds     Json?
+  evidenceCount Int      @default(0)
+  tags          Json?
+  entities      Json?
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
@@ -640,11 +815,11 @@ model DreamLock {
   @@map("dream_locks")
 }
 
-/// Snapshot of an external page read by Jina, Playwright, or CDP.
+/// Snapshot of an external page read by Jina, Playwright, or Chrome DevTools MCP.
 model ExternalPageSnapshot {
   id             String   @id @default(cuid())
   url            String
-  tool           String   // jina | playwright | cdp
+  tool           String // jina | playwright | chrome-devtools-mcp
   content        String
   screenshotPath String?
   createdAt      DateTime @default(now())

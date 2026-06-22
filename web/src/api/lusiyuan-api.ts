@@ -441,6 +441,201 @@ export interface ToolRegistryResponse {
   policy: ToolPolicy;
 }
 
+export interface SkillProfile {
+  id: string;
+  label: string;
+  platform?: string;
+  description: string;
+  enabled: boolean;
+  implemented: boolean;
+  configKeys: string[];
+  disabledReason: string | null;
+  rulesSummary: string[];
+}
+
+export interface RegisteredSkill {
+  id: string;
+  label: string;
+  category: string;
+  description: string;
+  accessMode: "off" | "owner_only" | "on";
+  enabled: boolean;
+  disabledReason: string | null;
+  configKeys: string[];
+  entryPoints: string[];
+  outputContract: string[];
+  disabledBehavior: string;
+  profiles: SkillProfile[];
+}
+
+export interface SkillsResponse {
+  skills: RegisteredSkill[];
+}
+
+export interface XiaohongshuReplyConfig {
+  version: number;
+  accountMode: "siyuan_first" | "creator_first" | "mixed";
+  maxReplyChars: number;
+  prompt: string;
+}
+
+export interface XiaohongshuReplyConfigResponse {
+  config: XiaohongshuReplyConfig;
+  message?: string;
+}
+
+export interface XiaohongshuReplyResult {
+  risk: "ready" | "review" | "skip";
+  comment_type: string;
+  awareness: string;
+  voice: string;
+  boundary: string;
+  reply: string;
+  reason: string;
+}
+
+export interface XiaohongshuReplyDraft {
+  id: string;
+  commentId: string;
+  originalContent: string;
+  content: string;
+  risk: string;
+  commentType: string;
+  awareness: string | null;
+  voice: string | null;
+  boundary: string | null;
+  reason: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpressionLearningExample {
+  id: string;
+  sourceRef: string;
+  sourceType: string;
+  sourceId: string | null;
+  platform: string;
+  scene: string;
+  scope: string;
+  contextText: string;
+  draftText: string | null;
+  finalText: string | null;
+  outcome: "sent" | "skipped";
+  ownerAction: string;
+  ownerNote: string | null;
+  lesson: string;
+  reasoning: string | null;
+  strategy: string | null;
+  tone: string | null;
+  avoidances: unknown;
+  tags: unknown;
+  confidence: number;
+  status: "active" | "disabled";
+  analysisVersion: number;
+  embeddingStatus: string;
+  embeddingError: string | null;
+  lastUsedAt: string | null;
+  accessCount: number;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpressionLearningResponse {
+  examples: ExpressionLearningExample[];
+  summary: { total: number; active: number; skipped: number };
+  platforms: string[];
+}
+
+export interface XiaohongshuReply {
+  id: string;
+  commentId: string;
+  externalId: string | null;
+  content: string;
+  authorMode: string;
+  source: string;
+  publishedAt: string | null;
+  lastSyncedAt: string | null;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface XiaohongshuComment {
+  id: string;
+  postId: string;
+  externalId: string | null;
+  authorName: string | null;
+  content: string;
+  commenterHistory: string | null;
+  status: string;
+  replyNeed: string;
+  source: string;
+  publishedAt: string | null;
+  lastSyncedAt: string | null;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+  drafts: XiaohongshuReplyDraft[];
+  reply: XiaohongshuReply | null;
+  learningExample: ExpressionLearningExample | null;
+}
+
+export interface XiaohongshuPost {
+  id: string;
+  externalId: string | null;
+  url: string | null;
+  title: string;
+  caption: string | null;
+  authorName: string | null;
+  postType: string;
+  imageCount: number;
+  imageAlts: unknown;
+  status: string;
+  source: string;
+  publishedAt: string | null;
+  lastSyncedAt: string | null;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+  comments: XiaohongshuComment[];
+}
+
+export interface XiaohongshuPostsResponse {
+  posts: XiaohongshuPost[];
+  postTypes: Record<string, string>;
+}
+
+export interface XiaohongshuImportStatus {
+  mcpEnabled: boolean;
+  chromeDevtoolsMcpEnabled: boolean;
+  browserAvailable: boolean;
+  connectionMode: "auto" | "browser_url";
+  browserUrl: string | null;
+  pageBehavior: {
+    reusesExistingPage: boolean;
+    leavesPageOpen: boolean;
+    automaticScrolling: boolean;
+    automaticExpansion: boolean;
+    minimumOpenIntervalMs: number;
+  };
+}
+
+export interface XiaohongshuImportResponse {
+  posts: XiaohongshuPost[];
+  imported: { posts: number; comments: number; replies: number; learned: number };
+  importedPostId: string;
+  browser: {
+    reusedPage: boolean;
+    pageLeftOpen: boolean;
+    finalUrl: string;
+    automaticScrolling: boolean;
+    automaticExpansion: boolean;
+  };
+  warning: string | null;
+}
+
 export interface ToolCallLog {
   id: string;
   toolName: string;
@@ -1063,6 +1258,260 @@ export async function fetchRegisteredTools(token: string): Promise<ToolRegistryR
     headers: adminHeaders(token),
   });
   return parseJsonResponse<ToolRegistryResponse>(response, "无法读取工具列表");
+}
+
+export async function fetchSkills(token: string): Promise<SkillsResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/skills`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<SkillsResponse>(response, "无法读取 Skill 列表");
+}
+
+export async function fetchExpressionLearningExamples(input: {
+  token: string;
+  platform?: string;
+  scene?: string;
+  status?: string;
+  outcome?: string;
+  query?: string;
+}): Promise<ExpressionLearningResponse> {
+  const params = new URLSearchParams();
+  if (input.platform && input.platform !== "all") params.set("platform", input.platform);
+  if (input.scene && input.scene !== "all") params.set("scene", input.scene);
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.outcome && input.outcome !== "all") params.set("outcome", input.outcome);
+  if (input.query) params.set("q", input.query);
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/examples?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ExpressionLearningResponse>(response, "无法读取表达学习记录");
+}
+
+export async function updateExpressionLearningExample(input: {
+  token: string;
+  exampleId: string;
+  lesson?: string;
+  reasoning?: string | null;
+  strategy?: string | null;
+  tone?: string | null;
+  ownerNote?: string | null;
+  status?: "active" | "disabled";
+  scope?: string;
+}): Promise<{ example: ExpressionLearningExample }> {
+  const { token, exampleId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/examples/${exampleId}`,
+    {
+      method: "PATCH",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ example: ExpressionLearningExample }>(response, "保存表达经验失败");
+}
+
+export async function reanalyzeExpressionLearningExample(input: {
+  token: string;
+  exampleId: string;
+}): Promise<{ example: ExpressionLearningExample }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/examples/${input.exampleId}/reanalyze`,
+    { method: "POST", headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<{ example: ExpressionLearningExample }>(response, "重新分析表达经验失败");
+}
+
+export async function fetchXiaohongshuReplyConfig(
+  token: string
+): Promise<XiaohongshuReplyConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/skills/xiaohongshu-reply/config`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<XiaohongshuReplyConfigResponse>(response, "无法读取小红书回复配置");
+}
+
+export async function saveXiaohongshuReplyConfig(input: {
+  token: string;
+  config: XiaohongshuReplyConfig;
+}): Promise<XiaohongshuReplyConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/skills/xiaohongshu-reply/config`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ config: input.config }),
+  });
+  return parseJsonResponse<XiaohongshuReplyConfigResponse>(response, "保存小红书回复配置失败");
+}
+
+export async function resetXiaohongshuReplyConfig(
+  token: string
+): Promise<XiaohongshuReplyConfigResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/skills/xiaohongshu-reply/config/reset`, {
+    method: "POST",
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<XiaohongshuReplyConfigResponse>(response, "重置小红书回复配置失败");
+}
+
+export async function generateXiaohongshuReplyDraft(input: {
+  token: string;
+  postTitle: string;
+  postCaption?: string;
+  postType?: string;
+  comment: string;
+  commenterHistory?: string;
+}): Promise<XiaohongshuReplyResult> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/skills/xiaohongshu-reply/draft`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<XiaohongshuReplyResult>(response, "生成小红书回复草稿失败");
+}
+
+export async function fetchXiaohongshuPosts(token: string): Promise<XiaohongshuPostsResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/xiaohongshu/posts`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<XiaohongshuPostsResponse>(response, "无法读取小红书帖子");
+}
+
+export async function fetchXiaohongshuImportStatus(token: string): Promise<XiaohongshuImportStatus> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/xiaohongshu/import-status`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<XiaohongshuImportStatus>(response, "无法读取小红书导入状态");
+}
+
+export async function importXiaohongshuUrl(input: {
+  token: string;
+  url: string;
+}): Promise<XiaohongshuImportResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/xiaohongshu/import-url`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url: input.url }),
+  });
+  return parseJsonResponse<XiaohongshuImportResponse>(response, "读取并导入小红书帖子失败");
+}
+
+export async function updateXiaohongshuPost(input: {
+  token: string;
+  postId: string;
+  title?: string;
+  caption?: string | null;
+  authorName?: string | null;
+  postType?: string;
+  imageAlts?: string[];
+}): Promise<{ posts: XiaohongshuPost[] }> {
+  const { token, postId, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/xiaohongshu/posts/${postId}`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<{ posts: XiaohongshuPost[] }>(response, "保存小红书帖子失败");
+}
+
+export async function updateXiaohongshuComment(input: {
+  token: string;
+  commentId: string;
+  content?: string;
+  authorName?: string | null;
+  commenterHistory?: string | null;
+}): Promise<{ posts: XiaohongshuPost[] }> {
+  const { token, commentId, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<{ posts: XiaohongshuPost[] }>(response, "保存小红书评论失败");
+}
+
+export async function generateXiaohongshuCommentReply(input: {
+  token: string;
+  commentId: string;
+}): Promise<{
+  output: XiaohongshuReplyResult;
+  draft: XiaohongshuReplyDraft;
+  comment: XiaohongshuComment;
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/xiaohongshu/comments/${input.commentId}/generate-reply`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<{
+    output: XiaohongshuReplyResult;
+    draft: XiaohongshuReplyDraft;
+    comment: XiaohongshuComment;
+  }>(response, "生成小红书评论回复失败");
+}
+
+export async function updateXiaohongshuReplyDraft(input: {
+  token: string;
+  draftId: string;
+  content: string;
+  status?: string;
+}): Promise<{ draft: XiaohongshuReplyDraft }> {
+  const { token, draftId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/xiaohongshu/reply-drafts/${draftId}`,
+    {
+      method: "PATCH",
+      headers: {
+        ...adminHeaders(token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ draft: XiaohongshuReplyDraft }>(
+    response,
+    "保存小红书回复草稿失败"
+  );
+}
+
+export async function recordXiaohongshuFinalDecision(input: {
+  token: string;
+  commentId: string;
+  draftId?: string | null;
+  content?: string | null;
+  outcome: "sent" | "skipped";
+  ownerNote?: string | null;
+}): Promise<{ posts: XiaohongshuPost[]; learningExample: ExpressionLearningExample }> {
+  const { token, commentId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}/final-decision`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ posts: XiaohongshuPost[]; learningExample: ExpressionLearningExample }>(
+    response,
+    "记录最终回复并学习失败"
+  );
 }
 
 export async function fetchToolCallLogs(input: {

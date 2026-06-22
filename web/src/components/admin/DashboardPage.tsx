@@ -270,7 +270,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
         <Panel title="后续接入顺序" subtitle="已经可用的入口继续保留，下一步补齐还缺的管理面">
           <div className="grid gap-3">
             {[
-              "平台工具：各平台自己的回复草稿和互动记录",
+              "平台工具：接真实评论读取和互动记录",
               "工具日志：列表、筛选、详情",
               "渠道状态：查看连接和平台入口",
             ].map((item, index) => (

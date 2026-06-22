@@ -4,11 +4,13 @@ import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
 import { ConfigCenterPage } from "./components/admin/ConfigCenterPage";
 import { ConversationHistoryPage } from "./components/admin/ConversationHistoryPage";
 import { DashboardPage } from "./components/admin/DashboardPage";
+import { ExpressionLearningPage } from "./components/admin/ExpressionLearningPage";
 import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
 import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
 import { PlatformsPage, XiaohongshuPlatformPage } from "./components/admin/PlatformsPage";
 import { RelationshipStatePage } from "./components/admin/RelationshipStatePage";
 import { RuntimeStatePage } from "./components/admin/RuntimeStatePage";
+import { SkillsAdminPage } from "./components/admin/SkillsAdminPage";
 import { ToolsAdminPage } from "./components/admin/ToolsAdminPage";
 import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
@@ -18,6 +20,8 @@ const sections: AdminSection[] = [
   "runtime",
   "relationships",
   "conversations",
+  "skills",
+  "learning",
   "memory",
   "reflection",
   "dream",
@@ -30,6 +34,7 @@ const sections: AdminSection[] = [
 interface AdminRoute {
   section: AdminSection;
   platformId?: string;
+  skillId?: string;
   relationshipId?: string;
   conversationPersonId?: string;
 }
@@ -59,6 +64,12 @@ function readRouteFromLocation(): AdminRoute {
     return {
       section: "platforms",
       platformId: path.slice("/admin/platforms/".length),
+    };
+  }
+  if (path.startsWith("/admin/skills/")) {
+    return {
+      section: "skills",
+      skillId: path.slice("/admin/skills/".length),
     };
   }
   if (path.startsWith("/admin/relationships/")) {
@@ -110,6 +121,16 @@ export default function App() {
   const handleOpenPlatform = useCallback((platformId: string) => {
     window.history.pushState(null, "", `/admin/platforms/${platformId}`);
     setRoute({ section: "platforms", platformId });
+  }, []);
+
+  const handleOpenSkill = useCallback((skillId: string) => {
+    window.history.pushState(null, "", `/admin/skills/${skillId}`);
+    setRoute({ section: "skills", skillId });
+  }, []);
+
+  const handleOpenSkillList = useCallback(() => {
+    window.history.pushState(null, "", pathForSection("skills"));
+    setRoute({ section: "skills" });
   }, []);
 
   const handleOpenRelationship = useCallback((relationshipId: string) => {
@@ -165,6 +186,21 @@ export default function App() {
       return <MemoryAdminPage adminToken={adminToken} />;
     }
 
+    if (route.section === "skills") {
+      return (
+        <SkillsAdminPage
+          adminToken={adminToken}
+          selectedSkillId={route.skillId}
+          onOpenSkill={handleOpenSkill}
+          onBackToList={handleOpenSkillList}
+        />
+      );
+    }
+
+    if (route.section === "learning") {
+      return <ExpressionLearningPage adminToken={adminToken} />;
+    }
+
     if (route.section === "reflection") {
       return <ReflectionPage adminToken={adminToken} />;
     }
@@ -175,7 +211,13 @@ export default function App() {
 
     if (route.section === "platforms") {
       if (route.platformId === "xiaohongshu") {
-        return <XiaohongshuPlatformPage onBack={() => handleNavigate("platforms")} />;
+        return (
+          <XiaohongshuPlatformPage
+            adminToken={adminToken}
+            onBack={() => handleNavigate("platforms")}
+            onOpenSkill={handleOpenSkill}
+          />
+        );
       }
       return <PlatformsPage onOpenPlatform={handleOpenPlatform} />;
     }
@@ -190,6 +232,8 @@ export default function App() {
     adminToken,
     handleNavigate,
     handleOpenPlatform,
+    handleOpenSkill,
+    handleOpenSkillList,
     handleOpenRelationship,
     handleOpenConversationPerson,
   ]);
