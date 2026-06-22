@@ -14,6 +14,30 @@ import {
   relationshipPatchFromAdminBody,
   relationshipStateService,
 } from "../runtime/relationship-state.service.js";
+import { listSkills } from "../skills/skill-registry.js";
+import {
+  loadXiaohongshuReplyConfig,
+  resetXiaohongshuReplyConfig,
+  saveXiaohongshuReplyConfig,
+} from "../skills/xiaohongshu-reply/xiaohongshu-reply.config.js";
+import {
+  generateXiaohongshuReplyDraft,
+  generateXiaohongshuReplyDraftForComment,
+  isXiaohongshuReplySkillEnabled,
+} from "../skills/xiaohongshu-reply/xiaohongshu-reply.skill.js";
+import {
+  normalizeXiaohongshuPostType,
+  listXiaohongshuAccountMirror,
+  recordXiaohongshuFinalDecision,
+  syncXiaohongshuAccountMirror,
+  xiaohongshuPostTypeLabels,
+} from "../platforms/xiaohongshu/xiaohongshu-account.service.js";
+import { importXiaohongshuUrl } from "../platforms/xiaohongshu/xiaohongshu-url-import.service.js";
+import { chromeDevtoolsMcpService } from "../mcp/chrome-devtools-mcp.service.js";
+import {
+  reanalyzeExpressionLearningExample,
+  reindexExpressionLearningExample,
+} from "../expression-learning/expression-learning.service.js";
 
 function configured(value: string | string[]): boolean {
   return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
@@ -144,6 +168,15 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     options: ["off", "owner_only", "on"],
     description: "off=关闭工具；owner_only=仅 owner 可用；on=普通可用。",
   })),
+  {
+    key: "SKILL_XIAOHONGSHU_REPLY_MODE",
+    group: "Skill / 小红书回复",
+    label: "小红书回复 Skill 访问模式",
+    type: "select",
+    defaultValue: "owner_only",
+    options: ["off", "owner_only", "on"],
+    description: "off=不生成小红书回复草稿；owner_only=仅 owner/admin 入口使用；on=普通入口也可用。",
+  },
   {
     key: "TELEGRAM_ENABLED",
     group: "渠道",
@@ -292,13 +325,71 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["JINA_ENABLED", "Jina Reader", "功能"],
     ["PLAYWRIGHT_ENABLED", "Playwright Reader", "功能"],
     ["PLAYWRIGHT_SCREENSHOT_ENABLED", "Playwright 截图", "功能"],
-    ["CDP_BROWSER_ENABLED", "CDP Browser", "功能"],
   ].map(([key, label, group]) => ({
     key,
     group,
     label,
     type: "boolean" as const,
   })),
+  {
+    key: "CHROME_DEVTOOLS_MCP_ENABLED",
+    group: "MCP / Chrome DevTools",
+    label: "Chrome DevTools MCP 启用",
+    type: "boolean",
+    defaultValue: "false",
+    description: "只读连接已登录 Chrome。读取后保留页面，不自动关闭。",
+  },
+  {
+    key: "CHROME_DEVTOOLS_MCP_CONNECTION_MODE",
+    group: "MCP / Chrome DevTools",
+    label: "Chrome 连接方式",
+    type: "select",
+    defaultValue: "auto",
+    options: ["auto", "browser_url"],
+    description: "auto 连接当前 Chrome；browser_url 用于手动指定本地调试地址。",
+  },
+  {
+    key: "CHROME_DEVTOOLS_MCP_BROWSER_URL",
+    group: "MCP / Chrome DevTools",
+    label: "Chrome 调试地址",
+    type: "string",
+    defaultValue: "http://127.0.0.1:9222",
+  },
+  {
+    key: "CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS",
+    group: "MCP / Chrome DevTools",
+    label: "新开页面最短间隔（毫秒）",
+    type: "integer",
+    defaultValue: "15000",
+    min: 5000,
+    description: "只限制新开页面；已经打开的同一帖子会直接复用。",
+  },
+  {
+    key: "CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS",
+    group: "MCP / Chrome DevTools",
+    label: "页面稳定等待最短时间",
+    type: "integer",
+    defaultValue: "3000",
+    min: 300,
+    description: "每次读取前会在最短与最长时间之间随机等待。",
+  },
+  {
+    key: "CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS",
+    group: "MCP / Chrome DevTools",
+    label: "页面稳定等待最长时间",
+    type: "integer",
+    defaultValue: "5000",
+    min: 300,
+  },
+  {
+    key: "CHROME_DEVTOOLS_MCP_MAX_COMMENTS",
+    group: "MCP / Chrome DevTools",
+    label: "单帖最多读取评论",
+    type: "integer",
+    defaultValue: "120",
+    min: 1,
+    max: 300,
+  },
   ...[
     ["MEMORY_SEMANTIC_TOP_K", "Memory Semantic Top K", "记忆"],
     ["MEMORY_FINAL_TOP_K", "Memory Final Top K", "记忆"],
@@ -323,7 +414,6 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["DREAM_LOCK_TTL_MINUTES", "Dream 锁 TTL 分钟", "限制"],
     ["TAVILY_MAX_RESULTS", "Tavily 最大结果数", "限制"],
     ["PLAYWRIGHT_MAX_PAGE_TEXT_CHARS", "Playwright 最大文本字符", "限制"],
-    ["CDP_BROWSER_PORT", "CDP Browser 端口", "限制"],
   ].map(([key, label, group]) => ({
     key,
     group,
@@ -674,6 +764,13 @@ const databaseDataTables = [
   "dream_consolidation_reports",
   "dream_locks",
   "dream_jobs",
+  "expression_learning_embeddings",
+  "expression_learning_examples",
+  "xiaohongshu_replies",
+  "xiaohongshu_reply_drafts",
+  "xiaohongshu_comments",
+  "xiaohongshu_posts",
+  "skill_configs",
   "external_page_snapshots",
   "app_users",
 ] as const;
@@ -1312,7 +1409,8 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         dreamAutoRun: env.DREAM_AUTO_RUN,
         runtimeAutonomy: env.RUNTIME_AUTONOMY_AUTO_RUN,
         webSearch: env.TAVILY_ENABLED,
-        pageReader: env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED || env.CDP_BROWSER_ENABLED,
+        pageReader: env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED ||
+          (env.MCP_ENABLED && env.CHROME_DEVTOOLS_MCP_ENABLED),
         mcp: env.MCP_ENABLED,
       },
       safety: {
@@ -1519,6 +1617,274 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       reviewedBy: cleanString(body.reviewed_by) ?? "admin",
     });
     return reply.send({ proposal });
+  });
+
+  app.get("/v1/admin/skills", async (_request, reply) => {
+    return reply.send({ skills: await listSkills() });
+  });
+
+  app.get("/v1/admin/expression-learning/examples", async (request, reply) => {
+    const query = request.query as {
+      platform?: string;
+      scene?: string;
+      status?: string;
+      outcome?: string;
+      q?: string;
+      limit?: string;
+    };
+    const clauses: Prisma.ExpressionLearningExampleWhereInput[] = [];
+    const platform = cleanString(query.platform);
+    const scene = cleanString(query.scene);
+    const status = cleanString(query.status);
+    const outcome = cleanString(query.outcome);
+    const search = cleanString(query.q);
+    if (platform && platform !== "all") clauses.push({ platform });
+    if (scene && scene !== "all") clauses.push({ scene });
+    if (status && status !== "all") clauses.push({ status });
+    if (outcome && outcome !== "all") clauses.push({ outcome });
+    if (search) {
+      clauses.push({
+        OR: [
+          { contextText: { contains: search, mode: "insensitive" } },
+          { finalText: { contains: search, mode: "insensitive" } },
+          { lesson: { contains: search, mode: "insensitive" } },
+          { reasoning: { contains: search, mode: "insensitive" } },
+        ],
+      });
+    }
+    const where: Prisma.ExpressionLearningExampleWhereInput = clauses.length > 0
+      ? { AND: clauses }
+      : {};
+    const [examples, total, active, skipped, platforms] = await Promise.all([
+      prisma.expressionLearningExample.findMany({
+        where,
+        orderBy: { updatedAt: "desc" },
+        take: clampLimit(query.limit, 100),
+      }),
+      prisma.expressionLearningExample.count(),
+      prisma.expressionLearningExample.count({ where: { status: "active" } }),
+      prisma.expressionLearningExample.count({ where: { outcome: "skipped" } }),
+      prisma.expressionLearningExample.findMany({
+        distinct: ["platform"],
+        select: { platform: true },
+        orderBy: { platform: "asc" },
+      }),
+    ]);
+    return reply.send({
+      examples,
+      summary: { total, active, skipped },
+      platforms: platforms.map((item) => item.platform),
+    });
+  });
+
+  app.patch("/v1/admin/expression-learning/examples/:exampleId", async (request, reply) => {
+    const { exampleId } = request.params as { exampleId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const data: Prisma.ExpressionLearningExampleUpdateInput = {};
+    if (body.lesson !== undefined) data.lesson = cleanString(body.lesson) ?? "";
+    if (body.reasoning !== undefined) data.reasoning = cleanNullableString(body.reasoning);
+    if (body.strategy !== undefined) data.strategy = cleanNullableString(body.strategy);
+    if (body.tone !== undefined) data.tone = cleanNullableString(body.tone);
+    if (body.ownerNote !== undefined) data.ownerNote = cleanNullableString(body.ownerNote);
+    if (body.status !== undefined) {
+      const next = cleanString(body.status);
+      if (!next || !["active", "disabled"].includes(next)) {
+        throw routeError("status must be active or disabled", 400);
+      }
+      data.status = next;
+    }
+    if (body.scope !== undefined) {
+      const next = cleanString(body.scope);
+      if (!next || !["global", "platform", "scene", "private"].includes(next)) {
+        throw routeError("invalid expression-learning scope", 400);
+      }
+      data.scope = next;
+    }
+    if (body.tags !== undefined) data.tags = body.tags as Prisma.InputJsonValue;
+    if (body.avoidances !== undefined) data.avoidances = body.avoidances as Prisma.InputJsonValue;
+    let example = await prisma.expressionLearningExample.update({
+      where: { id: exampleId },
+      data,
+    });
+    const embeddingFields = ["lesson", "strategy", "tone", "tags", "avoidances"];
+    if (embeddingFields.some((field) => body[field] !== undefined)) {
+      example = await reindexExpressionLearningExample(exampleId);
+    }
+    return reply.send({ example });
+  });
+
+  app.post("/v1/admin/expression-learning/examples/:exampleId/reanalyze", async (request, reply) => {
+    const { exampleId } = request.params as { exampleId: string };
+    const example = await reanalyzeExpressionLearningExample(exampleId);
+    return reply.send({ example });
+  });
+
+  app.get("/v1/admin/skills/xiaohongshu-reply/config", async (_request, reply) => {
+    return reply.send({ config: await loadXiaohongshuReplyConfig() });
+  });
+
+  app.patch("/v1/admin/skills/xiaohongshu-reply/config", async (request, reply) => {
+    const body = (request.body ?? {}) as { config?: unknown };
+    if (!body.config || typeof body.config !== "object") {
+      throw routeError("config is required", 400);
+    }
+    const config = await saveXiaohongshuReplyConfig(body.config);
+    return reply.send({ config, message: "小红书回复 Skill 配置已保存。" });
+  });
+
+  app.post("/v1/admin/skills/xiaohongshu-reply/config/reset", async (_request, reply) => {
+    const config = await resetXiaohongshuReplyConfig();
+    return reply.send({ config, message: "小红书回复 Skill 配置已恢复默认。" });
+  });
+
+  app.post("/v1/admin/skills/xiaohongshu-reply/draft", async (request, reply) => {
+    if (!isXiaohongshuReplySkillEnabled()) {
+      throw routeError("小红书回复 Skill 已关闭，请先在 Skills 页面开启。", 409);
+    }
+    const body = (request.body ?? {}) as {
+      postTitle?: string;
+      postCaption?: string | null;
+      postType?: string;
+      comment?: string;
+      commenterHistory?: string | null;
+    };
+    const postTitle = cleanString(body.postTitle);
+    const comment = cleanString(body.comment);
+    if (!postTitle) throw routeError("postTitle is required", 400);
+    if (!comment) throw routeError("comment is required", 400);
+    const result = await generateXiaohongshuReplyDraft({
+      postTitle,
+      postCaption: cleanNullableString(body.postCaption) ?? "",
+      postType: normalizeXiaohongshuPostType(body.postType),
+      comment,
+      commenterHistory: cleanNullableString(body.commenterHistory) ?? "",
+    });
+    return reply.send(result);
+  });
+
+  app.get("/v1/admin/xiaohongshu/posts", async (_request, reply) => {
+    return reply.send({
+      posts: await listXiaohongshuAccountMirror(),
+      postTypes: xiaohongshuPostTypeLabels,
+    });
+  });
+
+  app.get("/v1/admin/xiaohongshu/import-status", async (_request, reply) => {
+    return reply.send({
+      mcpEnabled: env.MCP_ENABLED,
+      chromeDevtoolsMcpEnabled: env.CHROME_DEVTOOLS_MCP_ENABLED,
+      browserAvailable: await chromeDevtoolsMcpService.isAvailable(),
+      connectionMode: env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE,
+      browserUrl: env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "browser_url"
+        ? env.CHROME_DEVTOOLS_MCP_BROWSER_URL
+        : null,
+      pageBehavior: {
+        reusesExistingPage: true,
+        leavesPageOpen: true,
+        automaticScrolling: false,
+        automaticExpansion: false,
+        minimumOpenIntervalMs: Math.max(env.CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS, 5000),
+      },
+    });
+  });
+
+  app.post("/v1/admin/xiaohongshu/import-url", async (request, reply) => {
+    const body = (request.body ?? {}) as { url?: string };
+    const url = cleanString(body.url);
+    if (!url) throw routeError("url is required", 400);
+    return reply.send(await importXiaohongshuUrl(url));
+  });
+
+  app.patch("/v1/admin/xiaohongshu/posts/:postId", async (request, reply) => {
+    const { postId } = request.params as { postId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const data: Prisma.XiaohongshuPostUpdateInput = {};
+    if (body.title !== undefined) {
+      const title = cleanString(body.title);
+      if (!title) throw routeError("title cannot be empty", 400);
+      data.title = title;
+    }
+    if (body.caption !== undefined) data.caption = cleanNullableString(body.caption);
+    if (body.authorName !== undefined) data.authorName = cleanNullableString(body.authorName);
+    if (body.postType !== undefined) data.postType = normalizeXiaohongshuPostType(body.postType);
+    if (body.imageAlts !== undefined) {
+      if (!Array.isArray(body.imageAlts)) throw routeError("imageAlts must be an array", 400);
+      const post = await prisma.xiaohongshuPost.findUniqueOrThrow({ where: { id: postId } });
+      data.imageAlts = body.imageAlts
+        .slice(0, post.imageCount)
+        .map((item) => typeof item === "string" ? item.trim().slice(0, 1000) : "");
+    }
+    await prisma.xiaohongshuPost.update({ where: { id: postId }, data });
+    return reply.send({ posts: await listXiaohongshuAccountMirror() });
+  });
+
+  app.patch("/v1/admin/xiaohongshu/comments/:commentId", async (request, reply) => {
+    const { commentId } = request.params as { commentId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const content = body.content === undefined ? undefined : cleanString(body.content);
+    if (body.content !== undefined && !content) throw routeError("comment content cannot be empty", 400);
+    await prisma.xiaohongshuComment.update({
+      where: { id: commentId },
+      data: {
+        ...(content !== undefined ? { content } : {}),
+        ...(body.authorName !== undefined ? { authorName: cleanNullableString(body.authorName) } : {}),
+        ...(body.commenterHistory !== undefined
+          ? { commenterHistory: cleanNullableString(body.commenterHistory) }
+          : {}),
+      },
+    });
+    return reply.send({ posts: await listXiaohongshuAccountMirror() });
+  });
+
+  app.post("/v1/admin/xiaohongshu/comments/:commentId/generate-reply", async (request, reply) => {
+    if (!isXiaohongshuReplySkillEnabled()) {
+      throw routeError("小红书回复 Skill 已关闭，请先在 Skills 页面开启。", 409);
+    }
+    const { commentId } = request.params as { commentId: string };
+    const result = await generateXiaohongshuReplyDraftForComment(commentId);
+    return reply.send(result);
+  });
+
+  app.patch("/v1/admin/xiaohongshu/reply-drafts/:draftId", async (request, reply) => {
+    const { draftId } = request.params as { draftId: string };
+    const body = (request.body ?? {}) as { content?: string; status?: string };
+    const data: Prisma.XiaohongshuReplyDraftUpdateInput = {};
+    if (body.content !== undefined) data.content = cleanString(body.content) ?? "";
+    if (body.status !== undefined) data.status = cleanString(body.status) ?? "draft";
+    const draft = await prisma.xiaohongshuReplyDraft.update({
+      where: { id: draftId },
+      data,
+    });
+    return reply.send({ draft });
+  });
+
+  app.post("/v1/admin/xiaohongshu/comments/:commentId/final-decision", async (request, reply) => {
+    const { commentId } = request.params as { commentId: string };
+    const body = (request.body ?? {}) as {
+      draftId?: string | null;
+      content?: string | null;
+      outcome?: string;
+      ownerNote?: string | null;
+    };
+    const outcome = cleanString(body.outcome);
+    if (outcome !== "sent" && outcome !== "skipped") {
+      throw routeError("outcome must be sent or skipped", 400);
+    }
+    const result = await recordXiaohongshuFinalDecision({
+      commentId,
+      draftId: cleanNullableString(body.draftId) ?? null,
+      content: cleanNullableString(body.content) ?? null,
+      outcome,
+      ownerNote: cleanNullableString(body.ownerNote) ?? null,
+    });
+    return reply.send(result);
+  });
+
+  app.post("/v1/admin/xiaohongshu/sync", async (request, reply) => {
+    const body = (request.body ?? {}) as { posts?: unknown };
+    if (!Array.isArray(body.posts)) throw routeError("posts array is required", 400);
+    const result = await syncXiaohongshuAccountMirror(body.posts as Parameters<typeof syncXiaohongshuAccountMirror>[0]);
+    return reply.send(result);
   });
 
   app.post("/v1/admin/database/clear", async (request, reply) => {

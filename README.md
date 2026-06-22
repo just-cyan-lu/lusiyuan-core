@@ -59,6 +59,8 @@ lusiyuan-core 后端
 
 - 记忆系统：让陆思源以后能想起重要信息。
 - 工具系统：让陆思源可以查项目状态、搜索记忆、读网页。
+- Skill 系统：把“小红书回复”这类平台工作流做成可配置能力。
+- 表达学习：从 owner 的最终回复和不回复决定中学习怎样表达。
 - Reflection：复盘历史对话，生成记忆提案。
 - Dream Cycle：闲时整理最近发生的事，生成笔记、信号和内在日记。
 - 管理接口和网页前端：方便查看、审核、配置。
@@ -250,6 +252,43 @@ Tool 是模型可以调用的外部能力。
 - `src/tools/`
 - `src/tools/builtin/`
 
+### Skill
+
+Skill 是项目内部的一套可复用能力。
+
+它和 Tool 不一样：
+
+- Tool 偏向“模型在聊天中临时调用一个外部能力”。
+- Skill 偏向“系统里某类正式工作流程”，会有自己的规则、开关、入口和输出约束。
+
+现在已有的 skill 是 `xiaohongshu_reply`。它负责小红书帖子、评论和待审核回复草稿。
+
+它会让 LLM 根据小红书帖子语境和评论内容判断：
+
+- 这是不是该回复
+- 评论属于什么类型
+- 有没有私联、边界、攻击、技术问题等风险
+- 是否必须交给 owner 审核
+- 应该用思源口吻、创作者口吻还是混合口吻
+- 最终草稿应该怎么写
+
+admin 里可以编辑小红书回复 skill 的 prompt 规范。帖子、评论和草稿保存在数据库里；草稿是可直接修改的普通文本，回复永远不会自动发送。
+
+### Expression Learning
+
+Expression Learning 是通用表达学习模块。
+
+它记录一次回复里的四样东西：当时发生了什么、思源原本怎么回、owner 最终怎么处理、这次可以学到什么。owner 可以直接采用草稿、修改后发布、完全自己写，或者决定不回复。
+
+这些经验不会写进 Persona 或 Memory。生成新回复时，系统只检索少量同平台、同场景的相似经验，帮助思源逐渐接近 owner 的判断和表达习惯。
+
+当前首先接入小红书；以后 B站、Twitter/X 和聊天可以复用同一套底层。具体设计见 `project-handbook/expression-learning.md`。
+
+对应代码：
+
+- `src/skills/xiaohongshu-reply/`
+- `web/src/components/admin/SkillsAdminPage.tsx`
+
 ---
 
 ## 当前模块地图
@@ -267,8 +306,10 @@ Tool 是模型可以调用的外部能力。
 | Reflection | 复盘并生成记忆提案 | `src/reflection/` |
 | Dream | 闲时整理、内在日记、信号提取 | `src/dream/` |
 | 工具系统 | 让模型调用外部能力 | `src/tools/` |
+| Skill 系统 | 管理小红书回复这类平台工作流 | `src/skills/`, `web/src/components/admin/SkillsAdminPage.tsx` |
+| 表达学习 | 从 owner 最终回复中形成可检索经验 | `src/expression-learning/`, `web/src/components/admin/ExpressionLearningPage.tsx` |
 | 对话追溯 | 按现实身份查看渠道账号、会话和消息 | `web/src/components/admin/ConversationHistoryPage.tsx`, `src/routes/admin.route.ts` |
-| 网页读取 | 读 URL、页面、浏览器内容 | `src/page-reader/`, `src/cdp-browser/` |
+| 网页读取 | 读 URL、页面、浏览器内容 | `src/page-reader/`, `src/mcp/chrome-devtools-mcp.service.ts` |
 | 搜索 | Tavily 网页搜索 | `src/web-search/` |
 | 外部 inbox | 同步外部平台消息 | `src/external-inbox/` |
 | Telegram | Telegram Bot 接入 | `src/channels/telegram/` |
@@ -446,6 +487,31 @@ TOOLS_ENABLED=true
 pnpm tools:inspect
 ```
 
+### 小红书回复 Skill
+
+默认是 owner/admin 可用，只生成待审核草稿，不自动发送。
+
+```env
+SKILL_XIAOHONGSHU_REPLY_MODE="owner_only"
+```
+
+也可以在 admin 的“Skills”页面查看和编辑 prompt 规范，在“小红书工作台”里维护账号镜像、生成草稿、记录真实最终回复或不回复决定。每次最终决定会进入通用表达学习模块。
+
+小红书工作台可以直接粘贴帖子 URL。系统通过 `chrome-devtools-mcp` 读取已登录 Chrome 当前加载的标题、文案和评论，并写入账号镜像；读取后的页面不会自动关闭。
+
+```env
+MCP_ENABLED=true
+CHROME_DEVTOOLS_MCP_ENABLED=true
+CHROME_DEVTOOLS_MCP_CONNECTION_MODE="auto"
+CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS=15000
+CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS=3000
+CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS=5000
+```
+
+自动连接模式需要先在 Chrome 的 `chrome://inspect/#remote-debugging` 开启远程调试。也可以把连接方式改为 `browser_url`，再配置本地调试地址。
+
+同一 URL 会优先复用现有页面；新开页面至少间隔 15 秒，读取前会随机等待 3–5 秒让页面稳定。导入只读取当前已经加载的 DOM，不自动刷新、滚动或展开评论。评论没有加载完整时，可以在保留的 Chrome 页面中正常浏览，再点击“重新读取当前页面”。
+
 ### Reflection
 
 ```env
@@ -508,6 +574,9 @@ pnpm telegram:dev
 - `Memory`：长期记忆。
 - `MemoryEmbedding`：记忆向量。
 - `MemoryProposal`：待审核记忆提案。
+- `SkillConfig`：admin 编辑后的 skill prompt 配置。
+- `XiaohongshuPost` / `XiaohongshuComment` / `XiaohongshuReplyDraft` / `XiaohongshuReply`：小红书账号镜像、草稿和真实最终回复。
+- `ExpressionLearningExample` / `ExpressionLearningEmbedding`：owner 表达决定和对应的相似案例向量。
 - `ToolCallLog`：工具调用日志。
 - `ReflectionJob` / `ReflectionReport`：反思任务和报告。
 - `DreamJob` / `DailyNote` / `DreamSignal` / `DreamDiaryEntry`：Dream Cycle 产物。

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { pageReaderService } from "../page-reader/page-reader.service.js";
-import { cdpBrowserService } from "../cdp-browser/cdp-browser.service.js";
+import { chromeDevtoolsMcpService } from "../mcp/chrome-devtools-mcp.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 
 export async function pageReaderRoute(app: FastifyInstance): Promise<void> {
@@ -12,7 +12,7 @@ export async function pageReaderRoute(app: FastifyInstance): Promise<void> {
     const body = request.body as {
       url: string;
       user_id?: string;
-      tool?: "jina" | "playwright" | "cdp";
+      tool?: "jina" | "playwright" | "chrome-devtools-mcp";
       screenshot?: boolean;
       wait_ms?: number;
     };
@@ -21,11 +21,8 @@ export async function pageReaderRoute(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: "url is required" });
     }
 
-    if (body.tool === "cdp") {
-      const result = await cdpBrowserService.read({
-        url: body.url,
-        waitMs: body.wait_ms,
-      });
+    if (body.tool === "chrome-devtools-mcp") {
+      const result = await chromeDevtoolsMcpService.read(body.url, body.wait_ms);
       return reply.send(result);
     }
 

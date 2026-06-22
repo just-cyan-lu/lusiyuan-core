@@ -171,6 +171,13 @@ export const env = {
   ),
   MCP_ENABLED: process.env.MCP_ENABLED === "true",
 
+  // Skills
+  SKILL_XIAOHONGSHU_REPLY_MODE: normalizeToolAccessMode(
+    process.env.SKILL_XIAOHONGSHU_REPLY_MODE,
+    "owner_only",
+    "SKILL_XIAOHONGSHU_REPLY_MODE"
+  ),
+
   // Reflection Agent (v0.7)
   REFLECTION_ENABLED: process.env.REFLECTION_ENABLED !== "false",
   REFLECTION_OWNER_ONLY: process.env.REFLECTION_OWNER_ONLY !== "false",
@@ -316,7 +323,29 @@ export const env = {
   PLAYWRIGHT_SCREENSHOT_ENABLED:
     process.env.PLAYWRIGHT_SCREENSHOT_ENABLED === "true",
 
-  // CDP Browser — connect to user's Chrome (v0.8.1)
-  CDP_BROWSER_ENABLED: process.env.CDP_BROWSER_ENABLED === "true",
-  CDP_BROWSER_PORT: parseInt(process.env.CDP_BROWSER_PORT ?? "9222", 10),
+  // Chrome DevTools MCP — read from the user's existing Chrome.
+  CHROME_DEVTOOLS_MCP_ENABLED:
+    process.env.CHROME_DEVTOOLS_MCP_ENABLED === "true",
+  CHROME_DEVTOOLS_MCP_CONNECTION_MODE:
+    process.env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "browser_url"
+      ? "browser_url"
+      : "auto",
+  CHROME_DEVTOOLS_MCP_BROWSER_URL:
+    process.env.CHROME_DEVTOOLS_MCP_BROWSER_URL ?? "http://127.0.0.1:9222",
+  CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS: parseInt(
+    process.env.CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS ?? "15000",
+    10
+  ),
+  CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS: parseInt(
+    process.env.CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS ?? "3000",
+    10
+  ),
+  CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS: parseInt(
+    process.env.CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS ?? "5000",
+    10
+  ),
+  CHROME_DEVTOOLS_MCP_MAX_COMMENTS: parseInt(
+    process.env.CHROME_DEVTOOLS_MCP_MAX_COMMENTS ?? "120",
+    10
+  ),
 } as const;

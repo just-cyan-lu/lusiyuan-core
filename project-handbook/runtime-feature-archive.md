@@ -201,6 +201,7 @@ admin 里已经有几块和持续性主体相关的页面：
 - Reflection / Dream 工作台：手动触发复盘或梦境循环，查看报告、作业状态、Morning Brief、Deep Sleep、Daily Note、Signal 和内在日记。
 - 状态变化解释：运行态和关系页里的变更记录可以点开，看这次为什么写入、变化前后差异、程序准备写入的内容和原始记录。
 - 来源材料追溯：运行态的状态变化还能继续看到它引用过的运行事件和消息内容，用来判断这次变化是不是真的有依据。
+- Skill 管理：查看 skill 卡牌、进入小红书回复详情、编辑 prompt 规范。
 - 配置中心：能编辑部分 `.env` 配置，也有开发期清空数据库业务数据的入口。
 
 这里有两个重要分工：运行事件解释只看“发生了什么、能不能影响状态”；状态变化解释只看“最终写入后，状态实际改了什么”。关系页面负责修改和复盘关系；对话追溯页面只负责查看消息证据。不要把这些页面做成重复功能。
@@ -220,6 +221,7 @@ admin 里已经有几块和持续性主体相关的页面：
 - `web/src/components/admin/StateChangeDetail.tsx`
 - `web/src/components/admin/AdminDetailPrimitives.tsx`
 - `web/src/components/admin/ConfigCenterPage.tsx`
+- `web/src/components/admin/SkillsAdminPage.tsx`
 - `src/routes/admin.route.ts`
 
 ## 9. 清空数据库测试数据
@@ -310,6 +312,52 @@ admin 里有一个“记忆管理”入口，分成两页：
 - `src/routes/reflection.route.ts`
 - `src/reflection/reflection-proposal.service.ts`
 
+## 12. Skill 管理：小红书回复工作流
+
+**做了什么**
+
+admin 里有一个“Skills”入口，用来查看系统里有哪些正式能力、它们现在是开着还是关着，以及关闭后调用方应该怎么处理。
+
+当前已有的是 `xiaohongshu_reply`：
+
+- 它是小红书专用评论回复 skill。
+- 它用 LLM 判断评论类型、是否需要回复、风险和回复口吻。
+- 它只生成草稿，不自动发送。
+- prompt 规范可以在 admin 里编辑。
+- 小红书平台页有帖子、评论、草稿工作台，可以手动选择某条评论生成草稿，再直接修改草稿正文。
+- 小红书平台页现在是一份账号镜像，也会区分思源原草稿和真实最终回复。
+- 帖子不再手动新增：粘贴 URL 后通过 `chrome-devtools-mcp` 读取已登录 Chrome 当前加载的帖子和评论。
+- 同一帖子优先复用现有页面；连续新开页面至少间隔 15 秒，读取前随机等待 3–5 秒让页面稳定。
+- 读取后保留页面，不自动刷新、滚动、展开或关闭，也不通过随机滚动伪装真人；评论需要更多加载时由 owner 在保留页面中正常浏览，再重新读取。
+- 导入后的标题、文案、作者、类型、评论和图片 Alt 可以在 admin 修正。
+- owner 记录“已发布”或“不回复”后，会生成一条通用表达经验；后续草稿会召回少量相似经验。
+
+**为什么这样做**
+
+小红书回复不是普通聊天，也不是通用草稿。它需要看帖子语境、评论内容、评论者历史互动和账号边界，然后判断要不要回复。如果只是无意义表情或为了礼貌来回刷存在感，应该倾向跳过。
+
+**关闭时怎么处理**
+
+- `SKILL_XIAOHONGSHU_REPLY_MODE=off`：小红书工作台不能生成回复草稿。
+- 平台页读取 skill 状态；关闭时只显示不可用，不绕过 skill 另写一套生成逻辑。
+
+**规则怎么保存**
+
+`.env` 只保存开关。具体 prompt 配置保存在数据库 `SkillConfig` 里；如果没有保存过，系统使用代码里的默认 prompt。小红书帖子、评论、草稿和真实回复分别保存在 `XiaohongshuPost`、`XiaohongshuComment`、`XiaohongshuReplyDraft` 和 `XiaohongshuReply`。LLM 内部返回结构化判断，数据库不再额外保存一份重复的 JSON 草稿。
+
+表达学习是独立的通用模块，不写进小红书 Skill，也不混进 Memory。它保留原稿和最终决定，用 LLM 提炼可修正的经验，再通过向量检索给未来相似回复参考。当前已有 URL 读取和同步 API，但后台定时自动同步还没有接入。
+
+**以后要改看哪里**
+
+- `src/skills/`
+- `src/expression-learning/`
+- `src/platforms/xiaohongshu/`
+- `src/routes/admin.route.ts`
+- `web/src/components/admin/SkillsAdminPage.tsx`
+- `web/src/components/admin/ExpressionLearningPage.tsx`
+- `web/src/components/admin/PlatformsPage.tsx`
+- `prisma/schema.prisma` 的 `SkillConfig` / `XiaohongshuPost` / `XiaohongshuComment` / `XiaohongshuReplyDraft` / `XiaohongshuReply` / `ExpressionLearningExample`
+
 ## 以后测试时怎么描述问题
 
 如果你长期用下来感觉不对，可以直接按这些说法提：
@@ -324,5 +372,8 @@ admin 里有一个“记忆管理”入口，分成两页：
 - “记忆提案太多，不知道先审哪些”
 - “某条记忆应用后找不到”
 - “全局记忆和用户记忆的区别还不够清楚”
+- “小红书回复太像模板”
+- “某类评论应该不回复”
+- “私信合作应该更严格转 owner 审核”
 
 我下次会先读这份归档，再去对应代码里改。

@@ -18,6 +18,8 @@ Admin 平台需要对接的现有接口：
 | 记忆 | `GET /v1/users/:userId/memories` |
 | 工具 | `GET /v1/tools`、`POST /v1/tools/:toolName/execute`、`GET /v1/tool-logs` |
 | 对话追溯 | `GET /v1/admin/conversation-people`、`GET /v1/admin/conversation-people/:personId`、`GET /v1/admin/conversations/:conversationId/messages` |
+| Skills | `GET /v1/admin/skills`、`GET /v1/admin/skills/xiaohongshu-reply/config`、`PATCH /v1/admin/skills/xiaohongshu-reply/config`、`POST /v1/admin/skills/xiaohongshu-reply/config/reset`、`POST /v1/admin/skills/xiaohongshu-reply/draft` |
+| 小红书工作台 | `GET /v1/admin/xiaohongshu/posts`、`GET /v1/admin/xiaohongshu/import-status`、`POST /v1/admin/xiaohongshu/import-url`、`PATCH /v1/admin/xiaohongshu/posts/:postId`、`PATCH /v1/admin/xiaohongshu/comments/:commentId`、`POST /v1/admin/xiaohongshu/comments/:commentId/generate-reply`、`POST /v1/admin/xiaohongshu/comments/:commentId/final-decision` |
 | 渠道 | `GET /v1/channels/status` |
 | Reflection | `POST /v1/reflection/run`、`GET /v1/reflection/reports`、`GET /v1/reflection/proposals`、`POST /v1/reflection/proposals/:id/approve`、`POST /v1/reflection/proposals/:id/reject`、`POST /v1/reflection/proposals/:id/apply`、`GET /v1/reflection/risks` |
 | Dream | `POST /v1/dream/run`、`GET /v1/dream/jobs/:id`、`GET /v1/dream/diary`、`GET /v1/dream/daily-notes`、`GET /v1/dream/signals`、`GET /v1/dream/jobs/:id/morning-brief` |
@@ -76,7 +78,23 @@ Admin 平台需要对接的现有接口：
 - [ ] 查看 ToolCallLog 列表（按工具名、状态、时间筛选）
 - [ ] 查看单条日志详情（输入、输出、执行时长、是否被拦截）
 
-### 7. 渠道状态
+### 7. Skill 管理
+
+- [x] 查看已注册的 skill 和平台 profile
+- [x] 开关小红书回复 skill，并说明保存后需要重启生效
+- [x] 小红书评论回复草稿测试入口
+- [x] 编辑小红书回复 prompt 规范
+- [x] 小红书平台页读取回复 skill 状态，关闭时不能生成草稿
+- [x] 小红书平台页记录帖子、评论，并手动选择评论生成草稿
+- [x] 记录 owner 最终回复或不回复决定，并形成通用表达经验
+- [x] 表达学习页面查看、修正、停用和重新分析经验
+- [x] 小红书账号镜像与幂等同步 API
+- [x] 通过 chrome-devtools-mcp 从帖子 URL 读取当前已加载内容
+- [x] 导入后编辑帖子、评论和配图 Alt
+- [x] 同一页面复用、15 秒新开冷却、3–5 秒随机稳定等待、保留页面和只读工具白名单
+- [ ] 按需增加由 owner 明确触发的更多评论读取策略
+
+### 8. 渠道状态
 
 - [ ] 查看各渠道（Telegram、微信等）的连接状态
 

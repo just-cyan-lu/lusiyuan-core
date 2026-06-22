@@ -56,6 +56,46 @@
 
 工具调用日志。记录用了哪个工具、成功失败、是否被权限拦截。
 
+## Skill 配置表
+
+**SkillConfig**
+
+admin 编辑后的 skill 配置。现在主要用于 `xiaohongshu_reply`，保存小红书回复 prompt、账号模式和草稿字数等配置。
+
+如果这张表里没有配置，代码会使用默认规则。它属于系统配置，不是聊天业务数据。
+
+## 小红书工作台表
+
+**XiaohongshuPost**
+
+思源的小红书账号镜像中的帖子。保存标题、正文、作者、链接、帖子类型、真实平台 ID、同步时间、配图数量和 owner 后补的图片 Alt。
+
+**XiaohongshuComment**
+
+某个小红书帖子下的评论。保存评论内容、评论者、历史互动、真实平台 ID 和 LLM 判断结果。
+
+**XiaohongshuReplyDraft**
+
+针对某条评论生成的回复草稿。保存草稿正文、风险、评论类型、回复口吻、原因和状态。它只是草稿，不代表已经发出。
+
+它同时保留 `originalContent`。owner 修改草稿时不会覆盖思源最初生成的版本，表达学习需要比较两者。
+
+**XiaohongshuReply**
+
+真实出现在小红书账号上的最终回复。它和草稿分开保存，可以来自手动记录，也可以来自未来的小红书同步连接器。
+
+## 表达学习表
+
+**ExpressionLearningExample**
+
+一次 owner 表达决定形成的通用学习样本。保存当时情境、思源原稿、owner 最终回复或不回复决定，以及 LLM 提炼的经验、策略和语气。
+
+它不是 Memory，不保存“世界事实”；也不会直接修改 Persona 或 Skill prompt。经验可以在 Admin 修正、停用或重新分析。
+
+**ExpressionLearningEmbedding**
+
+表达经验的向量索引。生成新回复前，用它查找少量同平台、同场景的相似经验。
+
 ## Reflection 表
 
 **ReflectionJob**
