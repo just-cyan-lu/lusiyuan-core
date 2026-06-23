@@ -5,7 +5,7 @@ import { modelProvider } from "../core/model-provider.js";
 import { loadPersona, type PersonaContent } from "../core/persona-loader.js";
 import { DREAM_DIARY_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { containsPretendHumanContent } from "./dream-policy.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type { RawDreamDiaryEntry } from "./dream.types.js";
 import type { DailyNote, DreamSignal, DreamDiaryEntry } from "@prisma/client";
 
@@ -15,7 +15,7 @@ export class DreamDiaryWriter {
     signals: DreamSignal[];
     jobId?: string;
   }): Promise<DreamDiaryEntry | null> {
-    if (!env.DREAM_DIARY_ENABLED) return null;
+    if (!runtimeConfig.DREAM_DIARY_ENABLED) return null;
 
     const { dailyNote, signals, jobId } = input;
     const persona = await loadPersona();
@@ -37,8 +37,8 @@ export class DreamDiaryWriter {
     // }
 
     // Enforce character limit
-    if (content.length > env.DREAM_DIARY_MAX_CHARS) {
-      content = content.slice(0, env.DREAM_DIARY_MAX_CHARS);
+    if (content.length > runtimeConfig.DREAM_DIARY_MAX_CHARS) {
+      content = content.slice(0, runtimeConfig.DREAM_DIARY_MAX_CHARS);
     }
 
     const sourceSignalIds = signals.map((s) => s.id);
@@ -52,7 +52,7 @@ export class DreamDiaryWriter {
         style: "lusiyuan_inner_diary",
         grounded: true,
         sourceSignalIds,
-        visibility: env.DREAM_DIARY_VISIBILITY,
+        visibility: runtimeConfig.DREAM_DIARY_VISIBILITY,
       },
     });
 

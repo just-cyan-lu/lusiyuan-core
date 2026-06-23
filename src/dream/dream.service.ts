@@ -1,7 +1,7 @@
 // dream.service.ts — orchestrates the full Dream Cycle
 
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { dreamLockService } from "./dream-lock.service.js";
 import { dreamContextBuilder } from "./dream-context-builder.js";
 import { dailyNoteService } from "./daily-note.service.js";
@@ -38,7 +38,7 @@ export class DreamService {
     const job = await prisma.dreamJob.findUnique({ where: { id: jobId } });
     if (!job) throw new Error(`DreamJob not found: ${jobId}`);
 
-    const from = job.fromTime ?? new Date(Date.now() - env.DREAM_DEFAULT_LOOKBACK_HOURS * 3600_000);
+    const from = job.fromTime ?? new Date(Date.now() - runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS * 3600_000);
     const to = job.toTime ?? new Date();
 
     return this.executeJob(
@@ -52,8 +52,8 @@ export class DreamService {
   }
 
   async runDailyDream(input: RunDailyDreamInput = {}): Promise<DreamRunResult> {
-    if (!env.DREAM_ENABLED) {
-      throw new Error("Dream Cycle is disabled (DREAM_ENABLED=false)");
+    if (!runtimeConfig.DREAM_ENABLED) {
+      throw new Error("Dream Cycle is disabled in Admin runtime settings");
     }
 
     const lockKey = input.userId ? `dream:user:${input.userId}` : LOCK_KEY;
@@ -62,7 +62,7 @@ export class DreamService {
       throw new Error("Dream Cycle is already running. Try again later.");
     }
 
-    const lookbackHours = input.lookbackHours ?? env.DREAM_DEFAULT_LOOKBACK_HOURS;
+    const lookbackHours = input.lookbackHours ?? runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS;
     const to = new Date();
     const from = new Date(to.getTime() - lookbackHours * 3600_000);
 
@@ -109,7 +109,7 @@ export class DreamService {
       });
 
       const totalEvents = Object.values(context.sourceStats).reduce((a, b) => a + b, 0);
-      if (totalEvents < env.DREAM_MIN_SOURCE_EVENTS) {
+      if (totalEvents < runtimeConfig.DREAM_MIN_SOURCE_EVENTS) {
         await prisma.dreamJob.update({
           where: { id: jobId },
           data: {
@@ -124,7 +124,7 @@ export class DreamService {
             jobId,
             status: "completed",
             phase: "skipped",
-            summary: `材料不足，跳过梦境整理（${totalEvents} < ${env.DREAM_MIN_SOURCE_EVENTS}）。`,
+            summary: `材料不足，跳过梦境整理（${totalEvents} < ${runtimeConfig.DREAM_MIN_SOURCE_EVENTS}）。`,
             signalCount: 0,
             proposalCount: 0,
             riskCount: 0,
@@ -141,7 +141,7 @@ export class DreamService {
 
       // ── Phase 2: Light Sleep — DailyNote ─────────────────────────────────
       await this.setPhase(jobId, "light_sleep");
-      const dailyNote = env.DREAM_LIGHT_ENABLED
+      const dailyNote = runtimeConfig.DREAM_LIGHT_ENABLED
         ? await dailyNoteService.generateDailyNote(context, jobId)
         : null;
 
@@ -152,13 +152,13 @@ export class DreamService {
 
       // ── Phase 3: REM Sleep — DreamSignals ────────────────────────────────
       await this.setPhase(jobId, "rem_sleep");
-      const signals = env.DREAM_REM_ENABLED
+      const signals = runtimeConfig.DREAM_REM_ENABLED
         ? await dreamSignalExtractor.extractSignals({ context, dailyNote, jobId })
         : [];
 
       // ── Phase 4: Dream Diary ──────────────────────────────────────────────
       await this.setPhase(jobId, "dream_diary");
-      const diaryEntry = env.DREAM_DIARY_ENABLED
+      const diaryEntry = runtimeConfig.DREAM_DIARY_ENABLED
         ? await dreamDiaryWriter.writeDiary({ dailyNote, signals, jobId })
         : null;
 
@@ -198,7 +198,7 @@ export class DreamService {
         channel,
       });
 
-      const consolidation = env.DREAM_DEEP_ENABLED
+      const consolidation = runtimeConfig.DREAM_DEEP_ENABLED
         ? await dreamConsolidator.consolidate({
             signals,
             dailyNote,

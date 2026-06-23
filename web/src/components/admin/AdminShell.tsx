@@ -106,7 +106,7 @@ const navItems: Array<{
     section: "settings",
     index: "13",
     label: "配置",
-    description: ".env 编辑",
+    description: "实时设置 / 连接",
   },
 ];
 

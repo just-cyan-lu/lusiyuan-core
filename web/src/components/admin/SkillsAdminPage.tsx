@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  fetchEditableEnvConfig,
   fetchSkills,
   fetchXiaohongshuReplyConfig,
   generateXiaohongshuReplyDraft,
   resetXiaohongshuReplyConfig,
-  saveEditableEnvConfig,
   saveXiaohongshuReplyConfig,
-  type EditableEnvConfig,
   type RegisteredSkill,
   type XiaohongshuReplyConfig,
   type XiaohongshuReplyResult,
@@ -25,7 +22,6 @@ interface SkillsAdminPageProps {
 
 interface SkillsState {
   skills: RegisteredSkill[];
-  envConfig: EditableEnvConfig | null;
   xiaohongshuConfig: XiaohongshuReplyConfig | null;
   loading: boolean;
   saving: boolean;
@@ -39,7 +35,7 @@ interface ReplyTesterForm {
   postCaption: string;
   postType: string;
   comment: string;
-  commenterHistory: string;
+  threadContext: string;
 }
 
 function friendlyErrorMessage(error: unknown): string {
@@ -51,20 +47,6 @@ function friendlyErrorMessage(error: unknown): string {
     return "Admin Token 不正确或未配置。";
   }
   return message || "Skill 操作失败";
-}
-
-function fieldValue(config: EditableEnvConfig | null, key: string): string | undefined {
-  return config?.fields.find((field) => field.key === key)?.value;
-}
-
-function asAccessMode(value: string | undefined, fallback: AccessMode): AccessMode {
-  if (value === "off" || value === "owner_only" || value === "on") return value;
-  return fallback;
-}
-
-function savedAccessMode(skill: RegisteredSkill, config: EditableEnvConfig | null): AccessMode {
-  const modeKey = skill.configKeys[0];
-  return asAccessMode(modeKey ? fieldValue(config, modeKey) : undefined, skill.accessMode);
 }
 
 function nextAccessMode(value: AccessMode): AccessMode {
@@ -95,7 +77,6 @@ export function SkillsAdminPage({
 }: SkillsAdminPageProps) {
   const [state, setState] = useState<SkillsState>({
     skills: [],
-    envConfig: null,
     xiaohongshuConfig: null,
     loading: false,
     saving: false,
@@ -108,7 +89,7 @@ export function SkillsAdminPage({
     postCaption: "他说自己不是在发呆，只是在想晚上吃什么。",
     postType: "daily",
     comment: "他怎么总是在发呆哈哈哈哈",
-    commenterHistory: "",
+    threadContext: "",
   });
   const [replyResult, setReplyResult] = useState<XiaohongshuReplyResult | null>(null);
   const [testing, setTesting] = useState(false);
@@ -122,14 +103,12 @@ export function SkillsAdminPage({
     if (!adminToken) return;
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const [skills, envConfig, xiaohongshuConfig] = await Promise.all([
+      const [skills, xiaohongshuConfig] = await Promise.all([
         fetchSkills(adminToken),
-        fetchEditableEnvConfig(adminToken),
         fetchXiaohongshuReplyConfig(adminToken),
       ]);
       setState({
         skills: skills.skills,
-        envConfig,
         xiaohongshuConfig: xiaohongshuConfig.config,
         loading: false,
         saving: false,
@@ -146,35 +125,15 @@ export function SkillsAdminPage({
     }
   }
 
-  async function saveConfig(values: Record<string, string | boolean | number>) {
-    if (!adminToken) return;
-    setState((current) => ({ ...current, saving: true, error: null, message: null }));
-    try {
-      const envConfig = await saveEditableEnvConfig({ token: adminToken, values });
-      const skills = await fetchSkills(adminToken);
-      setState((current) => ({
-        ...current,
-        skills: skills.skills,
-        envConfig,
-        saving: false,
-        message: "配置已保存到 .env，重启后运行状态生效。",
-      }));
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        saving: false,
-        error: friendlyErrorMessage(error),
-      }));
-    }
-  }
-
   async function saveReplyConfig(config: XiaohongshuReplyConfig) {
     if (!adminToken) return;
     setState((current) => ({ ...current, configSaving: true, error: null, message: null }));
     try {
       const result = await saveXiaohongshuReplyConfig({ token: adminToken, config });
+      const skills = await fetchSkills(adminToken);
       setState((current) => ({
         ...current,
+        skills: skills.skills,
         xiaohongshuConfig: result.config,
         configSaving: false,
         message: result.message ?? "小红书回复 Skill 配置已保存。",
@@ -298,14 +257,17 @@ export function SkillsAdminPage({
       {selectedSkill ? (
         <SkillDetail
           skill={selectedSkill}
-          envConfig={state.envConfig}
           saving={state.saving}
           config={state.xiaohongshuConfig}
           configSaving={state.configSaving}
           tester={tester}
           testing={testing}
           replyResult={replyResult}
-          onSaveConfig={(values) => void saveConfig(values)}
+          onAccessModeChange={(mode) => {
+            if (state.xiaohongshuConfig) {
+              void saveReplyConfig({ ...state.xiaohongshuConfig, accessMode: mode });
+            }
+          }}
           onSaveReplyConfig={(config) => void saveReplyConfig(config)}
           onResetReplyConfig={() => void resetReplyConfig()}
           onTesterChange={setTester}
@@ -314,7 +276,6 @@ export function SkillsAdminPage({
       ) : (
         <SkillDirectory
           skills={state.skills}
-          envConfig={state.envConfig}
           onOpenSkill={onOpenSkill}
         />
       )}
@@ -324,17 +285,15 @@ export function SkillsAdminPage({
 
 function SkillDirectory({
   skills,
-  envConfig,
   onOpenSkill,
 }: {
   skills: RegisteredSkill[];
-  envConfig: EditableEnvConfig | null;
   onOpenSkill: (skillId: string) => void;
 }) {
   return (
     <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
       {skills.map((skill) => {
-        const savedMode = savedAccessMode(skill, envConfig);
+        const savedMode = skill.accessMode;
         return (
           <button
             key={skill.id}
@@ -380,35 +339,32 @@ function SkillDirectory({
 
 function SkillDetail({
   skill,
-  envConfig,
   saving,
   config,
   configSaving,
   tester,
   testing,
   replyResult,
-  onSaveConfig,
+  onAccessModeChange,
   onSaveReplyConfig,
   onResetReplyConfig,
   onTesterChange,
   onRunReplyTester,
 }: {
   skill: RegisteredSkill;
-  envConfig: EditableEnvConfig | null;
   saving: boolean;
   config: XiaohongshuReplyConfig | null;
   configSaving: boolean;
   tester: ReplyTesterForm;
   testing: boolean;
   replyResult: XiaohongshuReplyResult | null;
-  onSaveConfig: (values: Record<string, string | boolean | number>) => void;
+  onAccessModeChange: (mode: AccessMode) => void;
   onSaveReplyConfig: (config: XiaohongshuReplyConfig) => void;
   onResetReplyConfig: () => void;
   onTesterChange: (tester: ReplyTesterForm) => void;
   onRunReplyTester: () => void;
 }) {
-  const modeKey = skill.configKeys[0];
-  const savedMode = savedAccessMode(skill, envConfig);
+  const savedMode = skill.accessMode;
 
   return (
     <section className="grid gap-5 xl:grid-cols-[1fr_0.86fr]">
@@ -422,22 +378,20 @@ function SkillDetail({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill active={skill.enabled} label={skill.enabled ? "运行中" : "已关闭"} />
-              {modeKey && (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => onSaveConfig({ [modeKey]: nextAccessMode(savedMode) })}
-                  className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
-                >
-                  目标：{accessLabel(savedMode)}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={saving || configSaving || !config}
+                onClick={() => onAccessModeChange(nextAccessMode(savedMode))}
+                className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+              >
+                切换为：{accessLabel(nextAccessMode(savedMode))}
+              </button>
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <InfoBlock title="当前运行" value={accessLabel(skill.accessMode)} />
-            <InfoBlock title=".env 目标" value={accessLabel(savedMode)} />
-            <InfoBlock title="保存方式" value="重启后生效" />
+            <InfoBlock title="配置来源" value="SkillConfig" />
+            <InfoBlock title="保存方式" value="立即生效" />
           </div>
           <div className="mt-5 rounded-lg border border-[#e5edf5] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-[#66758a]">
             {skill.disabledBehavior}
@@ -610,10 +564,10 @@ function XiaohongshuReplyTester({
           />
         </label>
         <label>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">这个人的历史互动</span>
+          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">评论线程上下文</span>
           <textarea
-            value={tester.commenterHistory}
-            onChange={(event) => onTesterChange({ ...tester, commenterHistory: event.target.value })}
+            value={tester.threadContext}
+            onChange={(event) => onTesterChange({ ...tester, threadContext: event.target.value })}
             className="field-input min-h-20 resize-y leading-6"
           />
         </label>

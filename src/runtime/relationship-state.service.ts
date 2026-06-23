@@ -1,6 +1,6 @@
 import { Prisma, type RelationshipState, type RelationshipStateEvent } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 export interface RelationshipStatePatch {
   relationshipLabel?: string;
@@ -1114,7 +1114,7 @@ export const relationshipStateService = {
   },
 
   async reviewRelationshipIfDue(relationshipId: string) {
-    const minSignals = clampInt(env.RELATIONSHIP_REVIEW_MIN_SIGNALS, 1, 50);
+    const minSignals = clampInt(runtimeConfig.RELATIONSHIP_REVIEW_MIN_SIGNALS, 1, 50);
     const signals = await this.listUnreviewedRelationshipSignals(relationshipId, minSignals);
     if (signals.length < minSignals) return null;
     return this.reviewRelationship({
@@ -1158,7 +1158,7 @@ export const relationshipStateService = {
   async observeChatTurn(input: ObserveRelationshipTurnInput): Promise<void> {
     const state = await this.getOrCreate(input.userId);
     const patch = deriveRelationshipStatePatch(state, input);
-    if (env.RELATIONSHIP_UPDATE_MODE === "review") {
+    if (runtimeConfig.RELATIONSHIP_UPDATE_MODE === "review") {
       await this.recordChatRelationshipSignal({ state, turn: input, patch });
       await this.reviewRelationshipIfDue(state.id);
       return;

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   applyMiniMaxMetadata,
   buildMiniMaxRequestFields,
@@ -43,7 +44,7 @@ type OpenAIContentPart =
  * Get the active provider configuration based on ACTIVE_MODEL_PROVIDER.
  */
 function getActiveProviderConfig(): ProviderConfig {
-  const active = env.ACTIVE_MODEL_PROVIDER.toLowerCase();
+  const active = runtimeConfig.ACTIVE_MODEL_PROVIDER.toLowerCase();
 
   // Map provider name to config
   const configMap: Record<string, { baseURL: string; apiKey: string; model: string; type: ProviderConfig["type"] }> = {
@@ -74,9 +75,9 @@ function getActiveProviderConfig(): ProviderConfig {
 
 function getMiniMaxRuntimeOptions(): MiniMaxRuntimeOptions {
   return {
-    thinkingType: env.MINIMAX_THINKING_TYPE === "disabled" ? "disabled" : "adaptive",
-    reasoningSplit: env.MINIMAX_REASONING_SPLIT,
-    maxCompletionTokens: env.MINIMAX_MAX_COMPLETION_TOKENS,
+    thinkingType: runtimeConfig.MINIMAX_THINKING_TYPE === "disabled" ? "disabled" : "adaptive",
+    reasoningSplit: runtimeConfig.MINIMAX_REASONING_SPLIT,
+    maxCompletionTokens: runtimeConfig.MINIMAX_MAX_COMPLETION_TOKENS || undefined,
   };
 }
 
@@ -170,7 +171,7 @@ class OpenAICompatibleProvider implements ModelProvider {
       apiKey: config.apiKey,
     });
     this.model = config.model;
-    this.providerName = env.ACTIVE_MODEL_PROVIDER;
+    this.providerName = runtimeConfig.ACTIVE_MODEL_PROVIDER;
     this.isMiniMax = isMiniMaxProvider(this.providerName);
     this.isMiniMaxM3 = this.isMiniMax && isMiniMaxM3Model(this.model);
     this.miniMaxRuntimeOptions = getMiniMaxRuntimeOptions();
@@ -517,7 +518,7 @@ class AnthropicProvider implements ModelProvider {
 
 function createModelProvider(): ModelProvider {
   const config = getActiveProviderConfig();
-  console.log(`[model-provider] active: ${env.ACTIVE_MODEL_PROVIDER}, model: ${config.model}`);
+  console.log(`[model-provider] active: ${runtimeConfig.ACTIVE_MODEL_PROVIDER}, model: ${config.model}`);
 
   if (config.type === "anthropic") {
     return new AnthropicProvider(config);
@@ -525,4 +526,34 @@ function createModelProvider(): ModelProvider {
   return new OpenAICompatibleProvider(config);
 }
 
-export const modelProvider: ModelProvider = createModelProvider();
+let cachedProvider: ModelProvider | null = null;
+let cachedProviderSignature = "";
+
+function currentProvider(): ModelProvider {
+  const signature = JSON.stringify({
+    active: runtimeConfig.ACTIVE_MODEL_PROVIDER,
+    thinkingType: runtimeConfig.MINIMAX_THINKING_TYPE,
+    reasoningSplit: runtimeConfig.MINIMAX_REASONING_SPLIT,
+    maxCompletionTokens: runtimeConfig.MINIMAX_MAX_COMPLETION_TOKENS,
+  });
+  if (!cachedProvider || signature !== cachedProviderSignature) {
+    cachedProvider = createModelProvider();
+    cachedProviderSignature = signature;
+  }
+  return cachedProvider;
+}
+
+export const modelProvider: ModelProvider = {
+  get capabilities() {
+    return currentProvider().capabilities;
+  },
+  chat(messages) {
+    return currentProvider().chat(messages);
+  },
+  chatJson<T>(messages: ChatMessage[]) {
+    return currentProvider().chatJson<T>(messages);
+  },
+  chatWithTools(messages, tools) {
+    return currentProvider().chatWithTools(messages, tools);
+  },
+};

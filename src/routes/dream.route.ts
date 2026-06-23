@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { dreamService } from "../dream/dream.service.js";
 import { morningBriefService } from "../dream/morning-brief.service.js";
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { Prisma } from "@prisma/client";
 
@@ -53,7 +53,7 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
       lookback_hours?: number;
     };
 
-    if (!env.DREAM_ENABLED) {
+    if (!runtimeConfig.DREAM_ENABLED) {
       return reply.status(503).send({ error: "Dream Cycle is disabled" });
     }
 

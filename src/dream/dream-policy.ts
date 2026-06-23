@@ -1,7 +1,7 @@
 // dream-policy.ts — content filtering for Dream Cycle
 
 import type { RawDreamSignal, RawConsolidationProposal, DreamRiskLevel } from "./dream.types.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 // Keywords that indicate attempts to make Lu Siyuan pretend to be a real human
 const PRETEND_HUMAN_PATTERNS = [
@@ -21,7 +21,7 @@ const PRIVATE_DATA_PATTERNS = [
 ];
 
 export function redactPrivateData(text: string): string {
-  if (!env.DREAM_REDACT_PRIVATE_DATA) return text;
+  if (!runtimeConfig.DREAM_REDACT_PRIVATE_DATA) return text;
   let result = text;
   // Redact phone-like numbers
   result = result.replace(/1[3-9]\d{9}/g, "[已脱敏]");
@@ -56,11 +56,11 @@ export function filterSignals(signals: RawDreamSignal[]): RawDreamSignal[] {
       return false;
     }
     // Minimum confidence
-    if (s.confidence < env.DREAM_MIN_CONFIDENCE) {
+    if (s.confidence < runtimeConfig.DREAM_MIN_CONFIDENCE) {
       return false;
     }
     // Minimum evidence
-    if (s.evidenceCount < env.DREAM_MIN_EVIDENCE_COUNT) {
+    if (s.evidenceCount < runtimeConfig.DREAM_MIN_EVIDENCE_COUNT) {
       // Exception: single high-importance signal can pass but gets medium risk
       const isHighImportance =
         s.signalType === "technical_decision" ||
@@ -100,7 +100,7 @@ export function filterProposals(
   return proposals.filter((p) => {
     if (containsPretendHumanContent(p.content)) return false;
     if (containsPrivateData(p.content)) return false;
-    if (p.confidence < env.DREAM_MIN_CONFIDENCE) return false;
+    if (p.confidence < runtimeConfig.DREAM_MIN_CONFIDENCE) return false;
     if (p.riskLevel === "high") {
       // High-risk proposals are allowed but flagged — caller handles separately
       return true;

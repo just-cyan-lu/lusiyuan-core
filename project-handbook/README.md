@@ -19,6 +19,7 @@
 4. `runtime-lite-design.md`：正式版 Runtime Lite 设计，当前还没有完全实现。
 5. `runtime-feature-archive.md`：最近落地的运行态、关系状态、身份合并、admin 控制等功能归档。
 6. `expression-learning.md`：思源如何从 owner 的最终回复和不回复决定中学习表达。
+7. `configuration.md`：哪些配置在数据库即时生效，哪些秘密继续留在 `.env`。
 
 ## 更新规则
 
@@ -32,6 +33,7 @@
 - 改了陆思源运行体、persona、状态系统：更新 `runtime-lite-design.md`。
 - 改了已落地的运行态、关系状态、身份合并、admin 控制：更新 `runtime-feature-archive.md`。
 - 改了表达学习、平台最终回复或相似案例检索：更新 `expression-learning.md`。
+- 改了配置来源、运行开关或即时重载方式：更新 `configuration.md`。
 - 如果只是修 bug、改 UI 样式、小范围重命名，通常不用更新这里。
 
 这个手册要保持短。它不是复制代码，而是告诉人“现在该去哪里看代码”。

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { chat } from "../../core/chat.service.js";
 import { env } from "../../utils/env.js";
+import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import type { WeixinIncomingBody } from "./weixin.types.js";
 
 const weixinBodySchema = {
@@ -21,6 +22,9 @@ export async function weixinRoute(app: FastifyInstance): Promise<void> {
     "/v1/channels/weixin/incoming",
     { schema: { body: weixinBodySchema } },
     async (request, reply) => {
+      if (!runtimeConfig.WEIXIN_ENABLED) {
+        return reply.status(503).send({ error: "Weixin channel is disabled" });
+      }
       const secret = request.headers["x-lusiyuan-channel-secret"];
 
       if (!env.WEIXIN_BRIDGE_SECRET || secret !== env.WEIXIN_BRIDGE_SECRET) {

@@ -1,5 +1,5 @@
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { toolRegistry } from "./tool-registry.js";
 import { actionPolicy } from "./policy/action-policy.js";
 import type {
@@ -64,7 +64,7 @@ export class ToolExecutor {
     console.log(`[tool] executing ${toolName}`, JSON.stringify(input).slice(0, 200));
 
     try {
-      const timeoutMs = env.TOOL_TIMEOUT_MS;
+      const timeoutMs = runtimeConfig.TOOL_TIMEOUT_MS;
       output = await Promise.race([
         tool.handler(input, context),
         new Promise((_, reject) =>
@@ -85,8 +85,8 @@ export class ToolExecutor {
       riskLevel: tool.riskLevel,
       status,
       context,
-      input: env.TOOL_LOG_INPUT_OUTPUT ? input : null,
-      output: env.TOOL_LOG_INPUT_OUTPUT ? output : null,
+      input: runtimeConfig.TOOL_LOG_INPUT_OUTPUT ? input : null,
+      output: runtimeConfig.TOOL_LOG_INPUT_OUTPUT ? output : null,
       error,
       blocked: false,
       durationMs,

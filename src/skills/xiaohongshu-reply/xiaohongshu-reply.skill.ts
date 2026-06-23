@@ -4,7 +4,7 @@ import {
   formatExpressionLearningExamples,
   retrieveExpressionLearningExamples,
 } from "../../expression-learning/expression-learning.service.js";
-import { env } from "../../utils/env.js";
+import { getXiaohongshuCommentThreadContext } from "../../platforms/xiaohongshu/xiaohongshu-account.service.js";
 import type { SkillDefinition } from "../skill.types.js";
 import {
   loadXiaohongshuReplyConfig,
@@ -40,8 +40,8 @@ const boundaries: XiaohongshuBoundary[] = ["none", "soft", "clear"];
 
 type LoadedConfig = Awaited<ReturnType<typeof loadXiaohongshuReplyConfig>>;
 
-export function isXiaohongshuReplySkillEnabled(): boolean {
-  return env.SKILL_XIAOHONGSHU_REPLY_MODE !== "off";
+export async function isXiaohongshuReplySkillEnabled(): Promise<boolean> {
+  return (await loadXiaohongshuReplyConfig()).accessMode !== "off";
 }
 
 function includes<T extends string>(values: T[], value: unknown, fallback: T): T {
@@ -60,7 +60,7 @@ function buildUserPayload(input: XiaohongshuReplyInput, config: LoadedConfig): s
       post_caption: input.postCaption ?? "",
       post_type: input.postType,
       comment: input.comment,
-      commenter_history: input.commenterHistory ?? "",
+      comment_thread: input.threadContext ?? "",
       account_mode: config.accountMode,
     },
     null,
@@ -88,18 +88,19 @@ function normalizeOutput(
   };
 }
 
-export function xiaohongshuReplySkillDefinition(): SkillDefinition {
-  const enabled = isXiaohongshuReplySkillEnabled();
+export async function xiaohongshuReplySkillDefinition(): Promise<SkillDefinition> {
+  const config = await loadXiaohongshuReplyConfig();
+  const enabled = config.accessMode !== "off";
   return {
     id: skillId,
     label: "小红书回复",
     category: "platform",
     description:
       "管理小红书帖子、评论和待审核回复草稿。由 LLM 判断评论意图、是否需要回复和回复口吻。",
-    accessMode: env.SKILL_XIAOHONGSHU_REPLY_MODE,
+    accessMode: config.accessMode,
     enabled,
-    disabledReason: enabled ? null : "SKILL_XIAOHONGSHU_REPLY_MODE=off",
-    configKeys: ["SKILL_XIAOHONGSHU_REPLY_MODE"],
+    disabledReason: enabled ? null : "小红书回复 Skill 已关闭",
+    configKeys: ["accessMode"],
     entryPoints: [
       "小红书平台工作台",
       "手动选择评论生成草稿",
@@ -121,8 +122,8 @@ export function xiaohongshuReplySkillDefinition(): SkillDefinition {
         description: "小红书评论回复判断、草稿和人工审核流程。",
         enabled,
         implemented: true,
-        configKeys: ["SKILL_XIAOHONGSHU_REPLY_MODE"],
-        disabledReason: enabled ? null : "SKILL_XIAOHONGSHU_REPLY_MODE=off",
+        configKeys: ["accessMode"],
+        disabledReason: enabled ? null : "小红书回复 Skill 已关闭",
         rulesSummary: [
           "LLM 判断评论意图和是否需要回复。",
           "无意义表情、连续礼貌互动倾向 skip。",
@@ -137,7 +138,7 @@ export function xiaohongshuReplySkillDefinition(): SkillDefinition {
 export async function generateXiaohongshuReplyDraft(
   input: XiaohongshuReplyInput
 ): Promise<XiaohongshuReplyOutput> {
-  if (!isXiaohongshuReplySkillEnabled()) {
+  if (!(await isXiaohongshuReplySkillEnabled())) {
     throw new Error("小红书回复 Skill 已关闭。");
   }
   const config = await loadXiaohongshuReplyConfig();
@@ -146,7 +147,7 @@ export async function generateXiaohongshuReplyDraft(
     input.postCaption ? `正文：${input.postCaption}` : "",
     `帖子类型：${input.postType}`,
     `评论：${input.comment}`,
-    input.commenterHistory ? `历史互动：${input.commenterHistory}` : "",
+    input.threadContext ? `评论线程：${input.threadContext}` : "",
   ].filter(Boolean).join("\n");
   const learnedExamples = await retrieveExpressionLearningExamples({
     platform: "xiaohongshu",
@@ -169,17 +170,17 @@ export async function generateXiaohongshuReplyDraft(
 }
 
 export async function generateXiaohongshuReplyDraftForComment(commentId: string) {
-  const comment = await prisma.xiaohongshuComment.findUniqueOrThrow({
-    where: { id: commentId },
-    include: { post: true },
-  });
+  const { comment, threadContext } = await getXiaohongshuCommentThreadContext(commentId);
+  if (comment.isAuthor) {
+    throw Object.assign(new Error("作者自己的回复不需要生成回复草稿"), { statusCode: 400 });
+  }
 
   const output = await generateXiaohongshuReplyDraft({
     postTitle: comment.post.title,
     postCaption: comment.post.caption,
     postType: comment.post.postType,
     comment: comment.content,
-    commenterHistory: comment.commenterHistory,
+    threadContext,
   });
 
   const replyNeed =

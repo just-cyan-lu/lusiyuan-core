@@ -1,6 +1,6 @@
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   resolveMemoryProposalUserId,
   type MemoryProposalUserLookup,
@@ -141,7 +141,7 @@ export class ReflectionProposalService {
     if (proposal.status !== "approved") {
       throw new Error(`Proposal must be approved before applying (current: ${proposal.status})`);
     }
-    if (proposal.riskLevel === "high" && !env.REFLECTION_AUTO_APPLY) {
+    if (proposal.riskLevel === "high" && !runtimeConfig.REFLECTION_AUTO_APPLY) {
       throw new Error("High-risk proposals cannot be applied without REFLECTION_AUTO_APPLY=true");
     }
     return applyService.apply(proposal, reviewerId);
@@ -154,7 +154,7 @@ export class ReflectionProposalService {
     if (proposal.status !== "approved") {
       throw new Error(`Proposal must be approved before applying globally (current: ${proposal.status})`);
     }
-    if (proposal.riskLevel === "high" && !env.REFLECTION_AUTO_APPLY) {
+    if (proposal.riskLevel === "high" && !runtimeConfig.REFLECTION_AUTO_APPLY) {
       throw new Error("High-risk proposals cannot be applied without REFLECTION_AUTO_APPLY=true");
     }
     return applyService.applyGlobal(proposal, reviewerId);
@@ -231,7 +231,7 @@ class ReflectionApplyServiceImpl {
       },
     });
 
-    if (env.MEMORY_RETRIEVAL_ENABLED) {
+    if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
         console.warn("Reflection global embedding failed:", err)
       );
@@ -319,7 +319,7 @@ class ReflectionApplyServiceImpl {
       },
     });
 
-    if (env.MEMORY_RETRIEVAL_ENABLED) {
+    if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
         console.warn("Reflection embedding failed:", err)
       );
@@ -361,7 +361,7 @@ class ReflectionApplyServiceImpl {
       },
     });
 
-    if (env.MEMORY_RETRIEVAL_ENABLED) {
+    if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
         console.warn("Reflection embedding update failed:", err)
       );
@@ -423,7 +423,7 @@ class ReflectionApplyServiceImpl {
         },
       });
       newMemoryId = newMemory.id;
-      if (env.MEMORY_RETRIEVAL_ENABLED) {
+      if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
         memoryService.generateAndStoreEmbedding(newMemory).catch((err) =>
           console.warn("Reflection supersede embedding failed:", err)
         );

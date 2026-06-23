@@ -23,6 +23,7 @@ export type XiaohongshuBoundary = "none" | "soft" | "clear";
 
 export interface XiaohongshuReplyConfig {
   version: number;
+  accessMode: "off" | "owner_only" | "on";
   accountMode: "siyuan_first" | "creator_first" | "mixed";
   maxReplyChars: number;
   prompt: string;
@@ -33,7 +34,7 @@ export interface XiaohongshuReplyInput {
   postCaption?: string | null;
   postType: XiaohongshuPostType | string;
   comment: string;
-  commenterHistory?: string | null;
+  threadContext?: string | null;
 }
 
 export interface XiaohongshuReplyOutput {

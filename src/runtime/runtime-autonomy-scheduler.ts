@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { runtimeStateService } from "./runtime-state.service.js";
 
 let scheduledTask: cron.ScheduledTask | null = null;
@@ -8,21 +8,22 @@ export function startRuntimeAutonomyScheduler(logger?: {
   info: (msg: string) => void;
   error: (msg: string, err: unknown) => void;
 }): void {
-  if (!env.RUNTIME_AUTONOMY_AUTO_RUN) {
+  stopRuntimeAutonomyScheduler();
+  if (!runtimeConfig.RUNTIME_AUTONOMY_AUTO_RUN) {
     logger?.info("[RuntimeAutonomy] Auto-run is disabled");
     return;
   }
 
-  if (!cron.validate(env.RUNTIME_AUTONOMY_CRON)) {
+  if (!cron.validate(runtimeConfig.RUNTIME_AUTONOMY_CRON)) {
     logger?.error(
-      `[RuntimeAutonomy] Invalid cron expression: ${env.RUNTIME_AUTONOMY_CRON}`,
+      `[RuntimeAutonomy] Invalid cron expression: ${runtimeConfig.RUNTIME_AUTONOMY_CRON}`,
       new Error("Invalid cron")
     );
     return;
   }
 
   scheduledTask = cron.schedule(
-    env.RUNTIME_AUTONOMY_CRON,
+    runtimeConfig.RUNTIME_AUTONOMY_CRON,
     async () => {
       logger?.info("[RuntimeAutonomy] Running scheduled autonomy tick...");
       try {
@@ -36,13 +37,21 @@ export function startRuntimeAutonomyScheduler(logger?: {
     },
     {
       scheduled: true,
-      timezone: env.RUNTIME_AUTONOMY_TIMEZONE,
+      timezone: runtimeConfig.RUNTIME_AUTONOMY_TIMEZONE,
     }
   );
 
   logger?.info(
-    `[RuntimeAutonomy] Scheduler started: ${env.RUNTIME_AUTONOMY_CRON} (${env.RUNTIME_AUTONOMY_TIMEZONE})`
+    `[RuntimeAutonomy] Scheduler started: ${runtimeConfig.RUNTIME_AUTONOMY_CRON} (${runtimeConfig.RUNTIME_AUTONOMY_TIMEZONE})`
   );
+}
+
+export function reconfigureRuntimeAutonomyScheduler(logger?: {
+  info: (msg: string) => void;
+  error: (msg: string, err: unknown) => void;
+}): void {
+  stopRuntimeAutonomyScheduler(logger);
+  startRuntimeAutonomyScheduler(logger);
 }
 
 export function stopRuntimeAutonomyScheduler(logger?: { info: (msg: string) => void }): void {

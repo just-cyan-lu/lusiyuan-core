@@ -1,10 +1,11 @@
 import { tavilySearch } from "./tavily-client.js";
 import type { SearchResponse } from "./web-search.types.js";
 import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 class WebSearchService {
   async search(query: string): Promise<SearchResponse> {
-    if (!env.TAVILY_ENABLED) {
+    if (!runtimeConfig.TAVILY_ENABLED) {
       throw new Error("Web search is disabled");
     }
 

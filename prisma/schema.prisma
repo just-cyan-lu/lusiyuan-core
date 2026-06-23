@@ -155,6 +155,33 @@ model SkillConfig {
   @@map("skill_configs")
 }
 
+/// Live, non-secret application settings changed from Admin.
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+  @@map("system_settings")
+}
+
+/// Audit trail for live setting changes.
+model SystemSettingEvent {
+  id        String   @id @default(cuid())
+  key       String
+  oldValue  Json?
+  newValue  Json
+  changedBy String?
+  source    String   @default("admin")
+  createdAt DateTime @default(now())
+
+  @@index([key])
+  @@index([createdAt])
+  @@map("system_setting_events")
+}
+
 /// Xiaohongshu post tracked by the admin workbench.
 model XiaohongshuPost {
   id           String    @id @default(cuid())
@@ -184,27 +211,40 @@ model XiaohongshuPost {
 
 /// Xiaohongshu comment tracked for manual reply drafting.
 model XiaohongshuComment {
-  id               String    @id @default(cuid())
-  postId           String
-  externalId       String?
-  authorName       String?
-  content          String
-  commenterHistory String?
-  status           String    @default("pending")
-  replyNeed        String    @default("unknown")
-  source           String    @default("manual")
-  publishedAt      DateTime?
-  lastSyncedAt     DateTime?
-  metadata         Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  postId              String
+  parentId            String?
+  replyToId           String?
+  externalId          String?
+  authorName          String?
+  authorUserId        String?
+  content             String
+  isAuthor            Boolean   @default(false)
+  replyToAuthorName   String?
+  replyToAuthorUserId String?
+  sortOrder           Int       @default(0)
+  status              String    @default("pending")
+  replyNeed           String    @default("unknown")
+  source              String    @default("manual")
+  publishedAt         DateTime?
+  lastSyncedAt        DateTime?
+  metadata            Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  post   XiaohongshuPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  drafts XiaohongshuReplyDraft[]
-  reply  XiaohongshuReply?
+  post          XiaohongshuPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent        XiaohongshuComment?     @relation("XiaohongshuThreadReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       XiaohongshuComment[]    @relation("XiaohongshuThreadReplies")
+  replyTo       XiaohongshuComment?     @relation("XiaohongshuDirectReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  directReplies XiaohongshuComment[]    @relation("XiaohongshuDirectReplies")
+  drafts        XiaohongshuReplyDraft[]
 
   @@unique([postId, externalId])
   @@index([postId])
+  @@index([parentId])
+  @@index([replyToId])
+  @@index([postId, parentId, sortOrder])
+  @@index([isAuthor])
   @@index([status])
   @@index([replyNeed])
   @@index([createdAt])
@@ -234,28 +274,6 @@ model XiaohongshuReplyDraft {
   @@index([status])
   @@index([createdAt])
   @@map("xiaohongshu_reply_drafts")
-}
-
-/// Reply that actually appeared on the Xiaohongshu account.
-model XiaohongshuReply {
-  id           String    @id @default(cuid())
-  commentId    String    @unique
-  externalId   String?   @unique
-  content      String
-  authorMode   String    @default("owner_as_siyuan")
-  source       String    @default("manual")
-  publishedAt  DateTime?
-  lastSyncedAt DateTime?
-  metadata     Json?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  comment XiaohongshuComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  @@index([authorMode])
-  @@index([source])
-  @@index([publishedAt])
-  @@map("xiaohongshu_replies")
 }
 
 /// A reusable lesson learned from an owner's final response decision.

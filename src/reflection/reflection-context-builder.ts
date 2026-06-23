@@ -6,15 +6,15 @@ import type {
   ReflectionMessage,
   ReflectionMemory,
 } from "./reflection.types.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 export async function buildReflectionContext(
   input: BuildReflectionContextInput
 ): Promise<ReflectionContext> {
   const { scope, userId, conversationId, messageLimit, from, to } = input;
   const limit = Math.min(
-    messageLimit ?? env.REFLECTION_DEFAULT_MESSAGE_LIMIT,
-    env.REFLECTION_MAX_MESSAGE_LIMIT
+    messageLimit ?? runtimeConfig.REFLECTION_DEFAULT_MESSAGE_LIMIT,
+    runtimeConfig.REFLECTION_MAX_MESSAGE_LIMIT
   );
 
   // ── Messages ──────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ export async function buildReflectionContext(
   const rawMemories = await prisma.memory.findMany({
     where: memoryWhere,
     orderBy: [{ importance: "desc" }, { updatedAt: "desc" }],
-    take: env.REFLECTION_INCLUDE_MEMORIES ? 30 : 0,
+    take: runtimeConfig.REFLECTION_INCLUDE_MEMORIES ? 30 : 0,
     select: {
       id: true,
       type: true,

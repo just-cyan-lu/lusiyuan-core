@@ -1,4 +1,4 @@
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type { RetrievedMemory } from "./memory-reranker.js";
 import type { Memory } from "@prisma/client";
 
@@ -19,8 +19,8 @@ const TYPE_MAX: Record<string, number> = {
 };
 
 export function applyMemoryBudget(ranked: RetrievedMemory[]): BudgetedMemory[] {
-  const topK = env.MEMORY_FINAL_TOP_K;
-  const maxChars = env.MEMORY_MAX_TOTAL_CHARS;
+  const topK = runtimeConfig.MEMORY_FINAL_TOP_K;
+  const maxChars = runtimeConfig.MEMORY_MAX_TOTAL_CHARS;
 
   const typeCounts: Record<string, number> = {};
   const result: BudgetedMemory[] = [];

@@ -43,20 +43,37 @@ function parseDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function buildCommentContext(comment: {
-  content: string;
-  commenterHistory: string | null;
+function formatThreadLine(comment: {
   authorName: string | null;
-  post: { title: string; caption: string | null; postType: string };
+  content: string;
+  isAuthor: boolean;
+  replyToAuthorName: string | null;
 }) {
-  return [
-    `帖子标题：${comment.post.title}`,
-    `帖子类型：${comment.post.postType}`,
-    comment.post.caption ? `帖子正文：${comment.post.caption}` : "",
-    `评论者：${comment.authorName ?? "未知"}`,
-    `评论：${comment.content}`,
-    comment.commenterHistory ? `此前互动：${comment.commenterHistory}` : "",
-  ].filter(Boolean).join("\n");
+  const author = comment.authorName ?? "未知用户";
+  const role = comment.isAuthor ? "（作者）" : "";
+  const target = comment.replyToAuthorName ? ` 回复 ${comment.replyToAuthorName}` : "";
+  return `${author}${role}${target}：${comment.content}`;
+}
+
+export async function getXiaohongshuCommentThreadContext(commentId: string) {
+  const comment = await prisma.xiaohongshuComment.findUniqueOrThrow({
+    where: { id: commentId },
+    include: {
+      post: true,
+      drafts: { orderBy: { createdAt: "desc" } },
+    },
+  });
+  const rootId = comment.parentId ?? comment.id;
+  const thread = await prisma.xiaohongshuComment.findMany({
+    where: { OR: [{ id: rootId }, { parentId: rootId }] },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  return {
+    comment,
+    rootId,
+    thread,
+    threadContext: thread.map(formatThreadLine).join("\n"),
+  };
 }
 
 export async function listXiaohongshuAccountMirror() {
@@ -65,17 +82,22 @@ export async function listXiaohongshuAccountMirror() {
     take: 100,
     include: {
       comments: {
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        where: { parentId: null },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         include: {
           drafts: { orderBy: { createdAt: "desc" } },
-          reply: true,
+          replies: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            include: { drafts: { orderBy: { createdAt: "desc" } } },
+          },
         },
       },
     },
   });
-  const sourceRefs = posts.flatMap((post) =>
-    post.comments.map((comment) => `xiaohongshu_comment:${comment.id}`)
+  const allComments = posts.flatMap((post) =>
+    post.comments.flatMap((comment) => [comment, ...comment.replies])
   );
+  const sourceRefs = allComments.map((comment) => `xiaohongshu_comment:${comment.id}`);
   const examples = sourceRefs.length > 0
     ? await prisma.expressionLearningExample.findMany({ where: { sourceRef: { in: sourceRefs } } })
     : [];
@@ -85,6 +107,11 @@ export async function listXiaohongshuAccountMirror() {
     comments: post.comments.map((comment) => ({
       ...comment,
       learningExample: learningBySource.get(`xiaohongshu_comment:${comment.id}`) ?? null,
+      replies: comment.replies.map((reply) => ({
+        ...reply,
+        replies: [],
+        learningExample: learningBySource.get(`xiaohongshu_comment:${reply.id}`) ?? null,
+      })),
     })),
   }));
 }
@@ -100,15 +127,52 @@ interface FinalDecisionInput {
   publishedAt?: string | Date | null;
 }
 
-export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) {
-  const comment = await prisma.xiaohongshuComment.findUniqueOrThrow({
-    where: { id: input.commentId },
-    include: {
-      post: true,
-      drafts: { orderBy: { createdAt: "desc" } },
-      reply: true,
+async function learnFromFinalReply(input: {
+  targetCommentId: string;
+  replyCommentId: string | null;
+  finalText: string;
+  outcome: ExpressionLearningOutcome;
+  draftText: string | null;
+  draftId: string | null;
+  ownerNote: string | null;
+  source: "manual" | "xiaohongshu_sync";
+}) {
+  const { comment, threadContext } = await getXiaohongshuCommentThreadContext(input.targetCommentId);
+  const ownerAction = deriveExpressionOwnerAction(input.draftText, input.finalText, input.outcome);
+  return learnExpression({
+    sourceRef: `xiaohongshu_comment:${comment.id}`,
+    sourceType: "xiaohongshu_comment",
+    sourceId: comment.id,
+    platform: "xiaohongshu",
+    scene: "comment_reply",
+    scope: "platform",
+    contextText: [
+      `帖子标题：${comment.post.title}`,
+      `帖子类型：${comment.post.postType}`,
+      comment.post.caption ? `帖子正文：${comment.post.caption}` : "",
+      `评论线程：\n${threadContext}`,
+      `本次回复目标：${formatThreadLine(comment)}`,
+    ].filter(Boolean).join("\n"),
+    draftText: input.draftText,
+    finalText: input.outcome === "sent" ? input.finalText : null,
+    outcome: input.outcome,
+    ownerAction,
+    ownerNote: input.ownerNote,
+    metadata: {
+      postId: comment.postId,
+      commentId: comment.id,
+      draftId: input.draftId,
+      replyCommentId: input.replyCommentId,
+      source: input.source,
     },
   });
+}
+
+export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) {
+  const { comment, rootId } = await getXiaohongshuCommentThreadContext(input.commentId);
+  if (comment.isAuthor) {
+    throw Object.assign(new Error("作者自己的回复不能再次记录为回复目标"), { statusCode: 400 });
+  }
   const draft = input.draftId
     ? comment.drafts.find((item) => item.id === input.draftId)
     : null;
@@ -121,32 +185,67 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
     throw Object.assign(new Error("记录已发布回复时，回复内容不能为空"), { statusCode: 400 });
   }
   const draftText = draft?.originalContent || draft?.content || null;
-  const ownerAction = deriveExpressionOwnerAction(draftText, finalText, input.outcome);
   const source = input.source ?? "manual";
   const publishedAt = input.publishedAt instanceof Date
     ? input.publishedAt
     : parseDate(input.publishedAt) ?? (input.outcome === "sent" ? new Date() : null);
 
-  const reply = input.outcome === "sent"
-    ? await prisma.xiaohongshuReply.upsert({
-        where: { commentId: comment.id },
-        create: {
-          commentId: comment.id,
-          content: finalText,
-          externalId: cleanText(input.externalId, 240) || null,
-          source,
-          publishedAt,
-          lastSyncedAt: source === "xiaohongshu_sync" ? new Date() : null,
-        },
-        update: {
-          content: finalText,
-          externalId: cleanText(input.externalId, 240) || comment.reply?.externalId || null,
-          source,
-          publishedAt,
-          lastSyncedAt: source === "xiaohongshu_sync" ? new Date() : comment.reply?.lastSyncedAt,
-        },
-      })
-    : null;
+  let replyCommentId: string | null = null;
+  if (input.outcome === "sent") {
+    const externalId = cleanText(input.externalId, 240) || null;
+    const existingReply = externalId
+      ? await prisma.xiaohongshuComment.findUnique({
+          where: { postId_externalId: { postId: comment.postId, externalId } },
+        })
+      : await prisma.xiaohongshuComment.findFirst({
+          where: { replyToId: comment.id, isAuthor: true },
+          orderBy: { updatedAt: "desc" },
+        });
+    const lastReply = await prisma.xiaohongshuComment.findFirst({
+      where: { parentId: rootId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    const reply = existingReply
+      ? await prisma.xiaohongshuComment.update({
+          where: { id: existingReply.id },
+          data: {
+            content: finalText,
+            externalId: externalId ?? existingReply.externalId,
+            authorName: comment.post.authorName ?? "陆思源 Cyan",
+            isAuthor: true,
+            parentId: rootId,
+            replyToId: comment.id,
+            replyToAuthorName: comment.authorName,
+            replyToAuthorUserId: comment.authorUserId,
+            status: "published",
+            replyNeed: "not_applicable",
+            source,
+            publishedAt,
+            lastSyncedAt: source === "xiaohongshu_sync" ? new Date() : existingReply.lastSyncedAt,
+          },
+        })
+      : await prisma.xiaohongshuComment.create({
+          data: {
+            postId: comment.postId,
+            parentId: rootId,
+            replyToId: comment.id,
+            externalId,
+            authorName: comment.post.authorName ?? "陆思源 Cyan",
+            content: finalText,
+            isAuthor: true,
+            replyToAuthorName: comment.authorName,
+            replyToAuthorUserId: comment.authorUserId,
+            sortOrder: (lastReply?.sortOrder ?? 0) + 1,
+            status: "published",
+            replyNeed: "not_applicable",
+            source,
+            publishedAt,
+            lastSyncedAt: source === "xiaohongshu_sync" ? new Date() : null,
+          },
+        });
+    replyCommentId = reply.id;
+  }
 
   await prisma.$transaction([
     prisma.xiaohongshuComment.update({
@@ -167,26 +266,15 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
       : []),
   ]);
 
-  const learningExample = await learnExpression({
-    sourceRef: `xiaohongshu_comment:${comment.id}`,
-    sourceType: "xiaohongshu_comment",
-    sourceId: comment.id,
-    platform: "xiaohongshu",
-    scene: "comment_reply",
-    scope: "platform",
-    contextText: buildCommentContext(comment),
-    draftText,
-    finalText: input.outcome === "sent" ? finalText : null,
+  const learningExample = await learnFromFinalReply({
+    targetCommentId: comment.id,
+    replyCommentId,
+    finalText,
     outcome: input.outcome,
-    ownerAction,
+    draftText,
+    draftId: draft?.id ?? null,
     ownerNote: cleanText(input.ownerNote, 2000) || null,
-    metadata: {
-      postId: comment.postId,
-      commentId: comment.id,
-      draftId: draft?.id ?? null,
-      replyId: reply?.id ?? null,
-      source,
-    },
+    source,
   });
 
   return {
@@ -195,19 +283,21 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
   };
 }
 
-export interface SyncReplyInput {
-  externalId?: string | null;
-  content: string;
-  publishedAt?: string | null;
-}
-
 export interface SyncCommentInput {
   externalId: string;
   authorName?: string | null;
+  authorUserId?: string | null;
   content: string;
-  commenterHistory?: string | null;
+  isAuthor?: boolean;
+  replyToExternalId?: string | null;
+  replyToAuthorName?: string | null;
+  replyToAuthorUserId?: string | null;
+  sortOrder?: number;
   publishedAt?: string | null;
-  reply?: SyncReplyInput | null;
+}
+
+export interface SyncCommentThreadInput extends SyncCommentInput {
+  replies?: SyncCommentInput[];
 }
 
 export interface SyncPostInput {
@@ -220,13 +310,30 @@ export interface SyncPostInput {
   imageCount?: number;
   imageAlts?: string[];
   publishedAt?: string | null;
-  comments?: SyncCommentInput[];
+  comments?: SyncCommentThreadInput[];
+}
+
+function commentData(input: SyncCommentInput) {
+  return {
+    authorName: cleanText(input.authorName, 240) || null,
+    authorUserId: cleanText(input.authorUserId, 240) || null,
+    content: cleanText(input.content, 4000),
+    isAuthor: Boolean(input.isAuthor),
+    replyToAuthorName: cleanText(input.replyToAuthorName, 240) || null,
+    replyToAuthorUserId: cleanText(input.replyToAuthorUserId, 240) || null,
+    sortOrder: Math.max(0, Math.trunc(input.sortOrder ?? 0)),
+    source: "xiaohongshu_sync",
+    publishedAt: parseDate(input.publishedAt),
+    lastSyncedAt: new Date(),
+  };
 }
 
 export async function syncXiaohongshuAccountMirror(posts: SyncPostInput[]) {
   let postCount = 0;
+  let threadCount = 0;
   let commentCount = 0;
   let replyCount = 0;
+  let authorReplyCount = 0;
   let learnedCount = 0;
 
   for (const item of posts.slice(0, 100)) {
@@ -263,70 +370,87 @@ export async function syncXiaohongshuAccountMirror(posts: SyncPostInput[]) {
     });
     postCount++;
 
-    for (const commentInput of (item.comments ?? []).slice(0, 500)) {
-      const commentExternalId = cleanText(commentInput.externalId, 240);
-      const content = cleanText(commentInput.content, 4000);
-      if (!commentExternalId || !content) continue;
-      const comment = await prisma.xiaohongshuComment.upsert({
-        where: { postId_externalId: { postId: post.id, externalId: commentExternalId } },
+    for (const threadInput of (item.comments ?? []).slice(0, 500)) {
+      const rootExternalId = cleanText(threadInput.externalId, 240);
+      const rootContent = cleanText(threadInput.content, 4000);
+      if (!rootExternalId || !rootContent) continue;
+      const root = await prisma.xiaohongshuComment.upsert({
+        where: { postId_externalId: { postId: post.id, externalId: rootExternalId } },
         create: {
           postId: post.id,
-          externalId: commentExternalId,
-          authorName: cleanText(commentInput.authorName, 240) || null,
-          content,
-          commenterHistory: cleanText(commentInput.commenterHistory, 4000) || null,
-          source: "xiaohongshu_sync",
-          publishedAt: parseDate(commentInput.publishedAt),
-          lastSyncedAt: new Date(),
+          externalId: rootExternalId,
+          ...commentData(threadInput),
+          status: threadInput.isAuthor ? "published" : "pending",
+          replyNeed: threadInput.isAuthor ? "not_applicable" : "unknown",
         },
         update: {
-          authorName: cleanText(commentInput.authorName, 240) || null,
-          content,
-          commenterHistory: cleanText(commentInput.commenterHistory, 4000) || null,
-          source: "xiaohongshu_sync",
-          publishedAt: parseDate(commentInput.publishedAt),
-          lastSyncedAt: new Date(),
+          ...commentData(threadInput),
+          parentId: null,
+          replyToId: null,
         },
       });
+      threadCount++;
       commentCount++;
 
-      if (commentInput.reply?.content) {
-        const existing = await prisma.expressionLearningExample.findUnique({
-          where: { sourceRef: `xiaohongshu_comment:${comment.id}` },
-          select: { finalText: true },
-        });
-        const replyContent = cleanText(commentInput.reply.content, 4000);
-        await prisma.xiaohongshuReply.upsert({
-          where: { commentId: comment.id },
+      const nodesByExternalId = new Map<string, { id: string; isAuthor: boolean }>([
+        [rootExternalId, { id: root.id, isAuthor: root.isAuthor }],
+      ]);
+      const syncedReplies: Array<{ input: SyncCommentInput; id: string; externalId: string }> = [];
+      for (const replyInput of (threadInput.replies ?? []).slice(0, 499)) {
+        const replyExternalId = cleanText(replyInput.externalId, 240);
+        const replyContent = cleanText(replyInput.content, 4000);
+        if (!replyExternalId || !replyContent) continue;
+        const reply = await prisma.xiaohongshuComment.upsert({
+          where: { postId_externalId: { postId: post.id, externalId: replyExternalId } },
           create: {
-            commentId: comment.id,
-            externalId: cleanText(commentInput.reply.externalId, 240) || null,
-            content: replyContent,
-            source: "xiaohongshu_sync",
-            publishedAt: parseDate(commentInput.reply.publishedAt),
-            lastSyncedAt: new Date(),
+            postId: post.id,
+            parentId: root.id,
+            externalId: replyExternalId,
+            ...commentData(replyInput),
+            status: replyInput.isAuthor ? "published" : "pending",
+            replyNeed: replyInput.isAuthor ? "not_applicable" : "unknown",
           },
           update: {
-            externalId: cleanText(commentInput.reply.externalId, 240) || null,
-            content: replyContent,
-            source: "xiaohongshu_sync",
-            publishedAt: parseDate(commentInput.reply.publishedAt),
-            lastSyncedAt: new Date(),
+            ...commentData(replyInput),
+            parentId: root.id,
           },
         });
+        nodesByExternalId.set(replyExternalId, { id: reply.id, isAuthor: reply.isAuthor });
+        syncedReplies.push({ input: replyInput, id: reply.id, externalId: replyExternalId });
+        commentCount++;
+        replyCount++;
+      }
+
+      for (const synced of syncedReplies) {
+        const targetExternalId = cleanText(synced.input.replyToExternalId, 240) || rootExternalId;
+        const target = nodesByExternalId.get(targetExternalId) ?? nodesByExternalId.get(rootExternalId);
+        if (!target) continue;
         await prisma.xiaohongshuComment.update({
-          where: { id: comment.id },
+          where: { id: synced.id },
+          data: { replyToId: target.id },
+        });
+        if (!synced.input.isAuthor || target.isAuthor) continue;
+
+        const targetComment = await prisma.xiaohongshuComment.update({
+          where: { id: target.id },
           data: { status: "replied", replyNeed: "completed" },
         });
-        replyCount++;
-        if (existing?.finalText !== replyContent) {
-          await recordXiaohongshuFinalDecision({
-            commentId: comment.id,
-            content: replyContent,
+        authorReplyCount++;
+        const finalText = cleanText(synced.input.content, 4000);
+        const existing = await prisma.expressionLearningExample.findUnique({
+          where: { sourceRef: `xiaohongshu_comment:${targetComment.id}` },
+          select: { finalText: true },
+        });
+        if (existing?.finalText !== finalText) {
+          await learnFromFinalReply({
+            targetCommentId: targetComment.id,
+            replyCommentId: synced.id,
+            finalText,
             outcome: "sent",
+            draftText: null,
+            draftId: null,
+            ownerNote: null,
             source: "xiaohongshu_sync",
-            externalId: commentInput.reply.externalId,
-            publishedAt: commentInput.reply.publishedAt,
           });
           learnedCount++;
         }
@@ -336,6 +460,13 @@ export async function syncXiaohongshuAccountMirror(posts: SyncPostInput[]) {
 
   return {
     posts: await listXiaohongshuAccountMirror(),
-    imported: { posts: postCount, comments: commentCount, replies: replyCount, learned: learnedCount },
+    imported: {
+      posts: postCount,
+      threads: threadCount,
+      comments: commentCount,
+      replies: replyCount,
+      authorReplies: authorReplyCount,
+      learned: learnedCount,
+    },
   };
 }

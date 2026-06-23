@@ -2,7 +2,7 @@
 
 import cron from "node-cron";
 import { dreamService } from "./dream.service.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 let scheduledTask: cron.ScheduledTask | null = null;
 
@@ -11,18 +11,19 @@ let scheduledTask: cron.ScheduledTask | null = null;
  * Uses DREAM_CRON expression (default: "30 3 * * *" = 3:30 AM daily).
  */
 export function startDreamScheduler(logger?: { info: (msg: string) => void; error: (msg: string, err: unknown) => void }): void {
-  if (!env.DREAM_ENABLED) {
-    logger?.info("[DreamScheduler] Dream Cycle is disabled (DREAM_ENABLED=false)");
+  stopDreamScheduler();
+  if (!runtimeConfig.DREAM_ENABLED) {
+    logger?.info("[DreamScheduler] Dream Cycle is disabled in Admin runtime settings");
     return;
   }
 
-  if (!env.DREAM_AUTO_RUN) {
+  if (!runtimeConfig.DREAM_AUTO_RUN) {
     logger?.info("[DreamScheduler] Auto-run is disabled (DREAM_AUTO_RUN=false)");
     return;
   }
 
-  const cronExpression = env.DREAM_CRON;
-  const timezone = env.DREAM_TIMEZONE;
+  const cronExpression = runtimeConfig.DREAM_CRON;
+  const timezone = runtimeConfig.DREAM_TIMEZONE;
 
   // Validate cron expression
   if (!cron.validate(cronExpression)) {
@@ -39,7 +40,7 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
       try {
         const result = await dreamService.runDailyDream({
           triggerType: "scheduled",
-          lookbackHours: env.DREAM_DEFAULT_LOOKBACK_HOURS,
+          lookbackHours: runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS,
         });
         logger?.info(`[DreamScheduler] Completed: job=${result.jobId}, status=${result.status}, signals=${result.signalCount}, proposals=${result.proposalCount}`);
       } catch (err) {
@@ -53,6 +54,11 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
   );
 
   logger?.info("[DreamScheduler] Scheduler started successfully");
+}
+
+export function reconfigureDreamScheduler(logger?: { info: (msg: string) => void; error: (msg: string, err: unknown) => void }): void {
+  stopDreamScheduler(logger);
+  startDreamScheduler(logger);
 }
 
 /**

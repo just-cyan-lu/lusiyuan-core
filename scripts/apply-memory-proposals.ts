@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { reflectionProposalService } from "../src/reflection/reflection-proposal.service.js";
 import { prisma } from "../src/db/prisma.js";
+import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 
 const args = process.argv.slice(2);
 const proposalId = args.find((a) => a.startsWith("--proposal="))?.split("=")[1];
@@ -8,6 +9,7 @@ const applyAll = args.includes("--approved");
 const reviewerId = args.find((a) => a.startsWith("--reviewer="))?.split("=")[1] ?? "script";
 
 async function main() {
+  await runtimeSettingsService.initialize();
   if (applyAll) {
     const approved = await prisma.memoryProposal.findMany({
       where: { status: "approved" },

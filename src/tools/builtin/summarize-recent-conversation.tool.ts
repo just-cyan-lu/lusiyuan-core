@@ -1,6 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { modelProvider } from "../../core/model-provider.js";
-import { env } from "../../utils/env.js";
+import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
@@ -90,6 +90,7 @@ export const summarizeRecentConversationTool: ToolDefinition<
   name: "summarize_recent_conversation",
   description: "总结最近的对话内容，提炼关键点、可能的记忆和未解决问题",
   riskLevel: "low",
-  ...toolAccessState(env.TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE),
+  enabled: true,
+  runtimeAccess: () => toolAccessState(runtimeConfig.TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE),
   handler,
 };

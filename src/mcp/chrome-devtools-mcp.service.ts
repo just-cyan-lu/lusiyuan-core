@@ -1,5 +1,5 @@
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { StdioMcpClient, mcpText, type McpToolResult } from "./mcp-client.js";
 
 export interface ChromeMcpPage {
@@ -93,16 +93,16 @@ class ChromeDevtoolsMcpService {
   private lastNewPageAt = 0;
 
   private configured(): boolean {
-    return env.MCP_ENABLED && env.CHROME_DEVTOOLS_MCP_ENABLED;
+    return runtimeConfig.MCP_ENABLED && runtimeConfig.CHROME_DEVTOOLS_MCP_ENABLED;
   }
 
   private getClient(): StdioMcpClient {
     if (this.client) return this.client;
     const connectionArgs: string[] = [];
-    if (env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "auto") {
+    if (runtimeConfig.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "auto") {
       connectionArgs.push("--auto-connect");
     } else {
-      const browserUrl = new URL(env.CHROME_DEVTOOLS_MCP_BROWSER_URL);
+      const browserUrl = new URL(runtimeConfig.CHROME_DEVTOOLS_MCP_BROWSER_URL);
       if (!["127.0.0.1", "localhost", "::1"].includes(browserUrl.hostname)) {
         throw routeError("CHROME_DEVTOOLS_MCP_BROWSER_URL must point to local Chrome", 400);
       }
@@ -129,14 +129,14 @@ class ChromeDevtoolsMcpService {
 
   async isAvailable(): Promise<boolean> {
     if (!this.configured()) return false;
-    if (env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "auto") {
+    if (runtimeConfig.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "auto") {
       return Promise.race([
         this.listPages().then(() => true).catch(() => false),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4000)),
       ]);
     }
     try {
-      const response = await fetch(`${env.CHROME_DEVTOOLS_MCP_BROWSER_URL.replace(/\/$/, "")}/json/version`, {
+      const response = await fetch(`${runtimeConfig.CHROME_DEVTOOLS_MCP_BROWSER_URL.replace(/\/$/, "")}/json/version`, {
         signal: AbortSignal.timeout(2000),
       });
       return response.ok;
@@ -174,7 +174,7 @@ class ChromeDevtoolsMcpService {
     }
 
     const elapsed = Date.now() - this.lastNewPageAt;
-    const minimum = Math.max(env.CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS, 5000);
+    const minimum = Math.max(runtimeConfig.CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS, 5000);
     if (this.lastNewPageAt > 0 && elapsed < minimum) {
       const seconds = Math.ceil((minimum - elapsed) / 1000);
       throw routeError(`为避免连续打开平台页面，请等待 ${seconds} 秒后再试。`, 429);
@@ -223,7 +223,7 @@ class ChromeDevtoolsMcpService {
       const result = await this.evaluate<{ url: string; title: string; content: string }>(`() => ({
         url: location.href,
         title: document.title,
-        content: (document.body?.innerText ?? "").slice(0, ${Math.max(env.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS, 1000)})
+        content: (document.body?.innerText ?? "").slice(0, ${Math.max(runtimeConfig.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS, 1000)})
       })`);
       await prisma.externalPageSnapshot.create({
         data: {
@@ -237,9 +237,16 @@ class ChromeDevtoolsMcpService {
     });
   }
 
+  async resetConnection(): Promise<void> {
+    const client = this.client;
+    this.client = null;
+    this.lastNewPageAt = 0;
+    await client?.disconnect();
+  }
+
   private async settle(requested?: number): Promise<void> {
     const waitMs = requested === undefined
-      ? randomBetween(env.CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS, env.CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS)
+      ? randomBetween(runtimeConfig.CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS, runtimeConfig.CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS)
       : Math.min(Math.max(requested, 300), 5000);
     await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
