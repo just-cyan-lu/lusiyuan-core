@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { Button, Card, Icon, Title, type CardColor, type IconName } from "animal-island-ui";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   fetchChannelStatus,
   fetchHealthStatus,
@@ -62,6 +63,7 @@ function friendlyErrorMessage(error: unknown): string {
 }
 
 export function DashboardPage({ adminToken }: DashboardPageProps) {
+  const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<DashboardState>({
     health: null,
     channels: null,
@@ -112,7 +114,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [adminToken]);
+  }, [adminToken, reloadKey]);
 
   const activeProvider = useMemo(
     () => state.runtime?.providers.find((provider) => provider.active) ?? null,
@@ -121,74 +123,103 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-8">
+      <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+        <Card className="admin-dashboard-hero overflow-hidden p-6 md:p-8" pattern="app-teal">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#6f8fb8] px-3 py-1.5 text-xs font-semibold text-white">
+            <span className="admin-chip admin-chip-mint">
+              <Icon name="icon-map" size={18} />
               Control Room
             </span>
-            <span className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1.5 text-xs text-[#66758a]">
-              Web Chat 已并入 Admin
-            </span>
+            <span className="admin-chip admin-chip-pink">Web Chat 已并入 Admin</span>
+            <span className="admin-chip admin-chip-yellow">长期状态先看证据</span>
           </div>
-          <h2 className="mt-5 max-w-3xl text-3xl font-semibold text-[#172033] md:text-5xl">
-            陆思源核心系统管理台
-          </h2>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-[#617188] md:text-base">
-            这里集中查看运行态、关系、记忆、Reflection、Dream、配置和聊天入口。长期测试时，先从这里看他最近发生了什么、状态为什么变化、哪些提案还需要审核。
-          </p>
+
+          <div className="mt-7 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="hidden sm:block">
+                <Title size="large" color="app-yellow">
+                  陆思源核心系统管理台
+                </Title>
+              </div>
+              <h2 className="block text-2xl font-black leading-tight text-[#794f27] sm:hidden">
+                陆思源核心系统管理台
+              </h2>
+              <p className="mt-5 text-sm font-semibold leading-7 text-[#725d42] md:text-base">
+                这里集中查看运行态、关系、记忆、Reflection、Dream、配置和聊天入口。长期测试时，先从这里看他最近发生了什么、状态为什么变化、哪些提案还需要审核。
+              </p>
+            </div>
+            <Button
+              type="primary"
+              size="large"
+              loading={state.loading}
+              className="w-full justify-center sm:w-auto"
+              icon={<Icon name="icon-variant" size={20} />}
+              onClick={() => setReloadKey((value) => value + 1)}
+            >
+              刷新状态
+            </Button>
+          </div>
 
           {state.error && (
-            <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+            <div className="mt-6 rounded-[22px] border-2 border-[#f8a6b2] bg-[#fde4e8] px-4 py-3 text-sm font-semibold leading-6 text-[#a85565]">
               {state.error}
             </div>
           )}
-        </div>
+        </Card>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <StatusCard
             label="Core API"
             value={state.health?.status ?? (state.loading ? "checking" : "unknown")}
             active={state.health?.status === "ok"}
+            icon="icon-helicopter"
+            color="app-teal"
           />
           <StatusCard
             label="Admin Token"
             value={adminToken ? "stored locally" : "required for config"}
             active={Boolean(adminToken)}
+            icon="icon-diy"
+            color="app-yellow"
           />
           <StatusCard
             label="Active Model"
             value={activeProvider?.model ?? state.runtime?.activeModelProvider ?? "token needed"}
             active={Boolean(activeProvider && providerReady(activeProvider))}
+            icon="icon-miles"
+            color="app-blue"
           />
         </div>
       </section>
 
       <section className="grid gap-5 lg:grid-cols-3">
-        <Panel title="陆思源运行态" subtitle="数据库里的当前状态">
+        <Panel
+          title="陆思源运行态"
+          subtitle="数据库里的当前状态"
+          icon="icon-miles"
+          pattern="app-yellow"
+        >
           {state.runtimeState ? (
             <div className="grid gap-3">
-              <div>
-                <div className="text-xs text-[#7b8ca2]">最近心情</div>
-                <div className="mt-1 text-xl font-semibold text-[#172033]">
+              <div className="admin-island-row px-4 py-3">
+                <div className="text-xs font-black uppercase text-[#9f927d]">最近心情</div>
+                <div className="mt-1 text-2xl font-black text-[#794f27]">
                   {state.runtimeState.moodLabel}
                 </div>
               </div>
               <ConfigRow label="精力" enabled={state.runtimeState.energyLevel >= 45} />
               <ConfigRow label="受控自动" enabled={state.runtimeState.autoUpdateEnabled} />
-              <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm text-[#334155]">
+              <InfoBlock>
                 更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则校准"}
-              </div>
-              <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm leading-6 text-[#334155]">
-                {state.runtimeState.currentActivity ?? "暂无正在做的事。"}
-              </div>
+              </InfoBlock>
+              <InfoBlock>{state.runtimeState.currentActivity ?? "暂无正在做的事。"}</InfoBlock>
             </div>
           ) : (
             <TokenHint />
           )}
         </Panel>
 
-        <Panel title="渠道状态" subtitle="公开状态，可无 token 读取">
+        <Panel title="渠道状态" subtitle="公开状态，可无 token 读取" icon="icon-chat" pattern="app-pink">
           <div className="grid gap-3">
             <ChannelRow
               label="Telegram"
@@ -203,7 +234,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           </div>
         </Panel>
 
-        <Panel title="功能开关" subtitle="来自数据库的实时运行配置">
+        <Panel title="功能开关" subtitle="来自数据库的实时运行配置" icon="icon-diy" pattern="app-teal">
           {state.runtime ? (
             <div className="grid gap-2">
               {Object.entries(state.runtime.features).map(([key, enabled]) => (
@@ -219,7 +250,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           )}
         </Panel>
 
-        <Panel title="安全边界" subtitle="高风险能力先保持保守">
+        <Panel title="安全边界" subtitle="高风险能力先保持保守" icon="icon-variant" pattern="app-orange">
           {state.runtime ? (
             <div className="grid gap-2">
               {Object.entries(state.runtime.safety).map(([key, enabled]) => (
@@ -237,26 +268,24 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="模型提供商" subtitle="只显示是否配置，不显示密钥">
+        <Panel title="模型提供商" subtitle="只显示是否配置，不显示密钥" icon="icon-helicopter" pattern="app-blue">
           {state.runtime ? (
             <div className="grid gap-3 md:grid-cols-2">
               {state.runtime.providers.map((provider) => (
                 <div
                   key={provider.name}
-                  className={`rounded-lg border px-4 py-3 ${
-                    provider.active
-                      ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                      : "border-[#d9e2ec] bg-white"
+                  className={`admin-island-row px-4 py-3 ${
+                    provider.active ? "border-[#82d5bb] bg-[#e6f9f6]" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium text-[#172033]">{provider.label}</div>
+                    <div className="font-black text-[#794f27]">{provider.label}</div>
                     <StatusPill
                       active={providerReady(provider)}
                       label={provider.active ? "当前" : providerReady(provider) ? "可用" : "缺配置"}
                     />
                   </div>
-                  <div className="mt-2 truncate text-xs text-[#66758a]">
+                  <div className="mt-2 truncate text-xs font-semibold text-[#9f927d]">
                     {provider.model ?? "未设置模型"}
                   </div>
                 </div>
@@ -267,21 +296,23 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           )}
         </Panel>
 
-        <Panel title="后续接入顺序" subtitle="已经可用的入口继续保留，下一步补齐还缺的管理面">
+        <Panel
+          title="后续接入顺序"
+          subtitle="已经可用的入口继续保留，下一步补齐还缺的管理面"
+          icon="icon-map"
+          pattern="lime-green"
+        >
           <div className="grid gap-3">
             {[
               "平台工具：接真实评论读取和互动记录",
               "工具日志：列表、筛选、详情",
               "渠道状态：查看连接和平台入口",
             ].map((item, index) => (
-              <div
-                key={item}
-                className="flex items-center gap-3 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#eaf2fb] text-xs font-semibold text-[#5f7fa7]">
+              <div key={item} className="admin-island-row flex items-center gap-3 px-4 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[16px] border-2 border-[#f7cd67] bg-[#fff4c7] text-xs font-black text-[#794f27]">
                   {index + 1}
                 </span>
-                <span className="text-sm text-[#334155]">{item}</span>
+                <span className="text-sm font-bold leading-6 text-[#725d42]">{item}</span>
               </div>
             ))}
           </div>
@@ -294,41 +325,67 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
 function Panel({
   title,
   subtitle,
+  icon,
+  pattern,
   children,
 }: {
   title: string;
   subtitle: string;
-  children: React.ReactNode;
+  icon: IconName;
+  pattern: CardColor;
+  children: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-5">
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-[#172033]">{title}</h3>
-        <p className="mt-1 text-xs text-[#7b8ca2]">{subtitle}</p>
+    <Card className="h-full p-5" pattern={pattern}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-black text-[#794f27]">{title}</h3>
+          <p className="mt-1 text-xs font-semibold text-[#9f927d]">{subtitle}</p>
+        </div>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border-2 border-[#e8dcc8] bg-[#f7f3df]">
+          <Icon name={icon} size={24} />
+        </span>
       </div>
       {children}
-    </div>
+    </Card>
   );
 }
 
-function StatusCard({ label, value, active }: { label: string; value: string; active: boolean }) {
+function StatusCard({
+  label,
+  value,
+  active,
+  icon,
+  color,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+  icon: IconName;
+  color: CardColor;
+}) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <Card className="p-5" pattern={color}>
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-[#7b8ca2]">{label}</div>
+        <div className="flex items-center gap-2 text-xs font-black uppercase text-[#9f927d]">
+          <Icon name={icon} size={22} bounce={active} />
+          {label}
+        </div>
         <StatusPill active={active} />
       </div>
-      <div className="mt-4 truncate text-xl font-semibold text-[#172033]">{value}</div>
-    </div>
+      <div className="mt-4 truncate text-xl font-black text-[#794f27]" title={value}>
+        {value}
+      </div>
+    </Card>
   );
 }
 
 function ChannelRow({ label, active, detail }: { label: string; active: boolean; detail: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
+    <div className="admin-island-row flex items-center justify-between gap-3 px-4 py-3">
       <div>
-        <div className="text-sm font-medium text-[#172033]">{label}</div>
-        <div className="mt-1 text-xs text-[#7b8ca2]">{detail}</div>
+        <div className="text-sm font-black text-[#794f27]">{label}</div>
+        <div className="mt-1 text-xs font-semibold text-[#9f927d]">{detail}</div>
       </div>
       <StatusPill active={active} />
     </div>
@@ -337,16 +394,24 @@ function ChannelRow({ label, active, detail }: { label: string; active: boolean;
 
 function ConfigRow({ label, enabled }: { label: string; enabled: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#d9e2ec] bg-white px-3 py-2.5">
-      <span className="text-sm text-[#334155]">{label}</span>
+    <div className="admin-island-row flex items-center justify-between gap-3 px-3 py-2.5">
+      <span className="text-sm font-bold text-[#725d42]">{label}</span>
       <StatusPill active={enabled} />
+    </div>
+  );
+}
+
+function InfoBlock({ children }: { children: ReactNode }) {
+  return (
+    <div className="admin-island-row px-4 py-3 text-sm font-semibold leading-6 text-[#725d42]">
+      {children}
     </div>
   );
 }
 
 function TokenHint() {
   return (
-    <div className="rounded-lg border border-dashed border-[#cdd9e6] bg-white/70 px-4 py-5 text-sm leading-6 text-[#66758a]">
+    <div className="admin-island-soft-panel px-4 py-5 text-sm font-semibold leading-6 text-[#8a7b66]">
       填入 Admin Token 后，这里会显示安全的只读配置摘要。
     </div>
   );
