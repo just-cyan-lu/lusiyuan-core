@@ -8,6 +8,8 @@ interface Props {
 export function ChatInput({ onSend, disabled }: Props) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const minTextareaHeight = 48;
+  const maxTextareaHeight = 128;
 
   function handleSend() {
     const content = text.trim();
@@ -16,7 +18,7 @@ export function ChatInput({ onSend, disabled }: Props) {
     setText("");
     // Reset textarea height
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${minTextareaHeight}px`;
     }
   }
 
@@ -31,12 +33,12 @@ export function ChatInput({ onSend, disabled }: Props) {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, minTextareaHeight), maxTextareaHeight)}px`;
   }
 
   return (
     <div className="border-t border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
-      <div className="flex items-end gap-2 rounded-lg border border-[#d9e2ec] bg-white px-3 py-2">
+      <div className="flex min-h-[4.25rem] items-end gap-2 rounded-lg border border-[#d9e2ec] bg-white px-3 py-2 shadow-sm">
         <textarea
           ref={textareaRef}
           value={text}
@@ -45,16 +47,18 @@ export function ChatInput({ onSend, disabled }: Props) {
           onInput={handleInput}
           placeholder="发消息给陆思源…"
           disabled={disabled}
-          rows={1}
+          rows={2}
           maxLength={4000}
-          className="flex-1 resize-none bg-transparent py-0.5 text-sm leading-relaxed text-[#172033] outline-none placeholder:text-[#9aa8b8] disabled:opacity-50"
-          style={{ height: "auto", minHeight: "24px" }}
+          className="min-h-12 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-sm leading-6 text-[#172033] outline-none placeholder:text-[#9aa8b8] disabled:opacity-50"
+          style={{ height: `${minTextareaHeight}px` }}
         />
         <button
+          type="button"
           onClick={handleSend}
           disabled={disabled || !text.trim()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#6f8fb8] transition disabled:opacity-30 hover:bg-[#5f7fa7] active:scale-95"
+          className="admin-icon-button mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-[#6f8fb8] text-white shadow-[0_3px_0_#4f6f98] transition hover:-translate-y-0.5 hover:bg-[#5f7fa7] active:translate-y-[1px] active:shadow-[0_1px_0_#4f6f98] disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="发送"
+          title="发送"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
             <path
@@ -68,7 +72,7 @@ export function ChatInput({ onSend, disabled }: Props) {
         </button>
       </div>
       <p className="mt-2 text-center text-xs text-[#7b8ca2]">
-        陆思源是原创 AI 数字人，不是真人。请勿输入敏感隐私信息。
+        按 enter 发送，shift + enter 换行
       </p>
     </div>
   );
