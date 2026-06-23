@@ -1,7 +1,33 @@
 import { useState, useEffect, useRef } from "react";
 import { sendChatMessage, fetchConversationMessages } from "../api/lusiyuan-api";
 import { getWebIdentity } from "../utils/storage";
-import type { ChatMessage } from "../types/chat";
+import type { ChatMessage, ChatReplyPart } from "../types/chat";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+function displayReplyParts(result: {
+  reply: string;
+  replies?: string[];
+  reply_parts?: ChatReplyPart[];
+  turn_id?: string;
+}): ChatReplyPart[] {
+  const parts = result.reply_parts?.filter((part) => part.kind !== "progress" && part.content.trim());
+  if (parts && parts.length > 0) return parts;
+
+  const replies = result.replies && result.replies.length > 0 ? result.replies : [result.reply];
+  return replies
+    .filter((content) => content.trim())
+    .map((content, index) => ({
+      turn_id: result.turn_id ?? "",
+      sequence: index,
+      kind: "final",
+      content,
+      delay_ms: index === 0 ? 0 : 600,
+      transcript: true,
+    }));
+}
 
 export function useChat() {
   const { userId, conversationId } = getWebIdentity();
@@ -55,14 +81,17 @@ export function useChat() {
         message: content,
       });
 
-      const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: result.reply,
-        createdAt: new Date().toISOString(),
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
+      const parts = displayReplyParts(result);
+      for (const part of parts) {
+        if (part.delay_ms > 0) await sleep(part.delay_ms);
+        const assistantMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: part.content,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "发送失败，请稍后重试");
       // Remove the optimistic user message on failure

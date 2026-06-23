@@ -123,6 +123,12 @@ class RuntimeSettingsService {
     if (Number(candidate.get("REFLECTION_DEFAULT_MESSAGE_LIMIT")) > Number(candidate.get("REFLECTION_MAX_MESSAGE_LIMIT"))) {
       throw new Error("Reflection 默认消息数不能大于最大消息数");
     }
+    if (Number(candidate.get("REPLY_SEGMENT_MIN_CHARS")) > Number(candidate.get("REPLY_SEGMENT_MAX_CHARS"))) {
+      throw new Error("回复分条最小字符不能大于最大字符");
+    }
+    if (Number(candidate.get("REPLY_HUMAN_DELAY_MIN_MS")) > Number(candidate.get("REPLY_HUMAN_DELAY_MAX_MS"))) {
+      throw new Error("回复分条最短停顿不能大于最长停顿");
+    }
 
     if (changes.length === 0) {
       return { changedKeys: [] as RuntimeSettingKey[], applyErrors: [] as string[] };

@@ -17,8 +17,11 @@ export function buildExternalMessageLookup(input: Pick<ChatInput, "channel" | "c
 export function buildDuplicatedChatOutput(conversationId: string): ChatOutput {
   return {
     reply: "",
+    replies: [],
+    reply_parts: [],
     conversation_id: conversationId,
     memory_written: false,
+    turn_id: "",
     duplicated: true,
   };
 }

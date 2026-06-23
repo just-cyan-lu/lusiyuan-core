@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma.js";
 import { loadPersona } from "./persona-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
@@ -16,9 +17,61 @@ import {
   buildExternalMessageLookup,
   isPrismaUniqueConstraintError,
 } from "./chat-idempotency.js";
-import type { ChatInput, ChatOutput } from "../types/chat.js";
+import {
+  getReplySegmentationOptions,
+  replySegmentDelay,
+  segmentReply,
+  shouldDeliverIntermediateMessages,
+} from "./reply-segmentation.service.js";
+import type { ChatInput, ChatOutput, ChatReplyPart } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 import type { ChatMessage, MessageContentPart } from "../types/model.js";
+
+async function storeAndEmitIntermediateMessage(input: {
+  chatInput: ChatInput;
+  conversationId: string;
+  turnId: string;
+  sequence: number;
+  content: string;
+  delayMs: number;
+  source: string;
+}): Promise<ChatReplyPart | null> {
+  const content = input.content.trim();
+  if (!content) return null;
+
+  await prisma.message.create({
+    data: {
+      conversationId: input.conversationId,
+      role: "assistant",
+      content,
+      isIntermediate: true,
+      metadata: {
+        turnId: input.turnId,
+        deliveryKind: "intermediate",
+        sequence: input.sequence,
+        source: input.source,
+      },
+    },
+  });
+
+  const part: ChatReplyPart = {
+    turn_id: input.turnId,
+    sequence: input.sequence,
+    kind: "intermediate",
+    content,
+    delay_ms: input.delayMs,
+    transcript: true,
+  };
+
+  if (input.chatInput.onReplyPart) {
+    await input.chatInput.onReplyPart(part);
+    return part;
+  }
+  if (input.chatInput.onIntermediateMessage) {
+    await input.chatInput.onIntermediateMessage(content, input.delayMs);
+  }
+  return part;
+}
 
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   const safety = checkInput(input.message);
@@ -77,6 +130,11 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   }
 
   const owner = isOwner(input.user_id);
+  const turnId = randomUUID();
+  let replySequence = 0;
+  const replyParts: ChatReplyPart[] = [];
+  const deliveryOptions = getReplySegmentationOptions();
+  const deliverIntermediate = shouldDeliverIntermediateMessages(deliveryOptions.mode);
 
   let userMessage: { id: string };
   try {
@@ -184,29 +242,29 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       // If LLM returned text alongside tool calls, send it as an intermediate message.
       // This is the primary multi-message mechanism: the LLM naturally writes its
       // immediate reaction in the content field before issuing tool calls.
-      if (response.content && response.content.trim().length > 0) {
+      if (deliverIntermediate && response.content && response.content.trim().length > 0) {
         console.log(`[chat] LLM returned content with tool calls, sending as intermediate message`);
-        await prisma.message.create({
-          data: {
+        const delay = replySegmentDelay(replySequence, deliveryOptions);
+        try {
+          const part = await storeAndEmitIntermediateMessage({
+            chatInput: input,
             conversationId: conversation.id,
-            role: "assistant",
+            turnId,
+            sequence: replySequence++,
             content: response.content,
-            isIntermediate: true,
-          },
-        });
-        if (input.onIntermediateMessage) {
-          const delay = Math.floor(Math.random() * 400) + 100;
-          try {
-            await input.onIntermediateMessage(response.content, delay);
-          } catch (err) {
-            console.error("[chat] failed to send intermediate message:", err);
-          }
+            delayMs: delay,
+            source: "content_with_tool_calls",
+          });
+          if (part) replyParts.push(part);
+        } catch (err) {
+          console.error("[chat] failed to send intermediate message:", err);
         }
       }
 
       // Some providers return only hidden thinking before tool calls. In that
       // case, ask for a short visible reaction so the chat feels responsive.
-      if ((!modelProvider.capabilities.supportsContentWithToolCalls ||
+      if (deliverIntermediate &&
+          (!modelProvider.capabilities.supportsContentWithToolCalls ||
           modelProvider.capabilities.requestsToolReactionFallback) &&
           (!response.content || response.content.trim().length === 0)) {
         console.log(`[chat] provider returned no visible tool-call content, requesting immediate reaction`);
@@ -226,21 +284,20 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
           if (reaction.length > 0 && reaction.length < 100) {
             console.log(`[chat] got immediate reaction: ${reaction}`);
-            await prisma.message.create({
-              data: {
+            const delay = replySegmentDelay(replySequence, deliveryOptions);
+            try {
+              const part = await storeAndEmitIntermediateMessage({
+                chatInput: input,
                 conversationId: conversation.id,
-                role: "assistant",
+                turnId,
+                sequence: replySequence++,
                 content: reaction,
-                isIntermediate: true,
-              },
-            });
-            if (input.onIntermediateMessage) {
-              const delay = Math.floor(Math.random() * 400) + 100;
-              try {
-                await input.onIntermediateMessage(reaction, delay);
-              } catch (err) {
-                console.error("[chat] failed to send immediate reaction:", err);
-              }
+                delayMs: delay,
+                source: "tool_reaction_fallback",
+              });
+              if (part) replyParts.push(part);
+            } catch (err) {
+              console.error("[chat] failed to send immediate reaction:", err);
             }
           }
         } catch (err) {
@@ -259,56 +316,51 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
       // Execute each tool call
       console.log(`[chat] executing ${response.tool_calls.length} tool calls`);
-      const toolResults = await Promise.all(
-        response.tool_calls.map(async (toolCall) => {
-          const toolName = toolCall.function.name;
-          console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
-          let toolInput: unknown;
+      const toolResults: Array<{ tool_call_id: string; result: Awaited<ReturnType<typeof toolExecutor.execute>> }> = [];
+      for (const toolCall of response.tool_calls) {
+        const toolName = toolCall.function.name;
+        console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
+        let toolInput: unknown;
+        try {
+          toolInput = JSON.parse(toolCall.function.arguments);
+        } catch {
+          toolInput = {};
+        }
+
+        const result = await toolExecutor.execute({
+          toolName,
+          input: toolInput,
+          context: toolContext,
+        });
+
+        console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
+
+        // Handle send_intermediate_message tool specially
+        if (deliverIntermediate && toolName === "send_intermediate_message" && result.ok && result.output) {
+          const output = result.output as { content: string; delay_ms: number; is_intermediate: boolean };
+
           try {
-            toolInput = JSON.parse(toolCall.function.arguments);
-          } catch {
-            toolInput = {};
-          }
-
-          const result = await toolExecutor.execute({
-            toolName,
-            input: toolInput,
-            context: toolContext,
-          });
-
-          console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
-
-          // Handle send_intermediate_message tool specially
-          if (toolName === "send_intermediate_message" && result.ok && result.output) {
-            const output = result.output as { content: string; delay_ms: number; is_intermediate: boolean };
-
-            // Store intermediate message in database
-            await prisma.message.create({
-              data: {
-                conversationId: conversation.id,
-                role: "assistant",
-                content: output.content,
-                isIntermediate: true,
-              },
+            const part = await storeAndEmitIntermediateMessage({
+              chatInput: input,
+              conversationId: conversation.id,
+              turnId,
+              sequence: replySequence++,
+              content: output.content,
+              delayMs: output.delay_ms,
+              source: "send_intermediate_message",
             });
-
-            // Send via callback if provided
-            if (input.onIntermediateMessage) {
-              try {
-                await input.onIntermediateMessage(output.content, output.delay_ms);
-                console.log(`[chat] sent intermediate message: ${output.content.slice(0, 50)}`);
-              } catch (err) {
-                console.error("[chat] failed to send intermediate message:", err);
-              }
-            }
+            if (part) replyParts.push(part);
+            console.log(`[chat] sent intermediate message: ${output.content.slice(0, 50)}`);
+          } catch (err) {
+            console.error("[chat] failed to send intermediate message:", err);
           }
+        }
 
-          return {
-            tool_call_id: toolCall.id,
-            result,
-          };
-        })
-      );
+        toolResults.push({
+          tool_call_id: toolCall.id,
+          result,
+        });
+      }
 
       // Add tool results to conversation
       for (const { tool_call_id, result } of toolResults) {
@@ -352,13 +404,43 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     reply = sanitizeOutput(draftReply);
   }
 
-  const assistantMessage = await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      role: "assistant",
-      content: reply,
-    },
-  });
+  const segmentation = await segmentReply(reply, deliveryOptions);
+  const finalReplies = segmentation.replies.length > 0 ? segmentation.replies : [reply];
+  const replyGroupId = randomUUID();
+  const finalParts: ChatReplyPart[] = finalReplies.map((content, index) => ({
+    turn_id: turnId,
+    sequence: replySequence + index,
+    kind: "final",
+    content,
+    delay_ms: replySegmentDelay(index, deliveryOptions),
+    transcript: true,
+  }));
+  const assistantMessages = [];
+
+  for (const [index, part] of finalParts.entries()) {
+    assistantMessages.push(await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: part.content,
+        metadata: {
+          turnId,
+          replyGroupId,
+          deliveryKind: "final",
+          sequence: part.sequence,
+          segmentIndex: index,
+          segmentTotal: finalParts.length,
+          delayMs: part.delay_ms,
+          segmentationSource: segmentation.source,
+        },
+      },
+    }));
+  }
+
+  const assistantMessage = assistantMessages[0];
+  if (!assistantMessage) {
+    throw new Error("Assistant reply was not recorded");
+  }
 
   runtimeStateService
     .observeChatTurn({
@@ -397,7 +479,10 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   return {
     reply,
+    replies: finalReplies,
+    reply_parts: [...replyParts, ...finalParts],
     conversation_id: input.conversation_id,
     memory_written: false,
+    turn_id: turnId,
   };
 }

@@ -18,12 +18,24 @@ export interface ChatRequest {
 
 export interface ChatResponse {
   reply: string;
+  replies?: string[];
+  reply_parts?: ChatReplyPart[];
   conversation_id: string;
   memory_written?: boolean;
+  turn_id?: string;
 }
 
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+}
+
+export interface ChatReplyPart {
+  turn_id: string;
+  sequence: number;
+  kind: "progress" | "intermediate" | "final";
+  content: string;
+  delay_ms: number;
+  transcript: boolean;
 }
