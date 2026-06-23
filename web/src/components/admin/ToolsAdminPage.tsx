@@ -325,6 +325,16 @@ function changedConfigValues(
   return changed;
 }
 
+function runtimeValueFromField(
+  field: EnvConfigField | undefined,
+  value: string
+): string | boolean | number {
+  if (field?.type === "boolean") return value === "true";
+  if (field?.type === "integer") return parseInt(value, 10);
+  if (field?.type === "number") return parseFloat(value);
+  return value;
+}
+
 export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   const [state, setState] = useState<ToolsState>({
     tools: [],
@@ -473,7 +483,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         setState((current) => ({
           ...current,
           saving: false,
-          saveMessage: "没有需要保存的工具配置改动。",
+          saveMessage: "没有需要保存的工具参数改动。",
         }));
         return;
       }
@@ -495,7 +505,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         policy: registry.policy,
         settingsConfig: nextConfig,
         saving: false,
-        saveMessage: result.message ?? `已即时应用 ${Object.keys(values).length} 项工具配置。`,
+        saveMessage: result.message ?? `已即时应用 ${Object.keys(values).length} 项工具参数。`,
       }));
     } catch (error) {
       setState((current) => ({
@@ -514,6 +524,63 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       delete next[key];
       return next;
     });
+  }
+
+  async function saveToolSetting(key: string, value: string) {
+    if (!adminToken || !state.settingsConfig) return;
+    const field = settingFieldMap.get(key);
+    const previousValue = configValues[key] ?? field?.value ?? "";
+    setConfigValues((current) => ({ ...current, [key]: value }));
+    setDeleteKeys((current) => current.filter((item) => item !== key));
+    setDeleteSecretValueIndexes((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setState((current) => ({
+      ...current,
+      saving: true,
+      saveError: null,
+      saveMessage: null,
+    }));
+    try {
+      const result = await saveRuntimeSettings({
+        token: adminToken,
+        values: { [key]: runtimeValueFromField(field, value) },
+      });
+      const [freshSettings, registry] = await Promise.all([
+        fetchRuntimeSettings(adminToken),
+        fetchRegisteredTools(adminToken),
+      ]);
+      const nextConfig = liveSettingsAsEditable(freshSettings);
+      setConfigValues(formValuesFromConfig(nextConfig));
+      setDeleteKeys([]);
+      setDeleteSecretValueIndexes({});
+      setState((current) => ({
+        ...current,
+        tools: registry.tools,
+        policy: registry.policy,
+        settingsConfig: nextConfig,
+        saving: false,
+        saveMessage: result.message ?? `${field?.label ?? key} 已即时生效。`,
+      }));
+    } catch (error) {
+      setConfigValues((current) => ({ ...current, [key]: previousValue }));
+      setState((current) => ({
+        ...current,
+        saving: false,
+        saveError: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  function handlePolicyConfigChange(key: string, value: string) {
+    const field = settingFieldMap.get(key);
+    if (field?.type === "boolean" || field?.type === "select") {
+      void saveToolSetting(key, value);
+      return;
+    }
+    handleConfigChange(key, value);
   }
 
   function markConfigDeleted(key: string) {
@@ -583,7 +650,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               disabled={!state.settingsConfig || state.loading || state.saving}
               className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
             >
-              {state.saving ? "保存中" : "保存工具配置"}
+              {state.saving ? "保存中" : "保存工具参数"}
             </button>
           </div>
         </div>
@@ -613,7 +680,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       </section>
 
       {state.policy && (
-        <Panel title="工具策略" subtitle="保存到数据库并立即生效">
+        <Panel title="工具策略" subtitle="开关即时写入；数字参数手动保存">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PolicyConfigItem
               label="工具层"
@@ -621,7 +688,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOLS_ENABLED}
               runtimeText={state.policy.enabled ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
             />
             <PolicyConfigItem
               label="低风险自动执行"
@@ -629,7 +696,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOLS_AUTO_EXECUTE_LOW_RISK}
               runtimeText={state.policy.autoExecuteLowRisk ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
             />
             <PolicyConfigItem
               label="中风险工具"
@@ -637,7 +704,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOLS_ALLOW_MEDIUM_RISK}
               runtimeText={state.policy.allowMediumRisk ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
             />
             <PolicyConfigItem
               label="高风险工具"
@@ -645,7 +712,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOLS_ALLOW_HIGH_RISK}
               runtimeText={state.policy.allowHighRisk ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
             />
             <PolicyConfigItem
               label="单消息上限"
@@ -653,7 +720,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOL_MAX_CALLS_PER_MESSAGE}
               runtimeText={`运行中：${state.policy.maxCallsPerMessage} 次`}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
               unit="次"
             />
             <PolicyConfigItem
@@ -662,7 +729,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOL_TIMEOUT_MS}
               runtimeText={`运行中：${formatDuration(state.policy.timeoutMs)}`}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
               unit="ms"
             />
             <PolicyConfigItem
@@ -671,11 +738,11 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               value={configValues.TOOL_LOG_INPUT_OUTPUT}
               runtimeText={state.policy.logInputOutput ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
-              onChange={handleConfigChange}
+              onChange={handlePolicyConfigChange}
             />
           </div>
           <div className="mt-4 rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
-            这些配置通过统一运行配置中心保存。页面提示成功时，新的工具权限和限制已经生效。
+            开关点击后会立即写入数据库；数字参数修改后点击“保存工具参数”，页面提示成功时新的工具权限和限制已经生效。
           </div>
         </Panel>
       )}
@@ -699,6 +766,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                   deletedSecretValueIndexes={deleteSecretValueIndexes}
                   configDisabled={state.saving}
                   onConfigChange={handleConfigChange}
+                  onModeChange={(key, value) => void saveToolSetting(key, value)}
                   onDeleteConfig={markConfigDeleted}
                   onRestoreConfig={restoreConfigDelete}
                   onDeleteSecretValue={markSecretValueDeleted}
@@ -807,7 +875,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                     key={log.id}
                     type="button"
                     onClick={() => setSelectedLog(log)}
-                    className={`grid w-full grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 px-4 py-3 text-left text-sm transition md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr] ${
+                    className={`admin-layout-button grid w-full grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 px-4 py-3 text-left text-sm transition md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr] ${
                       selectedLog?.id === log.id ? "bg-[#eaf2fb]" : "bg-white hover:bg-[#f8fbff]"
                     }`}
                   >
@@ -912,7 +980,7 @@ function PolicyConfigItem({
             type="button"
             disabled={disabled}
             onClick={() => onChange(field.key, booleanOn ? "false" : "true")}
-            className="rounded-full disabled:opacity-60"
+            className="admin-pill-button rounded-full disabled:opacity-60"
           >
             <StatusPill active={booleanOn} label={booleanOn ? "on" : "off"} />
           </button>
@@ -969,6 +1037,7 @@ function ToolCard({
   deletedSecretValueIndexes,
   configDisabled,
   onConfigChange,
+  onModeChange,
   onDeleteConfig,
   onRestoreConfig,
   onDeleteSecretValue,
@@ -984,6 +1053,7 @@ function ToolCard({
   deletedSecretValueIndexes: Record<string, number[]>;
   configDisabled: boolean;
   onConfigChange: (key: string, value: string) => void;
+  onModeChange: (key: string, value: string) => void;
   onDeleteConfig: (key: string) => void;
   onRestoreConfig: (key: string) => void;
   onDeleteSecretValue: (key: string, index: number) => void;
@@ -1015,7 +1085,7 @@ function ToolCard({
               value={modeValue}
               runtimeMode={runtimeAccessMode}
               disabled={configDisabled}
-              onChange={onConfigChange}
+              onChange={onModeChange}
             />
           )}
           {!modeField && tool.ownerOnly && (
@@ -1100,7 +1170,6 @@ function ToolAccessModeButton({
   onChange: (key: string, value: string) => void;
 }) {
   const currentMode = resolveAccessMode(value || field.value, runtimeMode);
-  const draftChanged = currentMode !== runtimeMode;
   const className =
     currentMode === "off"
       ? "border-[#ead4c8] bg-[#fff6f1] text-[#8d6048] hover:bg-[#ffefe7]"
@@ -1117,10 +1186,10 @@ function ToolAccessModeButton({
         event.stopPropagation();
         onChange(field.key, nextAccessMode(currentMode));
       }}
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition disabled:opacity-60 ${className}`}
-      title={`${field.label} · 点击切换 on → owner only → off · 运行中：${accessModeLabel(runtimeMode)} · 配置项：${field.key}`}
+      className={`admin-pill-button inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition disabled:opacity-60 ${className}`}
+      title={`${field.label} · 点击后立即切换 on → owner only → off · 运行中：${accessModeLabel(runtimeMode)} · 配置项：${field.key}`}
     >
-      <span>{draftChanged ? "待保存" : "模式"}</span>
+      <span>模式</span>
       <span>{accessModeLabel(currentMode)}</span>
     </button>
   );
@@ -1318,12 +1387,12 @@ function ConfigFieldControl({
 
       {deleted && (
         <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
-          已标记恢复默认。点击“保存工具配置”后会写入该项的代码默认值。
+          已标记恢复默认。点击“保存工具参数”后会写入该项的代码默认值。
         </div>
       )}
       {!deleted && deletedSecretValueIndexes.length > 0 && (
         <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
-          已标记删除 {deletedSecretValueIndexes.length} 个 key。点击“保存工具配置”后会从逗号列表中移除。
+          已标记删除 {deletedSecretValueIndexes.length} 个 key。点击“保存工具参数”后会从逗号列表中移除。
         </div>
       )}
 

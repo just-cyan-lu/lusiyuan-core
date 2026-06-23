@@ -173,27 +173,34 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
       {error && <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">{error}</div>}
 
-      <section className="grid min-h-[36rem] gap-5 xl:grid-cols-[0.72fr_1.28fr]">
-        <div className="space-y-2">
+      <section className="grid min-h-[36rem] gap-5 2xl:grid-cols-[minmax(32rem,0.95fr)_minmax(0,1.05fr)]">
+        <div className="min-w-0 space-y-2">
           {state.examples.map((example) => (
             <button
               type="button"
               key={example.id}
               onClick={() => setSelectedId(example.id)}
-              className={`block w-full rounded-lg border p-4 text-left transition ${
+              className={`admin-layout-button block w-full rounded-lg border px-4 py-3 text-left transition ${
                 selected?.id === example.id
                   ? "border-[#9eb6d1] bg-[#eef5fb]"
                   : "border-[#d9e2ec] bg-white hover:border-[#b9c9da]"
               }`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-[#8a6f5a]">{platformLabel(example.platform)}</span>
-                <StatusPill active={example.status === "active"} label={example.status === "active" ? "参与生成" : "已停用"} />
-              </div>
-              <div className="mt-3 line-clamp-2 text-sm font-medium leading-6 text-[#172033]">{example.lesson}</div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#7b8ca2]">
-                <span>{actionLabel(example.ownerAction)}</span>
-                <span>{formatTime(example.updatedAt)}</span>
+              <div className="grid gap-2 md:grid-cols-[3.75rem_5rem_minmax(0,1fr)_5.75rem_7.5rem] md:items-center">
+                <span className="text-xs font-semibold text-[#8a6f5a]">
+                  {platformLabel(example.platform)}
+                </span>
+                <span className="min-w-0">
+                  <StatusPill
+                    active={example.status === "active"}
+                    label={example.status === "active" ? "参与生成" : "已停用"}
+                  />
+                </span>
+                <span className="line-clamp-2 min-w-0 text-sm font-medium leading-6 text-[#172033]">
+                  {example.lesson}
+                </span>
+                <span className="text-xs text-[#7b8ca2]">{actionLabel(example.ownerAction)}</span>
+                <span className="text-xs text-[#7b8ca2] md:text-right">{formatTime(example.updatedAt)}</span>
               </div>
             </button>
           ))}
@@ -213,7 +220,9 @@ export function ExpressionLearningPage({ adminToken }: Props) {
             onReanalyze={() => void reanalyze(selected.id)}
           />
         ) : (
-          <div className="border-l border-[#e5edf5] px-5 py-10 text-sm text-[#7b8ca2]">选择一条经验查看详情。</div>
+          <div className="min-w-0 rounded-lg border border-[#e5edf5] bg-white px-5 py-10 text-sm text-[#7b8ca2]">
+            选择一条经验查看详情。
+          </div>
         )}
       </section>
     </div>
@@ -239,7 +248,7 @@ function ExpressionDetail({
   const tags = textList(example.tags);
 
   return (
-    <div className="space-y-5 border-l border-[#d9e2ec] pl-0 xl:pl-6">
+    <div className="min-w-0 space-y-5 rounded-lg border border-[#d9e2ec] bg-white p-5">
       <div className="flex flex-col gap-3 border-b border-[#e5edf5] pb-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold text-[#8a6f5a]">{platformLabel(example.platform)} / {example.scene}</div>

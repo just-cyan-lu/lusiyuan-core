@@ -739,7 +739,7 @@ function MemoryListItem({
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-lg border px-4 py-3 text-left transition ${
+      className={`admin-layout-button w-full rounded-lg border px-4 py-3 text-left transition ${
         selected
           ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
           : "border-[#d9e2ec] bg-white hover:border-[#c9d7e6] hover:bg-[#fdfefe]"
@@ -867,7 +867,7 @@ function MemoryActivityHeatmap({
       </div>
 
       <div className="overflow-x-auto pb-1">
-        <div className="grid w-max grid-flow-col grid-rows-7 gap-1">
+        <div className="grid w-max grid-flow-col grid-rows-7 gap-[3px]">
           {cells.map((cell, index) =>
             cell.date ? (
               <button
@@ -875,14 +875,14 @@ function MemoryActivityHeatmap({
                 type="button"
                 onClick={() => onSelectDay(cell.date ?? "")}
                 title={`${cell.date}: ${cell.count} 条 · 重要度 ${cell.importance}`}
-                className={`h-3 w-3 rounded-[3px] transition hover:scale-110 ${cellClass(
+                className={`admin-layout-button h-2.5 w-2.5 rounded-[2px] transition hover:scale-125 ${cellClass(
                   intensity(cell),
                   cell.date >= selectedFromDate && cell.date <= selectedToDate
                 )}`}
                 aria-label={`${cell.date} 记忆活动`}
               />
             ) : (
-              <span key={`blank-${index}`} className="h-3 w-3" />
+              <span key={`blank-${index}`} className="h-2.5 w-2.5" />
             )
           )}
         </div>
@@ -893,7 +893,7 @@ function MemoryActivityHeatmap({
         {[0, 1, 2, 3, 4].map((level) => (
           <span
             key={level}
-            className={`h-3 w-3 rounded-[3px] ${cellClass(level, false)}`}
+            className={`h-2.5 w-2.5 rounded-[2px] ${cellClass(level, false)}`}
           />
         ))}
         <span>多</span>
