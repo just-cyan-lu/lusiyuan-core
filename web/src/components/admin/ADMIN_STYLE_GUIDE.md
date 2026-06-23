@@ -36,11 +36,13 @@ CSS 变量定义在 `web/src/index.css`：
 
 普通页面按钮默认高度 40px，不折行，文字过长时截断。重要主按钮可用 48px。小筛选按钮可用 36px，但不要再引入新的随机高度。
 
+带标题 + 小字说明的入口不要套普通按钮规范；统一使用 `.admin-stacked-tab-button`。它是 82px 起的卡片按钮，左侧图标、右侧标题和最多两行说明，适合“记忆库 / 提案审核”这种二级入口。
+
 `.field-input` 的普通 input/select 固定 40px；textarea 不固定高度，只保留同款圆角、边框和 focus。
 
 ## 交互
 
-- Admin 外壳使用 `Cursor forceAll={false}`，保留输入框 text cursor、按钮 pointer、禁用 not-allowed。
+- Admin 外壳使用 `Cursor forceAll`，让整个后台都带 animal-island-ui 的自定义鼠标图标。
 - animal-island-ui 没有全局点击粒子组件；它的点击语言主要是 Button 的下压和 Checkbox/Radio 的 splash。
 - 本 admin 对原生按钮补了统一 tap feedback：hover 轻微上浮，active 下压，点击时有轻微圆形扩散。
 - 不要在单页里再写新的 button active 动画；需要特殊按钮时先扩展共享样式。
@@ -51,7 +53,7 @@ CSS 变量定义在 `web/src/index.css`：
 
 ### 已在 admin 使用
 
-- `Cursor forceAll={false}`：自定义手指光标；保留输入框 text cursor、交互元素 pointer、禁用态 not-allowed。
+- `Cursor forceAll`：全局自定义手指光标。注意 root 样式 `animal-island-ui/style` 不包含 Cursor 的 CSS，本项目需要在入口额外引入 `animal-island-ui/es/components/Cursor/cursor.css`。
 - `Button` 按压：primary 按钮使用 3D 厚阴影，hover 上浮，active 下压，阴影从 `0 5px` / `0 6px` 回落到 `0 1px`。
 - 原生 admin 按钮 tap feedback：`.admin-island-shell` 下的普通按钮统一 hover 上浮、active 下压，并使用 `admin-click-pop` 做轻圆形扩散。
 - `Card pattern`：彩色浅底点阵纹理，用于页面主卡、信息卡和控制区。
