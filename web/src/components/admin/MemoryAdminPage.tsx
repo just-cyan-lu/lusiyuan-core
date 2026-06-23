@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Icon, type IconName } from "animal-island-ui";
 import { MemoryLibraryPage } from "./MemoryLibraryPage";
 import { MemoryProposalsPage } from "./MemoryProposalsPage";
 
@@ -12,16 +13,19 @@ const tabs: Array<{
   value: MemoryAdminTab;
   label: string;
   description: string;
+  icon: IconName;
 }> = [
   {
     value: "library",
     label: "记忆库",
     description: "查看、编辑、归档已写入记忆",
+    icon: "icon-critterpedia",
   },
   {
     value: "proposals",
     label: "提案审核",
     description: "批准 Reflection / Dream 生成的记忆变更",
+    icon: "icon-diy",
   },
 ];
 
@@ -83,17 +87,17 @@ export function MemoryAdminPage({ adminToken }: MemoryAdminPageProps) {
                   key={tab.value}
                   type="button"
                   onClick={() => changeTab(tab.value)}
-                  className={`rounded-lg border px-4 py-3 text-left transition ${
-                    active
-                      ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
-                      : "border-[#d9e2ec] bg-[#f8fbff] text-[#66758a] hover:bg-white"
+                  className={`admin-stacked-tab-button ${
+                    active ? "admin-stacked-tab-button-active" : ""
                   }`}
+                  aria-pressed={active}
                 >
-                  <span className="block text-sm font-semibold text-[#172033]">
-                    {tab.label}
+                  <span className="admin-stacked-tab-icon" aria-hidden="true">
+                    <Icon name={tab.icon} size={20} />
                   </span>
-                  <span className="mt-1 block text-xs leading-5 text-[#7b8ca2]">
-                    {tab.description}
+                  <span className="admin-stacked-tab-copy">
+                    <span className="admin-stacked-tab-title">{tab.label}</span>
+                    <span className="admin-stacked-tab-description">{tab.description}</span>
                   </span>
                 </button>
               );
