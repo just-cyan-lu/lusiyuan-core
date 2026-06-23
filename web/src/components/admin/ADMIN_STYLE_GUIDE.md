@@ -38,6 +38,8 @@ CSS 变量定义在 `web/src/index.css`：
 
 带标题 + 小字说明的入口不要套普通按钮规范；统一使用 `.admin-stacked-tab-button`。它是 82px 起的卡片按钮，左侧图标、右侧标题和最多两行说明，适合“记忆库 / 提案审核”这种二级入口。
 
+纯图标按钮不要套普通按钮规范；统一加 `.admin-icon-button`，再用固定 `h-* w-*` 控制为正方形，适合发送、关闭、折叠这类只有图标的操作。
+
 `.field-input` 的普通 input/select 固定 40px；textarea 不固定高度，只保留同款圆角、边框和 focus。
 
 ## 交互
