@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, type Context } from "grammy";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { env } from "../../utils/env.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
@@ -6,12 +6,17 @@ import { chat } from "../../core/chat.service.js";
 import { memoryService } from "../../core/memory.service.js";
 import { imageService } from "../../media/image.service.js";
 import { prisma } from "../../db/prisma.js";
+import type { ChatOutput } from "../../types/chat.js";
 import type { MessageContentPart } from "../../types/model.js";
 
 const OWNER_IDS = new Set(env.OWNER_USER_IDS);
 const conversationSessions = new Map<number, string>();
 
 class TelegramImageTooLargeError extends Error {}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
 
 function getConversationId(chatId: number): string {
   return conversationSessions.get(chatId) ?? `telegram:${chatId}`;
@@ -35,6 +40,35 @@ export function createTelegramBot(token: string) {
     : {};
 
   const bot = new Bot(token, botOptions);
+
+  async function sendFinalReplies(ctx: Context, result: ChatOutput): Promise<void> {
+    const finalParts = result.reply_parts.length > 0
+      ? result.reply_parts.filter((part) => part.kind === "final")
+      : result.replies.map((content, index) => ({
+          turn_id: result.turn_id,
+          sequence: index,
+          kind: "final" as const,
+          content,
+          delay_ms: index === 0 ? 0 : 600,
+          transcript: true,
+        }));
+
+    const parts = finalParts.length > 0
+      ? finalParts
+      : [{
+          turn_id: result.turn_id,
+          sequence: 0,
+          kind: "final" as const,
+          content: result.reply,
+          delay_ms: 0,
+          transcript: true,
+        }];
+
+    for (const part of parts) {
+      if (part.delay_ms > 0) await sleep(part.delay_ms);
+      await ctx.reply(part.content);
+    }
+  }
 
   async function loadTelegramImagePart(
     fileId: string,
@@ -139,14 +173,14 @@ export function createTelegramBot(token: string) {
         raw_event: message,
         onIntermediateMessage: async (content: string, delayMs: number) => {
           // Add delay to simulate typing
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          await sleep(delayMs);
           await ctx.reply(content);
         },
       });
 
       if (result.duplicated) return;
 
-      await ctx.reply(result.reply);
+      await sendFinalReplies(ctx, result);
     } catch (err) {
       console.error("Telegram message handling failed:", err);
       await ctx.reply("出了点小问题，稍后再试试？");
@@ -180,14 +214,14 @@ export function createTelegramBot(token: string) {
         display_name: from?.username ?? from?.first_name,
         raw_event: message,
         onIntermediateMessage: async (content: string, delayMs: number) => {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          await sleep(delayMs);
           await ctx.reply(content);
         },
       });
 
       if (result.duplicated) return;
 
-      await ctx.reply(result.reply);
+      await sendFinalReplies(ctx, result);
     } catch (err) {
       console.error("Telegram photo handling failed:", err);
       const text = err instanceof TelegramImageTooLargeError
@@ -230,14 +264,14 @@ export function createTelegramBot(token: string) {
         display_name: from?.username ?? from?.first_name,
         raw_event: message,
         onIntermediateMessage: async (content: string, delayMs: number) => {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          await sleep(delayMs);
           await ctx.reply(content);
         },
       });
 
       if (result.duplicated) return;
 
-      await ctx.reply(result.reply);
+      await sendFinalReplies(ctx, result);
     } catch (err) {
       console.error("Telegram document image handling failed:", err);
       const text = err instanceof TelegramImageTooLargeError

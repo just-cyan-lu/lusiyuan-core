@@ -48,7 +48,12 @@ export async function weixinRoute(app: FastifyInstance): Promise<void> {
           return reply.send({ reply: "", duplicated: true });
         }
 
-        return reply.send({ reply: result.reply });
+        return reply.send({
+          reply: result.reply,
+          replies: result.replies,
+          reply_parts: result.reply_parts,
+          turn_id: result.turn_id,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Internal error";
         return reply.status(400).send({ error: message });

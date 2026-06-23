@@ -18,6 +18,13 @@ export const runtimeSettingDefinitions = {
   MINIMAX_MAX_COMPLETION_TOKENS: { group: "模型运行", label: "MiniMax 最大生成 Token", type: "integer", defaultValue: 0, min: 0, description: "0 表示不额外限制。" },
 
   MAX_MESSAGE_LENGTH: { group: "聊天限制", label: "单条消息最大长度", type: "integer", defaultValue: 4000, min: 1, max: 100000 },
+  REPLY_DELIVERY_MODE: { group: "回复投递", label: "回复投递模式", type: "select", defaultValue: "hybrid", options: ["single", "final_blocks", "hybrid"], description: "single=最终一条；final_blocks=最终自然分条；hybrid=工具即时反应 + 最终自然分条。" },
+  REPLY_SEGMENTATION_LLM_ENABLED: { group: "回复投递", label: "LLM 自然分条", type: "boolean", defaultValue: true, description: "开启后会额外调用一次模型决定聊天气泡边界；失败时自动回退到规则分条。" },
+  REPLY_SEGMENT_MIN_CHARS: { group: "回复投递", label: "分条最小字符", type: "integer", defaultValue: 36, min: 1, max: 1000 },
+  REPLY_SEGMENT_MAX_CHARS: { group: "回复投递", label: "分条最大字符", type: "integer", defaultValue: 180, min: 20, max: 4000 },
+  REPLY_SEGMENT_MAX_COUNT: { group: "回复投递", label: "单次最多分条", type: "integer", defaultValue: 4, min: 1, max: 12 },
+  REPLY_HUMAN_DELAY_MIN_MS: { group: "回复投递", label: "分条最短停顿", type: "integer", defaultValue: 600, min: 0, max: 30000 },
+  REPLY_HUMAN_DELAY_MAX_MS: { group: "回复投递", label: "分条最长停顿", type: "integer", defaultValue: 1600, min: 0, max: 30000 },
   MEMORY_RETRIEVAL_ENABLED: { group: "记忆检索", label: "记忆检索启用", type: "boolean", defaultValue: false },
   MEMORY_SEMANTIC_TOP_K: { group: "记忆检索", label: "语义检索候选数", type: "integer", defaultValue: 30, min: 1, max: 200 },
   MEMORY_FINAL_TOP_K: { group: "记忆检索", label: "最终记忆数量", type: "integer", defaultValue: 8, min: 1, max: 50 },

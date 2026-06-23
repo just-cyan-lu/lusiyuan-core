@@ -38,8 +38,11 @@ test("does not build a duplicate lookup without external message id", () => {
 test("builds duplicated chat output", () => {
   assert.deepEqual(buildDuplicatedChatOutput("telegram:chat-1"), {
     reply: "",
+    replies: [],
+    reply_parts: [],
     conversation_id: "telegram:chat-1",
     memory_written: false,
+    turn_id: "",
     duplicated: true,
   });
 });
