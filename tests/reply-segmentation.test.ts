@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  replySegmentDelay,
   splitReplyByRules,
   validateLlmSegments,
   type ReplySegmentationOptions,
@@ -68,4 +69,34 @@ test("accepts LLM segmentation only when it preserves the original reply", () =>
     validateLlmSegments(reply, ["先这样。", "然后我们顺便加一个新功能。"], options),
     null
   );
+});
+
+test("calculates reply delay from readable character count", () => {
+  const delayOptions: ReplySegmentationOptions = {
+    ...options,
+    delayMinMs: 600,
+    delayMaxMs: 3200,
+  };
+
+  assert.equal(replySegmentDelay(0, "第一条立即发", delayOptions, () => 0.5), 0);
+  assert.equal(replySegmentDelay(1, "短句。", delayOptions, () => 0.5), 600);
+  assert.equal(
+    replySegmentDelay(1, "这是一条稍微长一点的回复，会根据字数多等一小会。", delayOptions, () => 0.5),
+    1032
+  );
+  assert.equal(
+    replySegmentDelay(1, "很长".repeat(200), delayOptions, () => 0.5),
+    3200
+  );
+});
+
+test("adds bounded jitter to reply delay", () => {
+  const delayOptions: ReplySegmentationOptions = {
+    ...options,
+    delayMinMs: 0,
+    delayMaxMs: 5000,
+  };
+
+  assert.equal(replySegmentDelay(1, "这句话有十个字左右。", delayOptions, () => 0), 480);
+  assert.equal(replySegmentDelay(1, "这句话有十个字左右。", delayOptions, () => 1), 800);
 });

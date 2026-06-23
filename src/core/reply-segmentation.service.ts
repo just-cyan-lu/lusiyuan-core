@@ -46,12 +46,20 @@ export function shouldSegmentFinalReply(mode = getReplySegmentationOptions().mod
   return mode === "final_blocks" || mode === "hybrid";
 }
 
-export function replySegmentDelay(index: number, options = getReplySegmentationOptions()): number {
+export function replySegmentDelay(
+  index: number,
+  content = "",
+  options = getReplySegmentationOptions(),
+  random = Math.random
+): number {
   if (index === 0) return 0;
   const min = Math.max(0, Math.floor(options.delayMinMs));
   const max = Math.max(min, Math.floor(options.delayMaxMs));
   if (max === min) return min;
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  const readableChars = countReadableChars(content);
+  const typingMs = 360 + readableChars * 28;
+  const jitterMs = Math.floor((random() - 0.5) * 320);
+  return clamp(Math.round(typingMs + jitterMs), min, max);
 }
 
 export async function segmentReply(
@@ -318,4 +326,12 @@ function isNaturalShortLead(text: string): boolean {
 
 function normalizeForComparison(text: string): string {
   return text.replace(/[\s\u200b-\u200d\ufeff]/g, "");
+}
+
+function countReadableChars(text: string): number {
+  return Array.from(text.replace(/\s+/g, "")).length;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
