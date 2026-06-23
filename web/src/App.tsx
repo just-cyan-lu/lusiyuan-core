@@ -1,19 +1,48 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "./api/lusiyuan-api";
 import { AdminShell, type AdminSection } from "./components/admin/AdminShell";
-import { ConfigCenterPage } from "./components/admin/ConfigCenterPage";
-import { ConversationHistoryPage } from "./components/admin/ConversationHistoryPage";
-import { DashboardPage } from "./components/admin/DashboardPage";
-import { ExpressionLearningPage } from "./components/admin/ExpressionLearningPage";
-import { MemoryAdminPage } from "./components/admin/MemoryAdminPage";
-import { DreamPage, ReflectionPage } from "./components/admin/OpsPage";
-import { PlatformsPage, XiaohongshuPlatformPage } from "./components/admin/PlatformsPage";
-import { RelationshipStatePage } from "./components/admin/RelationshipStatePage";
-import { RuntimeStatePage } from "./components/admin/RuntimeStatePage";
-import { SkillsAdminPage } from "./components/admin/SkillsAdminPage";
-import { ToolsAdminPage } from "./components/admin/ToolsAdminPage";
-import { ChatPage } from "./components/ChatPage";
 import { getStoredAdminToken, setStoredAdminToken } from "./utils/storage";
+
+const ChatPage = lazy(() => import("./components/ChatPage").then((module) => ({ default: module.ChatPage })));
+const ConfigCenterPage = lazy(() =>
+  import("./components/admin/ConfigCenterPage").then((module) => ({ default: module.ConfigCenterPage }))
+);
+const ConversationHistoryPage = lazy(() =>
+  import("./components/admin/ConversationHistoryPage").then((module) => ({ default: module.ConversationHistoryPage }))
+);
+const DashboardPage = lazy(() =>
+  import("./components/admin/DashboardPage").then((module) => ({ default: module.DashboardPage }))
+);
+const ExpressionLearningPage = lazy(() =>
+  import("./components/admin/ExpressionLearningPage").then((module) => ({ default: module.ExpressionLearningPage }))
+);
+const MemoryAdminPage = lazy(() =>
+  import("./components/admin/MemoryAdminPage").then((module) => ({ default: module.MemoryAdminPage }))
+);
+const ReflectionPage = lazy(() =>
+  import("./components/admin/OpsPage").then((module) => ({ default: module.ReflectionPage }))
+);
+const DreamPage = lazy(() =>
+  import("./components/admin/OpsPage").then((module) => ({ default: module.DreamPage }))
+);
+const PlatformsPage = lazy(() =>
+  import("./components/admin/PlatformsPage").then((module) => ({ default: module.PlatformsPage }))
+);
+const XiaohongshuPlatformPage = lazy(() =>
+  import("./components/admin/PlatformsPage").then((module) => ({ default: module.XiaohongshuPlatformPage }))
+);
+const RelationshipStatePage = lazy(() =>
+  import("./components/admin/RelationshipStatePage").then((module) => ({ default: module.RelationshipStatePage }))
+);
+const RuntimeStatePage = lazy(() =>
+  import("./components/admin/RuntimeStatePage").then((module) => ({ default: module.RuntimeStatePage }))
+);
+const SkillsAdminPage = lazy(() =>
+  import("./components/admin/SkillsAdminPage").then((module) => ({ default: module.SkillsAdminPage }))
+);
+const ToolsAdminPage = lazy(() =>
+  import("./components/admin/ToolsAdminPage").then((module) => ({ default: module.ToolsAdminPage }))
+);
 
 const sections: AdminSection[] = [
   "overview",
@@ -37,6 +66,14 @@ interface AdminRoute {
   skillId?: string;
   relationshipId?: string;
   conversationPersonId?: string;
+}
+
+function PageLoading() {
+  return (
+    <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white px-5 py-8 text-sm font-medium text-[#617188] shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
+      页面加载中…
+    </section>
+  );
 }
 
 function pathForSection(section: AdminSection): string {
@@ -246,7 +283,7 @@ export default function App() {
       onAdminTokenChange={handleAdminTokenChange}
       onNavigate={handleNavigate}
     >
-      {content}
+      <Suspense fallback={<PageLoading />}>{content}</Suspense>
     </AdminShell>
   );
 }
