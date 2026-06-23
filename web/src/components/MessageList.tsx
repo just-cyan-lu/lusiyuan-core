@@ -12,7 +12,6 @@ interface Props {
 
 export function MessageList({ messages, isSending, isLoadingHistory }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
-  const hasDraftMessage = messages.some((message) => message.isDraft);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,7 +38,7 @@ export function MessageList({ messages, isSending, isLoadingHistory }: Props) {
       {messages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} />
       ))}
-      {isSending && !hasDraftMessage && <TypingIndicator />}
+      {isSending && <TypingIndicator />}
       <div ref={bottomRef} />
     </div>
   );

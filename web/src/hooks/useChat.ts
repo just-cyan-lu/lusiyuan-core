@@ -47,45 +47,11 @@ export function useChat() {
     setIsSending(true);
     setError(null);
 
-    let draftMessageId: string | null = null;
     let receivedAssistantMessage = false;
-
-    function removeDraftMessage() {
-      if (!draftMessageId) return;
-      const id = draftMessageId;
-      draftMessageId = null;
-      setMessages((prev) => prev.filter((m) => m.id !== id));
-    }
-
-    function upsertDraftMessage(part: ChatReplyPart) {
-      const id = draftMessageId ?? `draft:${part.turn_id || crypto.randomUUID()}`;
-      draftMessageId = id;
-      setMessages((prev) => {
-        const existing = prev.find((m) => m.id === id);
-        if (existing) {
-          return prev.map((m) =>
-            m.id === id
-              ? { ...m, content: part.content, createdAt: new Date().toISOString(), isDraft: true }
-              : m
-          );
-        }
-        return [
-          ...prev,
-          {
-            id,
-            role: "assistant",
-            content: part.content,
-            createdAt: new Date().toISOString(),
-            isDraft: true,
-          },
-        ];
-      });
-    }
 
     function appendAssistantMessage(part: ChatReplyPart) {
       if (!part.content.trim()) return;
       receivedAssistantMessage = true;
-      removeDraftMessage();
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -102,12 +68,10 @@ export function useChat() {
         conversation_id: conversationId,
         message: content,
       }, (event) => {
-        if (event.type === "progress") upsertDraftMessage(event.data);
         if (event.type === "message") appendAssistantMessage(event.data);
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "发送失败，请稍后重试");
-      removeDraftMessage();
       if (!receivedAssistantMessage) {
         // Remove the optimistic user message on failure before any assistant response appears.
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
