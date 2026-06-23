@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../types/chat";
+import { LusiyuanAvatar } from "./LusiyuanAvatar";
 
 interface Props {
   message: ChatMessage;
@@ -10,9 +11,7 @@ export function MessageBubble({ message }: Props) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
       {!isUser && (
-        <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#6f8fb8] text-xs font-semibold text-white">
-          陆
-        </div>
+        <LusiyuanAvatar className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#d9e2ec] bg-[#fff4c7] text-xs font-semibold text-[#794f27]" />
       )}
       <div
         className={`

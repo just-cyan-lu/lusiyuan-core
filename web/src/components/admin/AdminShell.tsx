@@ -1,5 +1,6 @@
 import { Card, Cursor, Icon, Input, Time, Title, type CardColor, type IconName } from "animal-island-ui";
 import type { ChangeEvent, ReactNode } from "react";
+import { LusiyuanAvatar } from "../LusiyuanAvatar";
 
 export type AdminSection =
   | "overview"
@@ -184,14 +185,16 @@ export function AdminShell({
               className="admin-brand-button group flex items-center gap-3 text-left"
               aria-label="回到总览"
             >
-              <span className="admin-brand-mark flex h-12 w-12 items-center justify-center rounded-[18px] border-2 border-[#f7cd67] bg-[#fff4c7] text-xl font-black text-[#794f27]">
-                源
-              </span>
+              <LusiyuanAvatar
+                fallbackText="源"
+                className="admin-brand-mark flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] border-2 border-[#f7cd67] bg-[#fff4c7] text-xl font-black text-[#794f27]"
+                imgClassName="h-full w-full object-cover"
+              />
               <span className="min-w-0">
                 <Title size="small" color="app-teal">
                   Lusiyuan Core
                 </Title>
-                <span className="mt-1 block text-xs font-bold text-[#9f927d]">
+                <span className="ml-3 mt-1 block text-xs font-bold text-[#9f927d]">
                   ENFP-flavored admin
                 </span>
               </span>

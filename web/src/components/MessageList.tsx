@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ChatMessage } from "../types/chat";
+import { LusiyuanAvatar } from "./LusiyuanAvatar";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 
@@ -28,9 +29,7 @@ export function MessageList({ messages, isSending, isLoadingHistory }: Props) {
     <div className="flex-1 overflow-y-auto px-4 py-4">
       {messages.length === 0 && (
         <div className="flex justify-start mb-3">
-          <div className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#6f8fb8] text-xs font-semibold text-white">
-            陆
-          </div>
+          <LusiyuanAvatar className="mr-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#d9e2ec] bg-[#fff4c7] text-xs font-semibold text-[#794f27]" />
           <div className="max-w-[72%] rounded-lg rounded-tl-sm border border-[#d9e2ec] bg-[#f8fbff] px-3.5 py-2.5 text-sm leading-relaxed text-[#334155] shadow-sm">
             你好。嗯……你可以直接和我聊天。
           </div>
