@@ -277,7 +277,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       // immediate reaction in the content field before issuing tool calls.
       if (deliverIntermediate && response.content && response.content.trim().length > 0) {
         console.log(`[chat] LLM returned content with tool calls, sending as intermediate message`);
-        const delay = replySegmentDelay(replySequence, deliveryOptions);
+        const delay = replySegmentDelay(replySequence, response.content, deliveryOptions);
         try {
           const part = await storeAndEmitIntermediateMessage({
             chatInput: input,
@@ -317,7 +317,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
           if (reaction.length > 0 && reaction.length < 100) {
             console.log(`[chat] got immediate reaction: ${reaction}`);
-            const delay = replySegmentDelay(replySequence, deliveryOptions);
+            const delay = replySegmentDelay(replySequence, reaction, deliveryOptions);
             try {
               const part = await storeAndEmitIntermediateMessage({
                 chatInput: input,
@@ -447,7 +447,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     sequence: replySequence + index,
     kind: "final",
     content,
-    delay_ms: replySegmentDelay(index, deliveryOptions),
+    delay_ms: replySegmentDelay(index, content, deliveryOptions),
     transcript: true,
   }));
   const assistantMessages = [];
