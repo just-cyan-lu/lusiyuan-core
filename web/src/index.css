@@ -367,7 +367,7 @@ textarea.field-input {
   color: #5c4630;
 }
 
-.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not([class*="animal-"]) {
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not(.admin-layout-button):not(.admin-pill-button):not(.admin-switch-button):not([class*="animal-"]) {
   position: relative;
   display: inline-flex;
   min-height: var(--admin-control-height);
@@ -392,7 +392,7 @@ textarea.field-input {
     color 0.18s ease;
 }
 
-.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not([class*="animal-"])::after {
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not(.admin-layout-button):not(.admin-pill-button):not(.admin-switch-button):not([class*="animal-"])::after {
   content: "";
   pointer-events: none;
   position: absolute;
@@ -406,16 +406,16 @@ textarea.field-input {
   transform: translate(-50%, -50%) scale(0);
 }
 
-.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not([class*="animal-"]):hover:not(:disabled) {
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not(.admin-layout-button):not(.admin-pill-button):not(.admin-switch-button):not([class*="animal-"]):hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not([class*="animal-"]):active:not(:disabled) {
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not(.admin-layout-button):not(.admin-pill-button):not(.admin-switch-button):not([class*="animal-"]):active:not(:disabled) {
   transform: translateY(2px);
   box-shadow: 0 1px 0 #bdaea0;
 }
 
-.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not([class*="animal-"]):active:not(:disabled)::after {
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not(.admin-stacked-tab-button):not(.admin-layout-button):not(.admin-pill-button):not(.admin-switch-button):not([class*="animal-"]):active:not(:disabled)::after {
   animation: admin-click-pop 0.34s ease-out;
 }
 

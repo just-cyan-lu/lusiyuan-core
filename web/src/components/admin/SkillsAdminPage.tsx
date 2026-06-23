@@ -299,7 +299,7 @@ function SkillDirectory({
             key={skill.id}
             type="button"
             onClick={() => onOpenSkill(skill.id)}
-            className="group min-h-[17rem] rounded-lg border border-[#d9e2ec] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#a9bfd7] hover:shadow-[0_18px_44px_rgba(91,117,150,0.14)]"
+            className="admin-layout-button group flex min-h-[17rem] w-full flex-col rounded-lg border border-[#d9e2ec] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#a9bfd7] hover:shadow-[0_18px_44px_rgba(91,117,150,0.14)]"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -314,7 +314,7 @@ function SkillDirectory({
               <CompactMetric label="入口" value={String(skill.entryPoints.length)} />
               <CompactMetric label="输出" value="草稿" />
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-5 flex max-h-16 flex-wrap gap-2 overflow-hidden">
               {skill.profiles.map((profile) => (
                 <span
                   key={profile.id}
@@ -324,7 +324,7 @@ function SkillDirectory({
                 </span>
               ))}
             </div>
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-[#edf2f7] pt-4">
+            <div className="mt-auto flex items-center justify-between gap-3 border-t border-[#edf2f7] pt-4">
               <span className="text-xs text-[#7b8ca2]">点击查看详情</span>
               <span className="text-sm font-medium text-[#5f7fa7] transition group-hover:translate-x-0.5">
                 进入详情

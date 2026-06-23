@@ -62,17 +62,8 @@ const navItems: Array<{
     accentClass: "bg-[#f8a6b2] text-white",
   },
   {
-    section: "conversations",
-    index: "04",
-    label: "对话",
-    description: "现实身份追溯",
-    icon: "icon-chat",
-    color: "app-blue",
-    accentClass: "bg-[#889df0] text-white",
-  },
-  {
     section: "memory",
-    index: "05",
+    index: "04",
     label: "记忆",
     description: "记忆库 / 提案",
     icon: "icon-critterpedia",
@@ -80,22 +71,31 @@ const navItems: Array<{
     accentClass: "bg-[#d1da49] text-[#3d5a1a]",
   },
   {
-    section: "skills",
-    index: "06",
-    label: "Skills",
-    description: "能力开关",
-    icon: "icon-diy",
-    color: "app-orange",
-    accentClass: "bg-[#e59266] text-white",
+    section: "conversations",
+    index: "05",
+    label: "对话",
+    description: "现实身份追溯",
+    icon: "icon-chat",
+    color: "app-blue",
+    accentClass: "bg-[#889df0] text-white",
   },
   {
     section: "learning",
-    index: "07",
+    index: "06",
     label: "表达学习",
     description: "Owner 表达经验",
     icon: "icon-design",
     color: "purple",
     accentClass: "bg-[#b77dee] text-white",
+  },
+  {
+    section: "chat",
+    index: "07",
+    label: "Web Chat",
+    description: "Web Chat",
+    icon: "icon-chat",
+    color: "app-pink",
+    accentClass: "bg-[#f8a6b2] text-white",
   },
   {
     section: "reflection",
@@ -116,8 +116,17 @@ const navItems: Array<{
     accentClass: "bg-[#889df0] text-white",
   },
   {
-    section: "platforms",
+    section: "skills",
     index: "10",
+    label: "Skills",
+    description: "能力开关",
+    icon: "icon-diy",
+    color: "app-orange",
+    accentClass: "bg-[#e59266] text-white",
+  },
+  {
+    section: "platforms",
+    index: "11",
     label: "平台",
     description: "外部平台工作台",
     icon: "icon-shopping",
@@ -126,21 +135,12 @@ const navItems: Array<{
   },
   {
     section: "tools",
-    index: "11",
+    index: "12",
     label: "工具",
     description: "调用与日志",
     icon: "icon-variant",
     color: "app-green",
     accentClass: "bg-[#8ac68a] text-white",
-  },
-  {
-    section: "chat",
-    index: "12",
-    label: "Web Chat",
-    description: "Web Chat",
-    icon: "icon-chat",
-    color: "app-pink",
-    accentClass: "bg-[#f8a6b2] text-white",
   },
   {
     section: "settings",
@@ -152,6 +152,16 @@ const navItems: Array<{
     accentClass: "bg-[#9a835a] text-white",
   },
 ];
+
+const navGroups: Array<{ label: string; items: AdminSection[] }> = [
+  { label: "核心状态", items: ["overview", "runtime", "relationships"] },
+  { label: "记忆与表达", items: ["memory", "conversations", "learning", "chat"] },
+  { label: "自动循环", items: ["reflection", "dream"] },
+  { label: "通道与能力", items: ["skills", "platforms", "tools"] },
+  { label: "系统", items: ["settings"] },
+];
+
+const navItemsBySection = new Map(navItems.map((item) => [item.section, item]));
 
 export function AdminShell({
   activeSection,
@@ -201,35 +211,46 @@ export function AdminShell({
             </Card>
           </div>
 
-          <nav className="admin-sidebar-nav mt-4 flex gap-2 overflow-x-auto pb-2 lg:mt-6 lg:block lg:min-h-0 lg:flex-1 lg:space-y-2 lg:overflow-y-auto lg:overflow-x-hidden lg:pb-2 lg:pr-1">
-            {navItems.map((item) => {
-              const active = item.section === activeSection;
-              return (
-                <button
-                  key={item.section}
-                  type="button"
-                  onClick={() => onNavigate(item.section)}
-                  className={`admin-nav-button group flex min-w-[10rem] items-center gap-3 px-3 py-3 text-left lg:w-full ${
-                    active ? "admin-nav-button-active" : "admin-nav-button-idle"
-                  }`}
-                >
-                  <span
-                    className={`admin-nav-index flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] ${active ? item.accentClass : "bg-[#f7f3df] text-[#9f927d]"}`}
-                  >
-                    <Icon name={item.icon} size={22} bounce={active} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-3">
-                      <span className="block truncate text-sm font-black text-[#794f27]">{item.label}</span>
-                      <span className="text-[10px] font-black text-[#c4b89e]">{item.index}</span>
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs font-semibold text-[#9f927d]">
-                      {item.description}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+          <nav className="admin-sidebar-nav mt-4 flex gap-2 overflow-x-auto pb-2 lg:mt-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:overflow-x-hidden lg:pb-2 lg:pr-1">
+            {navGroups.map((group) => (
+              <div key={group.label} className="contents lg:block">
+                <div className="mb-1 hidden px-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#b19a82] lg:block">
+                  {group.label}
+                </div>
+                <div className="contents lg:grid lg:gap-2">
+                  {group.items.map((section) => {
+                    const item = navItemsBySection.get(section);
+                    if (!item) return null;
+                    const active = item.section === activeSection;
+                    return (
+                      <button
+                        key={item.section}
+                        type="button"
+                        onClick={() => onNavigate(item.section)}
+                        className={`admin-nav-button group flex min-w-[10rem] items-center gap-3 px-3 py-3 text-left lg:w-full ${
+                          active ? "admin-nav-button-active" : "admin-nav-button-idle"
+                        }`}
+                      >
+                        <span
+                          className={`admin-nav-index flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] ${active ? item.accentClass : "bg-[#f7f3df] text-[#9f927d]"}`}
+                        >
+                          <Icon name={item.icon} size={22} bounce={active} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="block truncate text-sm font-black text-[#794f27]">{item.label}</span>
+                            <span className="text-[10px] font-black text-[#c4b89e]">{item.index}</span>
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs font-semibold text-[#9f927d]">
+                            {item.description}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         </aside>
 

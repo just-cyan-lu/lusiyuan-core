@@ -225,6 +225,16 @@ function changedRuntimeValues(
   return changed;
 }
 
+function runtimeValueFromSetting(
+  field: RuntimeSettingField,
+  value: string
+): string | boolean | number {
+  if (field.type === "boolean") return value === "true";
+  if (field.type === "integer") return parseInt(value, 10);
+  if (field.type === "number") return parseFloat(value);
+  return value;
+}
+
 function changedConfigValues(
   fields: EnvConfigField[],
   values: Record<string, string>
@@ -441,6 +451,14 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     setState((current) => ({ ...current, savingRuntime: true, saveError: null, saveMessage: null }));
     try {
       const values = changedRuntimeValues(runtimeSettings.fields, runtimeValues);
+      if (Object.keys(values).length === 0) {
+        setState((current) => ({
+          ...current,
+          savingRuntime: false,
+          saveMessage: "没有需要保存的手动编辑项。",
+        }));
+        return;
+      }
       const result = await saveRuntimeSettings({ token: adminToken, values });
       const [runtime, refreshedSettings, eventResult] = await Promise.all([
         fetchRuntimeConfig(adminToken),
@@ -454,9 +472,48 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         runtimeSettings: refreshedSettings,
         settingEvents: eventResult.events,
         savingRuntime: false,
-        saveMessage: result.message ?? "运行配置已即时生效。",
+        saveMessage: result.message ?? "运行配置手动编辑项已即时生效。",
       }));
     } catch (error) {
+      setState((current) => ({
+        ...current,
+        savingRuntime: false,
+        saveError: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  async function saveRuntimeSettingValue(field: RuntimeSettingField, value: string) {
+    if (!adminToken || !runtimeSettings) return;
+    const previousValue = runtimeValues[field.key] ?? String(field.value);
+    setRuntimeValues((current) => ({ ...current, [field.key]: value }));
+    setState((current) => ({
+      ...current,
+      savingRuntime: true,
+      saveError: null,
+      saveMessage: null,
+    }));
+    try {
+      const result = await saveRuntimeSettings({
+        token: adminToken,
+        values: { [field.key]: runtimeValueFromSetting(field, value) },
+      });
+      const [runtime, refreshedSettings, eventResult] = await Promise.all([
+        fetchRuntimeConfig(adminToken),
+        fetchRuntimeSettings(adminToken),
+        fetchRuntimeSettingEvents(adminToken),
+      ]);
+      setRuntimeValues(runtimeFormValues(refreshedSettings));
+      setState((current) => ({
+        ...current,
+        runtime,
+        runtimeSettings: refreshedSettings,
+        settingEvents: eventResult.events,
+        savingRuntime: false,
+        saveMessage: result.message ?? `${field.label} 已即时生效。`,
+      }));
+    } catch (error) {
+      setRuntimeValues((current) => ({ ...current, [field.key]: previousValue }));
       setState((current) => ({
         ...current,
         savingRuntime: false,
@@ -525,7 +582,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             <div className="text-xs font-semibold text-[#8a6f5a]">Configuration</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">配置中心</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              日常开关和规则保存在数据库，保存后立即生效；连接密钥和启动安全信息继续留在 `.env`。
+              日常开关和规则保存在数据库，切换后立即生效；连接密钥和启动安全信息继续留在 `.env`。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -543,7 +600,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
               disabled={!runtimeSettings || state.loading || state.savingRuntime}
               className="h-10 rounded-lg border border-[#8da9c7] bg-[#6f8fb8] px-4 text-sm font-medium text-white transition hover:bg-[#607fa5] disabled:opacity-60"
             >
-              {state.savingRuntime ? "应用中" : "保存并立即应用"}
+              {state.savingRuntime ? "保存中" : "保存手动编辑项"}
             </button>
             <button
               type="button"
@@ -551,7 +608,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
               disabled={!envConfig || state.loading || state.saving}
               className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
             >
-              {state.saving ? "保存中" : "保存连接配置"}
+              {state.saving ? "保存中" : "保存 .env 连接"}
             </button>
           </div>
         </div>
@@ -633,7 +690,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         </div>
       </Panel>
 
-      <Panel title="运行配置" subtitle="保存在数据库；通过校验后立即应用，不需要重启">
+      <Panel title="运行配置" subtitle="保存在数据库；开关和下拉即时生效，不需要重启">
         {runtimeSettings ? (
           <RuntimeSettingsEditor
             groups={runtimeGroups}
@@ -642,6 +699,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             onChange={(key, value) =>
               setRuntimeValues((current) => ({ ...current, [key]: value }))
             }
+            onCommit={(field, value) => void saveRuntimeSettingValue(field, value)}
           />
         ) : (
           <LoadingHint loading={state.loading} />
@@ -835,16 +893,18 @@ function RuntimeSettingsEditor({
   values,
   disabled,
   onChange,
+  onCommit,
 }: {
   groups: Array<[string, RuntimeSettingField[]]>;
   values: Record<string, string>;
   disabled: boolean;
   onChange: (key: string, value: string) => void;
+  onCommit: (field: RuntimeSettingField, value: string) => void;
 }) {
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm leading-6 text-[#3f7b5d]">
-        保存时会先校验整批配置，再写入数据库并通知模型、定时器、渠道和 MCP。页面提示成功时，新值已经生效。
+        开关和下拉选择会立即写入数据库并通知运行中的模型、定时器、渠道和 MCP；文本和数字项编辑后点击“保存手动编辑项”。
       </div>
       {groups.map(([group, fields], index) => (
         <details key={group} open={index < 2} className="rounded-lg border border-[#d9e2ec] bg-white">
@@ -867,8 +927,8 @@ function RuntimeSettingsEditor({
                         role="switch"
                         aria-checked={enabled}
                         disabled={disabled}
-                        onClick={() => onChange(field.key, enabled ? "false" : "true")}
-                        className={`flex h-10 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium transition disabled:opacity-60 ${
+                        onClick={() => onCommit(field, enabled ? "false" : "true")}
+                        className={`admin-switch-button flex h-10 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium transition disabled:opacity-60 ${
                           enabled
                             ? "border-[#9fc7ae] bg-[#eef8f2] text-[#3f7b5d]"
                             : "border-[#c9d7e6] bg-white text-[#66758a]"
@@ -880,7 +940,7 @@ function RuntimeSettingsEditor({
                         </span>
                       </button>
                     ) : field.type === "select" ? (
-                      <select value={value} disabled={disabled} onChange={(event) => onChange(field.key, event.target.value)} className="field-input h-10">
+                      <select value={value} disabled={disabled} onChange={(event) => onCommit(field, event.target.value)} className="field-input h-10">
                         {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
                       </select>
                     ) : (
