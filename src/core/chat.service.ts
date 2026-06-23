@@ -73,6 +73,32 @@ async function storeAndEmitIntermediateMessage(input: {
   return part;
 }
 
+async function emitProgressDraft(input: {
+  chatInput: ChatInput;
+  turnId: string;
+  sequence: number;
+  content: string;
+}): Promise<ChatReplyPart | null> {
+  if (!runtimeConfig.REPLY_PROGRESS_DRAFT_ENABLED || !input.chatInput.onReplyPart) {
+    return null;
+  }
+
+  const content = input.content.trim();
+  if (!content) return null;
+
+  const part: ChatReplyPart = {
+    turn_id: input.turnId,
+    sequence: input.sequence,
+    kind: "progress",
+    content,
+    delay_ms: 0,
+    transcript: false,
+  };
+
+  await input.chatInput.onReplyPart(part);
+  return part;
+}
+
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   const safety = checkInput(input.message);
   if (!safety.ok) {
@@ -135,6 +161,16 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const replyParts: ChatReplyPart[] = [];
   const deliveryOptions = getReplySegmentationOptions();
   const deliverIntermediate = shouldDeliverIntermediateMessages(deliveryOptions.mode);
+  async function progress(content: string): Promise<void> {
+    if (!runtimeConfig.REPLY_PROGRESS_DRAFT_ENABLED || !input.onReplyPart) return;
+    const part = await emitProgressDraft({
+      chatInput: input,
+      turnId,
+      sequence: replySequence,
+      content,
+    });
+    if (part) replySequence++;
+  }
 
   let userMessage: { id: string };
   try {
@@ -205,6 +241,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   let reply = "";
 
   console.log("[chat] TOOLS_ENABLED:", runtimeConfig.TOOLS_ENABLED);
+  await progress(runtimeConfig.TOOLS_ENABLED && availableTools.length > 0
+    ? "我先理解一下，也看看需不需要查点东西。"
+    : "我先认真想一下。");
 
   if (runtimeConfig.TOOLS_ENABLED && availableTools.length > 0) {
     const toolContext: ToolExecutionContext = {
@@ -238,6 +277,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
       // LLM wants to call tools
       console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
+      await progress("我去确认一下相关信息。");
 
       // If LLM returned text alongside tool calls, send it as an intermediate message.
       // This is the primary multi-message mechanism: the LLM naturally writes its
@@ -361,6 +401,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
           result,
         });
       }
+      await progress("我看到了，正在把结果整理成能直接读的回复。");
 
       // Add tool results to conversation
       for (const { tool_call_id, result } of toolResults) {
@@ -404,6 +445,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     reply = sanitizeOutput(draftReply);
   }
 
+  await progress(deliveryOptions.llmEnabled && reply.trim().length >= Math.max(deliveryOptions.minChars * 2, deliveryOptions.maxChars * 0.8)
+    ? "我把它拆成几条自然一点发你。"
+    : "我整理好了。");
   const segmentation = await segmentReply(reply, deliveryOptions);
   const finalReplies = segmentation.replies.length > 0 ? segmentation.replies : [reply];
   const replyGroupId = randomUUID();

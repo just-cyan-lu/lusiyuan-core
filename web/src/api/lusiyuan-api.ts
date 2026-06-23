@@ -1,4 +1,10 @@
-import type { ChatRequest, ChatResponse, ConversationMessage } from "../types/chat";
+import type {
+  ChatRequest,
+  ChatReplyPart,
+  ChatResponse,
+  ChatStreamEvent,
+  ConversationMessage,
+} from "../types/chat";
 
 export const API_BASE_URL =
   import.meta.env.VITE_LUSIYUAN_API_BASE_URL ?? "http://localhost:64100";
@@ -990,6 +996,79 @@ export async function sendChatMessage(input: ChatRequest): Promise<ChatResponse>
   }
 
   return response.json() as Promise<ChatResponse>;
+}
+
+function parseSseEvent(rawEvent: string): ChatStreamEvent | null {
+  const lines = rawEvent.split(/\r?\n/);
+  const eventName = lines
+    .find((line) => line.startsWith("event:"))
+    ?.slice("event:".length)
+    .trim();
+  const dataLines = lines
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trimStart());
+
+  if (!eventName || dataLines.length === 0) return null;
+
+  const data = JSON.parse(dataLines.join("\n")) as unknown;
+  if (eventName === "ready") return { type: "ready", data: data as { ok: boolean } };
+  if (eventName === "progress") return { type: "progress", data: data as ChatReplyPart };
+  if (eventName === "message") return { type: "message", data: data as ChatReplyPart };
+  if (eventName === "done") return { type: "done", data: data as ChatResponse };
+  if (eventName === "error") return { type: "error", data: data as { error: string } };
+  return null;
+}
+
+export async function streamChatMessage(
+  input: ChatRequest,
+  onEvent: (event: ChatStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/v1/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "发送失败");
+  }
+
+  if (!response.body) {
+    throw new Error("当前浏览器不支持流式响应");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let streamError: string | null = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+    const chunks = buffer.split(/\n\n/);
+    buffer = chunks.pop() ?? "";
+
+    for (const chunk of chunks) {
+      if (!chunk.trim()) continue;
+      const event = parseSseEvent(chunk);
+      if (!event) continue;
+      onEvent(event);
+      if (event.type === "error") streamError = event.data.error;
+    }
+
+    if (done) break;
+  }
+
+  if (buffer.trim()) {
+    const event = parseSseEvent(buffer);
+    if (event) {
+      onEvent(event);
+      if (event.type === "error") streamError = event.data.error;
+    }
+  }
+
+  if (streamError) throw new Error(streamError);
 }
 
 export async function fetchHealthStatus(): Promise<HealthStatus> {

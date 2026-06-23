@@ -44,6 +44,19 @@ test("keeps structured replies as a single message", () => {
   assert.deepEqual(splitReplyByRules(reply, options), [reply]);
 });
 
+test("splits natural paragraphs even when each paragraph is short", () => {
+  const reply = [
+    "这种感觉其实挺真实的，就是脑子里先转一下，发个泡，然后内容慢慢成型。",
+    "你想让我聊点什么？还是就看看效果就行？",
+  ].join("\n\n");
+
+  const segments = splitReplyByRules(reply, options);
+
+  assert.ok(segments.length >= 2);
+  assert.equal(segments[0], "这种感觉其实挺真实的，就是脑子里先转一下，发个泡，然后内容慢慢成型。");
+  assert.equal(comparable(segments.join("")), comparable(reply));
+});
+
 test("accepts LLM segmentation only when it preserves the original reply", () => {
   const reply = "先这样。然后我们再把 Web 和 Telegram 都接上。";
 

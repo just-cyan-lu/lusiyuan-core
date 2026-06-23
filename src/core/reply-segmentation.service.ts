@@ -70,6 +70,10 @@ export async function segmentReply(
       return null;
     });
     if (llmReplies) {
+      if (llmReplies.length === 1) {
+        const ruleReplies = splitReplyByRules(text, options);
+        if (ruleReplies.length > 1) return { replies: ruleReplies, source: "rule" };
+      }
       return { replies: llmReplies, source: llmReplies.length > 1 ? "llm" : "single" };
     }
   }
@@ -80,6 +84,9 @@ export async function segmentReply(
 
 export function splitReplyByRules(reply: string, options: ReplySegmentationOptions): string[] {
   const text = reply.trim();
+  if (options.maxCount <= 1 || looksStructured(text)) return [text];
+  const paragraphSegments = splitParagraphSegments(text, options);
+  if (paragraphSegments) return paragraphSegments;
   if (shouldKeepSingle(text, options)) return [text];
 
   const units = splitIntoUnits(text, options.maxChars);
@@ -136,9 +143,24 @@ export function validateLlmSegments(
 function shouldKeepSingle(text: string, options: ReplySegmentationOptions): boolean {
   if (options.maxCount <= 1) return true;
   if (looksStructured(text)) return true;
+  if (hasNaturalParagraphBreak(text, options)) return false;
   if (hasNaturalShortLead(text, options)) return false;
   if (text.length < Math.max(options.minChars * 2, options.maxChars * 0.8)) return true;
   return false;
+}
+
+function hasNaturalParagraphBreak(text: string, options: ReplySegmentationOptions): boolean {
+  const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  return paragraphs.length > 1 && text.length >= options.minChars * 2;
+}
+
+function splitParagraphSegments(text: string, options: ReplySegmentationOptions): string[] | null {
+  if (!hasNaturalParagraphBreak(text, options)) return null;
+  const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  if (paragraphs.length <= 1) return null;
+  const segments = paragraphs.flatMap((paragraph) => splitLongUnit(paragraph, options.maxChars));
+  const coalesced = coalesceSmallSegments(segments, options);
+  return clampSegmentCount(coalesced, options.maxCount);
 }
 
 function hasNaturalShortLead(text: string, options: ReplySegmentationOptions): boolean {

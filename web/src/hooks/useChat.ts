@@ -1,33 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { sendChatMessage, fetchConversationMessages } from "../api/lusiyuan-api";
+import { streamChatMessage, fetchConversationMessages } from "../api/lusiyuan-api";
 import { getWebIdentity } from "../utils/storage";
 import type { ChatMessage, ChatReplyPart } from "../types/chat";
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
-}
-
-function displayReplyParts(result: {
-  reply: string;
-  replies?: string[];
-  reply_parts?: ChatReplyPart[];
-  turn_id?: string;
-}): ChatReplyPart[] {
-  const parts = result.reply_parts?.filter((part) => part.kind !== "progress" && part.content.trim());
-  if (parts && parts.length > 0) return parts;
-
-  const replies = result.replies && result.replies.length > 0 ? result.replies : [result.reply];
-  return replies
-    .filter((content) => content.trim())
-    .map((content, index) => ({
-      turn_id: result.turn_id ?? "",
-      sequence: index,
-      kind: "final",
-      content,
-      delay_ms: index === 0 ? 0 : 600,
-      transcript: true,
-    }));
-}
 
 export function useChat() {
   const { userId, conversationId } = getWebIdentity();
@@ -73,29 +47,71 @@ export function useChat() {
     setIsSending(true);
     setError(null);
 
+    let draftMessageId: string | null = null;
+    let receivedAssistantMessage = false;
+
+    function removeDraftMessage() {
+      if (!draftMessageId) return;
+      const id = draftMessageId;
+      draftMessageId = null;
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    }
+
+    function upsertDraftMessage(part: ChatReplyPart) {
+      const id = draftMessageId ?? `draft:${part.turn_id || crypto.randomUUID()}`;
+      draftMessageId = id;
+      setMessages((prev) => {
+        const existing = prev.find((m) => m.id === id);
+        if (existing) {
+          return prev.map((m) =>
+            m.id === id
+              ? { ...m, content: part.content, createdAt: new Date().toISOString(), isDraft: true }
+              : m
+          );
+        }
+        return [
+          ...prev,
+          {
+            id,
+            role: "assistant",
+            content: part.content,
+            createdAt: new Date().toISOString(),
+            isDraft: true,
+          },
+        ];
+      });
+    }
+
+    function appendAssistantMessage(part: ChatReplyPart) {
+      if (!part.content.trim()) return;
+      receivedAssistantMessage = true;
+      removeDraftMessage();
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: part.content,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    }
+
     try {
-      const result = await sendChatMessage({
+      await streamChatMessage({
         user_id: userId,
         channel: "web",
         conversation_id: conversationId,
         message: content,
+      }, (event) => {
+        if (event.type === "progress") upsertDraftMessage(event.data);
+        if (event.type === "message") appendAssistantMessage(event.data);
       });
-
-      const parts = displayReplyParts(result);
-      for (const part of parts) {
-        if (part.delay_ms > 0) await sleep(part.delay_ms);
-        const assistantMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: part.content,
-          createdAt: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "发送失败，请稍后重试");
-      // Remove the optimistic user message on failure
-      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+      removeDraftMessage();
+      if (!receivedAssistantMessage) {
+        // Remove the optimistic user message on failure before any assistant response appears.
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+      }
     } finally {
       setIsSending(false);
     }
