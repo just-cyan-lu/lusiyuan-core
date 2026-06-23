@@ -1,4 +1,4 @@
-import { Card, Icon, Input, Time, Title, type CardColor, type IconName } from "animal-island-ui";
+import { Card, Cursor, Icon, Input, Time, Title, type CardColor, type IconName } from "animal-island-ui";
 import type { ChangeEvent, ReactNode } from "react";
 
 export type AdminSection =
@@ -164,14 +164,14 @@ export function AdminShell({
   const activeItem = navItems.find((item) => item.section === activeSection) ?? navItems[0];
 
   return (
-    <div className="admin-island-shell">
+    <Cursor forceAll={false} className="admin-island-shell">
       <div className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-[19.5rem_1fr]">
-        <aside className="admin-island-sidebar border-b px-4 py-4 backdrop-blur lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
+        <aside className="admin-island-sidebar border-b px-4 py-4 backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
           <div className="flex items-center justify-between gap-4 lg:block">
             <button
               type="button"
               onClick={() => onNavigate("overview")}
-              className="group flex items-center gap-3 text-left"
+              className="admin-brand-button group flex items-center gap-3 text-left"
               aria-label="回到总览"
             >
               <span className="admin-brand-mark flex h-12 w-12 items-center justify-center rounded-[18px] border-2 border-[#f7cd67] bg-[#fff4c7] text-xl font-black text-[#794f27]">
@@ -201,7 +201,7 @@ export function AdminShell({
             </Card>
           </div>
 
-          <nav className="mt-4 flex gap-2 overflow-x-auto pb-2 lg:mt-6 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
+          <nav className="admin-sidebar-nav mt-4 flex gap-2 overflow-x-auto pb-2 lg:mt-6 lg:block lg:min-h-0 lg:flex-1 lg:space-y-2 lg:overflow-y-auto lg:overflow-x-hidden lg:pb-2 lg:pr-1">
             {navItems.map((item) => {
               const active = item.section === activeSection;
               return (
@@ -284,6 +284,6 @@ export function AdminShell({
           </div>
         </main>
       </div>
-    </div>
+    </Cursor>
   );
 }

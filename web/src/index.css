@@ -18,6 +18,11 @@
   --ls-green: #8ac68a;
   --ls-orange: #e59266;
   --ls-shadow: 0 8px 24px rgba(61, 52, 40, 0.12);
+  --admin-control-height-sm: 36px;
+  --admin-control-height: 40px;
+  --admin-control-height-lg: 48px;
+  --admin-control-padding-x: 16px;
+  --admin-control-radius: 999px;
 }
 
 * {
@@ -45,6 +50,7 @@ select {
 
 .field-input {
   width: 100%;
+  min-height: var(--admin-control-height);
   border-radius: 1.1rem;
   border: 2px solid var(--ls-border-strong);
   background: var(--ls-panel);
@@ -54,6 +60,15 @@ select {
   outline: none;
   box-shadow: 0 2px 0 #d4c9b4;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+input.field-input:not([type="checkbox"]):not([type="radio"]),
+select.field-input {
+  height: var(--admin-control-height);
+}
+
+textarea.field-input {
+  min-height: 6rem;
 }
 
 .field-input::placeholder {
@@ -143,6 +158,26 @@ select {
 
 .admin-sidebar-time [class*="acColon"] {
   font-size: 1.7rem;
+}
+
+.admin-sidebar-nav {
+  scrollbar-color: #c4b89e transparent;
+  scrollbar-width: thin;
+}
+
+.admin-sidebar-nav::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.admin-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-sidebar-nav::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(247, 243, 223, 0.92);
+  border-radius: 999px;
+  background: #c4b89e;
 }
 
 .admin-nav-button {
@@ -282,4 +317,82 @@ select {
 .admin-island-shell pre,
 .admin-island-shell code {
   color: #5c4630;
+}
+
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not([class*="animal-"]) {
+  position: relative;
+  display: inline-flex;
+  min-height: var(--admin-control-height);
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--admin-control-radius);
+  padding-inline: var(--admin-control-padding-x);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not([class*="animal-"])::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: rgba(25, 200, 185, 0.28);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0);
+}
+
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not([class*="animal-"]):hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not([class*="animal-"]):active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #bdaea0;
+}
+
+.admin-island-shell button:not(.admin-nav-button):not(.admin-brand-button):not([class*="animal-"]):active:not(:disabled)::after {
+  animation: admin-click-pop 0.34s ease-out;
+}
+
+.admin-island-shell button:disabled,
+.admin-island-shell button[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.admin-island-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([class*="animal-input"]),
+.admin-island-shell select:not([class*="animal-"]) {
+  min-height: var(--admin-control-height);
+  border-radius: 1.1rem;
+}
+
+.admin-island-shell textarea:not([class*="animal-"]) {
+  border-radius: 1.1rem;
+}
+
+@keyframes admin-click-pop {
+  0% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(8);
+  }
 }
