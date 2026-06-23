@@ -7,7 +7,6 @@ interface Props {
 
 export function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
-  const isDraft = Boolean(message.isDraft);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
@@ -19,7 +18,7 @@ export function MessageBubble({ message }: Props) {
           max-w-[72%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words
           ${isUser
             ? "rounded-tr-sm bg-[#6f8fb8] text-white"
-            : `rounded-tl-sm border border-[#d9e2ec] bg-[#f8fbff] text-[#334155] shadow-sm ${isDraft ? "animate-pulse border-[#f7cd67] bg-[#fffaf0] text-[#6d5a43]" : ""}`
+            : "rounded-tl-sm border border-[#d9e2ec] bg-[#f8fbff] text-[#334155] shadow-sm"
           }
         `}
       >

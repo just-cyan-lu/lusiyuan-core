@@ -19,7 +19,7 @@ export const runtimeSettingDefinitions = {
 
   MAX_MESSAGE_LENGTH: { group: "聊天限制", label: "单条消息最大长度", type: "integer", defaultValue: 4000, min: 1, max: 100000 },
   REPLY_DELIVERY_MODE: { group: "回复投递", label: "回复投递模式", type: "select", defaultValue: "hybrid", options: ["single", "final_blocks", "hybrid"], description: "single=最终一条；final_blocks=最终自然分条；hybrid=工具即时反应 + 最终自然分条。" },
-  REPLY_PROGRESS_DRAFT_ENABLED: { group: "回复投递", label: "Progress Draft", type: "boolean", defaultValue: true, description: "Web SSE 聊天中显示可更新的处理中草稿；草稿不写入长期对话记录。" },
+  REPLY_PROGRESS_DRAFT_ENABLED: { group: "回复投递", label: "正在输入状态", type: "boolean", defaultValue: true, description: "Web SSE 聊天中发送 progress 事件，用来维持正在输入状态；不写入长期对话记录。" },
   REPLY_SEGMENTATION_LLM_ENABLED: { group: "回复投递", label: "LLM 自然分条", type: "boolean", defaultValue: true, description: "开启后会额外调用一次模型决定聊天气泡边界；失败时自动回退到规则分条。" },
   REPLY_SEGMENT_MIN_CHARS: { group: "回复投递", label: "分条最小字符", type: "integer", defaultValue: 36, min: 1, max: 1000 },
   REPLY_SEGMENT_MAX_CHARS: { group: "回复投递", label: "分条最大字符", type: "integer", defaultValue: 180, min: 20, max: 4000 },
