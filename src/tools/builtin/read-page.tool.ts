@@ -1,6 +1,6 @@
 import { pageReaderService } from "../../page-reader/page-reader.service.js";
 import { chromeDevtoolsMcpService } from "../../mcp/chrome-devtools-mcp.service.js";
-import { env } from "../../utils/env.js";
+import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
@@ -57,10 +57,11 @@ export const readPageTool: ToolDefinition<ReadPageInput, ReadPageOutput> = {
     "- chrome-devtools-mcp：只读连接用户已登录的 Chrome；页面会保留，不自动关闭\n" +
   "参数 wait_ms：等待页面 JS 渲染完成的毫秒数。对于动态加载的页面（如社交媒体、SPA 应用）建议传 2000-5000，静态页面不需要传。",
   riskLevel: "low",
-  ...toolAccessState(
-    env.TOOL_READ_PAGE_MODE,
-    env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED ||
-      (env.MCP_ENABLED && env.CHROME_DEVTOOLS_MCP_ENABLED)
-  ),
+  enabled: true,
+  runtimeAccess: () => toolAccessState(
+      runtimeConfig.TOOL_READ_PAGE_MODE,
+      runtimeConfig.JINA_ENABLED || runtimeConfig.PLAYWRIGHT_ENABLED ||
+        (runtimeConfig.MCP_ENABLED && runtimeConfig.CHROME_DEVTOOLS_MCP_ENABLED)
+    ),
   handler,
 };

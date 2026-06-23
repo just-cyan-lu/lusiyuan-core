@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { env } from "../../utils/env.js";
+import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import { chat } from "../../core/chat.service.js";
 import { memoryService } from "../../core/memory.service.js";
 import { imageService } from "../../media/image.service.js";
@@ -40,7 +41,7 @@ export function createTelegramBot(token: string) {
     fileSize?: number,
     fallbackMimeType?: string
   ): Promise<MessageContentPart> {
-    if (fileSize && fileSize > env.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
+    if (fileSize && fileSize > runtimeConfig.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
       throw new TelegramImageTooLargeError(
         `Telegram image is too large: ${fileSize} bytes`
       );
@@ -49,7 +50,7 @@ export function createTelegramBot(token: string) {
     const fileInfo = await bot.api.getFile(fileId);
     const telegramFile = fileInfo as { file_path?: string; file_size?: number };
     const resolvedSize = fileSize ?? telegramFile.file_size;
-    if (resolvedSize && resolvedSize > env.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
+    if (resolvedSize && resolvedSize > runtimeConfig.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
       throw new TelegramImageTooLargeError(
         `Telegram image is too large: ${resolvedSize} bytes`
       );
@@ -61,8 +62,8 @@ export function createTelegramBot(token: string) {
     const fileUrl = `https://api.telegram.org/file/bot${token}/${telegramFile.file_path}`;
     const imageData = await imageService.loadFromUrl(fileUrl, {
       proxyUrl: env.EXTERNAL_HTTP_PROXY,
-      timeoutMs: env.TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS,
-      retries: env.TELEGRAM_FILE_DOWNLOAD_RETRIES,
+      timeoutMs: runtimeConfig.TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS,
+      retries: runtimeConfig.TELEGRAM_FILE_DOWNLOAD_RETRIES,
       fallbackMimeType: fallbackMimeType ?? imageService.inferMimeTypeFromPath(telegramFile.file_path),
     });
 
@@ -114,7 +115,7 @@ export function createTelegramBot(token: string) {
     const chatCtx = ctx.chat;
     const message = ctx.message;
 
-    if (message.text.length > env.MAX_MESSAGE_LENGTH) {
+    if (message.text.length > runtimeConfig.MAX_MESSAGE_LENGTH) {
       await ctx.reply("消息太长了，请缩短一下再发给我。");
       return;
     }

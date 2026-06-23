@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  fetchEditableEnvConfig,
+  fetchRuntimeSettings,
   fetchRegisteredTools,
   fetchToolCallLogs,
-  saveEditableEnvConfig,
+  saveRuntimeSettings,
   type EditableEnvConfig,
   type EnvConfigField,
+  type RuntimeSettingsResponse,
   type RegisteredTool,
   type ToolCallLog,
   type ToolPolicy,
@@ -22,7 +23,7 @@ interface ToolsAdminPageProps {
 interface ToolsState {
   tools: RegisteredTool[];
   policy: ToolPolicy | null;
-  envConfig: EditableEnvConfig | null;
+  settingsConfig: EditableEnvConfig | null;
   logs: ToolCallLog[];
   loading: boolean;
   saving: boolean;
@@ -78,7 +79,7 @@ const toolGuides: Record<
     usage: "用户问最新信息、新闻、外部资料、技术文档时使用；只读搜索，不会执行外部动作。",
     trigger: "模型判断本地知识不足或问题明显需要联网时触发；可通过访问模式限制为 owner only。",
     modeKey: "TOOL_WEB_SEARCH_MODE",
-    configKeys: ["TAVILY_ENABLED", "TAVILY_API_KEYS", "TAVILY_API_KEY", "TAVILY_MAX_RESULTS", "TAVILY_SEARCH_DEPTH"],
+    configKeys: ["TAVILY_ENABLED", "TAVILY_MAX_RESULTS", "TAVILY_SEARCH_DEPTH"],
   },
   read_page: {
     purpose: "读取指定 URL 的正文内容，可用 Jina、Playwright 或连接已登录 Chrome 的 Chrome DevTools MCP。",
@@ -87,7 +88,6 @@ const toolGuides: Record<
     modeKey: "TOOL_READ_PAGE_MODE",
     configKeys: [
       "JINA_ENABLED",
-      "JINA_API_KEY",
       "PLAYWRIGHT_ENABLED",
       "PLAYWRIGHT_SCREENSHOT_ENABLED",
       "PLAYWRIGHT_MAX_PAGE_TEXT_CHARS",
@@ -106,6 +106,21 @@ const toolGuides: Record<
     configKeys: [],
   },
 };
+
+function liveSettingsAsEditable(config: RuntimeSettingsResponse): EditableEnvConfig {
+  return {
+    envPath: "database:system_settings",
+    restartRequired: false,
+    fields: config.fields.map((field) => ({
+      ...field,
+      value: String(field.value),
+      configured: Boolean(field.stored),
+      fromFile: Boolean(field.stored),
+      secret: false,
+      restartRequired: false,
+    })),
+  };
+}
 
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -314,7 +329,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   const [state, setState] = useState<ToolsState>({
     tools: [],
     policy: null,
-    envConfig: null,
+    settingsConfig: null,
     logs: [],
     loading: false,
     saving: false,
@@ -343,7 +358,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       setState({
         tools: [],
         policy: null,
-        envConfig: null,
+        settingsConfig: null,
         logs: [],
         loading: false,
         saving: false,
@@ -361,7 +376,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
       const range = resolveDateRange(datePreset, customFrom, customTo);
-      const [registry, logs, envConfig] = await Promise.all([
+      const [registry, logs, settingsConfig] = await Promise.all([
         fetchRegisteredTools(adminToken),
         fetchToolCallLogs({
           token: adminToken,
@@ -375,15 +390,15 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
           limit: parseInt(limit, 10),
           ...range,
         }),
-        fetchEditableEnvConfig(adminToken),
+        fetchRuntimeSettings(adminToken).then(liveSettingsAsEditable),
       ]);
-      setConfigValues(formValuesFromConfig(envConfig));
+      setConfigValues(formValuesFromConfig(settingsConfig));
       setDeleteKeys([]);
       setDeleteSecretValueIndexes({});
       setState({
         tools: registry.tools ?? [],
         policy: registry.policy,
-        envConfig,
+        settingsConfig,
         logs,
         loading: false,
         saving: false,
@@ -409,7 +424,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   const summary = useMemo(() => logSummary(state.logs), [state.logs]);
   const enabledTools = state.tools.filter((tool) => tool.effectiveEnabled).length;
   const ownerOnlyTools = state.tools.filter((tool) => tool.ownerOnly).length;
-  const envFieldMap = useMemo(() => fieldsByKey(state.envConfig), [state.envConfig]);
+  const settingFieldMap = useMemo(() => fieldsByKey(state.settingsConfig), [state.settingsConfig]);
   const toolConfigKeys = useMemo(
     () =>
       uniqueKeys(
@@ -421,8 +436,8 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
     [state.tools]
   );
   const editableFields = useMemo(
-    () => pickEnvFields(envFieldMap, uniqueKeys([...policyConfigKeys, ...toolConfigKeys])),
-    [envFieldMap, toolConfigKeys]
+    () => pickEnvFields(settingFieldMap, uniqueKeys([...policyConfigKeys, ...toolConfigKeys])),
+    [settingFieldMap, toolConfigKeys]
   );
   const toolOptions = useMemo(
     () => [...state.tools].sort((a, b) => a.name.localeCompare(b.name)),
@@ -430,7 +445,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   );
 
   async function saveToolConfig() {
-    if (!adminToken || !state.envConfig) return;
+    if (!adminToken || !state.settingsConfig) return;
     setState((current) => ({
       ...current,
       saving: true,
@@ -441,30 +456,19 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       const keysToDelete = deleteKeys.filter((key) =>
         editableFields.some((field) => field.key === key)
       );
-      const secretIndexesToDelete: Record<string, number[]> = Object.fromEntries(
-        Object.entries(deleteSecretValueIndexes)
-          .map(([key, indexes]) => [
-            key,
-            indexes
-              .filter((index, position, all) => all.indexOf(index) === position)
-              .filter(() =>
-                editableFields.some((field) => field.key === key && field.secret)
-              ),
-          ])
-          .filter((entry) => entry[1].length > 0)
-      );
       const values = changedConfigValues(
         editableFields.filter(
-          (field) =>
-            !keysToDelete.includes(field.key) &&
-            !Object.prototype.hasOwnProperty.call(secretIndexesToDelete, field.key)
+          (field) => !keysToDelete.includes(field.key)
         ),
         configValues
       );
+      for (const key of keysToDelete) {
+        const field = editableFields.find((item) => item.key === key);
+        if (!field || field.defaultValue === undefined) continue;
+        values[key] = field.defaultValue;
+      }
       if (
-        Object.keys(values).length === 0 &&
-        keysToDelete.length === 0 &&
-        Object.keys(secretIndexesToDelete).length === 0
+        Object.keys(values).length === 0
       ) {
         setState((current) => ({
           ...current,
@@ -473,20 +477,25 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         }));
         return;
       }
-      const nextConfig = await saveEditableEnvConfig({
+      const result = await saveRuntimeSettings({
         token: adminToken,
         values,
-        deleteKeys: keysToDelete,
-        deleteSecretValueIndexes: secretIndexesToDelete,
       });
+      const [freshSettings, registry] = await Promise.all([
+        fetchRuntimeSettings(adminToken),
+        fetchRegisteredTools(adminToken),
+      ]);
+      const nextConfig = liveSettingsAsEditable(freshSettings);
       setConfigValues(formValuesFromConfig(nextConfig));
       setDeleteKeys([]);
       setDeleteSecretValueIndexes({});
       setState((current) => ({
         ...current,
-        envConfig: nextConfig,
+        tools: registry.tools,
+        policy: registry.policy,
+        settingsConfig: nextConfig,
         saving: false,
-        saveMessage: `已保存 ${nextConfig.updatedKeys?.length ?? Object.keys(values).length} 项、删除 ${nextConfig.deletedKeys?.length ?? keysToDelete.length} 项到 .env。重启后端后生效。`,
+        saveMessage: result.message ?? `已即时应用 ${Object.keys(values).length} 项工具配置。`,
       }));
     } catch (error) {
       setState((current) => ({
@@ -556,7 +565,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             <div className="text-xs font-semibold text-[#8a6f5a]">Tool Console</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">工具调用</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              查看已注册工具、运行策略、最近调用结果和阻断原因。页面可以编辑工具相关 `.env` 配置，但不会手动触发工具执行。
+              查看已注册工具、运行策略、最近调用结果和阻断原因。工具开关与限制保存到数据库并立即生效，但不会在这里手动触发工具执行。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -571,7 +580,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             <button
               type="button"
               onClick={() => void saveToolConfig()}
-              disabled={!state.envConfig || state.loading || state.saving}
+              disabled={!state.settingsConfig || state.loading || state.saving}
               className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
             >
               {state.saving ? "保存中" : "保存工具配置"}
@@ -604,11 +613,11 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       </section>
 
       {state.policy && (
-        <Panel title="工具策略" subtitle="保存写入 .env；当前后端进程重启后生效">
+        <Panel title="工具策略" subtitle="保存到数据库并立即生效">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PolicyConfigItem
               label="工具层"
-              field={envFieldMap.get("TOOLS_ENABLED")}
+              field={settingFieldMap.get("TOOLS_ENABLED")}
               value={configValues.TOOLS_ENABLED}
               runtimeText={state.policy.enabled ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
@@ -616,7 +625,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
             <PolicyConfigItem
               label="低风险自动执行"
-              field={envFieldMap.get("TOOLS_AUTO_EXECUTE_LOW_RISK")}
+              field={settingFieldMap.get("TOOLS_AUTO_EXECUTE_LOW_RISK")}
               value={configValues.TOOLS_AUTO_EXECUTE_LOW_RISK}
               runtimeText={state.policy.autoExecuteLowRisk ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
@@ -624,7 +633,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
             <PolicyConfigItem
               label="中风险工具"
-              field={envFieldMap.get("TOOLS_ALLOW_MEDIUM_RISK")}
+              field={settingFieldMap.get("TOOLS_ALLOW_MEDIUM_RISK")}
               value={configValues.TOOLS_ALLOW_MEDIUM_RISK}
               runtimeText={state.policy.allowMediumRisk ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
@@ -632,7 +641,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
             <PolicyConfigItem
               label="高风险工具"
-              field={envFieldMap.get("TOOLS_ALLOW_HIGH_RISK")}
+              field={settingFieldMap.get("TOOLS_ALLOW_HIGH_RISK")}
               value={configValues.TOOLS_ALLOW_HIGH_RISK}
               runtimeText={state.policy.allowHighRisk ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
@@ -640,7 +649,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
             <PolicyConfigItem
               label="单消息上限"
-              field={envFieldMap.get("TOOL_MAX_CALLS_PER_MESSAGE")}
+              field={settingFieldMap.get("TOOL_MAX_CALLS_PER_MESSAGE")}
               value={configValues.TOOL_MAX_CALLS_PER_MESSAGE}
               runtimeText={`运行中：${state.policy.maxCallsPerMessage} 次`}
               disabled={state.saving}
@@ -649,7 +658,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
             <PolicyConfigItem
               label="执行超时"
-              field={envFieldMap.get("TOOL_TIMEOUT_MS")}
+              field={settingFieldMap.get("TOOL_TIMEOUT_MS")}
               value={configValues.TOOL_TIMEOUT_MS}
               runtimeText={`运行中：${formatDuration(state.policy.timeoutMs)}`}
               disabled={state.saving}
@@ -658,7 +667,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
             <PolicyConfigItem
               label="入参出参日志"
-              field={envFieldMap.get("TOOL_LOG_INPUT_OUTPUT")}
+              field={settingFieldMap.get("TOOL_LOG_INPUT_OUTPUT")}
               value={configValues.TOOL_LOG_INPUT_OUTPUT}
               runtimeText={state.policy.logInputOutput ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
@@ -666,7 +675,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             />
           </div>
           <div className="mt-4 rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
-            这些配置保存后会写入 `.env`。工具注册表和运行策略在后端启动时读取，所以需要重启后端服务才会真正改变执行行为。
+            这些配置通过统一运行配置中心保存。页面提示成功时，新的工具权限和限制已经生效。
           </div>
         </Panel>
       )}
@@ -676,7 +685,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
           <div className="space-y-2">
             {toolOptions.map((tool) => {
               const guide = toolGuides[tool.name];
-              const modeField = guide ? envFieldMap.get(guide.modeKey) : undefined;
+              const modeField = guide ? settingFieldMap.get(guide.modeKey) : undefined;
               return (
                 <ToolCard
                   key={tool.name}
@@ -684,7 +693,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                   guide={guide}
                   modeField={modeField}
                   modeValue={modeField ? configValues[modeField.key] : undefined}
-                  envFields={pickEnvFields(envFieldMap, guide?.configKeys ?? [])}
+                  envFields={pickEnvFields(settingFieldMap, guide?.configKeys ?? [])}
                   configValues={configValues}
                   deletedKeys={deleteKeys}
                   deletedSecretValueIndexes={deleteSecretValueIndexes}
@@ -1229,7 +1238,7 @@ function ConfigFieldControl({
               : "border-[#d9e2ec] bg-[#f8fbff] text-[#7b8ca2]"
           }`}
         >
-          {field.fromFile ? "env" : "默认"}
+          {field.fromFile ? "数据库" : "默认"}
         </span>
       </span>
 
@@ -1309,7 +1318,7 @@ function ConfigFieldControl({
 
       {deleted && (
         <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
-          已标记删除。点击“保存工具配置”后会从 `.env` 移除这条 key。
+          已标记恢复默认。点击“保存工具配置”后会写入该项的代码默认值。
         </div>
       )}
       {!deleted && deletedSecretValueIndexes.length > 0 && (

@@ -4,7 +4,7 @@ import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
 import { DEEP_CONSOLIDATION_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { filterProposals } from "./dream-policy.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type { MemoryProposalOwnership } from "../reflection/memory-proposal-ownership.js";
 import type {
   RawConsolidationOutput,
@@ -40,7 +40,7 @@ export class DreamConsolidator {
   }): Promise<DreamConsolidationResult> {
     const { signals, dailyNote, jobId, dreamReflectionReportId, ownership } = input;
 
-    if (!env.DREAM_DEEP_ENABLED) {
+    if (!runtimeConfig.DREAM_DEEP_ENABLED) {
       const emptyReport = await this.createReport(
         jobId,
         "",
@@ -73,12 +73,12 @@ export class DreamConsolidator {
 
     const filteredProposals = filterProposals(rawProposals).slice(
       0,
-      env.DREAM_MAX_PROPOSALS_PER_RUN
+      runtimeConfig.DREAM_MAX_PROPOSALS_PER_RUN
     );
 
     // Write memory proposals
     const memoryProposals: MemoryProposal[] = [];
-    if (env.DREAM_ALLOW_MEMORY_PROPOSALS) {
+    if (runtimeConfig.DREAM_ALLOW_MEMORY_PROPOSALS) {
       for (const p of filteredProposals) {
         const mp = await prisma.memoryProposal.create({
           data: {
@@ -107,7 +107,7 @@ export class DreamConsolidator {
 
     // Write growth log proposals
     const growthLogProposals: GrowthLogProposal[] = [];
-    if (env.DREAM_ALLOW_GROWTH_LOG_PROPOSALS) {
+    if (runtimeConfig.DREAM_ALLOW_GROWTH_LOG_PROPOSALS) {
       for (const g of rawGrowthLogs.slice(0, 5)) {
         const glp = await prisma.growthLogProposal.create({
           data: {

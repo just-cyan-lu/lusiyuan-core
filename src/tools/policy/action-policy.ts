@@ -1,4 +1,4 @@
-import { env } from "../../utils/env.js";
+import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import type {
   ToolDefinition,
   ToolExecutionContext,
@@ -18,11 +18,11 @@ export class ActionPolicy {
       return { allowed: false, requiresApproval: false, reason: "Owner only" };
     }
 
-    if (!env.TOOLS_ENABLED) {
+    if (!runtimeConfig.TOOLS_ENABLED) {
       return { allowed: false, requiresApproval: false, reason: "Tool layer is disabled" };
     }
 
-    if (tool.riskLevel === "high" && !env.TOOLS_ALLOW_HIGH_RISK) {
+    if (tool.riskLevel === "high" && !runtimeConfig.TOOLS_ALLOW_HIGH_RISK) {
       return {
         allowed: false,
         requiresApproval: true,
@@ -30,7 +30,7 @@ export class ActionPolicy {
       };
     }
 
-    if (tool.riskLevel === "medium" && !env.TOOLS_ALLOW_MEDIUM_RISK) {
+    if (tool.riskLevel === "medium" && !runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK) {
       return {
         allowed: false,
         requiresApproval: true,
@@ -38,7 +38,7 @@ export class ActionPolicy {
       };
     }
 
-    if (tool.riskLevel === "low" && !env.TOOLS_AUTO_EXECUTE_LOW_RISK) {
+    if (tool.riskLevel === "low" && !runtimeConfig.TOOLS_AUTO_EXECUTE_LOW_RISK) {
       return {
         allowed: false,
         requiresApproval: true,

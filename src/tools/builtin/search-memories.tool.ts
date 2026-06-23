@@ -1,5 +1,5 @@
 import { memoryService } from "../../core/memory.service.js";
-import { env } from "../../utils/env.js";
+import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
@@ -48,6 +48,7 @@ export const searchMemoriesTool: ToolDefinition<
   name: "search_memories",
   description: "根据 query 语义搜索陆思源长期记忆",
   riskLevel: "low",
-  ...toolAccessState(env.TOOL_SEARCH_MEMORIES_MODE),
+  enabled: true,
+  runtimeAccess: () => toolAccessState(runtimeConfig.TOOL_SEARCH_MEMORIES_MODE),
   handler,
 };

@@ -1,4 +1,5 @@
 import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type { SearchResponse } from "./web-search.types.js";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
@@ -27,8 +28,8 @@ async function doSearch(apiKey: string, query: string) {
   const body: TavilySearchRequest = {
     query,
     api_key: apiKey,
-    search_depth: env.TAVILY_SEARCH_DEPTH as "basic" | "advanced",
-    max_results: env.TAVILY_MAX_RESULTS,
+    search_depth: runtimeConfig.TAVILY_SEARCH_DEPTH as "basic" | "advanced",
+    max_results: runtimeConfig.TAVILY_MAX_RESULTS,
     include_answer: true,
   };
 

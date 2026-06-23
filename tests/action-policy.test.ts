@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { actionPolicy } from "../src/tools/policy/action-policy.js";
 import type { ToolDefinition, ToolExecutionContext } from "../src/tools/tool.types.js";
-import { env } from "../src/utils/env.js";
+import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 
 const lowRiskTool: ToolDefinition<unknown, unknown> = {
   name: "low_risk_test_tool",
@@ -19,19 +19,10 @@ const context: ToolExecutionContext = {
 };
 
 function withToolPolicy(
-  patch: Partial<Pick<typeof env, "TOOLS_ENABLED" | "TOOLS_AUTO_EXECUTE_LOW_RISK">>,
+  patch: { TOOLS_ENABLED: boolean; TOOLS_AUTO_EXECUTE_LOW_RISK: boolean },
   fn: () => void
 ) {
-  const original = {
-    TOOLS_ENABLED: env.TOOLS_ENABLED,
-    TOOLS_AUTO_EXECUTE_LOW_RISK: env.TOOLS_AUTO_EXECUTE_LOW_RISK,
-  };
-  Object.assign(env, patch);
-  try {
-    fn();
-  } finally {
-    Object.assign(env, original);
-  }
+  runtimeSettingsService.withTemporaryValues(patch, fn);
 }
 
 test("allows low risk tools when automatic low risk execution is enabled", () => {

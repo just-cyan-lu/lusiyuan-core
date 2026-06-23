@@ -14,15 +14,20 @@ export class ToolRegistry {
   }
 
   get(name: string): AnyToolDefinition | undefined {
-    return this.tools.get(name);
+    const tool = this.tools.get(name);
+    return tool ? this.resolve(tool) : undefined;
   }
 
   listEnabled(): AnyToolDefinition[] {
-    return [...this.tools.values()].filter((t) => t.enabled);
+    return [...this.tools.values()].map((tool) => this.resolve(tool)).filter((tool) => tool.enabled);
   }
 
   listAll(): AnyToolDefinition[] {
-    return [...this.tools.values()];
+    return [...this.tools.values()].map((tool) => this.resolve(tool));
+  }
+
+  private resolve(tool: AnyToolDefinition): AnyToolDefinition {
+    return tool.runtimeAccess ? { ...tool, ...tool.runtimeAccess() } : tool;
   }
 }
 

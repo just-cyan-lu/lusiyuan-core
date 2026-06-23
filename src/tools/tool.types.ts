@@ -26,6 +26,11 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   ownerOnly?: boolean;
   accessMode?: ToolAccessMode;
   enabled: boolean;
+  runtimeAccess?: () => {
+    enabled: boolean;
+    ownerOnly: boolean;
+    accessMode: ToolAccessMode;
+  };
   handler: ToolHandler<TInput, TOutput>;
 }
 

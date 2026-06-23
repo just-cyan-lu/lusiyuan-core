@@ -3,7 +3,7 @@ import { toolRegistry } from "../tools/tool-registry.js";
 import { toolExecutor } from "../tools/tool-executor.js";
 import { prisma } from "../db/prisma.js";
 import { requireAdminAuth } from "./admin-auth.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { Prisma } from "@prisma/client";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 
@@ -30,16 +30,16 @@ function effectiveToolState(tool: {
   if (!tool.enabled) {
     return { effectiveEnabled: false, disabledReason: "Tool is disabled" };
   }
-  if (!env.TOOLS_ENABLED) {
+  if (!runtimeConfig.TOOLS_ENABLED) {
     return { effectiveEnabled: false, disabledReason: "Tool layer is disabled" };
   }
-  if (tool.riskLevel === "medium" && !env.TOOLS_ALLOW_MEDIUM_RISK) {
+  if (tool.riskLevel === "medium" && !runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK) {
     return { effectiveEnabled: false, disabledReason: "Medium risk tools are disabled" };
   }
-  if (tool.riskLevel === "high" && !env.TOOLS_ALLOW_HIGH_RISK) {
+  if (tool.riskLevel === "high" && !runtimeConfig.TOOLS_ALLOW_HIGH_RISK) {
     return { effectiveEnabled: false, disabledReason: "High risk tools are disabled" };
   }
-  if (tool.riskLevel === "low" && !env.TOOLS_AUTO_EXECUTE_LOW_RISK) {
+  if (tool.riskLevel === "low" && !runtimeConfig.TOOLS_AUTO_EXECUTE_LOW_RISK) {
     return { effectiveEnabled: false, disabledReason: "Low risk auto execution is disabled" };
   }
   return { effectiveEnabled: true, disabledReason: null };
@@ -64,13 +64,13 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
     return reply.send({
       tools,
       policy: {
-        enabled: env.TOOLS_ENABLED,
-        autoExecuteLowRisk: env.TOOLS_AUTO_EXECUTE_LOW_RISK,
-        allowMediumRisk: env.TOOLS_ALLOW_MEDIUM_RISK,
-        allowHighRisk: env.TOOLS_ALLOW_HIGH_RISK,
-        maxCallsPerMessage: env.TOOL_MAX_CALLS_PER_MESSAGE,
-        timeoutMs: env.TOOL_TIMEOUT_MS,
-        logInputOutput: env.TOOL_LOG_INPUT_OUTPUT,
+        enabled: runtimeConfig.TOOLS_ENABLED,
+        autoExecuteLowRisk: runtimeConfig.TOOLS_AUTO_EXECUTE_LOW_RISK,
+        allowMediumRisk: runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK,
+        allowHighRisk: runtimeConfig.TOOLS_ALLOW_HIGH_RISK,
+        maxCallsPerMessage: runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE,
+        timeoutMs: runtimeConfig.TOOL_TIMEOUT_MS,
+        logInputOutput: runtimeConfig.TOOL_LOG_INPUT_OUTPUT,
       },
     });
   });

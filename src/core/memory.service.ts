@@ -1,5 +1,5 @@
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { retrieveMemories } from "./memory-retrieval.service.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import { pgVectorMemoryIndex } from "../vector-index/pgvector-memory-index.js";
@@ -33,7 +33,7 @@ class PrismaMemoryService implements MemoryService {
   }
 
   async retrieveRelevantMemories(userId: string, query: string): Promise<BudgetedMemory[]> {
-    if (!env.MEMORY_RETRIEVAL_ENABLED) {
+    if (!runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       const memories = await this.searchRelevantMemories(userId, query);
       return memories.map((m) => ({
         memory: m,
@@ -66,7 +66,7 @@ class PrismaMemoryService implements MemoryService {
         },
       });
 
-      if (env.MEMORY_RETRIEVAL_ENABLED) {
+      if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
         this.generateAndStoreEmbedding(created).catch((err) =>
           console.warn("Background embedding write failed:", err)
         );

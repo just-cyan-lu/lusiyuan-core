@@ -301,6 +301,7 @@ Expression Learning 是通用表达学习模块。
 | Prompt 编译 | 把人设、记忆、状态、对话变成模型输入 | `src/core/prompt-builder.ts` |
 | Persona 投影 | 选择本轮聊天场景和相关人设切片 | `src/core/persona-projection.ts` |
 | 模型调用 | 统一调用 OpenAI 兼容接口、Anthropic、MiniMax 等 | `src/core/model-provider.ts` |
+| 配置系统 | 数据库实时运行配置、校验和变更通知 | `src/config/`, `web/src/components/admin/ConfigCenterPage.tsx` |
 | 记忆系统 | 记忆读写和检索 | `src/core/memory.service.ts` |
 | 向量检索 | 用 embedding 和 pgvector 找相关记忆 | `src/embeddings/`, `src/vector-index/` |
 | Reflection | 复盘并生成记忆提案 | `src/reflection/` |
@@ -334,19 +335,18 @@ pnpm install
 cp .env.example .env
 ```
 
-至少需要配置：
+至少需要配置启动安全信息和一个模型连接：
 
 ```env
 DATABASE_URL="postgresql://lusiyuan:password@localhost:5432/lusiyuan_core"
 ADMIN_API_TOKEN="change-this-to-a-long-random-string"
 
-ACTIVE_MODEL_PROVIDER="openai"
 OPENAI_BASE_URL="https://api.openai.com/v1"
 OPENAI_API_KEY="your-api-key"
 OPENAI_MODEL="gpt-4.1-mini"
 ```
 
-也可以使用 Qwen、DeepSeek、GLM、MiniMax、Anthropic 等提供商。具体配置看 `.env.example` 和 `src/utils/env.ts`。
+也可以配置 Qwen、DeepSeek、GLM、MiniMax、Anthropic 等连接。启动后在 Admin“配置 / 运行配置”里选择当前模型渠道，保存后下一次模型调用立即使用。
 
 ### 3. 启动数据库
 
@@ -370,7 +370,7 @@ npx prisma migrate reset --force
 pnpm db:migrate
 ```
 
-开发期也可以在 admin 的“配置中心”里清空数据库业务数据。这个按钮需要 Admin Token、`.env` 里的 `ADMIN_DATABASE_CLEAR_PASSWORD`，还要输入确认文字。它只清聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物和工具日志，不会修改 `.env`、persona、项目文档或 Prisma migration 记录。
+开发期也可以在 admin 的“配置中心”里清空数据库业务数据。这个按钮需要 Admin Token、`.env` 里的 `ADMIN_DATABASE_CLEAR_PASSWORD`，还要输入确认文字。它只清聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物和工具日志；数据库运行配置、Skill 配置、配置变更记录、`.env`、persona、项目文档和 Prisma migration 会保留。
 
 ### 5. 启动后端
 
@@ -464,10 +464,7 @@ curl http://localhost:64100/v1/users/creator_lu/memories \
 
 默认可以不用开。开启后，记忆检索会更像“按意思搜索”。
 
-```env
-EMBEDDING_API_KEY="your-siliconflow-api-key"
-MEMORY_RETRIEVAL_ENABLED=true
-```
+在 `.env` 配置 `EMBEDDING_API_KEY`，再在 Admin 运行配置里开启“记忆检索”。
 
 给历史记忆补 embedding：
 
@@ -477,9 +474,7 @@ pnpm embeddings:backfill
 
 ### 工具调用
 
-```env
-TOOLS_ENABLED=true
-```
+在 Admin 的“工具”或“配置 / 运行配置”页面开启工具层和具体工具访问模式，保存后立即生效。
 
 查看工具：
 
@@ -489,34 +484,21 @@ pnpm tools:inspect
 
 ### 小红书回复 Skill
 
-默认是 owner/admin 可用，只生成待审核草稿，不自动发送。
-
-```env
-SKILL_XIAOHONGSHU_REPLY_MODE="owner_only"
-```
+默认是 owner/admin 可用，只生成待审核草稿，不自动发送。访问模式和 prompt 都在 Admin“Skills”页面修改并立即生效。
 
 也可以在 admin 的“Skills”页面查看和编辑 prompt 规范，在“小红书工作台”里维护账号镜像、生成草稿、记录真实最终回复或不回复决定。每次最终决定会进入通用表达学习模块。
 
-小红书工作台可以直接粘贴帖子 URL。系统通过 `chrome-devtools-mcp` 读取已登录 Chrome 当前加载的标题、文案和评论，并写入账号镜像；读取后的页面不会自动关闭。
+小红书工作台可以直接粘贴帖子 URL。系统通过 `chrome-devtools-mcp` 读取已登录 Chrome 当前加载的标题、文案和评论线程，并写入账号镜像；读取后的页面不会自动关闭。
 
-```env
-MCP_ENABLED=true
-CHROME_DEVTOOLS_MCP_ENABLED=true
-CHROME_DEVTOOLS_MCP_CONNECTION_MODE="auto"
-CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS=15000
-CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS=3000
-CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS=5000
-```
+Chrome MCP 开关、连接方式、15 秒新开冷却和 3–5 秒稳定等待都在 Admin 运行配置里修改。
 
 自动连接模式需要先在 Chrome 的 `chrome://inspect/#remote-debugging` 开启远程调试。也可以把连接方式改为 `browser_url`，再配置本地调试地址。
 
-同一 URL 会优先复用现有页面；新开页面至少间隔 15 秒，读取前会随机等待 3–5 秒让页面稳定。导入只读取当前已经加载的 DOM，不自动刷新、滚动或展开评论。评论没有加载完整时，可以在保留的 Chrome 页面中正常浏览，再点击“重新读取当前页面”。
+同一 URL 会优先复用现有页面；新开页面至少间隔 15 秒，读取前会随机等待 3–5 秒让页面稳定。导入不会刷新或滚动，只会有限点击当前已加载评论里的“展开 N 条回复”。程序直接按 DOM 还原“顶层评论 + replies”，记录具体回复目标和“作者”标记，不让 LLM 猜评论关系。
 
 ### Reflection
 
-```env
-REFLECTION_ENABLED=true
-```
+Reflection 开关和规则在 Admin 运行配置里修改，保存后立即生效。
 
 运行一次：
 
@@ -528,9 +510,7 @@ pnpm reflection:run --daily
 
 ### Dream Cycle
 
-```env
-DREAM_ENABLED=true
-```
+Dream 开关和规则在 Admin 运行配置里修改。
 
 运行一次：
 
@@ -540,21 +520,11 @@ pnpm dream:run
 
 也可以在 admin 的“Dream”页面手动运行，并查看作业状态、Morning Brief、Deep Sleep、Daily Note、Signal 和 Dream Diary。
 
-定时运行：
-
-```env
-DREAM_AUTO_RUN=true
-DREAM_CRON="30 3 * * *"
-DREAM_TIMEZONE="Asia/Taipei"
-```
+Dream 自动运行、Cron 和时区保存后会立即停止旧定时器并重新排程。
 
 ### Telegram
 
-```env
-TELEGRAM_ENABLED=true
-TELEGRAM_BOT_TOKEN="your-bot-token"
-TELEGRAM_MODE="polling"
-```
+在 `.env` 配置 `TELEGRAM_BOT_TOKEN`；Telegram 开关在 Admin 运行配置里修改，可以即时启动或停止。
 
 启动：
 
@@ -574,8 +544,9 @@ pnpm telegram:dev
 - `Memory`：长期记忆。
 - `MemoryEmbedding`：记忆向量。
 - `MemoryProposal`：待审核记忆提案。
-- `SkillConfig`：admin 编辑后的 skill prompt 配置。
-- `XiaohongshuPost` / `XiaohongshuComment` / `XiaohongshuReplyDraft` / `XiaohongshuReply`：小红书账号镜像、草稿和真实最终回复。
+- `SystemSetting` / `SystemSettingEvent`：实时运行配置和每次修改记录。
+- `SkillConfig`：admin 编辑后的 skill 开关和 prompt 配置。
+- `XiaohongshuPost` / `XiaohongshuComment` / `XiaohongshuReplyDraft`：小红书帖子、二维评论线程和草稿；真实作者回复也是评论线程中带 `isAuthor` 的节点，不重复存表。
 - `ExpressionLearningExample` / `ExpressionLearningEmbedding`：owner 表达决定和对应的相似案例向量。
 - `ToolCallLog`：工具调用日志。
 - `ReflectionJob` / `ReflectionReport`：反思任务和报告。
@@ -592,6 +563,7 @@ pnpm telegram:dev
 3. 改项目结构时，同步更新 `project-handbook/project-map.md`。
 4. 改调用流程时，同步更新 `project-handbook/flows.md`。
 5. 改陆思源人设、聊天投影、运行体设计时，同步更新 `persona/README.md` 和 `project-handbook/runtime-lite-design.md`。
+6. 改运行配置来源或即时重载方式时，同步更新 `project-handbook/configuration.md`。
 
 ---
 

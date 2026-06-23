@@ -1,4 +1,4 @@
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { jinaRead } from "./jina-reader.js";
 import { playwrightRead } from "./playwright-reader.js";
 import { prisma } from "../db/prisma.js";
@@ -12,15 +12,15 @@ class PageReaderService {
 
     const usePlaywright =
       preferTool === "playwright" ||
-      (screenshot && env.PLAYWRIGHT_SCREENSHOT_ENABLED);
+      (screenshot && runtimeConfig.PLAYWRIGHT_SCREENSHOT_ENABLED);
 
     if (usePlaywright) {
-      if (!env.PLAYWRIGHT_ENABLED) {
+      if (!runtimeConfig.PLAYWRIGHT_ENABLED) {
         throw new Error("Playwright is disabled");
       }
       result = await playwrightRead(url, screenshot);
     } else {
-      if (!env.JINA_ENABLED) {
+      if (!runtimeConfig.JINA_ENABLED) {
         throw new Error("Jina Reader is disabled");
       }
       result = await jinaRead(url);

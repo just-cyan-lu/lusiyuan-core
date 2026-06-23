@@ -15,9 +15,16 @@ import { adminRoute } from "./routes/admin.route.js";
 import { webSearchRoute } from "./routes/web-search.route.js";
 import { pageReaderRoute } from "./routes/page-reader.route.js";
 import { env } from "./utils/env.js";
-import { createTelegramBot } from "./channels/telegram/telegram.bot.js";
-import { startDreamScheduler } from "./dream/dream-scheduler.js";
-import { startRuntimeAutonomyScheduler } from "./runtime/runtime-autonomy-scheduler.js";
+import { runtimeSettingsService } from "./config/runtime-settings.service.js";
+import type { RuntimeSettingKey } from "./config/runtime-settings.registry.js";
+import { telegramRuntime } from "./channels/telegram/telegram-runtime.js";
+import { reconfigureDreamScheduler, startDreamScheduler, stopDreamScheduler } from "./dream/dream-scheduler.js";
+import {
+  reconfigureRuntimeAutonomyScheduler,
+  startRuntimeAutonomyScheduler,
+  stopRuntimeAutonomyScheduler,
+} from "./runtime/runtime-autonomy-scheduler.js";
+import { chromeDevtoolsMcpService } from "./mcp/chrome-devtools-mcp.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,35 +75,38 @@ export function buildApp() {
     void reply.sendFile("index.html");
   });
 
-  // Start Telegram bot if enabled
-  if (env.TELEGRAM_ENABLED) {
-    if (!env.TELEGRAM_BOT_TOKEN) {
-      app.log.error("TELEGRAM_ENABLED is true but TELEGRAM_BOT_TOKEN is not set");
-    } else {
-      app.log.info("Starting Telegram bot...");
-      const bot = createTelegramBot(env.TELEGRAM_BOT_TOKEN);
-
-      bot.catch((err) => {
-        app.log.error({ err }, "Telegram bot error:");
-      });
-
-      bot
-        .start({
-          onStart: (info) => {
-            app.log.info(`Telegram bot @${info.username} started (long polling)`);
-          },
-        })
-        .catch((err) => {
-          app.log.error("Failed to start Telegram bot:", err);
-        });
-    }
-  }
+  void telegramRuntime.reconfigure(app.log);
 
   // Start Dream Cycle scheduler if enabled
   startDreamScheduler(app.log);
 
   // Start runtime autonomy scheduler if enabled
   startRuntimeAutonomyScheduler(app.log);
+
+  const dreamKeys = new Set<RuntimeSettingKey>([
+    "DREAM_ENABLED", "DREAM_AUTO_RUN", "DREAM_CRON", "DREAM_TIMEZONE",
+  ]);
+  const autonomyKeys = new Set<RuntimeSettingKey>([
+    "RUNTIME_AUTONOMY_AUTO_RUN", "RUNTIME_AUTONOMY_CRON", "RUNTIME_AUTONOMY_TIMEZONE",
+  ]);
+  const mcpKeys = new Set<RuntimeSettingKey>([
+    "MCP_ENABLED", "CHROME_DEVTOOLS_MCP_ENABLED", "CHROME_DEVTOOLS_MCP_CONNECTION_MODE",
+    "CHROME_DEVTOOLS_MCP_BROWSER_URL",
+  ]);
+  const unsubscribe = runtimeSettingsService.subscribe(async (keys) => {
+    if (keys.some((key) => dreamKeys.has(key))) reconfigureDreamScheduler(app.log);
+    if (keys.some((key) => autonomyKeys.has(key))) reconfigureRuntimeAutonomyScheduler(app.log);
+    if (keys.includes("TELEGRAM_ENABLED")) await telegramRuntime.reconfigure(app.log);
+    if (keys.some((key) => mcpKeys.has(key))) await chromeDevtoolsMcpService.resetConnection();
+  });
+
+  app.addHook("onClose", async () => {
+    unsubscribe();
+    stopDreamScheduler();
+    stopRuntimeAutonomyScheduler();
+    await telegramRuntime.stop();
+    await chromeDevtoolsMcpService.resetConnection();
+  });
 
   return app;
 }

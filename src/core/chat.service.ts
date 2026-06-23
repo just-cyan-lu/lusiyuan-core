@@ -8,7 +8,7 @@ import { toolExecutor } from "../tools/tool-executor.js";
 import { toolRegistry } from "../tools/tool-registry.js";
 import { convertToolsForLLM } from "../tools/tool-converter.js";
 import { isOwner } from "../tools/policy/owner-check.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import {
@@ -119,7 +119,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       }),
   ]);
 
-  const availableTools = env.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
+  const availableTools = runtimeConfig.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
 
   console.log(`[chat] availableTools count: ${availableTools.length}`);
 
@@ -146,9 +146,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   // Tool execution with function calling
   let reply = "";
 
-  console.log("[chat] TOOLS_ENABLED:", env.TOOLS_ENABLED);
+  console.log("[chat] TOOLS_ENABLED:", runtimeConfig.TOOLS_ENABLED);
 
-  if (env.TOOLS_ENABLED && availableTools.length > 0) {
+  if (runtimeConfig.TOOLS_ENABLED && availableTools.length > 0) {
     const toolContext: ToolExecutionContext = {
       userId: user.id,
       channel: input.channel,
@@ -163,7 +163,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     const conversationMessages: ChatMessage[] = [...messages];
 
     // Allow a bounded number of tool rounds to handle multi-step tasks.
-    for (let round = 0; round < env.TOOL_MAX_CALLS_PER_MESSAGE; round++) {
+    for (let round = 0; round < runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE; round++) {
       console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
       const response = await modelProvider.chatWithTools(

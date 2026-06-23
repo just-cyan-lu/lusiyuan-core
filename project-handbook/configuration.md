@@ -1,0 +1,41 @@
+# 配置系统
+
+项目配置分成两层，不能混在一起。
+
+## `.env`：启动、连接和秘密
+
+`.env` 只保留系统启动前必须知道，或者不应该写进数据库的内容：
+
+- 数据库地址、后端端口、Web Origin。
+- Admin Token、清库密码、owner 身份。
+- 模型、Embedding、搜索、页面读取和渠道的 API Key、Base URL、Model、Token、Secret、Proxy。
+
+这些内容很少修改，部分改动需要重启。Admin 不允许编辑 `ADMIN_API_TOKEN`、`ADMIN_DATABASE_CLEAR_PASSWORD`、`DATABASE_URL` 或 `OWNER_USER_IDS`。
+
+## 数据库：日常运行配置
+
+功能开关、访问权限、数量限制、Dream/Reflection 规则、定时频率、模型渠道选择、工具策略、网页读取和平台参数保存在 `SystemSetting`。Admin 保存后会立即更新当前进程，不需要重启。
+
+每次修改会写入 `SystemSettingEvent`，记录旧值、新值和修改时间。代码里的配置注册表负责默认值、类型、范围和合法选项；数据库只保存经过校验的值。
+
+特殊组件会在保存后重新配置：
+
+- 切换模型渠道：下一次模型调用重建客户端。
+- 修改 Dream 或自启动时间：停止旧定时器并重新排程。
+- 修改 Chrome MCP 连接：断开旧客户端，下次读取重新连接。
+- 开关 Telegram：立即启动或停止长轮询。
+
+## Skill 配置
+
+Skill 不在 `SystemSetting` 里复制一份。小红书 Skill 的开关、账号模式、字数和 prompt 都归 `SkillConfig` 管理，保存后立即生效。
+
+## 清空测试数据
+
+“清空数据库业务数据”会保留 `SystemSetting`、`SystemSettingEvent` 和 `SkillConfig`。配置不是聊天测试数据，清理聊天和记忆时不应该一起丢失。
+
+## 代码位置
+
+- `src/config/runtime-settings.registry.ts`：可实时修改的配置清单和校验范围。
+- `src/config/runtime-settings.service.ts`：加载、缓存、保存和通知运行组件。
+- `src/utils/env.ts`：只读取启动、连接和秘密配置。
+- `web/src/components/admin/ConfigCenterPage.tsx`：运行配置、连接配置和变更记录。

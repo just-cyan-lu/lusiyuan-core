@@ -1,5 +1,5 @@
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import { pgVectorMemoryIndex } from "../vector-index/pgvector-memory-index.js";
 import { rerankMemories } from "./memory-reranker.js";
@@ -34,7 +34,7 @@ export async function retrieveMemories(
     provider: embeddingProvider.providerName,
     model: embeddingProvider.model,
     dimensions: embeddingProvider.dimensions,
-    topK: env.MEMORY_SEMANTIC_TOP_K,
+    topK: runtimeConfig.MEMORY_SEMANTIC_TOP_K,
   });
 
   const semanticIds = new Set(similarResults.map((r) => r.memoryId));

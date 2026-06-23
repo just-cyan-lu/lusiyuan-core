@@ -1,4 +1,4 @@
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type {
   RawMemoryProposal,
   RawRiskFlag,
@@ -28,8 +28,8 @@ export interface PolicyResult {
 }
 
 export function applyReflectionPolicy(raw: RawReflectionOutput): PolicyResult {
-  const minConfidence = env.REFLECTION_PROPOSAL_MIN_CONFIDENCE;
-  const maxProposals = env.REFLECTION_PROPOSAL_MAX_PER_RUN;
+  const minConfidence = runtimeConfig.REFLECTION_PROPOSAL_MIN_CONFIDENCE;
+  const maxProposals = runtimeConfig.REFLECTION_PROPOSAL_MAX_PER_RUN;
 
   const allProposals: RawMemoryProposal[] = [
     ...(raw.newMemoryProposals ?? []).map((p) => ({
@@ -64,7 +64,7 @@ export function applyReflectionPolicy(raw: RawReflectionOutput): PolicyResult {
     (f) => f.type && f.severity && f.description
   );
 
-  const allowedGrowthLogs = env.REFLECTION_ENABLE_GROWTH_LOG
+  const allowedGrowthLogs = runtimeConfig.REFLECTION_ENABLE_GROWTH_LOG
     ? (raw.growthLogProposals ?? []).filter((g) => g.confidence >= minConfidence)
     : [];
 

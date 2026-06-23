@@ -2,8 +2,10 @@
 import "dotenv/config";
 import { prisma } from "../src/db/prisma.js";
 import { retrieveMemories } from "../src/core/memory-retrieval.service.js";
+import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 
 async function main() {
+  await runtimeSettingsService.initialize();
   const query = process.argv[2];
   if (!query) {
     console.error("Usage: pnpm embeddings:inspect <query>");

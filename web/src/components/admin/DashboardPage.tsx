@@ -203,7 +203,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           </div>
         </Panel>
 
-        <Panel title="功能开关" subtitle="来自 .env 的只读摘要">
+        <Panel title="功能开关" subtitle="来自数据库的实时运行配置">
           {state.runtime ? (
             <div className="grid gap-2">
               {Object.entries(state.runtime.features).map(([key, enabled]) => (

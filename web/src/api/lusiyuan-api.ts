@@ -390,6 +390,7 @@ export interface EnvConfigField {
   maskedValues?: string[];
   secret: boolean;
   restartRequired: boolean;
+  defaultValue?: string | number | boolean;
   options?: string[];
   min?: number;
   max?: number;
@@ -404,6 +405,39 @@ export interface EditableEnvConfig {
   deletedKeys?: string[];
   deletedSecretValueIndexes?: Record<string, number[]>;
   message?: string;
+}
+
+export interface RuntimeSettingField {
+  key: string;
+  group: string;
+  label: string;
+  type: Exclude<EnvConfigFieldType, "secret">;
+  value: string | number | boolean;
+  defaultValue: string | number | boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
+  description?: string;
+  stored?: boolean;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface RuntimeSettingsResponse {
+  immediate: boolean;
+  fields: RuntimeSettingField[];
+  changedKeys?: string[];
+  message?: string;
+}
+
+export interface RuntimeSettingEvent {
+  id: string;
+  key: string;
+  oldValue: unknown;
+  newValue: unknown;
+  changedBy: string | null;
+  source: string;
+  createdAt: string;
 }
 
 export interface ClearDatabaseResponse {
@@ -474,6 +508,7 @@ export interface SkillsResponse {
 
 export interface XiaohongshuReplyConfig {
   version: number;
+  accessMode: "off" | "owner_only" | "on";
   accountMode: "siyuan_first" | "creator_first" | "mixed";
   maxReplyChars: number;
   prompt: string;
@@ -548,27 +583,19 @@ export interface ExpressionLearningResponse {
   platforms: string[];
 }
 
-export interface XiaohongshuReply {
-  id: string;
-  commentId: string;
-  externalId: string | null;
-  content: string;
-  authorMode: string;
-  source: string;
-  publishedAt: string | null;
-  lastSyncedAt: string | null;
-  metadata: unknown;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface XiaohongshuComment {
   id: string;
   postId: string;
+  parentId: string | null;
+  replyToId: string | null;
   externalId: string | null;
   authorName: string | null;
+  authorUserId: string | null;
   content: string;
-  commenterHistory: string | null;
+  isAuthor: boolean;
+  replyToAuthorName: string | null;
+  replyToAuthorUserId: string | null;
+  sortOrder: number;
   status: string;
   replyNeed: string;
   source: string;
@@ -578,7 +605,7 @@ export interface XiaohongshuComment {
   createdAt: string;
   updatedAt: string;
   drafts: XiaohongshuReplyDraft[];
-  reply: XiaohongshuReply | null;
+  replies: XiaohongshuComment[];
   learningExample: ExpressionLearningExample | null;
 }
 
@@ -624,7 +651,14 @@ export interface XiaohongshuImportStatus {
 
 export interface XiaohongshuImportResponse {
   posts: XiaohongshuPost[];
-  imported: { posts: number; comments: number; replies: number; learned: number };
+  imported: {
+    posts: number;
+    threads: number;
+    comments: number;
+    replies: number;
+    authorReplies: number;
+    learned: number;
+  };
   importedPostId: string;
   browser: {
     reusedPage: boolean;
@@ -632,6 +666,7 @@ export interface XiaohongshuImportResponse {
     finalUrl: string;
     automaticScrolling: boolean;
     automaticExpansion: boolean;
+    expandedReplyGroups: number;
   };
   warning: string | null;
 }
@@ -1213,6 +1248,32 @@ export async function fetchEditableEnvConfig(token: string): Promise<EditableEnv
   return parseJsonResponse<EditableEnvConfig>(response, "无法读取可编辑配置");
 }
 
+export async function fetchRuntimeSettings(token: string): Promise<RuntimeSettingsResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/settings`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<RuntimeSettingsResponse>(response, "无法读取运行配置");
+}
+
+export async function saveRuntimeSettings(input: {
+  token: string;
+  values: Record<string, string | boolean | number>;
+}): Promise<RuntimeSettingsResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/settings`, {
+    method: "PATCH",
+    headers: { ...adminHeaders(input.token), "Content-Type": "application/json" },
+    body: JSON.stringify({ values: input.values }),
+  });
+  return parseJsonResponse<RuntimeSettingsResponse>(response, "保存运行配置失败");
+}
+
+export async function fetchRuntimeSettingEvents(token: string): Promise<{ events: RuntimeSettingEvent[] }> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/settings/events`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<{ events: RuntimeSettingEvent[] }>(response, "无法读取配置变更记录");
+}
+
 export async function saveEditableEnvConfig(input: {
   token: string;
   values: Record<string, string | boolean | number>;
@@ -1362,7 +1423,7 @@ export async function generateXiaohongshuReplyDraft(input: {
   postCaption?: string;
   postType?: string;
   comment: string;
-  commenterHistory?: string;
+  threadContext?: string;
 }): Promise<XiaohongshuReplyResult> {
   const { token, ...body } = input;
   const response = await fetch(`${API_BASE_URL}/v1/admin/skills/xiaohongshu-reply/draft`, {
@@ -1412,6 +1473,7 @@ export async function updateXiaohongshuPost(input: {
   caption?: string | null;
   authorName?: string | null;
   postType?: string;
+  imageCount?: number;
   imageAlts?: string[];
 }): Promise<{ posts: XiaohongshuPost[] }> {
   const { token, postId, ...body } = input;
@@ -1431,7 +1493,6 @@ export async function updateXiaohongshuComment(input: {
   commentId: string;
   content?: string;
   authorName?: string | null;
-  commenterHistory?: string | null;
 }): Promise<{ posts: XiaohongshuPost[] }> {
   const { token, commentId, ...body } = input;
   const response = await fetch(`${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}`, {

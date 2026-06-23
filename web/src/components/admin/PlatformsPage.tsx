@@ -50,6 +50,8 @@ type XiaohongshuCommentPatch = Omit<
   "token" | "commentId"
 >;
 
+const MAX_IMAGE_ALT_SLOTS = 30;
+
 const platforms: PlatformSummary[] = [
   {
     id: "xiaohongshu",
@@ -58,7 +60,7 @@ const platforms: PlatformSummary[] = [
     status: "ready",
     accent: "#d86a50",
     description:
-      "小红书账号镜像：保存帖子、评论和最终回复，并从 owner 的表达选择中持续学习。",
+      "小红书账号镜像：保存帖子、评论线程和作者回复，并从 owner 的表达选择中持续学习。",
     capabilities: ["账号镜像", "评论管理", "回复草稿", "表达学习"],
     metrics: [
       { label: "连接", value: "同步就绪" },
@@ -236,8 +238,9 @@ export function XiaohongshuPlatformPage({
   const replyDraftAvailable = Boolean(xiaohongshuReply?.enabled);
   const selectedPost = posts.find((post) => post.id === selectedPostId) ?? posts[0] ?? null;
   const comments = selectedPost?.comments ?? [];
+  const commentNodes = comments.flatMap((comment) => [comment, ...comment.replies]);
   const selectedComment =
-    comments.find((comment) => comment.id === selectedCommentId) ?? comments[0] ?? null;
+    commentNodes.find((comment) => comment.id === selectedCommentId) ?? commentNodes[0] ?? null;
 
   async function load() {
     if (!adminToken) return;
@@ -274,7 +277,12 @@ export function XiaohongshuPlatformPage({
         url: url.trim(),
       });
       setPosts(result.posts);
-      setImportWarning(result.warning);
+      setImportWarning(
+        result.warning
+        ?? (result.browser.expandedReplyGroups > 0
+          ? `读取前已展开 ${result.browser.expandedReplyGroups} 组子回复。`
+          : null)
+      );
       const importedPost = result.posts.find((post) => post.externalId === result.importedPostId);
       if (importedPost) setSelectedPostId(importedPost.id);
     } catch (err) {
@@ -394,7 +402,7 @@ export function XiaohongshuPlatformPage({
             <div className="text-xs font-semibold text-[#8a6f5a]">Platform / Xiaohongshu</div>
             <h2 className="mt-2 text-3xl font-semibold text-[#172033]">思源的小红书</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              这里保存真实账号的帖子、评论、草稿和最终回复。你每次修改、采用或放弃回复，都会成为可查看的表达经验。
+              这里保存真实账号的帖子、评论线程、草稿和作者回复。你每次修改、采用或放弃回复，都会成为可查看的表达经验。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -456,7 +464,7 @@ export function XiaohongshuPlatformPage({
                 {importing ? "正在读取页面" : "读取并记录帖子"}
               </button>
               <p className="text-xs leading-6 text-[#7b8ca2]">
-                系统不会自动刷新、滚动或展开评论。若评论尚未加载，可以在保留的页面中正常浏览后，再次读取同一 URL。
+                系统不会刷新或滚动页面，只会有限展开当前已加载评论里的“展开 N 条回复”，读取后页面会保留。
               </p>
             </div>
           </Panel>
@@ -479,7 +487,7 @@ export function XiaohongshuPlatformPage({
                 >
                   <div className="text-sm font-semibold text-[#172033]">{post.title}</div>
                   <div className="mt-1 text-xs text-[#66758a]">
-                    {postTypes[post.postType] ?? post.postType} · {post.comments.length} 条评论
+                    {postTypes[post.postType] ?? post.postType} · {post.comments.length} 个评论线程
                     {post.source === "xiaohongshu_sync" ? " · 已同步" : " · 手动记录"}
                   </div>
                 </button>
@@ -493,7 +501,9 @@ export function XiaohongshuPlatformPage({
         <div className="space-y-5">
           <Panel
             title={selectedPost ? selectedPost.title : "评论"}
-            subtitle={selectedPost ? `${selectedPost.comments.length} 条已记录评论` : "先从 URL 读取一个帖子"}
+            subtitle={selectedPost
+              ? `${selectedPost.comments.length} 条顶层评论 · ${selectedPost.comments.reduce((total, comment) => total + comment.replies.length, 0)} 条子回复`
+              : "先从 URL 读取一个帖子"}
           >
             {selectedPost ? (
               <div className="grid gap-4">
@@ -513,21 +523,21 @@ export function XiaohongshuPlatformPage({
                 />
 
                 <div className="grid gap-3">
-                  {comments.length > 0 ? comments.map((comment) => (
-                    <CommentBlock
-                      key={comment.id}
-                      comment={comment}
-                      active={selectedComment?.id === comment.id}
-                      generating={generatingId === comment.id}
+                  {comments.length > 0 ? comments.map((thread) => (
+                    <CommentThreadBlock
+                      key={thread.id}
+                      thread={thread}
+                      selectedComment={selectedComment}
+                      generatingId={generatingId}
                       savingDraftId={savingDraftId}
-                      learning={learningCommentId === comment.id}
+                      learningCommentId={learningCommentId}
                       skillEnabled={replyDraftAvailable}
-                      onSelect={() => setSelectedCommentId(comment.id)}
-                      onGenerate={() => void generateReply(comment)}
+                      onSelect={(comment) => setSelectedCommentId(comment.id)}
+                      onGenerate={(comment) => void generateReply(comment)}
                       onSaveDraft={(draft, content) => void saveDraft(draft, content)}
-                      onFinalDecision={(input) => void recordFinalDecision({ comment, ...input })}
-                      savingComment={savingCommentId === comment.id}
-                      onSaveComment={(patch) => void saveComment(comment.id, patch)}
+                      onFinalDecision={(comment, input) => void recordFinalDecision({ comment, ...input })}
+                      savingCommentId={savingCommentId}
+                      onSaveComment={(comment, patch) => void saveComment(comment.id, patch)}
                     />
                   )) : (
                     <EmptyBlock>这个帖子下还没有记录评论。</EmptyBlock>
@@ -542,6 +552,24 @@ export function XiaohongshuPlatformPage({
       </section>
     </div>
   );
+}
+
+function existingImageAlts(post: XiaohongshuPost): string[] {
+  return Array.isArray(post.imageAlts)
+    ? post.imageAlts.map((item) => typeof item === "string" ? item : "")
+    : [];
+}
+
+function normalizeImageAltSlots(post: XiaohongshuPost): string[] {
+  const existingAlts = existingImageAlts(post).slice(0, MAX_IMAGE_ALT_SLOTS);
+  const storedCount = Math.min(Math.max(Math.trunc(post.imageCount || 0), 0), MAX_IMAGE_ALT_SLOTS);
+  let lastFilledIndex = -1;
+  existingAlts.forEach((alt, index) => {
+    if (alt.trim()) lastFilledIndex = index;
+  });
+
+  const slotCount = Math.max(storedCount, lastFilledIndex + 1);
+  return Array.from({ length: slotCount }, (_, index) => existingAlts[index] ?? "");
 }
 
 function PostRecordEditor({
@@ -559,16 +587,26 @@ function PostRecordEditor({
   onSave: (patch: XiaohongshuPostPatch) => void;
   onReread: () => void;
 }) {
-  const existingAlts = Array.isArray(post.imageAlts)
-    ? post.imageAlts.map((item) => typeof item === "string" ? item : "")
-    : [];
   const [title, setTitle] = useState(post.title);
   const [caption, setCaption] = useState(post.caption ?? "");
   const [authorName, setAuthorName] = useState(post.authorName ?? "");
   const [postType, setPostType] = useState(post.postType);
-  const [alts, setAlts] = useState(
-    Array.from({ length: post.imageCount }, (_, index) => existingAlts[index] ?? "")
-  );
+  const [alts, setAlts] = useState(() => normalizeImageAltSlots(post));
+  const [altsOpen, setAltsOpen] = useState(false);
+  const filledAltCount = alts.filter((alt) => alt.trim()).length;
+
+  function updateAlt(index: number, value: string) {
+    setAlts((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
+  }
+
+  function addAltSlot() {
+    setAlts((current) => current.length >= MAX_IMAGE_ALT_SLOTS ? current : [...current, ""]);
+    setAltsOpen(true);
+  }
+
+  function removeAltSlot(index: number) {
+    setAlts((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
 
   return (
     <section className="border-b border-[#d9e2ec] pb-5">
@@ -601,29 +639,65 @@ function PostRecordEditor({
         <textarea value={caption} onChange={(event) => setCaption(event.target.value)} className="field-input min-h-36 resize-y text-sm leading-7" />
       </label>
 
-      {post.imageCount > 0 && (
-        <div className="mt-4">
-          <div className="text-xs font-semibold text-[#7b8ca2]">配图 Alt（{post.imageCount} 张）</div>
-          <div className="mt-2 grid gap-2">
-            {alts.map((alt, index) => (
-              <label key={index} className="grid items-center gap-2 sm:grid-cols-[4rem_1fr]">
-                <span className="text-xs text-[#7b8ca2]">第 {index + 1} 张</span>
-                <input
-                  value={alt}
-                  onChange={(event) => setAlts(alts.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
-                  placeholder="留空，之后由你补充"
-                  className="field-input h-10"
-                />
-              </label>
-            ))}
+      <div className="mt-4 overflow-hidden rounded-lg border border-[#d9e2ec] bg-[#f8fbff]">
+        <button
+          type="button"
+          onClick={() => setAltsOpen((open) => !open)}
+          className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition hover:bg-white"
+        >
+          <span>
+            <span className="block text-xs font-semibold text-[#7b8ca2]">配图 Alt</span>
+            <span className="mt-1 block text-xs text-[#66758a]">{alts.length} 个位置 · {filledAltCount} 个已填写</span>
+          </span>
+          <span className="shrink-0 rounded-md border border-[#c9d7e6] bg-white px-2.5 py-1 text-xs font-medium text-[#52769d]">
+            {altsOpen ? "收起" : "展开"}
+          </span>
+        </button>
+        {altsOpen && (
+          <div className="border-t border-[#e5edf5] bg-white px-3 py-3">
+            <div className="grid gap-2">
+              {alts.length > 0 ? alts.map((alt, index) => (
+                <div key={index} className="grid gap-2 sm:grid-cols-[4rem_1fr_auto] sm:items-center">
+                  <label htmlFor={`post-alt-${post.id}-${index}`} className="text-xs text-[#7b8ca2]">
+                    第 {index + 1} 张
+                  </label>
+                  <input
+                    id={`post-alt-${post.id}-${index}`}
+                    value={alt}
+                    onChange={(event) => updateAlt(index, event.target.value)}
+                    placeholder="留空，之后由你补充"
+                    className="field-input h-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAltSlot(index)}
+                    className="h-9 rounded-lg border border-[#ead2d2] bg-[#fff8f8] px-3 text-xs font-medium text-[#9a5151] transition hover:bg-[#fff1f1]"
+                  >
+                    删除
+                  </button>
+                </div>
+              )) : (
+                <div className="rounded-lg border border-dashed border-[#d9e2ec] bg-[#f8fbff] px-3 py-4 text-xs text-[#7b8ca2]">
+                  暂无配图 Alt 位置
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={addAltSlot}
+              disabled={alts.length >= MAX_IMAGE_ALT_SLOTS}
+              className="mt-3 h-9 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-3 text-xs font-medium text-[#334155] transition hover:bg-white disabled:opacity-50"
+            >
+              新增位置
+            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="mt-4 flex justify-end">
         <button
           type="button"
-          onClick={() => onSave({ title, caption, authorName, postType, imageAlts: alts })}
+          onClick={() => onSave({ title, caption, authorName, postType, imageCount: alts.length, imageAlts: alts })}
           disabled={saving || !title.trim()}
           className="h-10 rounded-lg border border-[#8da9c7] bg-[#6f8fb8] px-4 text-sm font-medium text-white disabled:opacity-50"
         >
@@ -645,7 +719,6 @@ function CommentRecordEditor({
 }) {
   const [authorName, setAuthorName] = useState(comment.authorName ?? "");
   const [content, setContent] = useState(comment.content);
-  const [history, setHistory] = useState(comment.commenterHistory ?? "");
   return (
     <div className="mt-3 grid gap-2">
       <FieldInput label="评论者" value={authorName} onChange={setAuthorName} />
@@ -653,13 +726,9 @@ function CommentRecordEditor({
         <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">评论原文</span>
         <textarea value={content} onChange={(event) => setContent(event.target.value)} className="field-input min-h-20 resize-y text-sm leading-6" />
       </label>
-      <label>
-        <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">其他回复上下文</span>
-        <textarea value={history} onChange={(event) => setHistory(event.target.value)} className="field-input min-h-16 resize-y text-xs leading-5" />
-      </label>
       <button
         type="button"
-        onClick={() => onSave({ authorName, content, commenterHistory: history })}
+        onClick={() => onSave({ authorName, content })}
         disabled={saving || !content.trim()}
         className="h-9 justify-self-start rounded-lg border border-[#c9d7e6] bg-white px-3 text-xs font-medium text-[#334155] disabled:opacity-50"
       >
@@ -669,27 +738,127 @@ function CommentRecordEditor({
   );
 }
 
-function CommentBlock({
-  comment,
-  active,
-  generating,
+function CommentThreadBlock({
+  thread,
+  selectedComment,
+  generatingId,
   savingDraftId,
-  learning,
+  learningCommentId,
   skillEnabled,
   onSelect,
   onGenerate,
   onSaveDraft,
   onFinalDecision,
-  savingComment,
+  savingCommentId,
   onSaveComment,
+}: {
+  thread: XiaohongshuComment;
+  selectedComment: XiaohongshuComment | null;
+  generatingId: string | null;
+  savingDraftId: string | null;
+  learningCommentId: string | null;
+  skillEnabled: boolean;
+  onSelect: (comment: XiaohongshuComment) => void;
+  onGenerate: (comment: XiaohongshuComment) => void;
+  onSaveDraft: (draft: XiaohongshuReplyDraft, content: string) => void;
+  onFinalDecision: (comment: XiaohongshuComment, input: {
+    draft?: XiaohongshuReplyDraft | null;
+    content?: string;
+    outcome: "sent" | "skipped";
+    ownerNote?: string;
+  }) => void;
+  savingCommentId: string | null;
+  onSaveComment: (comment: XiaohongshuComment, patch: XiaohongshuCommentPatch) => void;
+}) {
+  const threadNodes = [thread, ...thread.replies];
+  const activeComment = threadNodes.find((comment) => comment.id === selectedComment?.id) ?? null;
+  return (
+    <article className={`rounded-lg border bg-white ${activeComment ? "border-[#a9bfd7]" : "border-[#d9e2ec]"}`}>
+      <div className="p-4">
+        <CommentSummary
+          comment={thread}
+          active={selectedComment?.id === thread.id}
+          onSelect={() => onSelect(thread)}
+        />
+        {thread.replies.length > 0 && (
+          <div className="ml-3 mt-3 border-l-2 border-[#dce6ef] pl-4">
+            {thread.replies.map((reply) => (
+              <div key={reply.id} className="border-t border-[#edf2f7] py-3 first:border-t-0 first:pt-0 last:pb-0">
+                <CommentSummary
+                  comment={reply}
+                  active={selectedComment?.id === reply.id}
+                  onSelect={() => onSelect(reply)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {activeComment && (
+        <CommentActionPanel
+          comment={activeComment}
+          authorReplies={thread.replies.filter((reply) => reply.isAuthor && reply.replyToId === activeComment.id)}
+          generating={generatingId === activeComment.id}
+          savingDraftId={savingDraftId}
+          learning={learningCommentId === activeComment.id}
+          skillEnabled={skillEnabled}
+          savingComment={savingCommentId === activeComment.id}
+          onGenerate={() => onGenerate(activeComment)}
+          onSaveDraft={onSaveDraft}
+          onFinalDecision={(input) => onFinalDecision(activeComment, input)}
+          onSaveComment={(patch) => onSaveComment(activeComment, patch)}
+        />
+      )}
+    </article>
+  );
+}
+
+function CommentSummary({
+  comment,
+  active,
+  onSelect,
 }: {
   comment: XiaohongshuComment;
   active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button type="button" onClick={onSelect} className={`block w-full text-left ${active ? "text-[#27496d]" : "text-[#172033]"}`}>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
+        <span className={comment.isAuthor ? "font-semibold text-[#4f7d60]" : ""}>
+          {comment.authorName || "未命名评论者"}
+        </span>
+        {comment.isAuthor && (
+          <span className="border border-[#b9d4c1] bg-[#f1f8f3] px-1.5 py-0.5 text-[#4f7d60]">作者</span>
+        )}
+        {comment.replyToAuthorName && <span>回复 {comment.replyToAuthorName}</span>}
+      </div>
+      <div className="mt-1 text-sm leading-7">{comment.content}</div>
+    </button>
+  );
+}
+
+function CommentActionPanel({
+  comment,
+  authorReplies,
+  generating,
+  savingDraftId,
+  learning,
+  skillEnabled,
+  savingComment,
+  onGenerate,
+  onSaveDraft,
+  onFinalDecision,
+  onSaveComment,
+}: {
+  comment: XiaohongshuComment;
+  authorReplies: XiaohongshuComment[];
   generating: boolean;
   savingDraftId: string | null;
   learning: boolean;
   skillEnabled: boolean;
-  onSelect: () => void;
+  savingComment: boolean;
   onGenerate: () => void;
   onSaveDraft: (draft: XiaohongshuReplyDraft, content: string) => void;
   onFinalDecision: (input: {
@@ -698,32 +867,21 @@ function CommentBlock({
     outcome: "sent" | "skipped";
     ownerNote?: string;
   }) => void;
-  savingComment: boolean;
   onSaveComment: (patch: XiaohongshuCommentPatch) => void;
 }) {
   const latestDraft = comment.drafts[0];
+  const hasAuthorReply = authorReplies.length > 0;
   return (
-    <article className={`rounded-lg border p-4 ${active ? "border-[#a9bfd7] bg-[#f8fbff]" : "border-[#d9e2ec] bg-white"}`}>
-      <button type="button" onClick={onSelect} className="block w-full text-left">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-xs text-[#7b8ca2]">{comment.authorName || "未命名评论者"}</div>
-            <div className="mt-1 text-sm leading-7 text-[#172033]">{comment.content}</div>
-          </div>
-          <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-xs text-[#66758a]">
-            {comment.replyNeed}
-          </span>
-        </div>
-      </button>
-
-      {comment.commenterHistory && (
-        <div className="mt-3 rounded-lg border border-[#e5edf5] bg-white px-3 py-2 text-xs leading-5 text-[#66758a]">
-          历史互动：{comment.commenterHistory}
-        </div>
-      )}
+    <div className="border-t border-[#d9e2ec] bg-[#f8fbff] px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-[#66758a]">当前选中内容</span>
+        <span className="text-xs text-[#7b8ca2]">
+          {comment.isAuthor ? "作者回复" : hasAuthorReply ? `已有 ${authorReplies.length} 条作者回复` : comment.replyNeed}
+        </span>
+      </div>
 
       <details className="mt-3 border-t border-[#e5edf5] pt-3">
-        <summary className="cursor-pointer text-xs font-medium text-[#66758a]">修改这条评论记录</summary>
+        <summary className="cursor-pointer text-xs font-medium text-[#66758a]">修改这条记录</summary>
         <CommentRecordEditor
           key={`${comment.id}:${comment.updatedAt}`}
           comment={comment}
@@ -732,15 +890,11 @@ function CommentBlock({
         />
       </details>
 
-      {comment.reply && (
-        <div className="mt-3 border-l-2 border-[#75a184] bg-[#f5faf7] px-4 py-3">
-          <div className="text-xs font-semibold text-[#4f7d60]">账号上最终发布的回复</div>
-          <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#243d2c]">{comment.reply.content}</div>
-          <div className="mt-2 text-xs text-[#718478]">
-            {comment.reply.source === "xiaohongshu_sync" ? "从小红书同步" : "由你手动记录"}
-          </div>
+      {comment.isAuthor ? (
+        <div className="mt-3 border-l-2 border-[#75a184] bg-[#f5faf7] px-4 py-3 text-sm leading-6 text-[#476451]">
+          这是账号作者在真实评论线程中的回复，系统会保留它的回复目标，并用于表达学习。
         </div>
-      )}
+      ) : null}
 
       {comment.learningExample && (
         <div className="mt-3 border-l-2 border-[#91aeca] bg-[#f5f9fd] px-4 py-3">
@@ -782,11 +936,11 @@ function CommentBlock({
       )}
 
 
-      {!latestDraft && !comment.reply && (
+      {!comment.isAuthor && !latestDraft && !hasAuthorReply && (
         <OwnerReplyRecorder learning={learning} onFinalDecision={onFinalDecision} />
       )}
 
-      {latestDraft?.risk === "skip" && !comment.reply && (
+      {!comment.isAuthor && latestDraft?.risk === "skip" && !hasAuthorReply && (
         <OwnerReplyRecorder
           learning={learning}
           draft={latestDraft}
@@ -794,15 +948,17 @@ function CommentBlock({
         />
       )}
 
-      <button
-        type="button"
-        onClick={onGenerate}
-        disabled={!skillEnabled || generating}
-        className="mt-3 h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
-      >
-        {generating ? "生成中" : "让思源生成草稿"}
-      </button>
-    </article>
+      {!comment.isAuthor && (
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={!skillEnabled || generating}
+          className="mt-3 h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+        >
+          {generating ? "生成中" : "让思源生成草稿"}
+        </button>
+      )}
+    </div>
   );
 }
 

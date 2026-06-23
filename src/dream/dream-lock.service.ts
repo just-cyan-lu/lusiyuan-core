@@ -1,7 +1,7 @@
 // dream-lock.service.ts — distributed lock to prevent concurrent DreamJobs
 
 import { prisma } from "../db/prisma.js";
-import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 export class DreamLockService {
   /**
@@ -12,7 +12,7 @@ export class DreamLockService {
     await this.cleanup();
 
     const expiresAt = new Date(
-      Date.now() + env.DREAM_LOCK_TTL_MINUTES * 60 * 1000
+      Date.now() + runtimeConfig.DREAM_LOCK_TTL_MINUTES * 60 * 1000
     );
 
     try {

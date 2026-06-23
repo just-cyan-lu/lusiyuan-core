@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { reflectionService } from "../src/reflection/reflection.service.js";
+import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 
 const args = process.argv.slice(2);
 const conversationId = args.find((a) => a.startsWith("--conversation="))?.split("=")[1];
@@ -8,6 +9,7 @@ const limit = parseInt(args.find((a) => a.startsWith("--limit="))?.split("=")[1]
 const daily = args.includes("--daily");
 
 async function main() {
+  await runtimeSettingsService.initialize();
   console.log("Running reflection...");
   const report = await reflectionService.runManualReflection({
     scope: (daily ? "daily" : scope) as never,

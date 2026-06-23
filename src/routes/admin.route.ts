@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { env } from "../utils/env.js";
+import { runtimeConfig, runtimeSettingsService } from "../config/runtime-settings.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
@@ -92,14 +93,6 @@ interface EnvConfigDescriptor {
 }
 
 const editableEnvConfig: EnvConfigDescriptor[] = [
-  {
-    key: "ACTIVE_MODEL_PROVIDER",
-    group: "模型 / 当前渠道",
-    label: "当前模型渠道",
-    type: "select",
-    defaultValue: "openai",
-    options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "siliconflow"],
-  },
   ...[
     ["OPENAI", "OpenAI"],
     ["ANTHROPIC", "Anthropic"],
@@ -109,413 +102,23 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["MINIMAX", "MiniMax"],
     ["SILICONFLOW", "SiliconFlow"],
   ].flatMap(([prefix, label]) => [
-    {
-      key: `${prefix}_BASE_URL`,
-      group: `模型 / ${label}`,
-      label: `${label} Base URL`,
-      type: "string" as const,
-    },
-    {
-      key: `${prefix}_API_KEY`,
-      group: `模型 / ${label}`,
-      label: `${label} API Key`,
-      type: "secret" as const,
-      description: "留空保存表示不修改现有密钥。",
-    },
-    {
-      key: `${prefix}_MODEL`,
-      group: `模型 / ${label}`,
-      label: `${label} Model`,
-      type: "string" as const,
-    },
+    { key: `${prefix}_BASE_URL`, group: `模型连接 / ${label}`, label: `${label} Base URL`, type: "string" as const },
+    { key: `${prefix}_API_KEY`, group: `模型连接 / ${label}`, label: `${label} API Key`, type: "secret" as const, description: "秘密保存在 .env；留空表示不修改。" },
+    { key: `${prefix}_MODEL`, group: `模型连接 / ${label}`, label: `${label} Model`, type: "string" as const },
   ]),
-  {
-    key: "MINIMAX_THINKING_TYPE",
-    group: "模型 / MiniMax",
-    label: "MiniMax Thinking Type",
-    type: "select",
-    defaultValue: "adaptive",
-    options: ["adaptive", "disabled"],
-  },
-  {
-    key: "MINIMAX_REASONING_SPLIT",
-    group: "模型 / MiniMax",
-    label: "MiniMax Reasoning Split",
-    type: "boolean",
-    defaultValue: "false",
-  },
-  {
-    key: "MINIMAX_MAX_COMPLETION_TOKENS",
-    group: "模型 / MiniMax",
-    label: "MiniMax Max Completion Tokens",
-    type: "integer",
-    min: 1,
-  },
-  ...[
-    ["TOOL_SEARCH_MEMORIES_MODE", "search_memories"],
-    ["TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE", "summarize_recent_conversation"],
-    ["TOOL_WEB_SEARCH_MODE", "web_search"],
-    ["TOOL_READ_PAGE_MODE", "read_page"],
-    ["TOOL_SEND_INTERMEDIATE_MESSAGE_MODE", "send_intermediate_message"],
-  ].map(([key, toolName]) => ({
-    key,
-    group: "工具 / 访问模式",
-    label: `${toolName} 访问模式`,
-    type: "select" as const,
-    defaultValue: toolName === "web_search" || toolName === "read_page"
-      ? "owner_only"
-      : "on",
-    options: ["off", "owner_only", "on"],
-    description: "off=关闭工具；owner_only=仅 owner 可用；on=普通可用。",
-  })),
-  {
-    key: "SKILL_XIAOHONGSHU_REPLY_MODE",
-    group: "Skill / 小红书回复",
-    label: "小红书回复 Skill 访问模式",
-    type: "select",
-    defaultValue: "owner_only",
-    options: ["off", "owner_only", "on"],
-    description: "off=不生成小红书回复草稿；owner_only=仅 owner/admin 入口使用；on=普通入口也可用。",
-  },
-  {
-    key: "TELEGRAM_ENABLED",
-    group: "渠道",
-    label: "Telegram 启用",
-    type: "boolean",
-    defaultValue: "false",
-  },
-  {
-    key: "TELEGRAM_BOT_TOKEN",
-    group: "渠道密钥",
-    label: "Telegram Bot Token",
-    type: "secret",
-    description: "留空保存表示不修改现有 Token。",
-  },
-  {
-    key: "TELEGRAM_MODE",
-    group: "渠道",
-    label: "Telegram Mode",
-    type: "select",
-    defaultValue: "polling",
-    options: ["polling"],
-  },
-  {
-    key: "TELEGRAM_PROXY",
-    group: "渠道",
-    label: "Telegram Proxy",
-    type: "string",
-  },
-  {
-    key: "TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS",
-    group: "渠道",
-    label: "Telegram 文件下载超时 ms",
-    type: "integer",
-    min: 1000,
-  },
-  {
-    key: "TELEGRAM_FILE_DOWNLOAD_RETRIES",
-    group: "渠道",
-    label: "Telegram 文件下载重试",
-    type: "integer",
-    min: 0,
-  },
-  {
-    key: "TELEGRAM_MAX_IMAGE_FILE_BYTES",
-    group: "渠道",
-    label: "Telegram 图片最大字节",
-    type: "integer",
-    min: 1,
-  },
-  {
-    key: "WEIXIN_ENABLED",
-    group: "渠道",
-    label: "Weixin 启用",
-    type: "boolean",
-    defaultValue: "false",
-  },
-  {
-    key: "WEIXIN_BRIDGE_SECRET",
-    group: "渠道密钥",
-    label: "Weixin Bridge Secret",
-    type: "secret",
-    description: "留空保存表示不修改现有 Secret。",
-  },
-  {
-    key: "WEB_ORIGIN",
-    group: "Web",
-    label: "Web Origin",
-    type: "string",
-    defaultValue: "http://localhost:64111",
-  },
-  {
-    key: "ADMIN_DATABASE_CLEAR_PASSWORD",
-    group: "安全",
-    label: "清空数据库确认密码",
-    type: "secret",
-    description: "设置中心清空测试数据时需要输入。留空保存表示不修改现有密码。",
-  },
-  {
-    key: "MAX_MESSAGE_LENGTH",
-    group: "限制",
-    label: "单条消息最大长度",
-    type: "integer",
-    min: 1,
-  },
-  {
-    key: "EMBEDDING_BASE_URL",
-    group: "Embedding",
-    label: "Embedding Base URL",
-    type: "string",
-  },
-  {
-    key: "EMBEDDING_API_KEY",
-    group: "Embedding 密钥",
-    label: "Embedding API Key",
-    type: "secret",
-    description: "留空保存表示不修改现有密钥。",
-  },
-  {
-    key: "EMBEDDING_MODEL",
-    group: "Embedding",
-    label: "Embedding Model",
-    type: "string",
-  },
-  {
-    key: "EMBEDDING_DIMENSIONS",
-    group: "Embedding",
-    label: "Embedding Dimensions",
-    type: "integer",
-    min: 1,
-  },
-  {
-    key: "RELATIONSHIP_UPDATE_MODE",
-    group: "关系状态",
-    label: "关系更新模式",
-    type: "select",
-    defaultValue: "review",
-    options: ["review", "immediate"],
-    description: "review=先记录多次聊天信号，再复盘更新；immediate=每轮聊天直接小幅更新。",
-  },
-  ...[
-    ["MEMORY_RETRIEVAL_ENABLED", "记忆检索启用", "功能"],
-    ["TOOLS_ENABLED", "工具调用启用", "功能"],
-    ["TOOLS_AUTO_EXECUTE_LOW_RISK", "低风险工具自动执行", "安全"],
-    ["TOOLS_ALLOW_MEDIUM_RISK", "允许中风险工具", "安全"],
-    ["TOOLS_ALLOW_HIGH_RISK", "允许高风险工具", "安全"],
-    ["TOOL_LOG_INPUT_OUTPUT", "记录工具入参出参", "安全"],
-    ["MCP_ENABLED", "MCP 启用", "功能"],
-    ["REFLECTION_ENABLED", "Reflection 启用", "功能"],
-    ["REFLECTION_OWNER_ONLY", "Reflection 仅 Owner", "安全"],
-    ["REFLECTION_INCLUDE_MEMORIES", "Reflection 包含记忆", "功能"],
-    ["REFLECTION_AUTO_APPLY", "Reflection 自动写入", "安全"],
-    ["REFLECTION_ENABLE_GROWTH_LOG", "Reflection 成长日志", "功能"],
-    ["DREAM_ENABLED", "Dream 启用", "功能"],
-    ["DREAM_AUTO_RUN", "Dream 自动运行", "功能"],
-    ["DREAM_LIGHT_ENABLED", "Dream Light 阶段", "功能"],
-    ["DREAM_REM_ENABLED", "Dream REM 阶段", "功能"],
-    ["DREAM_DEEP_ENABLED", "Dream Deep 阶段", "功能"],
-    ["DREAM_DIARY_ENABLED", "Dream Diary", "功能"],
-    ["DREAM_MORNING_BRIEF_ENABLED", "Morning Brief", "功能"],
-    ["DREAM_AUTO_APPLY", "Dream 自动写入", "安全"],
-    ["DREAM_ALLOW_MEMORY_PROPOSALS", "Dream 允许记忆提案", "功能"],
-    ["DREAM_ALLOW_GROWTH_LOG_PROPOSALS", "Dream 允许成长日志提案", "功能"],
-    ["DREAM_REDACT_PRIVATE_DATA", "Dream 隐私脱敏", "安全"],
-    ["RUNTIME_AUTONOMY_AUTO_RUN", "运行态自启动", "功能"],
-    ["TAVILY_ENABLED", "Tavily Web Search", "功能"],
-    ["JINA_ENABLED", "Jina Reader", "功能"],
-    ["PLAYWRIGHT_ENABLED", "Playwright Reader", "功能"],
-    ["PLAYWRIGHT_SCREENSHOT_ENABLED", "Playwright 截图", "功能"],
-  ].map(([key, label, group]) => ({
-    key,
-    group,
-    label,
-    type: "boolean" as const,
-  })),
-  {
-    key: "CHROME_DEVTOOLS_MCP_ENABLED",
-    group: "MCP / Chrome DevTools",
-    label: "Chrome DevTools MCP 启用",
-    type: "boolean",
-    defaultValue: "false",
-    description: "只读连接已登录 Chrome。读取后保留页面，不自动关闭。",
-  },
-  {
-    key: "CHROME_DEVTOOLS_MCP_CONNECTION_MODE",
-    group: "MCP / Chrome DevTools",
-    label: "Chrome 连接方式",
-    type: "select",
-    defaultValue: "auto",
-    options: ["auto", "browser_url"],
-    description: "auto 连接当前 Chrome；browser_url 用于手动指定本地调试地址。",
-  },
-  {
-    key: "CHROME_DEVTOOLS_MCP_BROWSER_URL",
-    group: "MCP / Chrome DevTools",
-    label: "Chrome 调试地址",
-    type: "string",
-    defaultValue: "http://127.0.0.1:9222",
-  },
-  {
-    key: "CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS",
-    group: "MCP / Chrome DevTools",
-    label: "新开页面最短间隔（毫秒）",
-    type: "integer",
-    defaultValue: "15000",
-    min: 5000,
-    description: "只限制新开页面；已经打开的同一帖子会直接复用。",
-  },
-  {
-    key: "CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS",
-    group: "MCP / Chrome DevTools",
-    label: "页面稳定等待最短时间",
-    type: "integer",
-    defaultValue: "3000",
-    min: 300,
-    description: "每次读取前会在最短与最长时间之间随机等待。",
-  },
-  {
-    key: "CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS",
-    group: "MCP / Chrome DevTools",
-    label: "页面稳定等待最长时间",
-    type: "integer",
-    defaultValue: "5000",
-    min: 300,
-  },
-  {
-    key: "CHROME_DEVTOOLS_MCP_MAX_COMMENTS",
-    group: "MCP / Chrome DevTools",
-    label: "单帖最多读取评论",
-    type: "integer",
-    defaultValue: "120",
-    min: 1,
-    max: 300,
-  },
-  ...[
-    ["MEMORY_SEMANTIC_TOP_K", "Memory Semantic Top K", "记忆"],
-    ["MEMORY_FINAL_TOP_K", "Memory Final Top K", "记忆"],
-    ["MEMORY_MAX_TOTAL_CHARS", "Memory 最大字符", "记忆"],
-    ["RELATIONSHIP_REVIEW_MIN_SIGNALS", "关系复盘最小信号数", "关系状态"],
-    ["TOOL_MAX_CALLS_PER_MESSAGE", "单条消息最大工具调用", "限制"],
-    ["TOOL_TIMEOUT_MS", "工具超时 ms", "限制"],
-    ["REFLECTION_DEFAULT_MESSAGE_LIMIT", "Reflection 默认消息数", "限制"],
-    ["REFLECTION_MAX_MESSAGE_LIMIT", "Reflection 最大消息数", "限制"],
-    ["REFLECTION_MIN_MESSAGES", "Reflection 最小消息数", "限制"],
-    ["REFLECTION_PROPOSAL_MAX_PER_RUN", "Reflection 单次最大提案", "限制"],
-    ["DREAM_DEFAULT_LOOKBACK_HOURS", "Dream 默认回看小时", "限制"],
-    ["DREAM_MAX_LOOKBACK_DAYS", "Dream 最大回看天数", "限制"],
-    ["DREAM_MIN_SOURCE_EVENTS", "Dream 最小源事件", "限制"],
-    ["DREAM_MAX_MESSAGES", "Dream 最大消息", "限制"],
-    ["DREAM_MAX_TOOL_CALLS", "Dream 最大工具调用", "限制"],
-    ["DREAM_MAX_REFLECTION_REPORTS", "Dream 最大复盘报告", "限制"],
-    ["DREAM_MAX_MEMORY_PROPOSALS", "Dream 最大记忆提案", "限制"],
-    ["DREAM_MIN_EVIDENCE_COUNT", "Dream 最小证据数", "限制"],
-    ["DREAM_MAX_PROPOSALS_PER_RUN", "Dream 单次最大提案", "限制"],
-    ["DREAM_DIARY_MAX_CHARS", "Dream Diary 最大字符", "限制"],
-    ["DREAM_LOCK_TTL_MINUTES", "Dream 锁 TTL 分钟", "限制"],
-    ["TAVILY_MAX_RESULTS", "Tavily 最大结果数", "限制"],
-    ["PLAYWRIGHT_MAX_PAGE_TEXT_CHARS", "Playwright 最大文本字符", "限制"],
-  ].map(([key, label, group]) => ({
-    key,
-    group,
-    label,
-    type: "integer" as const,
-    min: 1,
-  })),
-  {
-    key: "REFLECTION_PROPOSAL_MIN_CONFIDENCE",
-    group: "限制",
-    label: "Reflection 提案最低置信度",
-    type: "number",
-    min: 0,
-    max: 1,
-  },
-  {
-    key: "DREAM_MIN_SIGNAL_SCORE",
-    group: "限制",
-    label: "Dream 最低 Signal Score",
-    type: "number",
-    min: 0,
-    max: 1,
-  },
-  {
-    key: "DREAM_MIN_CONFIDENCE",
-    group: "限制",
-    label: "Dream 最低置信度",
-    type: "number",
-    min: 0,
-    max: 1,
-  },
-  {
-    key: "DREAM_CRON",
-    group: "Dream",
-    label: "Dream Cron",
-    type: "string",
-    defaultValue: "30 3 * * *",
-  },
-  {
-    key: "DREAM_TIMEZONE",
-    group: "Dream",
-    label: "Dream Timezone",
-    type: "string",
-    defaultValue: "Asia/Taipei",
-  },
-  {
-    key: "DREAM_DIARY_VISIBILITY",
-    group: "Dream",
-    label: "Dream Diary Visibility",
-    type: "select",
-    defaultValue: "owner_only",
-    options: ["owner_only", "private", "internal"],
-  },
-  {
-    key: "RUNTIME_AUTONOMY_CRON",
-    group: "Runtime",
-    label: "Autonomy Cron",
-    type: "string",
-    defaultValue: "*/30 * * * *",
-  },
-  {
-    key: "RUNTIME_AUTONOMY_TIMEZONE",
-    group: "Runtime",
-    label: "Autonomy Timezone",
-    type: "string",
-    defaultValue: "Asia/Shanghai",
-  },
-  {
-    key: "TAVILY_API_KEY",
-    group: "搜索密钥",
-    label: "Tavily API Key",
-    type: "secret",
-    description: "留空保存表示不修改现有密钥。",
-  },
-  {
-    key: "TAVILY_API_KEYS",
-    group: "搜索密钥",
-    label: "Tavily API Keys",
-    type: "secret",
-    description: "多个 key 用英文逗号分隔。代码会优先读取 TAVILY_API_KEYS，再 fallback 到 TAVILY_API_KEY。",
-  },
-  {
-    key: "TAVILY_SEARCH_DEPTH",
-    group: "搜索",
-    label: "Tavily Search Depth",
-    type: "select",
-    defaultValue: "basic",
-    options: ["basic", "advanced"],
-  },
-  {
-    key: "JINA_API_KEY",
-    group: "页面读取密钥",
-    label: "Jina API Key",
-    type: "secret",
-    description: "留空保存表示不修改现有密钥。",
-  },
-  {
-    key: "EXTERNAL_HTTP_PROXY",
-    group: "网络",
-    label: "External HTTP Proxy",
-    type: "string",
-  },
+  { key: "TELEGRAM_BOT_TOKEN", group: "渠道连接", label: "Telegram Bot Token", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
+  { key: "TELEGRAM_MODE", group: "渠道连接", label: "Telegram Mode", type: "select", defaultValue: "polling", options: ["polling"] },
+  { key: "TELEGRAM_PROXY", group: "渠道连接", label: "Telegram Proxy", type: "string" },
+  { key: "WEIXIN_BRIDGE_SECRET", group: "渠道连接", label: "Weixin Bridge Secret", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
+  { key: "WEB_ORIGIN", group: "服务启动", label: "Web Origin", type: "string", defaultValue: "http://localhost:64111" },
+  { key: "EMBEDDING_BASE_URL", group: "Embedding 连接", label: "Embedding Base URL", type: "string" },
+  { key: "EMBEDDING_API_KEY", group: "Embedding 连接", label: "Embedding API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
+  { key: "EMBEDDING_MODEL", group: "Embedding 连接", label: "Embedding Model", type: "string" },
+  { key: "EMBEDDING_DIMENSIONS", group: "Embedding 连接", label: "Embedding Dimensions", type: "integer", min: 1 },
+  { key: "TAVILY_API_KEY", group: "网页连接", label: "Tavily API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
+  { key: "TAVILY_API_KEYS", group: "网页连接", label: "Tavily API Keys", type: "secret", description: "多个 key 用英文逗号分隔。" },
+  { key: "JINA_API_KEY", group: "网页连接", label: "Jina API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
+  { key: "EXTERNAL_HTTP_PROXY", group: "网络连接", label: "External HTTP Proxy", type: "string" },
 ];
 
 const editableEnvConfigByKey = new Map(
@@ -766,11 +369,9 @@ const databaseDataTables = [
   "dream_jobs",
   "expression_learning_embeddings",
   "expression_learning_examples",
-  "xiaohongshu_replies",
   "xiaohongshu_reply_drafts",
   "xiaohongshu_comments",
   "xiaohongshu_posts",
-  "skill_configs",
   "external_page_snapshots",
   "app_users",
 ] as const;
@@ -1330,7 +931,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "openai",
         label: "OpenAI",
-        active: env.ACTIVE_MODEL_PROVIDER === "openai",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "openai",
         baseUrlConfigured: configured(env.OPENAI_BASE_URL),
         apiKeyConfigured: configured(env.OPENAI_API_KEY),
         model: env.OPENAI_MODEL || null,
@@ -1338,7 +939,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "anthropic",
         label: "Anthropic",
-        active: env.ACTIVE_MODEL_PROVIDER === "anthropic",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "anthropic",
         baseUrlConfigured: configured(env.ANTHROPIC_BASE_URL),
         apiKeyConfigured: configured(env.ANTHROPIC_API_KEY),
         model: env.ANTHROPIC_MODEL || null,
@@ -1346,7 +947,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "glm",
         label: "GLM",
-        active: env.ACTIVE_MODEL_PROVIDER === "glm",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "glm",
         baseUrlConfigured: configured(env.GLM_BASE_URL),
         apiKeyConfigured: configured(env.GLM_API_KEY),
         model: env.GLM_MODEL || null,
@@ -1354,7 +955,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "qwen",
         label: "Qwen",
-        active: env.ACTIVE_MODEL_PROVIDER === "qwen",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "qwen",
         baseUrlConfigured: configured(env.QWEN_BASE_URL),
         apiKeyConfigured: configured(env.QWEN_API_KEY),
         model: env.QWEN_MODEL || null,
@@ -1362,7 +963,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "deepseek",
         label: "DeepSeek",
-        active: env.ACTIVE_MODEL_PROVIDER === "deepseek",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "deepseek",
         baseUrlConfigured: configured(env.DEEPSEEK_BASE_URL),
         apiKeyConfigured: configured(env.DEEPSEEK_API_KEY),
         model: env.DEEPSEEK_MODEL || null,
@@ -1370,7 +971,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "minimax",
         label: "MiniMax",
-        active: env.ACTIVE_MODEL_PROVIDER === "minimax",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "minimax",
         baseUrlConfigured: configured(env.MINIMAX_BASE_URL),
         apiKeyConfigured: configured(env.MINIMAX_API_KEY),
         model: env.MINIMAX_MODEL || null,
@@ -1378,7 +979,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       {
         name: "siliconflow",
         label: "SiliconFlow",
-        active: env.ACTIVE_MODEL_PROVIDER === "siliconflow",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "siliconflow",
         baseUrlConfigured: configured(env.SILICONFLOW_BASE_URL),
         apiKeyConfigured: configured(env.SILICONFLOW_API_KEY),
         model: env.SILICONFLOW_MODEL || null,
@@ -1386,47 +987,117 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     ];
 
     return reply.send({
-      activeModelProvider: env.ACTIVE_MODEL_PROVIDER,
+      activeModelProvider: runtimeConfig.ACTIVE_MODEL_PROVIDER,
       providers,
       channels: {
         telegram: {
-          enabled: env.TELEGRAM_ENABLED,
-          mode: env.TELEGRAM_ENABLED ? env.TELEGRAM_MODE : null,
+          enabled: runtimeConfig.TELEGRAM_ENABLED,
+          mode: runtimeConfig.TELEGRAM_ENABLED ? env.TELEGRAM_MODE : null,
           tokenConfigured: configured(env.TELEGRAM_BOT_TOKEN),
           proxyConfigured: configured(env.TELEGRAM_PROXY || env.EXTERNAL_HTTP_PROXY),
         },
         weixin: {
-          enabled: env.WEIXIN_ENABLED,
-          mode: env.WEIXIN_ENABLED ? "openclaw_bridge" : null,
+          enabled: runtimeConfig.WEIXIN_ENABLED,
+          mode: runtimeConfig.WEIXIN_ENABLED ? "openclaw_bridge" : null,
           secretConfigured: configured(env.WEIXIN_BRIDGE_SECRET),
         },
       },
       features: {
-        memoryRetrieval: env.MEMORY_RETRIEVAL_ENABLED,
-        tools: env.TOOLS_ENABLED,
-        reflection: env.REFLECTION_ENABLED,
-        dream: env.DREAM_ENABLED,
-        dreamAutoRun: env.DREAM_AUTO_RUN,
-        runtimeAutonomy: env.RUNTIME_AUTONOMY_AUTO_RUN,
-        webSearch: env.TAVILY_ENABLED,
-        pageReader: env.JINA_ENABLED || env.PLAYWRIGHT_ENABLED ||
-          (env.MCP_ENABLED && env.CHROME_DEVTOOLS_MCP_ENABLED),
-        mcp: env.MCP_ENABLED,
+        memoryRetrieval: runtimeConfig.MEMORY_RETRIEVAL_ENABLED,
+        tools: runtimeConfig.TOOLS_ENABLED,
+        reflection: runtimeConfig.REFLECTION_ENABLED,
+        dream: runtimeConfig.DREAM_ENABLED,
+        dreamAutoRun: runtimeConfig.DREAM_AUTO_RUN,
+        runtimeAutonomy: runtimeConfig.RUNTIME_AUTONOMY_AUTO_RUN,
+        webSearch: runtimeConfig.TAVILY_ENABLED,
+        pageReader: runtimeConfig.JINA_ENABLED || runtimeConfig.PLAYWRIGHT_ENABLED ||
+          (runtimeConfig.MCP_ENABLED && runtimeConfig.CHROME_DEVTOOLS_MCP_ENABLED),
+        mcp: runtimeConfig.MCP_ENABLED,
       },
       safety: {
-        reflectionAutoApply: env.REFLECTION_AUTO_APPLY,
-        dreamAutoApply: env.DREAM_AUTO_APPLY,
-        toolsAllowMediumRisk: env.TOOLS_ALLOW_MEDIUM_RISK,
-        toolsAllowHighRisk: env.TOOLS_ALLOW_HIGH_RISK,
+        reflectionAutoApply: runtimeConfig.REFLECTION_AUTO_APPLY,
+        dreamAutoApply: runtimeConfig.DREAM_AUTO_APPLY,
+        toolsAllowMediumRisk: runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK,
+        toolsAllowHighRisk: runtimeConfig.TOOLS_ALLOW_HIGH_RISK,
       },
       limits: {
-        maxMessageLength: env.MAX_MESSAGE_LENGTH,
-        toolMaxCallsPerMessage: env.TOOL_MAX_CALLS_PER_MESSAGE,
-        reflectionDefaultMessageLimit: env.REFLECTION_DEFAULT_MESSAGE_LIMIT,
-        reflectionMaxMessageLimit: env.REFLECTION_MAX_MESSAGE_LIMIT,
-        dreamDefaultLookbackHours: env.DREAM_DEFAULT_LOOKBACK_HOURS,
-        dreamMaxLookbackDays: env.DREAM_MAX_LOOKBACK_DAYS,
+        maxMessageLength: runtimeConfig.MAX_MESSAGE_LENGTH,
+        toolMaxCallsPerMessage: runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE,
+        reflectionDefaultMessageLimit: runtimeConfig.REFLECTION_DEFAULT_MESSAGE_LIMIT,
+        reflectionMaxMessageLimit: runtimeConfig.REFLECTION_MAX_MESSAGE_LIMIT,
+        dreamDefaultLookbackHours: runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS,
+        dreamMaxLookbackDays: runtimeConfig.DREAM_MAX_LOOKBACK_DAYS,
       },
+    });
+  });
+
+  app.get("/v1/admin/settings", async (_request, reply) => {
+    const storedRows = await prisma.systemSetting.findMany({ select: { key: true, updatedAt: true, updatedBy: true } });
+    const stored = new Map(storedRows.map((row) => [row.key, row]));
+    return reply.send({
+      immediate: true,
+      fields: runtimeSettingsService.list().map((field) => ({
+        ...field,
+        stored: stored.has(field.key),
+        updatedAt: stored.get(field.key)?.updatedAt ?? null,
+        updatedBy: stored.get(field.key)?.updatedBy ?? null,
+      })),
+    });
+  });
+
+  app.patch("/v1/admin/settings", async (request, reply) => {
+    const body = (request.body ?? {}) as { values?: Record<string, unknown> };
+    if (!body.values || typeof body.values !== "object" || Array.isArray(body.values)) {
+      throw routeError("values is required", 400);
+    }
+    if (body.values.TELEGRAM_ENABLED === true && !configured(env.TELEGRAM_BOT_TOKEN)) {
+      throw routeError("请先在连接配置中填写 TELEGRAM_BOT_TOKEN 并重启，再开启 Telegram。", 400);
+    }
+    if (body.values.WEIXIN_ENABLED === true && !configured(env.WEIXIN_BRIDGE_SECRET)) {
+      throw routeError("请先在连接配置中填写 WEIXIN_BRIDGE_SECRET 并重启，再开启微信桥接。", 400);
+    }
+    if (typeof body.values.ACTIVE_MODEL_PROVIDER === "string") {
+      const providerConnections: Record<string, [string, string, string]> = {
+        openai: [env.OPENAI_BASE_URL, env.OPENAI_API_KEY, env.OPENAI_MODEL],
+        anthropic: [env.ANTHROPIC_BASE_URL, env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL],
+        glm: [env.GLM_BASE_URL, env.GLM_API_KEY, env.GLM_MODEL],
+        qwen: [env.QWEN_BASE_URL, env.QWEN_API_KEY, env.QWEN_MODEL],
+        deepseek: [env.DEEPSEEK_BASE_URL, env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL],
+        minimax: [env.MINIMAX_BASE_URL, env.MINIMAX_API_KEY, env.MINIMAX_MODEL],
+        siliconflow: [env.SILICONFLOW_BASE_URL, env.SILICONFLOW_API_KEY, env.SILICONFLOW_MODEL],
+      };
+      const connection = providerConnections[body.values.ACTIVE_MODEL_PROVIDER];
+      if (!connection?.every(configured)) {
+        throw routeError("所选模型渠道的 Base URL、API Key 或 Model 尚未配置完整。", 400);
+      }
+    }
+    try {
+      const result = await runtimeSettingsService.updateMany(body.values, {
+        changedBy: "admin",
+        source: "admin",
+      });
+      return reply.send({
+        ...result,
+        immediate: true,
+        fields: runtimeSettingsService.list(),
+        message: result.applyErrors.length > 0
+          ? `配置已保存，但有 ${result.applyErrors.length} 个运行组件重载失败：${result.applyErrors.join("；")}`
+          : result.changedKeys.length > 0
+          ? `已即时应用 ${result.changedKeys.length} 项运行配置。`
+          : "没有需要保存的改动。",
+      });
+    } catch (error) {
+      throw routeError(error instanceof Error ? error.message : String(error), 400);
+    }
+  });
+
+  app.get("/v1/admin/settings/events", async (request, reply) => {
+    const query = request.query as { limit?: string };
+    return reply.send({
+      events: await prisma.systemSettingEvent.findMany({
+        orderBy: { createdAt: "desc" },
+        take: clampLimit(query.limit, 80),
+      }),
     });
   });
 
@@ -1738,7 +1409,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/v1/admin/skills/xiaohongshu-reply/draft", async (request, reply) => {
-    if (!isXiaohongshuReplySkillEnabled()) {
+    if (!(await isXiaohongshuReplySkillEnabled())) {
       throw routeError("小红书回复 Skill 已关闭，请先在 Skills 页面开启。", 409);
     }
     const body = (request.body ?? {}) as {
@@ -1746,7 +1417,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       postCaption?: string | null;
       postType?: string;
       comment?: string;
-      commenterHistory?: string | null;
+      threadContext?: string | null;
     };
     const postTitle = cleanString(body.postTitle);
     const comment = cleanString(body.comment);
@@ -1757,7 +1428,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       postCaption: cleanNullableString(body.postCaption) ?? "",
       postType: normalizeXiaohongshuPostType(body.postType),
       comment,
-      commenterHistory: cleanNullableString(body.commenterHistory) ?? "",
+      threadContext: cleanNullableString(body.threadContext) ?? "",
     });
     return reply.send(result);
   });
@@ -1771,19 +1442,19 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
   app.get("/v1/admin/xiaohongshu/import-status", async (_request, reply) => {
     return reply.send({
-      mcpEnabled: env.MCP_ENABLED,
-      chromeDevtoolsMcpEnabled: env.CHROME_DEVTOOLS_MCP_ENABLED,
+      mcpEnabled: runtimeConfig.MCP_ENABLED,
+      chromeDevtoolsMcpEnabled: runtimeConfig.CHROME_DEVTOOLS_MCP_ENABLED,
       browserAvailable: await chromeDevtoolsMcpService.isAvailable(),
-      connectionMode: env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE,
-      browserUrl: env.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "browser_url"
-        ? env.CHROME_DEVTOOLS_MCP_BROWSER_URL
+      connectionMode: runtimeConfig.CHROME_DEVTOOLS_MCP_CONNECTION_MODE,
+      browserUrl: runtimeConfig.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "browser_url"
+        ? runtimeConfig.CHROME_DEVTOOLS_MCP_BROWSER_URL
         : null,
       pageBehavior: {
         reusesExistingPage: true,
         leavesPageOpen: true,
         automaticScrolling: false,
-        automaticExpansion: false,
-        minimumOpenIntervalMs: Math.max(env.CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS, 5000),
+        automaticExpansion: true,
+        minimumOpenIntervalMs: Math.max(runtimeConfig.CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS, 5000),
       },
     });
   });
@@ -1807,12 +1478,29 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     if (body.caption !== undefined) data.caption = cleanNullableString(body.caption);
     if (body.authorName !== undefined) data.authorName = cleanNullableString(body.authorName);
     if (body.postType !== undefined) data.postType = normalizeXiaohongshuPostType(body.postType);
+    let targetImageCount: number | undefined;
+    if (body.imageCount !== undefined) {
+      const parsed = typeof body.imageCount === "number"
+        ? body.imageCount
+        : Number.parseInt(String(body.imageCount), 10);
+      if (!Number.isFinite(parsed)) throw routeError("imageCount must be a number", 400);
+      targetImageCount = Math.trunc(parsed);
+      if (targetImageCount < 0 || targetImageCount > 30) {
+        throw routeError("imageCount must be between 0 and 30", 400);
+      }
+      data.imageCount = targetImageCount;
+    }
     if (body.imageAlts !== undefined) {
       if (!Array.isArray(body.imageAlts)) throw routeError("imageAlts must be an array", 400);
-      const post = await prisma.xiaohongshuPost.findUniqueOrThrow({ where: { id: postId } });
-      data.imageAlts = body.imageAlts
-        .slice(0, post.imageCount)
-        .map((item) => typeof item === "string" ? item.trim().slice(0, 1000) : "");
+      const rawImageAlts = body.imageAlts;
+      const post = targetImageCount === undefined
+        ? await prisma.xiaohongshuPost.findUniqueOrThrow({ where: { id: postId } })
+        : null;
+      const imageCount = targetImageCount ?? post?.imageCount ?? 0;
+      data.imageAlts = Array.from({ length: imageCount }, (_, index) => {
+        const item = rawImageAlts[index];
+        return typeof item === "string" ? item.trim().slice(0, 1000) : "";
+      });
     }
     await prisma.xiaohongshuPost.update({ where: { id: postId }, data });
     return reply.send({ posts: await listXiaohongshuAccountMirror() });
@@ -1828,16 +1516,13 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       data: {
         ...(content !== undefined ? { content } : {}),
         ...(body.authorName !== undefined ? { authorName: cleanNullableString(body.authorName) } : {}),
-        ...(body.commenterHistory !== undefined
-          ? { commenterHistory: cleanNullableString(body.commenterHistory) }
-          : {}),
       },
     });
     return reply.send({ posts: await listXiaohongshuAccountMirror() });
   });
 
   app.post("/v1/admin/xiaohongshu/comments/:commentId/generate-reply", async (request, reply) => {
-    if (!isXiaohongshuReplySkillEnabled()) {
+    if (!(await isXiaohongshuReplySkillEnabled())) {
       throw routeError("小红书回复 Skill 已关闭，请先在 Skills 页面开启。", 409);
     }
     const { commentId } = request.params as { commentId: string };
@@ -2122,7 +1807,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       },
     });
 
-    if (memory.status === "active" && env.MEMORY_RETRIEVAL_ENABLED) {
+    if (memory.status === "active" && runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
         console.warn("Admin memory embedding failed:", err)
       );
@@ -2193,7 +1878,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
     if (
       memory.status === "active" &&
-      env.MEMORY_RETRIEVAL_ENABLED &&
+      runtimeConfig.MEMORY_RETRIEVAL_ENABLED &&
       shouldRegenerateEmbedding(data)
     ) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
