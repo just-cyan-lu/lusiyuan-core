@@ -14,6 +14,7 @@ export interface ChatRequest {
   channel: "web";
   conversation_id: string;
   message: string;
+  display_name?: string;
 }
 
 export interface ChatResponse {

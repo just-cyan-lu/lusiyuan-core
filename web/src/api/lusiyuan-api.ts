@@ -387,6 +387,7 @@ export interface RuntimeStateUpdateInput {
 export type EnvConfigFieldType =
   | "string"
   | "secret"
+  | "text"
   | "boolean"
   | "integer"
   | "number"
@@ -2248,11 +2249,15 @@ export async function fetchDreamDeepSleep(input: {
 }
 
 export async function fetchConversationMessages(
-  conversationId: string
+  conversationId: string,
+  userId?: string
 ): Promise<ConversationMessage[]> {
   try {
+    const params = new URLSearchParams();
+    if (userId) params.set("user_id", userId);
+    const query = params.toString();
     const response = await fetch(
-      `${API_BASE_URL}/v1/conversations/${encodeURIComponent(conversationId)}/messages`
+      `${API_BASE_URL}/v1/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ""}`
     );
 
     if (!response.ok) return [];

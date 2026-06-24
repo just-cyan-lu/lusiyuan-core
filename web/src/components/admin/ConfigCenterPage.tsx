@@ -919,7 +919,12 @@ function RuntimeSettingsEditor({
               const value = values[field.key] ?? String(field.value);
               const enabled = value === "true";
               return (
-                <label key={field.key} className="block min-w-0 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3">
+                <label
+                  key={field.key}
+                  className={`block min-w-0 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3 ${
+                    field.type === "text" ? "md:col-span-2 xl:col-span-3" : ""
+                  }`}
+                >
                   <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
                   <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>{field.key}</span>
                   <span className="mt-3 block">
@@ -945,6 +950,13 @@ function RuntimeSettingsEditor({
                       <select value={value} disabled={disabled} onChange={(event) => onCommit(field, event.target.value)} className="field-input h-10">
                         {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
                       </select>
+                    ) : field.type === "text" ? (
+                      <textarea
+                        value={value}
+                        disabled={disabled}
+                        onChange={(event) => onChange(field.key, event.target.value)}
+                        className="field-input min-h-32 resize-y py-2 leading-6"
+                      />
                     ) : (
                       <input
                         type={field.type === "integer" || field.type === "number" ? "number" : "text"}

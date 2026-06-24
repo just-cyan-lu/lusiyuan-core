@@ -543,3 +543,109 @@ textarea.field-input {
     transform: translate(-50%, -50%) scale(8);
   }
 }
+
+/* Expression Learning page */
+
+.admin-learning-hero {
+  position: relative;
+  border: 2px solid #f8a6b2;
+  box-shadow: 0 4px 0 #bdaea0, 0 16px 28px rgba(61, 52, 40, 0.1);
+}
+
+.admin-learning-hero::after {
+  content: "";
+  position: absolute;
+  right: -2.5rem;
+  top: -2.5rem;
+  width: 9rem;
+  height: 9rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 1.4px, transparent 1.4px) 0 0 / 14px 14px,
+    rgba(255, 244, 199, 0.45);
+  pointer-events: none;
+  transform: rotate(8deg);
+  z-index: 0;
+}
+
+.admin-learning-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-learning-metric {
+  position: relative;
+  border: 2px solid #e8dcc8;
+  box-shadow: 0 4px 0 #bdaea0;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-learning-metric:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 #bdaea0, 0 10px 18px rgba(61, 52, 40, 0.08);
+}
+
+.admin-learning-metric-icon {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: #fff3b7;
+  color: #2f7069;
+  box-shadow: 0 3px 0 rgba(134, 106, 77, 0.32);
+  flex-shrink: 0;
+}
+
+.admin-learning-row {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.admin-learning-row:hover {
+  transform: translateY(-1px);
+  border-color: #82d5bb;
+  box-shadow: 0 4px 0 #bdaea0;
+}
+
+.admin-learning-row.is-active {
+  border-color: #19c8b9;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(210, 248, 237, 0.7)), #e6f9f6;
+  box-shadow: 0 4px 0 #82d5bb, 0 8px 18px rgba(25, 200, 185, 0.18);
+}
+
+.admin-learning-row.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1rem;
+  bottom: 1rem;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: #19c8b9;
+}
+
+.admin-learning-confidence {
+  background: linear-gradient(90deg, #19c8b9, #82d5bb);
+  box-shadow: 0 0 8px rgba(25, 200, 185, 0.4);
+  transition: width 0.4s ease;
+}
+
+.admin-learning-detail {
+  position: relative;
+  border: 2px solid #e8dcc8;
+  box-shadow: 0 4px 0 #bdaea0;
+}
+
+.admin-learning-detail::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(90deg, #f7cd67, #f8a6b2, #82d5bb);
+  pointer-events: none;
+}

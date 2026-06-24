@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "admin-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "64111", "--host"],
+      "port": 64111,
+      "autoPort": false
+    }
+  ]
+}

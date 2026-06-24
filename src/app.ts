@@ -41,7 +41,7 @@ export function buildApp() {
   });
 
   void app.register(cors, {
-    origin: env.WEB_ORIGIN,
+    origin: true, // env.WEB_ORIGIN,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
 

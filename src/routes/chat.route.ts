@@ -15,6 +15,7 @@ const chatBodySchema = {
     channel: { type: "string", minLength: 1 },
     conversation_id: { type: "string", minLength: 1 },
     message: { type: "string", minLength: 1 },
+    display_name: { type: "string" },
   },
 } as const;
 
@@ -67,6 +68,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         channel: string;
         conversation_id: string;
         message: string;
+        display_name?: string;
       };
 
       try {
@@ -88,6 +90,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         channel: string;
         conversation_id: string;
         message: string;
+        display_name?: string;
       };
 
       reply.hijack();
@@ -193,9 +196,19 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
   // Conversation history — used by Web frontend to restore messages on refresh
   app.get("/v1/conversations/:conversationId/messages", async (request, reply) => {
     const { conversationId } = request.params as { conversationId: string };
+    const query = request.query as { user_id?: string };
 
     const conversation = await prisma.conversation.findFirst({
-      where: { externalConversationId: conversationId },
+      where: {
+        externalConversationId: conversationId,
+        ...(query.user_id
+          ? {
+              user: {
+                externalId: query.user_id,
+              },
+            }
+          : {}),
+      },
     });
 
     if (!conversation) {

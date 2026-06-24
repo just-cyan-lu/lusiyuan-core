@@ -207,6 +207,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         return undefined;
       }),
   ]);
+  const ownerProfile = owner ? runtimeConfig.OWNER_PROFILE : undefined;
 
   const availableTools = runtimeConfig.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
 
@@ -220,6 +221,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     channel: input.channel,
     runtimeState,
     relationshipState,
+    ownerProfile,
   });
 
   // If user sent images, append them to the last user message

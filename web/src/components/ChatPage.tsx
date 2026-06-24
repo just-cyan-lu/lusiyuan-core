@@ -6,9 +6,14 @@ import {
 import { useChat } from "../hooks/useChat";
 import {
   createWebConversationIdentity,
+  displayNameForWebUser,
+  getWebIdentityForActor,
   getWebIdentity,
   isWebConversationId,
   setWebIdentity,
+  webActorForUserId,
+  WEB_CHAT_ACTORS,
+  type WebChatActorId,
   type WebIdentity,
 } from "../utils/storage";
 import { ChatHeader } from "./ChatHeader";
@@ -52,6 +57,7 @@ function identityFromConversation(conversation: WebChatConversationSummary): Web
   return {
     userId: conversation.user.externalId,
     conversationId: conversation.externalConversationId,
+    displayName: conversation.user.displayName ?? displayNameForWebUser(conversation.user.externalId),
   };
 }
 
@@ -81,6 +87,7 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
       ) ?? null,
     [conversations, identity.conversationId]
   );
+  const activeActor = webActorForUserId(identity.userId);
 
   function applyIdentity(nextIdentity: WebIdentity) {
     setWebIdentity(nextIdentity);
@@ -136,6 +143,12 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
     applyIdentity(identityFromConversation(conversation));
   }
 
+  function handleActorChange(actorId: WebChatActorId) {
+    if (actorId === "custom") return;
+    setSelectorError(null);
+    applyIdentity(getWebIdentityForActor(actorId));
+  }
+
   function handleNewConversation() {
     const nextIdentity = createWebConversationIdentity(identity.userId);
     applyIdentity(nextIdentity);
@@ -154,6 +167,25 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
       <ChatHeader userId={identity.userId} conversationId={identity.conversationId} />
       <div className="border-b border-[#d9e2ec] bg-[#fff9e8] px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="w-full lg:w-44">
+            <span className="mb-1 block text-xs font-semibold text-[#8a6f5a]">
+              这次是谁在聊
+            </span>
+            <select
+              value={activeActor}
+              onChange={(event) => handleActorChange(event.target.value as WebChatActorId)}
+              disabled={isSending}
+              className="field-input h-10 bg-white"
+            >
+              {WEB_CHAT_ACTORS.map((actor) => (
+                <option key={actor.id} value={actor.id}>
+                  {actor.label}
+                </option>
+              ))}
+              {activeActor === "custom" && <option value="custom">历史身份</option>}
+            </select>
+          </label>
+
           <label className="min-w-0 flex-1">
             <span className="mb-1 block text-xs font-semibold text-[#8a6f5a]">
               继续哪个 Web 对话
@@ -202,6 +234,13 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
           <span className="admin-chip admin-chip-yellow">只列出 web:&lt;uuid&gt;</span>
+          <span className={activeActor === "owner" ? "admin-chip admin-chip-mint" : "admin-chip"}>
+            {activeActor === "owner"
+              ? "当前按你本人记录"
+              : activeActor === "codex"
+                ? "当前按 Codex 记录"
+                : "当前是历史身份"}
+          </span>
           <span title={identity.conversationId}>
             当前 {shortConversationId(identity.conversationId)}
           </span>

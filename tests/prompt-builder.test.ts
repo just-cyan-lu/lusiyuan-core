@@ -166,6 +166,23 @@ test("includes database relationship state in the prompt", () => {
   assert.match(systemPrompt as string, /当前聊天投影：close_friend/);
 });
 
+test("includes owner-written profile as stable current-user context", () => {
+  const messages = buildChatPrompt({
+    persona,
+    memories: [],
+    recentMessages: [],
+    userMessage: "今天吃什么呀",
+    channel: "web",
+    ownerProfile: "我是 Cyan。陆思源应该把我当作长期熟悉的人来理解，而不是每次重新认识。",
+  });
+
+  const systemPrompt = messages[0].content;
+  assert.equal(typeof systemPrompt, "string");
+  assert.match(systemPrompt as string, /当前用户自述（Owner Profile）/);
+  assert.match(systemPrompt as string, /我是 Cyan/);
+  assert.match(systemPrompt as string, /优先级高于模型从零散聊天里推断出的身份印象/);
+});
+
 function budgetedMemory(type: string, text: string): BudgetedMemory {
   return {
     finalScore: 1,

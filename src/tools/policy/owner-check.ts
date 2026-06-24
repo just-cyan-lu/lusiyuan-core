@@ -1,5 +1,5 @@
-import { env } from "../../utils/env.js";
+import { isOwnerExternalId } from "../../core/owner-identity.js";
 
 export function isOwner(userId: string): boolean {
-  return env.OWNER_USER_IDS.includes(userId);
+  return isOwnerExternalId(userId);
 }

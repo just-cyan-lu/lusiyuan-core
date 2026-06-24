@@ -16,6 +16,7 @@ import {
   relationshipStateService,
 } from "../runtime/relationship-state.service.js";
 import { listSkills } from "../skills/skill-registry.js";
+import { isOwnerExternalId } from "../core/owner-identity.js";
 import {
   loadXiaohongshuReplyConfig,
   resetXiaohongshuReplyConfig,
@@ -596,14 +597,6 @@ async function resolveUserInternalId(inputUserId: unknown): Promise<string> {
 
   if (!user) throw routeError("User not found", 404);
   return user.id;
-}
-
-function ownerUserIdSet(): Set<string> {
-  return new Set(env.OWNER_USER_IDS);
-}
-
-function isOwnerExternalId(externalId: string): boolean {
-  return ownerUserIdSet().has(externalId);
 }
 
 function messagePreview(content: string, max = 96): string {
