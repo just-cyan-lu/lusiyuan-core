@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Card, Icon, Input, Select, type CardColor, type IconName, type SelectOption } from "animal-island-ui";
+import { Button, Card, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchExpressionLearningExamples,
   reanalyzeExpressionLearningExample,
@@ -196,35 +197,44 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           筛选条件
         </div>
         <div className="grid gap-3 md:grid-cols-4">
-          <FilterSelect
-            label="平台"
-            value={platform}
-            onChange={setPlatform}
-            options={[
-              { key: "all", label: "全部平台" },
-              ...state.platforms.map((item) => ({ key: item, label: platformLabel(item) })),
-            ]}
-          />
-          <FilterSelect
-            label="状态"
-            value={status}
-            onChange={setStatus}
-            options={[
-              { key: "all", label: "全部状态" },
-              { key: "active", label: "参与生成" },
-              { key: "disabled", label: "已停用" },
-            ]}
-          />
-          <FilterSelect
-            label="最终决定"
-            value={outcome}
-            onChange={setOutcome}
-            options={[
-              { key: "all", label: "全部决定" },
-              { key: "sent", label: "发布回复" },
-              { key: "skipped", label: "不回复" },
-            ]}
-          />
+          <label className="admin-select-below flex flex-col gap-1">
+            <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">平台</span>
+            <AdminSelect
+              ariaLabel="平台"
+              value={platform}
+              onChange={setPlatform}
+              options={[
+                { key: "all", label: "全部平台" },
+                ...state.platforms.map((item) => ({ key: item, label: platformLabel(item) })),
+              ]}
+            />
+          </label>
+          <label className="admin-select-below flex flex-col gap-1">
+            <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">状态</span>
+            <AdminSelect
+              ariaLabel="状态"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { key: "all", label: "全部状态" },
+                { key: "active", label: "参与生成" },
+                { key: "disabled", label: "已停用" },
+              ]}
+            />
+          </label>
+          <label className="admin-select-below flex flex-col gap-1">
+            <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">最终决定</span>
+            <AdminSelect
+              ariaLabel="最终决定"
+              value={outcome}
+              onChange={setOutcome}
+              options={[
+                { key: "all", label: "全部决定" },
+                { key: "sent", label: "发布回复" },
+                { key: "skipped", label: "不回复" },
+              ]}
+            />
+          </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">搜索</span>
             <Input
@@ -553,30 +563,6 @@ function DetailReadBlock({
         {value}
       </div>
     </div>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: SelectOption[];
-}) {
-  return (
-    <label className="admin-select-below flex flex-col gap-1">
-      <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
-      <Select
-        options={options}
-        value={value}
-        onChange={onChange}
-        aria-label={label}
-      />
-    </label>
   );
 }
 
