@@ -615,17 +615,6 @@ textarea.field-input {
   box-shadow: 0 4px 0 #82d5bb, 0 8px 18px rgba(25, 200, 185, 0.18);
 }
 
-.admin-learning-row.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 1rem;
-  bottom: 1rem;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
-  background: #19c8b9;
-}
-
 .admin-learning-confidence {
   background: linear-gradient(90deg, #19c8b9, #82d5bb);
   box-shadow: 0 0 8px rgba(25, 200, 185, 0.4);
@@ -635,7 +624,9 @@ textarea.field-input {
 .admin-learning-detail {
   position: relative;
   border: 2px solid #e8dcc8;
+  border-radius: 20px;
   box-shadow: 0 4px 0 #bdaea0;
+  overflow: hidden;
 }
 
 .admin-learning-detail::after {
@@ -644,8 +635,8 @@ textarea.field-input {
   left: 0;
   right: 0;
   top: 0;
-  height: 6px;
-  border-radius: 24px 24px 0 0;
+  height: 5px;
+  border-radius: 18px 18px 0 0;
   background: linear-gradient(90deg, #f7cd67, #f8a6b2, #82d5bb);
   pointer-events: none;
 }
