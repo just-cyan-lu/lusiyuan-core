@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button } from "animal-island-ui";
 import {
   fetchDreamDailyNotes,
   fetchDreamDeepSleep,
@@ -700,8 +701,9 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
                   : "手动触发短周期复盘，查看 Dream Cycle 沉淀出的 Daily Note、Signal、内心日记和 Morning Brief。"}
             </p>
           </div>
-          <button
-            type="button"
+          <Button
+            type="default"
+            loading={reflectionLoading || dreamLoading}
             onClick={() => {
               if (fixedPane === "reflection") {
                 void loadReflection();
@@ -712,11 +714,9 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
                 void loadDream();
               }
             }}
-            disabled={reflectionLoading || dreamLoading}
-            className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
           >
-            {reflectionLoading || dreamLoading ? "刷新中" : "刷新数据"}
-          </button>
+            刷新数据
+          </Button>
         </div>
 
         {pageError && (
@@ -864,14 +864,9 @@ function RunCard({
           <h3 className="mt-2 text-xl font-semibold text-[#172033]">{title}</h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-[#617188]">{description}</p>
         </div>
-        <button
-          type="button"
-          onClick={onRun}
-          disabled={busy}
-          className="h-10 whitespace-nowrap rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
-        >
+        <Button type="primary" loading={busy} onClick={onRun}>
           {buttonLabel}
-        </button>
+        </Button>
       </div>
       <div className="mt-5">{children}</div>
     </div>
@@ -1034,10 +1029,8 @@ function ReflectionPanel({
                 key={report.id}
                 type="button"
                 onClick={() => onSelectReport(report.id)}
-                className={`rounded-lg border px-4 py-3 text-left transition ${
-                  report.id === selectedReport?.id
-                    ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
-                    : "border-[#d9e2ec] bg-white hover:border-[#c9d7e6] hover:bg-[#fdfefe]"
+                className={`admin-layout-button block w-full rounded-lg border px-4 py-3 text-left transition ${
+                  report.id === selectedReport?.id ? "is-active" : ""
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1229,10 +1222,8 @@ function DreamPanel({
                 key={job.id}
                 type="button"
                 onClick={() => onSelectJob(job.id)}
-                className={`rounded-lg border px-4 py-3 text-left transition ${
-                  job.id === selectedJob?.id
-                    ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
-                    : "border-[#d9e2ec] bg-white hover:border-[#c9d7e6] hover:bg-[#fdfefe]"
+                className={`admin-layout-button block w-full rounded-lg border px-4 py-3 text-left transition ${
+                  job.id === selectedJob?.id ? "is-active" : ""
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1408,20 +1399,13 @@ function DreamJobDetail({
       )}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onLoadBrief}
-          disabled={briefLoading}
-          className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
-        >
-          {briefLoading
-            ? "读取中"
-            : morningBrief
-              ? "收起 Morning Brief"
-              : hasLoadedMorningBrief
-                ? "展开 Morning Brief"
-                : "查看 Morning Brief"}
-        </button>
+        <Button type="primary" loading={briefLoading} onClick={onLoadBrief}>
+          {morningBrief
+            ? "收起 Morning Brief"
+            : hasLoadedMorningBrief
+              ? "展开 Morning Brief"
+              : "查看 Morning Brief"}
+        </Button>
         {briefError && <span className="text-sm text-[#8d6048]">{briefError}</span>}
       </div>
 
@@ -1611,10 +1595,8 @@ function PaneButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-        active
-          ? "border-[#a9bfd7] bg-[#eaf2fb] text-[#27496d]"
-          : "border-[#d9e2ec] bg-white text-[#66758a] hover:bg-[#f8fbff]"
+      className={`admin-pill-button rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+        active ? "is-active" : ""
       }`}
     >
       {label}

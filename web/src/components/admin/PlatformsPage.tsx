@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button, Card, Icon, Input } from "animal-island-ui";
 import {
   fetchSkills,
   fetchXiaohongshuImportStatus,
@@ -184,13 +185,9 @@ function PlatformCard({
         </div>
 
         {available ? (
-          <button
-            type="button"
-            onClick={onOpen}
-            className="mt-5 flex h-10 w-full items-center justify-center rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
-          >
+          <Button type="primary" block className="mt-5" onClick={onOpen}>
             进入{platform.name}
-          </button>
+          </Button>
         ) : (
           <div className="mt-5 flex h-10 w-full items-center justify-center rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 text-sm font-medium text-[#9aa8b8]">
             详情待规划
@@ -390,13 +387,9 @@ export function XiaohongshuPlatformPage({
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-7">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-3 py-2 text-sm font-medium text-[#66758a] transition hover:bg-[#eef5fb]"
-        >
+        <Button type="default" onClick={onBack}>
           返回平台目录
-        </button>
+        </Button>
         <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-xs font-semibold text-[#8a6f5a]">Platform / Xiaohongshu</div>
@@ -407,21 +400,12 @@ export function XiaohongshuPlatformPage({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill active={replyDraftAvailable} label={replyDraftAvailable ? "Skill 可用" : "Skill 关闭"} />
-            <button
-              type="button"
-              onClick={() => onOpenSkill("xiaohongshu_reply")}
-              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
-            >
+            <Button type="primary" onClick={() => onOpenSkill("xiaohongshu_reply")}>
               查看 Skill 详情
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="h-10 rounded-lg border border-[#c9d7e6] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff] disabled:opacity-60"
-            >
+            </Button>
+            <Button type="default" onClick={() => void load()} loading={loading}>
               {loading ? "刷新中" : "刷新"}
-            </button>
+            </Button>
           </div>
         </div>
         {error && (
@@ -455,14 +439,13 @@ export function XiaohongshuPlatformPage({
                   ，读取后页面会保留。
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => void importUrl()}
+              <Button
+                type="primary"
                 disabled={importing || !sourceUrl.trim() || !importStatus?.browserAvailable}
-                className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+                onClick={() => void importUrl()}
               >
                 {importing ? "正在读取页面" : "读取并记录帖子"}
-              </button>
+              </Button>
               <p className="text-xs leading-6 text-[#7b8ca2]">
                 系统不会刷新或滚动页面，只会有限展开当前已加载评论里的“展开 N 条回复”，读取后页面会保留。
               </p>
@@ -479,10 +462,10 @@ export function XiaohongshuPlatformPage({
                     setSelectedPostId(post.id);
                     setSelectedCommentId(null);
                   }}
-                  className={`rounded-lg border px-4 py-3 text-left transition ${
+                  className={`admin-layout-button block w-full px-4 py-3 text-left transition ${
                     selectedPost?.id === post.id
-                      ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                      : "border-[#e5edf5] bg-[#f8fbff] hover:bg-white"
+                      ? "is-active"
+                      : ""
                   }`}
                 >
                   <div className="text-sm font-semibold text-[#172033]">{post.title}</div>
@@ -619,14 +602,14 @@ function PostRecordEditor({
             </a>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onReread}
+        <Button
+          size="small"
+          type="default"
           disabled={importing || !post.url}
-          className="h-9 rounded-lg border border-[#c9d7e6] bg-white px-3 text-xs font-medium text-[#334155] disabled:opacity-50"
+          onClick={onReread}
         >
           {importing ? "读取中" : "重新读取当前页面"}
-        </button>
+        </Button>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -643,7 +626,7 @@ function PostRecordEditor({
         <button
           type="button"
           onClick={() => setAltsOpen((open) => !open)}
-          className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition hover:bg-white"
+          className="admin-layout-button flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition"
         >
           <span>
             <span className="block text-xs font-semibold text-[#7b8ca2]">配图 Alt</span>
@@ -668,13 +651,9 @@ function PostRecordEditor({
                     placeholder="留空，之后由你补充"
                     className="field-input h-10"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeAltSlot(index)}
-                    className="h-9 rounded-lg border border-[#ead2d2] bg-[#fff8f8] px-3 text-xs font-medium text-[#9a5151] transition hover:bg-[#fff1f1]"
-                  >
+                  <Button size="small" type="default" danger onClick={() => removeAltSlot(index)}>
                     删除
-                  </button>
+                  </Button>
                 </div>
               )) : (
                 <div className="rounded-lg border border-dashed border-[#d9e2ec] bg-[#f8fbff] px-3 py-4 text-xs text-[#7b8ca2]">
@@ -682,27 +661,27 @@ function PostRecordEditor({
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={addAltSlot}
+            <Button
+              size="small"
+              type="default"
               disabled={alts.length >= MAX_IMAGE_ALT_SLOTS}
-              className="mt-3 h-9 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-3 text-xs font-medium text-[#334155] transition hover:bg-white disabled:opacity-50"
+              onClick={addAltSlot}
+              className="mt-3"
             >
               新增位置
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          onClick={() => onSave({ title, caption, authorName, postType, imageCount: alts.length, imageAlts: alts })}
+        <Button
+          type="primary"
           disabled={saving || !title.trim()}
-          className="h-10 rounded-lg border border-[#8da9c7] bg-[#6f8fb8] px-4 text-sm font-medium text-white disabled:opacity-50"
+          onClick={() => onSave({ title, caption, authorName, postType, imageCount: alts.length, imageAlts: alts })}
         >
           {saving ? "保存中" : "保存帖子修改"}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -726,14 +705,14 @@ function CommentRecordEditor({
         <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">评论原文</span>
         <textarea value={content} onChange={(event) => setContent(event.target.value)} className="field-input min-h-20 resize-y text-sm leading-6" />
       </label>
-      <button
-        type="button"
-        onClick={() => onSave({ authorName, content })}
+      <Button
+        size="small"
+        type="default"
         disabled={saving || !content.trim()}
-        className="h-9 justify-self-start rounded-lg border border-[#c9d7e6] bg-white px-3 text-xs font-medium text-[#334155] disabled:opacity-50"
+        onClick={() => onSave({ authorName, content })}
       >
         {saving ? "保存中" : "保存评论修改"}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -824,7 +803,7 @@ function CommentSummary({
   onSelect: () => void;
 }) {
   return (
-    <button type="button" onClick={onSelect} className={`block w-full text-left ${active ? "text-[#27496d]" : "text-[#172033]"}`}>
+    <button type="button" onClick={onSelect} className={`admin-layout-button block w-full text-left ${active ? "is-active" : ""}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
         <span className={comment.isAuthor ? "font-semibold text-[#4f7d60]" : ""}>
           {comment.authorName || "未命名评论者"}
@@ -949,14 +928,15 @@ function CommentActionPanel({
       )}
 
       {!comment.isAuthor && (
-        <button
-          type="button"
-          onClick={onGenerate}
+        <Button
+          type="primary"
+          size="small"
+          className="mt-3"
           disabled={!skillEnabled || generating}
-          className="mt-3 h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
+          onClick={onGenerate}
         >
           {generating ? "生成中" : "让思源生成草稿"}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -1004,30 +984,30 @@ function DraftEditor({
         />
       </label>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onSave(draft, content)}
+        <Button
+          size="small"
+          type="default"
           disabled={saving || !content.trim() || !changed}
-          className="h-9 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-3 text-xs font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-50"
+          onClick={() => onSave(draft, content)}
         >
           {saving ? "保存中" : "只保存草稿"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
+        </Button>
+        <Button
+          size="small"
+          type="primary"
           disabled={saving || !content.trim()}
-          className="h-9 rounded-lg border border-[#8da9c7] bg-[#6f8fb8] px-3 text-xs font-medium text-white disabled:opacity-50"
+          onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
         >
           记录已发布并学习
-        </button>
-        <button
-          type="button"
-          onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
+        </Button>
+        <Button
+          size="small"
+          type="default"
           disabled={saving}
-          className="h-9 rounded-lg border border-[#d6c2b7] bg-[#fff7f2] px-3 text-xs font-medium text-[#855f4d] disabled:opacity-50"
+          onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
         >
           不回复并学习
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1065,22 +1045,22 @@ function OwnerReplyRecorder({
         className="field-input mt-2 min-h-16 resize-y text-xs leading-5"
       />
       <div className="mt-2 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
+        <Button
+          size="small"
+          type="primary"
           disabled={learning || !content.trim()}
-          className="h-9 rounded-lg border border-[#8da9c7] bg-[#6f8fb8] px-3 text-xs font-medium text-white disabled:opacity-50"
+          onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
         >
           {learning ? "正在分析" : "记录已发布并学习"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
+        </Button>
+        <Button
+          size="small"
+          type="default"
           disabled={learning}
-          className="h-9 rounded-lg border border-[#d6c2b7] bg-[#fff7f2] px-3 text-xs font-medium text-[#855f4d] disabled:opacity-50"
+          onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
         >
           不回复并学习
-        </button>
+        </Button>
       </div>
     </div>
   );
