@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   archiveAdminMemory,
   createAdminMemory,
@@ -1027,12 +1027,12 @@ function MemoryEditor({
           />
         </div>
         <Field label={userRequired ? "User ID" : "User ID（全局记忆不需要）"}>
-          <input
+          <AdminInput
             value={form.userId}
             onChange={(event) => update("userId", event.target.value)}
             disabled={!userRequired}
-            className="field-input disabled:opacity-50"
             placeholder="externalId / id"
+            aria-label="User ID"
           />
         </Field>
         <div className="block">
@@ -1046,24 +1046,24 @@ function MemoryEditor({
           />
         </div>
         <Field label="Importance">
-          <input
+          <AdminInput
             type="number"
             min={1}
             max={10}
             value={form.importance}
             onChange={(event) => update("importance", event.target.value)}
-            className="field-input"
+            aria-label="Importance"
           />
         </Field>
         <Field label="Confidence">
-          <input
+          <AdminInput
             type="number"
             min={0}
             max={1}
             step={0.05}
             value={form.confidence}
             onChange={(event) => update("confidence", event.target.value)}
-            className="field-input"
+            aria-label="Confidence"
           />
         </Field>
       </div>
@@ -1091,45 +1091,45 @@ function MemoryEditor({
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <Field label="Tags（逗号分隔）">
-          <input
+          <AdminInput
             value={form.tagsText}
             onChange={(event) => update("tagsText", event.target.value)}
-            className="field-input"
             placeholder="admin, ui, preference"
+            aria-label="Tags"
           />
         </Field>
         <Field label="Entities（逗号分隔）">
-          <input
+          <AdminInput
             value={form.entitiesText}
             onChange={(event) => update("entitiesText", event.target.value)}
-            className="field-input"
             placeholder="Admin 平台"
+            aria-label="Entities"
           />
         </Field>
         <Field label="Source">
-          <input
+          <AdminInput
             value={form.source}
             onChange={(event) => update("source", event.target.value)}
-            className="field-input"
             placeholder="admin_manual / reflection"
+            aria-label="Source"
           />
         </Field>
         <Field label="Channel">
-          <input
+          <AdminInput
             value={form.channel}
             onChange={(event) => update("channel", event.target.value)}
-            className="field-input"
             placeholder="telegram / web"
+            aria-label="Channel"
           />
         </Field>
       </div>
 
       <Field label="Conversation ID" className="mt-4">
-        <input
+        <AdminInput
           value={form.conversationId}
           onChange={(event) => update("conversationId", event.target.value)}
-          className="field-input"
           placeholder="可选"
+          aria-label="Conversation ID"
         />
       </Field>
 
