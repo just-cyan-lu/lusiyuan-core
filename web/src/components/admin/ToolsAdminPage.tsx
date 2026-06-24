@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "animal-island-ui";
+import { Button, Tooltip } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
@@ -902,7 +902,11 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-[#172033]" title={log.toolName}>{log.toolName}</div>
+                      <Tooltip title={log.toolName} variant="island" placement="bottom">
+                        <div className="truncate font-medium text-[#172033]">
+                          {log.toolName}
+                        </div>
+                      </Tooltip>
                       <div className="mt-1 truncate text-xs text-[#7b8ca2]" title={log.channel ?? undefined}>
                         {log.channel ?? "unknown"} · {shortId(log.conversationId)}
                       </div>

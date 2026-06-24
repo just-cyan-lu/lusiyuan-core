@@ -91,7 +91,7 @@
 
 ### 🟡 P1 - 视觉与体验升级
 
-#### 3. `title=` → UI 库 `Tooltip variant="island"`
+#### 3. `title=` → UI 库 `Tooltip variant="island"`（高价值单点）
 
 - **状态**：⏸ **2026-06-25 暂缓（范围重估）**
 - **背景**：`title=` 原生属性延迟 ~1.5s、样式丑、不支持多行，UI 库 `Tooltip` 支持 `variant="island"` 直接套动森气泡。
@@ -196,7 +196,7 @@
 - [x] **2026-06-25 任务 1 完成**：批量替换原生 `<select>` → UI 库 `Select`（8 个文件、34 处、4 个本地 wrapper 全删，10 个 commit，详见上方任务 1 提交清单）
 - [x] **2026-06-25 任务 2 完成**：3 处本地 `Panel` 合并为 `SectionPanel`（AdminDetailPrimitives），Dashboard 的 icon-variant Panel 与 Ops 的 PanelHeader 保留（commit f5d1b16）
 - [x] **2026-06-25 任务 7 完成**：RuntimeStatePage 自实现 checkbox → UI 库 `Switch`（修正为 Switch 而非 Checkbox，因为 Switch 是单 boolean toggle 的正确语义，commit 441fdad）
-- [ ] 3. `title=` → UI 库 `Tooltip`（**⏸ 2026-06-25 暂缓**：实际范围 79 dynamic + 60 literal，绝大部分是 truncated text + hover-for-full，原生 `title=` 已够用。后续如要做，挑 5-10 个高价值单点做单 commit）
+- [x] **2026-06-25 任务 3 进行中**：`title=` → `Tooltip variant="island"`，**仅做 7 个高价值单点**（AdminShell apiBaseUrl、ConfigCenterPage provider.model + envConfig.envPath、ToolsAdminPage log.toolName + log.channel、OpsPage report.id、DashboardPage large metric），其余 ~70 个 truncated text 暂不动（原 `title=` 已够用）
 - [ ] 4. 按需替换 `<input>` → UI 库 `Input`（**实际 50 处** `.field-input`，仅新组件 + allowClear/prefix 场景）
 - [ ] 5. `<details>` → UI 库 `Collapse`（可选，JSON 折叠场景）
 - [ ] 6. `admin-switch-button` → UI 库 `Switch`（单 key 场景，ConfigCenterPage 还在用 `<button role="switch">` 自实现）

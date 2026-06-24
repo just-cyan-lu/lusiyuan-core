@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button } from "animal-island-ui";
+import { Button, Tooltip } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchDreamDailyNotes,
@@ -1037,7 +1037,9 @@ function ReflectionPanel({
                   <StatusPill active={report.confidence >= 0.8} label={formatPercent(report.confidence)} />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#7b8ca2]">
-                  <span title={report.id}>{shortId(report.id)}</span>
+                  <Tooltip title={report.id} variant="island" placement="bottom">
+                    <span>{shortId(report.id)}</span>
+                  </Tooltip>
                   <span>·</span>
                   <span>{formatDate(report.createdAt)}</span>
                 </div>
