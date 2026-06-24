@@ -346,7 +346,7 @@ OPENAI_API_KEY="your-api-key"
 OPENAI_MODEL="gpt-4.1-mini"
 ```
 
-也可以配置 Qwen、DeepSeek、GLM、MiniMax、Anthropic 等连接。启动后在 Admin“配置 / 运行配置”里选择当前模型渠道，保存后下一次模型调用立即使用。
+也可以配置 Qwen、DeepSeek、GLM、MiniMax、Kimi、Anthropic 等连接。启动后在 Admin“配置 / 运行配置”里选择当前模型渠道，保存后下一次模型调用立即使用。
 
 ### 3. 启动数据库
 

@@ -100,6 +100,7 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["QWEN", "Qwen"],
     ["DEEPSEEK", "DeepSeek"],
     ["MINIMAX", "MiniMax"],
+    ["KIMI", "Kimi"],
     ["SILICONFLOW", "SiliconFlow"],
   ].flatMap(([prefix, label]) => [
     { key: `${prefix}_BASE_URL`, group: `模型连接 / ${label}`, label: `${label} Base URL`, type: "string" as const },
@@ -1048,6 +1049,14 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         model: env.MINIMAX_MODEL || null,
       },
       {
+        name: "kimi",
+        label: "Kimi",
+        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "kimi",
+        baseUrlConfigured: configured(env.KIMI_BASE_URL),
+        apiKeyConfigured: configured(env.KIMI_API_KEY),
+        model: env.KIMI_MODEL || null,
+      },
+      {
         name: "siliconflow",
         label: "SiliconFlow",
         active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "siliconflow",
@@ -1135,6 +1144,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         qwen: [env.QWEN_BASE_URL, env.QWEN_API_KEY, env.QWEN_MODEL],
         deepseek: [env.DEEPSEEK_BASE_URL, env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL],
         minimax: [env.MINIMAX_BASE_URL, env.MINIMAX_API_KEY, env.MINIMAX_MODEL],
+        kimi: [env.KIMI_BASE_URL, env.KIMI_API_KEY, env.KIMI_MODEL],
         siliconflow: [env.SILICONFLOW_BASE_URL, env.SILICONFLOW_API_KEY, env.SILICONFLOW_MODEL],
       };
       const connection = providerConnections[body.values.ACTIVE_MODEL_PROVIDER];

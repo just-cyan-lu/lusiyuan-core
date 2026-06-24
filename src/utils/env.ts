@@ -41,6 +41,10 @@ export const env = {
   MINIMAX_BASE_URL: process.env.MINIMAX_BASE_URL ?? "",
   MINIMAX_API_KEY: process.env.MINIMAX_API_KEY ?? "",
   MINIMAX_MODEL: process.env.MINIMAX_MODEL ?? "",
+  KIMI_BASE_URL:
+    process.env.KIMI_BASE_URL ?? "https://api.moonshot.cn/v1",
+  KIMI_API_KEY: process.env.KIMI_API_KEY ?? "",
+  KIMI_MODEL: process.env.KIMI_MODEL ?? "",
   SILICONFLOW_BASE_URL:
     process.env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1",
   SILICONFLOW_API_KEY: process.env.SILICONFLOW_API_KEY ?? "",
