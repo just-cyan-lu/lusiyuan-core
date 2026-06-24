@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchSkills,
   fetchXiaohongshuReplyConfig,
@@ -468,11 +468,11 @@ function XiaohongshuPromptEditor({
         </div>
         <label>
           <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">最长字数</span>
-          <input
+          <AdminInput
             type="number"
             value={draft.maxReplyChars}
             onChange={(event) => setDraft({ ...draft, maxReplyChars: Number(event.target.value) })}
-            className="field-input h-10"
+            aria-label="最长字数"
           />
         </label>
       </div>
@@ -616,10 +616,10 @@ function FieldInput({
   return (
     <label>
       <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
-      <input
+      <AdminInput
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="field-input h-10"
+        aria-label={label}
       />
     </label>
   );
