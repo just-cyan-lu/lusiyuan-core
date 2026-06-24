@@ -1,4 +1,4 @@
-import { Card, Cursor, Icon, Input, Time, Title, type CardColor, type IconName } from "animal-island-ui";
+import { Card, Cursor, Icon, Input, Time, Title, Tooltip, type CardColor, type IconName } from "animal-island-ui";
 import type { ChangeEvent, ReactNode } from "react";
 import { LusiyuanAvatar } from "../LusiyuanAvatar";
 
@@ -276,9 +276,11 @@ export function AdminShell({
               <div className="grid gap-3 md:grid-cols-[minmax(12rem,1fr)_minmax(18rem,24rem)] xl:w-[44rem]">
                 <Card className="px-4 py-3" pattern={activeItem.color}>
                   <div className="text-[11px] font-black uppercase text-[#794f27]">API Base</div>
-                  <div className="mt-1 truncate text-sm font-bold text-[#725d42]" title={apiBaseUrl}>
-                    {apiBaseUrl}
-                  </div>
+                  <Tooltip title={apiBaseUrl} variant="island" placement="bottom">
+                    <div className="mt-1 truncate text-sm font-bold text-[#725d42]">
+                      {apiBaseUrl}
+                    </div>
+                  </Tooltip>
                 </Card>
 
                 <Card className="px-4 py-3" pattern="app-teal">

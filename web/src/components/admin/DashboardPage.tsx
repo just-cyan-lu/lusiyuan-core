@@ -1,4 +1,4 @@
-import { Button, Card, Icon, Title, type CardColor, type IconName } from "animal-island-ui";
+import { Button, Card, Icon, Title, Tooltip, type CardColor, type IconName } from "animal-island-ui";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   fetchChannelStatus,
@@ -373,9 +373,11 @@ function StatusCard({
         </div>
         <StatusPill active={active} />
       </div>
-      <div className="mt-4 truncate text-xl font-black text-[#794f27]" title={value}>
-        {value}
-      </div>
+      <Tooltip title={value} variant="island" placement="bottom">
+        <div className="mt-4 truncate text-xl font-black text-[#794f27]">
+          {value}
+        </div>
+      </Tooltip>
     </Card>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "animal-island-ui";
+import { Button, Tooltip } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
@@ -736,7 +736,19 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
       <SectionPanel
         bg="muted"
         title="连接与启动配置"
-        subtitle={envConfig ? `${envConfig.envPath} · 密钥或连接地址修改后需要重启` : "读取连接配置"}
+        subtitle={
+          envConfig ? (
+            <Tooltip
+              title={envConfig.envPath}
+              variant="island"
+              placement="bottom"
+            >
+              <span>{`${envConfig.envPath} · 密钥或连接地址修改后需要重启`}</span>
+            </Tooltip>
+          ) : (
+            "读取连接配置"
+          )
+        }
       >
         {envConfig ? (
           <EnvConfigEditor
@@ -1127,9 +1139,15 @@ function ProviderCard({ provider }: { provider: RuntimeProvider }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-[#172033]">{provider.label}</h4>
-          <p className="mt-1 truncate font-mono text-xs text-[#7b8ca2]" title={provider.model ?? "未设置模型"}>
-            {provider.model ?? "未设置模型"}
-          </p>
+          <Tooltip
+            title={provider.model ?? "未设置模型"}
+            variant="island"
+            placement="bottom"
+          >
+            <p className="mt-1 truncate font-mono text-xs text-[#7b8ca2]">
+              {provider.model ?? "未设置模型"}
+            </p>
+          </Tooltip>
         </div>
         <StatusPill
           active={ready}
