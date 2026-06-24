@@ -1192,19 +1192,19 @@ function FilterInput({
 }: {
   label: string;
   value: string;
-  type?: string;
+  type?: React.HTMLInputTypeAttribute;
   placeholder?: string;
   onChange: (value: string) => void;
 }) {
   return (
     <label className="block">
       <span className="text-[11px] font-medium text-[#7b8ca2]">{label}</span>
-      <input
+      <AdminInput
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-1 h-10 w-full rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 text-sm text-[#172033] outline-none placeholder:text-[#9aa8b8] focus:border-[#a9bfd7]"
+        aria-label={label}
       />
     </label>
   );
