@@ -12,6 +12,7 @@ interface BuildChatPromptInput {
   channel?: string;
   runtimeState?: string;
   relationshipState?: string;
+  ownerProfile?: string;
   toolResults?: string;
 }
 
@@ -24,6 +25,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     channel,
     runtimeState,
     relationshipState,
+    ownerProfile,
     toolResults,
   } = input;
   const projection = buildPersonaProjection({
@@ -49,6 +51,18 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
           .map((m) => `${m.role === "user" ? "用户" : "陆思源"}: ${m.content}`)
           .join("\n")
       : "（这是对话开始）";
+
+  const ownerProfileSection = ownerProfile?.trim()
+    ? [
+        "## 当前用户自述（Owner Profile）",
+        "",
+        "以下内容是当前 owner 亲自写给陆思源的稳定自述。它描述“这个人是谁、你们是什么关系、该如何理解对方”，优先级高于模型从零散聊天里推断出的身份印象。",
+        "",
+        ownerProfile.trim(),
+        "",
+        "---",
+      ].join("\n")
+    : "";
 
   const systemPrompt = `你是「陆思源」运行体中的语言生成模块。
 
@@ -89,6 +103,8 @@ ${projection.runtimeState}
 ${projection.relationshipContext}
 
 ---
+
+${ownerProfileSection ? `${ownerProfileSection}\n\n` : ""}
 
 ## 相关人设切片
 

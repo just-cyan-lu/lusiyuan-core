@@ -4,7 +4,7 @@ import type { ChatMessage, ChatReplyPart } from "../types/chat";
 import type { WebIdentity } from "../utils/storage";
 
 export function useChat(identity: WebIdentity) {
-  const { userId, conversationId } = identity;
+  const { userId, conversationId, displayName } = identity;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +16,7 @@ export function useChat(identity: WebIdentity) {
     setError(null);
     setIsLoadingHistory(true);
 
-    fetchConversationMessages(conversationId)
+    fetchConversationMessages(conversationId, userId)
       .then((history) => {
         if (cancelled) return;
         setMessages(
@@ -35,7 +35,7 @@ export function useChat(identity: WebIdentity) {
     return () => {
       cancelled = true;
     };
-  }, [conversationId]);
+  }, [conversationId, userId]);
 
   async function sendMessage(text: string) {
     const content = text.trim();
@@ -72,6 +72,7 @@ export function useChat(identity: WebIdentity) {
         channel: "web",
         conversation_id: conversationId,
         message: content,
+        display_name: displayName,
       }, (event) => {
         if (event.type === "message") appendAssistantMessage(event.data);
       });

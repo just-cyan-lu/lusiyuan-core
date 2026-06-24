@@ -16,6 +16,8 @@ export const env = {
   ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN ?? "",
   ADMIN_DATABASE_CLEAR_PASSWORD: process.env.ADMIN_DATABASE_CLEAR_PASSWORD ?? "",
   OWNER_USER_IDS: (process.env.OWNER_USER_IDS ?? "").split(",").filter(Boolean),
+  WEBCHAT_OWNER_USER_ID: process.env.WEBCHAT_OWNER_USER_ID ?? "web:owner",
+  WEBCHAT_CODEX_USER_ID: process.env.WEBCHAT_CODEX_USER_ID ?? "web:codex",
 
   // Legacy single-provider connection.
   MODEL_BASE_URL: process.env.MODEL_BASE_URL ?? "",

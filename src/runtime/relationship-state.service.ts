@@ -1,5 +1,6 @@
 import { Prisma, type RelationshipState, type RelationshipStateEvent } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
+import { isOwnerExternalId, ownerExternalIds } from "../core/owner-identity.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 export interface RelationshipStatePatch {
@@ -632,11 +633,38 @@ export const relationshipStateService = {
       select: { id: true, externalId: true, displayName: true, createdAt: true },
     });
 
+    if (isOwnerExternalId(user.externalId)) {
+      const ownerLink = await prisma.identityLink.findFirst({
+        where: {
+          user: {
+            externalId: {
+              in: ownerExternalIds().filter((externalId) => externalId !== user.externalId),
+            },
+          },
+        },
+        include: { person: true },
+        orderBy: { createdAt: "asc" },
+      });
+      if (ownerLink) {
+        await prisma.identityLink.create({
+          data: {
+            personId: ownerLink.personId,
+            userId: user.id,
+            source: "owner_alias",
+            verifiedBy: "system",
+          },
+        });
+        return ownerLink.person;
+      }
+    }
+
     return prisma.$transaction(async (tx) => {
       const person = await tx.personIdentity.create({
         data: {
-          label: user.displayName ?? user.externalId,
-          note: "由 User 自动生成的单人身份。",
+          label: user.displayName ?? (isOwnerExternalId(user.externalId) ? "Owner" : user.externalId),
+          note: isOwnerExternalId(user.externalId)
+            ? "Owner 的主身份。其他 owner 渠道账号会自动链接到这个人。"
+            : "由 User 自动生成的单人身份。",
           createdAt: user.createdAt,
         },
       });
