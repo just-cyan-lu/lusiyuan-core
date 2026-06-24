@@ -1,6 +1,7 @@
-import { Select, type SelectOption } from "animal-island-ui";
+import { Input, Select, type InputProps, type SelectOption } from "animal-island-ui";
+import type { ChangeEvent } from "react";
 
-export type { SelectOption };
+export type { InputProps, SelectOption };
 
 type AdminSelectProps = {
   options: SelectOption[];
@@ -38,5 +39,41 @@ export function AdminSelect({
         placeholder={placeholder}
       />
     </label>
+  );
+}
+
+/**
+ * 统一 admin 输入框。
+ * - 必须挂 .admin-input 才能让 UI 库 Input 复用 admin 视觉（border-radius 1.1rem、
+ *   height 45px、box-shadow 0 2px 0 #d4c9b4），否则会变成胶囊形 + 40px。
+ * - 默认带 `shadow` 偏移以匹配 admin 卡片其他控件的浮起感。
+ * - UI 库 Input 不带可见 label，调用方要么自己写 <span>，要么用 ariaLabel 走 a11y。
+ */
+export function AdminInput({
+  value,
+  onChange,
+  type,
+  placeholder,
+  disabled,
+  allowClear,
+  className,
+  "aria-label": ariaLabel,
+  ...rest
+}: InputProps) {
+  return (
+    <div className={`admin-input ${className ?? ""}`.trim()}>
+      <Input
+        value={value}
+        onChange={onChange as ((event: ChangeEvent<HTMLInputElement>) => void) | undefined}
+        type={type}
+        placeholder={placeholder}
+        disabled={disabled}
+        allowClear={allowClear}
+        size="middle"
+        shadow
+        aria-label={ariaLabel}
+        {...rest}
+      />
+    </div>
   );
 }
