@@ -733,7 +733,8 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         )}
       </SectionPanel>
 
-      <Panel
+      <SectionPanel
+        bg="muted"
         title="连接与启动配置"
         subtitle={envConfig ? `${envConfig.envPath} · 密钥或连接地址修改后需要重启` : "读取连接配置"}
       >
