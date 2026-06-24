@@ -16,7 +16,7 @@
 | Button | ✅ | 几乎所有 admin 页 |
 | Card | ✅ | AdminShell、Dashboard、Conversation、ExpressionLearning、Platforms |
 | Icon | ✅ | 几乎所有 admin 页 |
-| Input | ⚠️ 部分 | AdminShell、Conversation、Platforms、ExpressionLearning（其余页仍用原生 input + `.field-input`） |
+| Input | ✅ 全量 | 2026-06-25 完成 33 处 input + 1 处 FilterInput wrapper（10 个 commit，详见下方任务 4 提交清单）。textarea 17 处保留（UI 库 Input API 不支持 textarea）。 |
 | Select | ✅ 全量 | 所有 admin 页（2026-06-25 8 文件 34 处全量迁移） |
 | Time | ✅ | AdminShell 侧栏 |
 | Title | ✅ | AdminShell、Dashboard |
@@ -108,19 +108,44 @@
 - **暂缓原因**：UI 库 `Tooltip` 必须包单个 React element 子节点，全量替换需把每个 truncated div 改为 `<Tooltip title={x}><div className="truncate">{x}</div></Tooltip>` —— 70+ 行 JSX 改动，跨 7 个文件，hover target 从纯文本变成带 wrapper 元素，可能引入视觉回归和 z-index 问题。**ROI 不高**。
 - **后续方向**（如果重做）：挑 5-10 个高价值单点（AdminShell apiBaseUrl、ConfigCenterPage 模型名 / provider name、几处关键 hash id preview）做单 commit，全量不做。
 
-#### 4. 原生 `<input class="field-input">` → UI 库 `Input`（按需）
+#### 4. 原生 `<input class="field-input">` → UI 库 `Input`
 
-- **状态**：⏳ 待办（**实际范围比 doc 估的大**）
-- **背景**：doc 估 ~30+ 处，**实际 `grep` 50 处** `.field-input` 用法，UI 库 `Input` 提供 `allowClear`、`prefix/suffix`、`status` 错误态。
-- **做法**：**只对需要 `allowClear` 或 `prefix` 的输入框替换**；纯文本框保留 `.field-input`，避免大面积 UI 改动引入回归。
-- **建议优先替换**：
-  - `MemoryProposalsPage` / `MemoryLibraryPage` 搜索框（带清除语义）
-  - `ToolsAdminPage` 模糊搜索框
-  - `ConfigCenterPage` 配置 key 搜索框
-  - 后续新页面输入框直接用 Input
+- **状态**：✅ **2026-06-25 完成**（33 处 input + 1 处 FilterInput wrapper 内部 input，共 10 个 commit）
+- **背景**：doc 估 ~30+ 处，**实际 `grep` 50 处** `.field-input` 用法 = 33 个 `<input>` + 17 个 `<textarea>`。UI 库 `Input` 提供 `allowClear`、`prefix/suffix`、`status` 错误态。
+- **做法调整**：原 doc 估"按需替换 allowClear/prefix 场景"，**User 在 2026-06-25 决定全量替换 33 处 input**，理由：admin 视觉统一优先，全量后所有 input 行为（focus / hover / disabled / allowClear）一致。textarea 17 处保留，UI 库 Input API 不支持 textarea。
+- **做法落地**：
+  - 新增 `web/src/components/admin/AdminFormPrimitives.tsx` 中的 `AdminInput` primitive：内部 `<Input size="middle" shadow>` + 外层 `<div className="admin-input">`，默认强制 `aria-label`（TypeScript 必填）。
+  - 新增 `.admin-input` CSS wrapper（`web/src/index.css`）：覆盖 UI 库 Input 默认胶囊形（border-radius 50px / height 40px / box-shadow `0 3px #d4c9b4`），对齐 admin `.field-input`（1.1rem / 45px / `0 2px 0 #d4c9b4` / cream bg `#f7f3df` / font-weight 600）。
+  - 调用方模式：`<Field label="..."><AdminInput value={...} onChange={...} aria-label="..." /></Field>`，保留可见 label 由 `<Field>` 提供，`aria-label` 走 a11y。
+- **提交清单**（10 个 commit + 1 个 type fix + 1 个 pre-existing fix）：
+
+  | # | commit | 文件 | 替换数 |
+  |---|---|---|---|
+  | 1 | `e49db11` | `AdminFormPrimitives.tsx` + `index.css` | 新建 AdminInput primitive + `.admin-input` wrapper |
+  | 2 | `09bdcb2` | ConfigCenterPage | 4（清空密码 / 确认文本 + 运行配置 string/number + env secret/string/number） |
+  | 3 | `e120ff3` | MemoryLibraryPage | 8（编辑表单 + User ID/Importance/Confidence/Tags/Entities/Source/Channel/Conversation ID） |
+  | - | `2cfe065` | `AdminFormPrimitives.tsx` | fix TS：AdminInput 显式排除 onChange 解决 TS7006 类型推断失败 |
+  | - | `c8178f6` | ExpressionLearningPage + RuntimeStatePage | fix pre-existing TS7006 两处 |
+  | 4 | `451c375` | ToolsAdminPage | 9（filter 5 + ToolConfigField 1 + ConfigField env 1 + Step 9 顺手 1） |
+  | 5 | `0f30ae9` | OpsPage | 7（Reflection 5 + Dream 2） |
+  | 6 | `f4c078d` | PlatformsPage | 2（post.alt 编辑器 + LabeledInput wrapper） |
+  | 7 | `38ed387` | SkillsAdminPage | 2（小红书 maxReplyChars + LabeledInput wrapper） |
+  | 8 | `060fc62` | RelationshipStatePage | 3（搜索 + 绑定渠道 + 关系标签，type="range" 滑块保留） |
+  | 9 | `51f8de1` | RuntimeStatePage + MemoryProposalsPage | 1 + 1（RuntimeStateForm moodLabel + MemoryProposalsPage 搜索框） |
+  | 10 | `a03cbf5` | MemoryLibraryPage | FilterInput wrapper 内部 input 改 AdminInput（4 处调用） |
+
+  **合计 33 处 input 替换** + 2 处 type fix = **13 个 commit**
+
 - **验收**：
-  - 新页面 / 新组件用 Input 而不是 `.field-input`
-  - allowClear 按钮的样式与 admin 一致（可能需要 `.admin-input` 适配）
+  - ✅ `grep -nE '<input\b' src/components/admin/` 命中只剩 2 处（type="range" 滑块，RuntimeState + RelationshipState）
+  - ✅ `grep -nE 'className=".*field-input' src/components/admin/` 命中只剩 textarea + docs 历史参考
+  - ✅ `tsc -b --force` 0 error
+  - ✅ `pnpm build` 0 error
+  - ✅ 每个 admin 页面浏览器验证 AdminInput 视觉一致（17.6px radius / 45px height / `0 2px 0 #d4c9b4` shadow / `#f7f3df` bg）
+- **踩坑记录**：
+  - InputProps.onChange 继承 React.InputHTMLAttributes 后再 override 类型为 ChangeEventHandler，两者交集产生 onChange: FormEventHandler & ChangeEventHandler，参数类型不可调和，导致调用方 `(event) => event.target.value` 时 TS 无法推断 event 类型 → AdminInputProps 用 Omit 排除并显式声明 ChangeEventHandler<HTMLInputElement>（commit 2cfe065）
+  - type="range" 滑块不替换（UI 库 Input 视觉是文本框，不适合 thumb 滑动）
+  - MemoryLibraryPage FilterInput wrapper 自带视觉（`mt-1 h-10 w-full rounded-lg ...`），Step 10 顺手用 AdminInput 重写内部 input
 
 #### 5. `<details>` (RawJsonDetails) → UI 库 `Collapse`
 
@@ -172,7 +197,7 @@
 |---|---|---|
 | `AdminShell` | `web/src/components/admin/AdminShell.tsx` | 侧栏 + 顶部外壳，UI 库无对应物 |
 | `AdminDetailPrimitives` (DetailInfoLine, RawJsonDetails) | `web/src/components/admin/AdminDetailPrimitives.tsx` | 详情行 + JSON 折叠（除非走 P1 第 5 项） |
-| `AdminFormPrimitives` (AdminSelect) | `web/src/components/admin/AdminFormPrimitives.tsx` | admin 全局共享的下拉 wrapper（强制 ariaLabel + `.admin-select-below/.admin-select-host`），2026-06-25 新建 |
+| `AdminFormPrimitives` (AdminSelect / AdminInput) | `web/src/components/admin/AdminFormPrimitives.tsx` | admin 全局共享的下拉 + 输入框 wrapper（强制 ariaLabel / `.admin-select-below/.admin-select-host` / `.admin-input`），2026-06-25 新建 |
 | `StatusPill` | `web/src/components/admin/StatusPill.tsx` | 启用/停用双态徽章，UI 库无对应物 |
 | `ToggleGrid` | `web/src/components/admin/ConfigCenterPage.tsx:1194` | 多 key 开关网格，UI 库 Switch 不支持 |
 | `LoadingHint` | `web/src/components/admin/ConfigCenterPage.tsx:1241` | 文本 loading，UI 库 Loading 是全屏岛屿动画，过度 |
@@ -197,6 +222,6 @@
 - [x] **2026-06-25 任务 2 完成**：3 处本地 `Panel` 合并为 `SectionPanel`（AdminDetailPrimitives），Dashboard 的 icon-variant Panel 与 Ops 的 PanelHeader 保留（commit f5d1b16）
 - [x] **2026-06-25 任务 7 完成**：RuntimeStatePage 自实现 checkbox → UI 库 `Switch`（修正为 Switch 而非 Checkbox，因为 Switch 是单 boolean toggle 的正确语义，commit 441fdad）
 - [x] **2026-06-25 任务 3 进行中**：`title=` → `Tooltip variant="island"`，**仅做 7 个高价值单点**（AdminShell apiBaseUrl、ConfigCenterPage provider.model + envConfig.envPath、ToolsAdminPage log.toolName + log.channel、OpsPage report.id、DashboardPage large metric），其余 ~70 个 truncated text 暂不动（原 `title=` 已够用）
-- [ ] 4. 按需替换 `<input>` → UI 库 `Input`（**实际 50 处** `.field-input`，仅新组件 + allowClear/prefix 场景）
+- [x] **2026-06-25 任务 4 完成**：全量替换 33 处 input → UI 库 `Input`（详见上方任务 4 提交清单，13 个 commit，AdminInput 共享 primitive + `.admin-input` CSS wrapper，textarea 17 处保留）
 - [ ] 5. `<details>` → UI 库 `Collapse`（可选，JSON 折叠场景）
 - [ ] 6. `admin-switch-button` → UI 库 `Switch`（单 key 场景，ConfigCenterPage 还在用 `<button role="switch">` 自实现）
