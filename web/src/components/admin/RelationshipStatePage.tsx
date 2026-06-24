@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
+import { AdminInput } from "./AdminFormPrimitives";
 import {
   approveIdentityLinkProposal,
   fetchIdentityLinkProposals,
@@ -575,11 +576,11 @@ export function RelationshipStatePage({
                 void loadList(query);
               }}
             >
-              <input
+              <AdminInput
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜索用户或摘要"
-                className="field-input h-10 min-w-0 flex-1 md:w-72"
+                aria-label="搜索用户或摘要"
               />
               <Button htmlType="submit" type="default">
                 搜索
@@ -731,11 +732,11 @@ export function RelationshipStatePage({
               <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4 lg:col-span-2">
                 <div className="text-xs font-semibold text-[#7b8ca2]">绑定其他渠道账号</div>
                 <div className="mt-3 flex flex-col gap-2 md:flex-row">
-                  <input
-                    className="field-input"
+                  <AdminInput
                     value={linkUserId}
                     onChange={(event) => setLinkUserId(event.target.value)}
                     placeholder="User externalId / id，例如 telegram:123"
+                    aria-label="绑定渠道账号"
                   />
                   <Button
                     type="primary"
@@ -750,12 +751,12 @@ export function RelationshipStatePage({
                 </p>
               </div>
               <Field label="关系标签">
-                <input
-                  className="field-input"
+                <AdminInput
                   value={form.relationshipLabel}
                   onChange={(event) =>
                     setForm({ ...form, relationshipLabel: event.target.value })
                   }
+                  aria-label="关系标签"
                 />
               </Field>
               <TextAreaField
