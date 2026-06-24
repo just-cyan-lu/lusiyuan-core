@@ -76,39 +76,48 @@
 
 #### 2. 统一 `Panel` 组件（项目内部去重）
 
-- **背景**：`Panel` 在 5 个文件里重复实现：
-  - `ConfigCenterPage.tsx:873`（复杂版）
-  - `DashboardPage.tsx:325`（极简版）
-  - `PlatformsPage.tsx:1069`（极简版）
-  - `ToolsAdminPage.tsx:931`（极简版）
-  - `OpsPage.tsx:1607`（`PanelHeader`，仅头部）
-- **做法**：把 `ConfigCenterPage` 里的复杂 `Panel` 抽到 `web/src/components/admin/AdminDetailPrimitives.tsx`，统一签名 `{ title, subtitle?, icon?, pattern?, children, actions? }`；其他 4 处替换为统一组件。
+- **状态**：✅ **2026-06-25 完成**（commit f5d1b16）
+- **背景**：`Panel` 在 4 个文件里重复实现（`grep` 显示 4 处 `function Panel` + 1 处 `PanelHeader`）：
+  - `ConfigCenterPage.tsx`（复杂版，bg-muted）
+  - `DashboardPage.tsx:325`（带 `icon` slot + `Card pattern`，不通用，**保留**）
+  - `PlatformsPage.tsx`（极简版，bg-white）
+  - `ToolsAdminPage.tsx`（极简版，bg-white + actions slot）
+  - `OpsPage.tsx`（`PanelHeader`，仅头部，API 不同，**保留**）
+- **做法**：抽到 `web/src/components/admin/AdminDetailPrimitives.tsx` 作为 `SectionPanel`，签名 `{ title, subtitle?, bg?: "white"|"muted", actions?, children }`。ConfigCenterPage 用 `bg="muted"` 保留原视觉；PlatformsPage + ToolsAdminPage 用默认 `bg="white"`。Dashboard 与 Ops 的 `Panel`/`PanelHeader` 不并入。
 - **验收**：
-  - `grep -nE 'function Panel\b' web/src/components/admin/*.tsx` 命中只剩 0（除 primitives 文件中的统一实现）
-  - 视觉上各页面 Panel 风格统一
+  - ✅ `grep -nE 'function Panel\b' web/src/components/admin/*.tsx` 命中只剩 1 处（Dashboard 的 icon-variant，**预期保留**）
+  - ✅ 视觉上 3 个 panel 渲染页面（ConfigCenterPage、PlatformsPage、ToolsAdminPage）截图与改前一致
+- **踩坑**：第一次只替换了 `<Panel title="...">` 形式的开标签，漏了 multiline `<Panel ...>{children}</Panel>`（PlatformsPage 第 3 个 call site），且全部 3 个文件的 `</Panel>` 闭标签未一起改 → 浏览器报 4 个 parse error。教训：**改 JSX 标签时 old_string 必须含完整开 + 闭 + props 形状**，或用 `replace_all` 同时处理开闭。
 
 ### 🟡 P1 - 视觉与体验升级
 
 #### 3. `title=` → UI 库 `Tooltip variant="island"`
 
+- **状态**：⏸ **2026-06-25 暂缓（范围重估）**
 - **背景**：`title=` 原生属性延迟 ~1.5s、样式丑、不支持多行，UI 库 `Tooltip` 支持 `variant="island"` 直接套动森气泡。
-- **替换点**：
-  - `AdminShell.tsx:279`（apiBaseUrl 提示）
-  - `ConfigCenterPage.tsx:717, 859, 929, 1045, 1127, 1147, 1184`
-  - `DashboardPage.tsx:376`
-- **做法**：写一个 `<HintTip>` 包装组件，传入 `title` 后挂到目标元素上。优先做 hover 触发，避免页面初载时弹窗。
-- **验收**：
-  - `grep -nE 'title=\{' web/src/components/admin/*.tsx` 命中下降到 0（除原生 `<a>` `<abbr>` 等语义场景）
-  - 鼠标 hover 后 0.3s 内显示
+- **实际范围**（`grep -rnE 'title=\{'`）：**79 个 dynamic + 60 个 literal**，分布：
+  - OpsPage 33（多 PanelHeader 标题 + truncated 文本）
+  - MemoryProposalsPage 14（DetailRow + metric 的 truncated id）
+  - ToolsAdminPage 10
+  - MemoryLibraryPage 9
+  - ConfigCenterPage 8
+  - PlatformsPage 3
+  - AdminShell 1、DashboardPage 1
+- **60 个 literal `title="..."`**：绝大多数是 `<PanelHeader title="..." />` / `<ContentPanel title="..." />` 之类的 prop 透传，**不是 tooltip 候选**，不要替换。
+- **79 个 dynamic `title={...}`**：绝大部分是 `<div className="truncate" title={longValue}>{longValue}</div>` 模式，hover 展示完整 ID/URL/字段名。**语义上原生 `title=` 已经达成目标**（hover 显示完整文本）。
+- **暂缓原因**：UI 库 `Tooltip` 必须包单个 React element 子节点，全量替换需把每个 truncated div 改为 `<Tooltip title={x}><div className="truncate">{x}</div></Tooltip>` —— 70+ 行 JSX 改动，跨 7 个文件，hover target 从纯文本变成带 wrapper 元素，可能引入视觉回归和 z-index 问题。**ROI 不高**。
+- **后续方向**（如果重做）：挑 5-10 个高价值单点（AdminShell apiBaseUrl、ConfigCenterPage 模型名 / provider name、几处关键 hash id preview）做单 commit，全量不做。
 
 #### 4. 原生 `<input class="field-input">` → UI 库 `Input`（按需）
 
-- **背景**：约 30+ 处 `<input class="field-input">`，UI 库 `Input` 提供 `allowClear`、`prefix/suffix`、`status` 错误态。
+- **状态**：⏳ 待办（**实际范围比 doc 估的大**）
+- **背景**：doc 估 ~30+ 处，**实际 `grep` 50 处** `.field-input` 用法，UI 库 `Input` 提供 `allowClear`、`prefix/suffix`、`status` 错误态。
 - **做法**：**只对需要 `allowClear` 或 `prefix` 的输入框替换**；纯文本框保留 `.field-input`，避免大面积 UI 改动引入回归。
-- **当前重点替换**：
-  - `ExpressionLearningPage` 搜索框（已用 Input）
-  - `MemoryProposalsPage.tsx:379` 等带清除语义的输入
-  - 后续页面新写输入框直接用 Input
+- **建议优先替换**：
+  - `MemoryProposalsPage` / `MemoryLibraryPage` 搜索框（带清除语义）
+  - `ToolsAdminPage` 模糊搜索框
+  - `ConfigCenterPage` 配置 key 搜索框
+  - 后续新页面输入框直接用 Input
 - **验收**：
   - 新页面 / 新组件用 Input 而不是 `.field-input`
   - allowClear 按钮的样式与 admin 一致（可能需要 `.admin-input` 适配）
@@ -121,8 +130,9 @@
   - `AdminDetailPrimitives.tsx:RawJsonDetails`（JSON 折叠）
   - `ConfigCenterPage.tsx:912, 1001`（配置组折叠）
 
-#### 6. 自实现 `admin-switch-button` → UI 库 `Switch`
+#### 6. 自实现 `admin-switch-button` → UI 库 `Switch`（单 key 场景）
 
+- **状态**：⏳ 待办
 - **背景**：`ConfigCenterPage.tsx:934, 1194` 用 `<button role="switch">` 自实现开关；UI 库 `Switch` 有 handle 滑动 + loading 状态。
 - **做法**：**先观察** `ToggleGrid`（多 key 开关网格）是否需要保留；UI 库 `Switch` 是一次一个开关，不适合 grid 布局。建议只对单 key 场景替换 `admin-switch-button`，grid 场景保留并加注释。
 - **验收**：
@@ -131,8 +141,13 @@
 
 #### 7. 自实现 checkbox → UI 库 `Checkbox`
 
+- **状态**：✅ **2026-06-25 完成**（commit 441fdad）
+- **修正**：原计划用 UI 库 `Checkbox`（group-mode API `options[]+value: string[]`），但 RuntimeStatePage 是单 boolean toggle，**改用 UI 库 `Switch`**（`checked: boolean` + `onChange(checked: boolean)`，API 完全匹配）。文档原标题保留 checkbox → Checkbox 是技术误判；语义上单 boolean 永远该用 `Switch`，多选组才用 `Checkbox`。
 - **背景**：`RuntimeStatePage.tsx:678` 一处 `<input type="checkbox">`。
-- **做法**：替换为 UI 库 `Checkbox`，享受 splash 动效。低优先级（只 1 处）。
+- **做法**：替换为 UI 库 `Switch`，保留外层 `<label>` 包装以维持可见文本关联（"允许受控入口自动校准长期状态"），`aria-label` 由可见文本提供。
+- **验收**：
+  - ✅ 浏览器验证：Switch a11y role="switch" 渲染正确，hover/focus 状态正常，点击 toggle checked 状态
+  - ✅ TS 0 error
 
 ### 🔵 P2 - 未来用得上，提前规划
 
@@ -179,9 +194,9 @@
 - [x] 2026-06-24 ExpressionLearningPage 三个 `<select>` 替换为 UI 库 `Select`（commit f443f47）
 - [x] 2026-06-24 Select wrapper 化封装：`.admin-select-below` + `.admin-select-host`（commit d910ef7）
 - [x] **2026-06-25 任务 1 完成**：批量替换原生 `<select>` → UI 库 `Select`（8 个文件、34 处、4 个本地 wrapper 全删，10 个 commit，详见上方任务 1 提交清单）
-- [ ] 2. 统一 `Panel` 组件（5 处自实现合并到 AdminDetailPrimitives）
-- [ ] 3. `title=` → UI 库 `Tooltip`（8+ 处）
-- [ ] 4. 按需替换 `<input>` → UI 库 `Input`（仅新组件 + allowClear/prefix 场景）
+- [x] **2026-06-25 任务 2 完成**：3 处本地 `Panel` 合并为 `SectionPanel`（AdminDetailPrimitives），Dashboard 的 icon-variant Panel 与 Ops 的 PanelHeader 保留（commit f5d1b16）
+- [x] **2026-06-25 任务 7 完成**：RuntimeStatePage 自实现 checkbox → UI 库 `Switch`（修正为 Switch 而非 Checkbox，因为 Switch 是单 boolean toggle 的正确语义，commit 441fdad）
+- [ ] 3. `title=` → UI 库 `Tooltip`（**⏸ 2026-06-25 暂缓**：实际范围 79 dynamic + 60 literal，绝大部分是 truncated text + hover-for-full，原生 `title=` 已够用。后续如要做，挑 5-10 个高价值单点做单 commit）
+- [ ] 4. 按需替换 `<input>` → UI 库 `Input`（**实际 50 处** `.field-input`，仅新组件 + allowClear/prefix 场景）
 - [ ] 5. `<details>` → UI 库 `Collapse`（可选，JSON 折叠场景）
-- [ ] 6. `admin-switch-button` → UI 库 `Switch`（单 key 场景）
-- [ ] 7. 自实现 checkbox → UI 库 `Checkbox`（1 处）
+- [ ] 6. `admin-switch-button` → UI 库 `Switch`（单 key 场景，ConfigCenterPage 还在用 `<button role="switch">` 自实现）
