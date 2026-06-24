@@ -175,6 +175,11 @@ export default function App() {
     setRoute({ section: "relationships", relationshipId });
   }, []);
 
+  const handleOpenRelationshipList = useCallback(() => {
+    window.history.pushState(null, "", pathForSection("relationships"));
+    setRoute({ section: "relationships" });
+  }, []);
+
   const handleOpenConversationPerson = useCallback((personId: string) => {
     window.history.pushState(null, "", `/admin/conversations/person/${personId}`);
     setRoute({ section: "conversations", conversationPersonId: personId });
@@ -203,6 +208,8 @@ export default function App() {
         <RelationshipStatePage
           adminToken={adminToken}
           selectedRelationshipId={route.relationshipId}
+          onOpenRelationship={handleOpenRelationship}
+          onBackToRelationshipList={handleOpenRelationshipList}
           onOpenConversationPerson={handleOpenConversationPerson}
         />
       );
@@ -272,6 +279,7 @@ export default function App() {
     handleOpenSkill,
     handleOpenSkillList,
     handleOpenRelationship,
+    handleOpenRelationshipList,
     handleOpenConversationPerson,
   ]);
 

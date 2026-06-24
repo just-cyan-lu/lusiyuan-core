@@ -18,6 +18,8 @@ import { StateChangeDetail } from "./StateChangeDetail";
 interface RelationshipStatePageProps {
   adminToken: string;
   selectedRelationshipId?: string;
+  onOpenRelationship?: (relationshipId: string) => void;
+  onBackToRelationshipList?: () => void;
   onOpenConversationPerson?: (personId: string) => void;
 }
 
@@ -69,12 +71,8 @@ function primaryUserLabel(relationship: RelationshipState): string | null {
   return user?.displayName ?? user?.externalId ?? null;
 }
 
-function linkedUsersText(relationship: RelationshipState): string {
-  const links = relationship.person?.identityLinks ?? [];
-  if (links.length === 0) return "暂无绑定账号";
-  return links
-    .map((link) => link.user.displayName ?? link.user.externalId)
-    .join(" / ");
+function relationshipSummaryText(relationship: RelationshipState): string {
+  return relationship.summary ?? relationship.recentSignal ?? relationship.statusNote ?? "暂无关系摘要。";
 }
 
 function proposalUserLabel(user: { externalId: string; displayName: string | null }): string {
@@ -164,12 +162,15 @@ const relationshipFieldLabels: Record<string, string> = {
 export function RelationshipStatePage({
   adminToken,
   selectedRelationshipId,
+  onOpenRelationship,
+  onBackToRelationshipList,
   onOpenConversationPerson,
 }: RelationshipStatePageProps) {
   const [query, setQuery] = useState("");
   const [linkUserId, setLinkUserId] = useState("");
   const [form, setForm] = useState<RelationshipForm | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [pageState, setPageState] = useState<PageState>({
     relationships: [],
     proposals: [],
@@ -211,18 +212,13 @@ export function RelationshipStatePage({
           limit: 30,
         }),
       ]);
-      const selectedId = preferredId ?? pageState.selected?.id ?? data.relationships[0]?.id;
-      const selected = selectedId
-        ? data.relationships.find((relationship) => relationship.id === selectedId) ??
-          data.relationships[0] ??
-          null
-        : null;
+      const selectedId = preferredId ?? selectedRelationshipId ?? null;
       let events: RelationshipStateEvent[] = [];
-      let detailRelationship = selected;
-      if (selected) {
+      let detailRelationship: RelationshipState | null = null;
+      if (selectedId) {
         const detail = await fetchRelationshipDetail({
           token: adminToken,
-          relationshipId: selected.id,
+          relationshipId: selectedId,
         });
         detailRelationship = detail.relationship;
         events = detail.events;
@@ -249,6 +245,10 @@ export function RelationshipStatePage({
 
   async function selectRelationship(relationshipId: string) {
     if (!adminToken) return;
+    if (onOpenRelationship) {
+      onOpenRelationship(relationshipId);
+      return;
+    }
     setPageState((current) => ({ ...current, loading: true, error: null }));
     try {
       const detail = await fetchRelationshipDetail({ token: adminToken, relationshipId });
@@ -275,12 +275,6 @@ export function RelationshipStatePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, selectedRelationshipId]);
 
-  useEffect(() => {
-    setSelectedEventId((current) =>
-      pageState.events.find((event) => event.id === current)?.id ?? pageState.events[0]?.id ?? null
-    );
-  }, [pageState.events, pageState.selected?.id]);
-
   const dirty = useMemo(() => {
     if (!pageState.selected || !form) return false;
     return (
@@ -289,9 +283,52 @@ export function RelationshipStatePage({
     );
   }, [pageState.selected, form]);
 
+  const eventTypeOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const event of pageState.events) {
+      counts.set(event.eventType, (counts.get(event.eventType) ?? 0) + 1);
+    }
+    return [
+      { type: "all", label: "全部", count: pageState.events.length },
+      ...Array.from(counts.entries()).map(([type, count]) => ({
+        type,
+        label: eventTypeLabel(type),
+        count,
+      })),
+    ];
+  }, [pageState.events]);
+
+  const filteredEvents = useMemo(
+    () =>
+      eventTypeFilter === "all"
+        ? pageState.events
+        : pageState.events.filter((event) => event.eventType === eventTypeFilter),
+    [eventTypeFilter, pageState.events]
+  );
+
+  const groupedEvents = useMemo(() => {
+    const groups = new Map<string, RelationshipStateEvent[]>();
+    for (const event of filteredEvents) {
+      const group = groups.get(event.eventType) ?? [];
+      group.push(event);
+      groups.set(event.eventType, group);
+    }
+    return Array.from(groups.entries()).map(([type, events]) => ({ type, events }));
+  }, [filteredEvents]);
+
+  useEffect(() => {
+    setEventTypeFilter("all");
+  }, [pageState.selected?.id]);
+
+  useEffect(() => {
+    setSelectedEventId((current) =>
+      filteredEvents.find((event) => event.id === current)?.id ?? filteredEvents[0]?.id ?? null
+    );
+  }, [filteredEvents]);
+
   const selectedEvent = useMemo(
-    () => pageState.events.find((event) => event.id === selectedEventId) ?? pageState.events[0] ?? null,
-    [pageState.events, selectedEventId]
+    () => filteredEvents.find((event) => event.id === selectedEventId) ?? filteredEvents[0] ?? null,
+    [filteredEvents, selectedEventId]
   );
 
   async function saveRelationship() {
@@ -460,44 +497,61 @@ export function RelationshipStatePage({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <div className="text-xs font-semibold text-[#8a6f5a]">Relationship State</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">关系状态</h2>
+            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">
+              {selectedRelationshipId ? "关系详情" : "关系状态"}
+            </h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
-              每个现实身份一份关系状态。聊天会先沉淀成关系信号，复盘后再更新关系；疑似同一人的线索会提交给 admin 审核。
+              {selectedRelationshipId
+                ? "这里集中处理一个现实身份的关系状态、渠道绑定和关系变更记录。"
+                : "每个现实身份一份关系状态。列表只放关键关系信息，点进详情后再修正状态和查看变更。"}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {selectedRelationshipId && (
+              <button
+                type="button"
+                onClick={() => onBackToRelationshipList?.()}
+                className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
+              >
+                返回列表
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => void loadList()}
+              onClick={() => void loadList(query, selectedRelationshipId)}
               className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
             >
               刷新
             </button>
-            <button
-              type="button"
-              disabled={!dirty || pageState.saving}
-              onClick={() => void saveRelationship()}
-              className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
-            >
-              {pageState.saving ? "保存中" : "保存"}
-            </button>
-            <button
-              type="button"
-              disabled={!pageState.selected || pageState.saving}
-              onClick={() => void reviewSelectedRelationship()}
-              className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              复盘
-            </button>
-            <button
-              type="button"
-              disabled={!pageState.selected || pageState.saving}
-              onClick={() => void resetSelectedRelationship()}
-              className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-2 text-sm font-medium text-[#8d6048] transition hover:bg-[#fff0e8] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              重置
-            </button>
+            {selectedRelationshipId && (
+              <>
+                <button
+                  type="button"
+                  disabled={!dirty || pageState.saving}
+                  onClick={() => void saveRelationship()}
+                  className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
+                >
+                  {pageState.saving ? "保存中" : "保存"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!pageState.selected || pageState.saving}
+                  onClick={() => void reviewSelectedRelationship()}
+                  className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  复盘
+                </button>
+                <button
+                  type="button"
+                  disabled={!pageState.selected || pageState.saving}
+                  onClick={() => void resetSelectedRelationship()}
+                  className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-2 text-sm font-medium text-[#8d6048] transition hover:bg-[#fff0e8] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  重置
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -513,83 +567,17 @@ export function RelationshipStatePage({
         )}
       </section>
 
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-[#172033]">身份怀疑</h3>
-            <p className="mt-1 text-xs leading-6 text-[#7b8ca2]">
-              系统只会怀疑，不会自动确认。通过后才会把渠道账号合并到同一个现实身份。
-            </p>
-          </div>
-          <div className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-medium text-[#66758a]">
-            {pageState.proposals.length} 条待审核
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3">
-          {pageState.proposals.length > 0 ? (
-            pageState.proposals.map((proposal) => (
-              <div
-                key={proposal.id}
-                className="grid gap-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-4 lg:grid-cols-[1fr_auto]"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-[#172033]">
-                      {proposalUserLabel(proposal.sourceUser)}
-                    </span>
-                    <span className="text-xs text-[#7b8ca2]">可能是</span>
-                    <span className="text-sm font-semibold text-[#172033]">
-                      {proposalTargetLabel(proposal)}
-                    </span>
-                    <span className="rounded-full border border-[#c9d6e5] bg-white px-2 py-0.5 text-xs text-[#66758a]">
-                      {Math.round(proposal.confidence * 100)}%
-                    </span>
-                  </div>
-                  <div className="mt-2 text-xs leading-6 text-[#617188]">
-                    {proposal.reason}
-                  </div>
-                  <div className="mt-1 text-xs leading-6 text-[#7b8ca2]">
-                    {proposalEvidenceText(proposal) || "暂无详细证据。"}
-                  </div>
-                  <div className="mt-1 truncate text-xs text-[#7b8ca2]">
-                    已有身份账号：{proposalTargetUsersText(proposal)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 lg:justify-end">
-                  <button
-                    type="button"
-                    disabled={pageState.saving}
-                    onClick={() => void reviewIdentityProposal(proposal.id, "approve")}
-                    className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
-                  >
-                    通过
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pageState.saving}
-                    onClick={() => void reviewIdentityProposal(proposal.id, "reject")}
-                    className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    忽略
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
-              暂无待审核的身份怀疑。
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+      {!selectedRelationshipId ? (
+        <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <h3 className="text-base font-semibold text-[#172033]">用户关系</h3>
+            <div>
+              <h3 className="text-base font-semibold text-[#172033]">用户关系</h3>
+              <p className="mt-1 text-xs text-[#7b8ca2]">
+                {pageState.relationships.length} 个现实身份，按更新时间读取最近的关系状态。
+              </p>
+            </div>
             <form
-              className="flex gap-2"
+              className="flex w-full gap-2 md:w-auto"
               onSubmit={(event) => {
                 event.preventDefault();
                 void loadList(query);
@@ -599,247 +587,386 @@ export function RelationshipStatePage({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜索用户或摘要"
-                className="field-input h-10 min-w-0"
+                className="field-input h-10 min-w-0 flex-1 md:w-72"
               />
               <button
                 type="submit"
-                className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-3 text-sm text-[#334155]"
+                className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155]"
               >
                 搜索
               </button>
             </form>
           </div>
 
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 overflow-hidden rounded-lg border border-[#d9e2ec]">
+            <div className="hidden grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_repeat(4,4.5rem)_minmax(8rem,0.75fr)_2rem] items-center gap-3 bg-[#f8fbff] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#7b8ca2] lg:grid">
+              <div>用户</div>
+              <div>主要内容</div>
+              <div className="text-center">熟悉</div>
+              <div className="text-center">信任</div>
+              <div className="text-center">亲近</div>
+              <div className="text-center">张力</div>
+              <div>最近更新</div>
+              <div />
+            </div>
             {pageState.relationships.length > 0 ? (
-              pageState.relationships.map((relationship) => {
-                const active = pageState.selected?.id === relationship.id;
-                return (
-                  <button
-                    key={relationship.id}
-                    type="button"
-                    onClick={() => void selectRelationship(relationship.id)}
-                    className={`rounded-lg border px-4 py-3 text-left transition ${
-                      active
-                        ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                        : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-[#172033]">
-                          {userLabel(relationship)}
-                        </div>
-                        <div className="mt-1 text-xs text-[#7b8ca2]">
-                          {relationship.relationshipLabel}
-                        </div>
-                        <div className="mt-1 truncate text-xs text-[#7b8ca2]">
-                          {linkedUsersText(relationship)}
-                        </div>
-                      </div>
-                      <div className="text-xs text-[#7b8ca2]">
-                        {formatDate(relationship.updatedAt)}
-                      </div>
+              pageState.relationships.map((relationship) => (
+                <button
+                  key={relationship.id}
+                  type="button"
+                  onClick={() => void selectRelationship(relationship.id)}
+                  className="grid w-full gap-3 border-t border-[#edf2f7] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[#f8fbff] lg:grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_repeat(4,4.5rem)_minmax(8rem,0.75fr)_2rem] lg:items-center"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="break-words text-sm font-semibold text-[#172033]">
+                        {userLabel(relationship)}
+                      </span>
+                      <span className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-2.5 py-1 text-xs font-medium text-[#334155]">
+                        {relationship.relationshipLabel}
+                      </span>
                     </div>
-                    <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px] text-[#66758a]">
-                      <MiniMetric label="熟" value={relationship.familiarity} />
-                      <MiniMetric label="信" value={relationship.trust} />
-                      <MiniMetric label="近" value={relationship.closeness} />
-                      <MiniMetric label="张" value={relationship.tension} />
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-[#66758a]">
+                      {(relationship.person?.identityLinks ?? []).length > 0 ? (
+                        relationship.person?.identityLinks.map((link) => (
+                          <span
+                            key={link.id}
+                            className="rounded-full bg-[#f3f7fb] px-2.5 py-1"
+                          >
+                            {link.user.displayName ?? link.user.externalId}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-full bg-[#f3f7fb] px-2.5 py-1">
+                          暂无绑定账号
+                        </span>
+                      )}
                     </div>
-                  </button>
-                );
-              })
+                  </div>
+                  <div className="min-w-0 text-sm leading-6 text-[#334155]">
+                    {relationshipSummaryText(relationship)}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 lg:contents">
+                    <RelationshipScoreCell label="熟悉" value={relationship.familiarity} />
+                    <RelationshipScoreCell label="信任" value={relationship.trust} />
+                    <RelationshipScoreCell label="亲近" value={relationship.closeness} />
+                    <RelationshipScoreCell
+                      label="张力"
+                      value={relationship.tension}
+                      dangerHigh
+                    />
+                  </div>
+                  <div className="text-xs leading-5 text-[#7b8ca2]">
+                    {formatDate(relationship.lastInteractionAt ?? relationship.updatedAt)}
+                  </div>
+                  <div className="hidden text-right text-xl font-semibold text-[#b8c7d8] lg:block">
+                    ›
+                  </div>
+                </button>
+              ))
             ) : (
-              <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+              <div className="bg-[#f8fbff] px-4 py-8 text-sm text-[#7b8ca2]">
                 {pageState.loading ? "正在读取关系状态..." : "暂无关系状态。用户聊天后会自动创建。"}
               </div>
             )}
           </div>
-        </div>
-
-        {pageState.selected && form ? (
-          <div className="space-y-5">
-            <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="text-sm text-[#7b8ca2]">当前用户</div>
-                  <div className="mt-2 text-2xl font-semibold text-[#172033]">
-                    {userLabel(pageState.selected)}
-                  </div>
-                  <div className="mt-2 text-sm text-[#617188]">
-                    Person ID: {pageState.selected.personId}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(pageState.selected.person?.identityLinks ?? []).map((link) => (
-                      <span
-                        key={link.id}
-                        className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#334155]"
-                      >
-                        {link.user.displayName ?? link.user.externalId}
-                      </span>
-                    ))}
-                  </div>
+        </section>
+      ) : pageState.selected && form ? (
+        <div className="space-y-5">
+          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="text-sm text-[#7b8ca2]">当前用户</div>
+                <div className="mt-2 text-2xl font-semibold text-[#172033]">
+                  {userLabel(pageState.selected)}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (pageState.selected?.personId) {
-                        onOpenConversationPerson?.(pageState.selected.personId);
-                      }
-                    }}
-                    className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
-                  >
-                    查看对话记录
-                  </button>
-                  <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
-                    {pageState.selected.relationshipLabel}
-                  </div>
+                <div className="mt-2 text-sm text-[#617188]">
+                  Person ID: {pageState.selected.personId}
                 </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <MetricSlider
-                  label="熟悉度"
-                  value={form.familiarity}
-                  onChange={(value) => setForm({ ...form, familiarity: value })}
-                />
-                <MetricSlider
-                  label="信任度"
-                  value={form.trust}
-                  onChange={(value) => setForm({ ...form, trust: value })}
-                />
-                <MetricSlider
-                  label="亲近感"
-                  value={form.closeness}
-                  onChange={(value) => setForm({ ...form, closeness: value })}
-                />
-                <MetricSlider
-                  label="关系张力"
-                  value={form.tension}
-                  dangerHigh
-                  onChange={(value) => setForm({ ...form, tension: value })}
-                />
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-              <h3 className="text-base font-semibold text-[#172033]">详情与修正</h3>
-              <div className="mt-4 grid gap-4">
-                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-                  <div className="text-xs font-semibold text-[#7b8ca2]">绑定其他渠道账号</div>
-                  <div className="mt-3 flex flex-col gap-2 md:flex-row">
-                    <input
-                      className="field-input"
-                      value={linkUserId}
-                      onChange={(event) => setLinkUserId(event.target.value)}
-                      placeholder="User externalId / id，例如 telegram:123"
-                    />
-                    <button
-                      type="button"
-                      disabled={!linkUserId.trim() || pageState.saving}
-                      onClick={() => void linkUserToSelectedPerson()}
-                      className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(pageState.selected.person?.identityLinks ?? []).map((link) => (
+                    <span
+                      key={link.id}
+                      className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#334155]"
                     >
-                      绑定
-                    </button>
-                  </div>
-                  <p className="mt-2 text-xs leading-6 text-[#7b8ca2]">
-                    只有明确确认是同一个现实用户时再绑定。绑定后多个渠道会共用这一份关系状态。
-                  </p>
+                      {link.user.displayName ?? link.user.externalId}
+                    </span>
+                  ))}
                 </div>
-                <Field label="关系标签">
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pageState.selected?.personId) {
+                      onOpenConversationPerson?.(pageState.selected.personId);
+                    }
+                  }}
+                  className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
+                >
+                  查看对话记录
+                </button>
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
+                  {pageState.selected.relationshipLabel}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <MetricSlider
+                label="熟悉度"
+                value={form.familiarity}
+                onChange={(value) => setForm({ ...form, familiarity: value })}
+              />
+              <MetricSlider
+                label="信任度"
+                value={form.trust}
+                onChange={(value) => setForm({ ...form, trust: value })}
+              />
+              <MetricSlider
+                label="亲近感"
+                value={form.closeness}
+                onChange={(value) => setForm({ ...form, closeness: value })}
+              />
+              <MetricSlider
+                label="关系张力"
+                value={form.tension}
+                dangerHigh
+                onChange={(value) => setForm({ ...form, tension: value })}
+              />
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+            <h3 className="text-base font-semibold text-[#172033]">详情与修正</h3>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4 lg:col-span-2">
+                <div className="text-xs font-semibold text-[#7b8ca2]">绑定其他渠道账号</div>
+                <div className="mt-3 flex flex-col gap-2 md:flex-row">
                   <input
                     className="field-input"
-                    value={form.relationshipLabel}
-                    onChange={(event) =>
-                      setForm({ ...form, relationshipLabel: event.target.value })
-                    }
+                    value={linkUserId}
+                    onChange={(event) => setLinkUserId(event.target.value)}
+                    placeholder="User externalId / id，例如 telegram:123"
                   />
-                </Field>
-                <TextAreaField
-                  label="互动风格"
-                  value={form.interactionStyle}
-                  onChange={(value) => setForm({ ...form, interactionStyle: value })}
-                />
-                <TextAreaField
-                  label="关系摘要"
-                  value={form.summary}
-                  onChange={(value) => setForm({ ...form, summary: value })}
-                />
-                <TextAreaField
-                  label="最近信号"
-                  value={form.recentSignal}
-                  onChange={(value) => setForm({ ...form, recentSignal: value })}
-                />
-                <TextAreaField
-                  label="备注"
-                  value={form.statusNote}
-                  onChange={(value) => setForm({ ...form, statusNote: value })}
-                />
+                  <button
+                    type="button"
+                    disabled={!linkUserId.trim() || pageState.saving}
+                    onClick={() => void linkUserToSelectedPerson()}
+                    className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
+                  >
+                    绑定
+                  </button>
+                </div>
+                <p className="mt-2 text-xs leading-6 text-[#7b8ca2]">
+                  只有明确确认是同一个现实用户时再绑定。绑定后多个渠道会共用这一份关系状态。
+                </p>
               </div>
-            </section>
+              <Field label="关系标签">
+                <input
+                  className="field-input"
+                  value={form.relationshipLabel}
+                  onChange={(event) =>
+                    setForm({ ...form, relationshipLabel: event.target.value })
+                  }
+                />
+              </Field>
+              <TextAreaField
+                label="互动风格"
+                value={form.interactionStyle}
+                onChange={(value) => setForm({ ...form, interactionStyle: value })}
+              />
+              <TextAreaField
+                label="关系摘要"
+                value={form.summary}
+                onChange={(value) => setForm({ ...form, summary: value })}
+              />
+              <TextAreaField
+                label="最近信号"
+                value={form.recentSignal}
+                onChange={(value) => setForm({ ...form, recentSignal: value })}
+              />
+              <TextAreaField
+                label="备注"
+                value={form.statusNote}
+                onChange={(value) => setForm({ ...form, statusNote: value })}
+              />
+            </div>
+          </section>
 
-            <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-              <h3 className="text-base font-semibold text-[#172033]">关系变更</h3>
-              <p className="mt-1 text-xs text-[#7b8ca2]">
-                最近 20 条程序或 admin 写入记录；点开一条可以看它是信号记录，还是实际改了关系状态。
-              </p>
-              <div className="mt-4 grid gap-4 xl:grid-cols-[0.86fr_1.14fr]">
-                {pageState.events.length > 0 ? (
-                  <>
-                    <div className="grid gap-3 self-start">
-                      {pageState.events.map((event) => {
-                        const active = selectedEvent?.id === event.id;
-                        return (
-                          <button
-                            key={event.id}
-                            type="button"
-                            onClick={() => setSelectedEventId(event.id)}
-                            className={`grid gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[8rem_1fr_10rem] ${
-                              active
-                                ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                                : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
-                            }`}
-                          >
-                            <div>
-                              <div className="text-sm font-semibold text-[#172033]">
-                                {eventTypeLabel(event.eventType)}
-                              </div>
-                              <div className="mt-1 text-xs text-[#7b8ca2]">
-                                {event.source ?? "unknown"}
-                              </div>
-                            </div>
-                            <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
-                            <div className="text-xs text-[#7b8ca2] md:text-right">
-                              {formatDate(event.createdAt)}
-                            </div>
-                          </button>
-                        );
-                      })}
-                      </div>
-                    <StateChangeDetail
-                      event={selectedEvent}
-                      eventTypeLabel={eventTypeLabel}
-                      fieldLabels={relationshipFieldLabels}
-                      title="关系变化解释"
-                    />
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
-                    暂无关系变更。
-                  </div>
-                )}
+          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-[#172033]">身份怀疑</h3>
+                <p className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+                  系统只会怀疑，不会自动确认。通过后才会把渠道账号合并到同一个现实身份。
+                </p>
               </div>
-            </section>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-[#d9e2ec] bg-white px-5 py-8 text-sm text-[#7b8ca2]">
-            选择一个用户关系后查看详情。
-          </div>
-        )}
-      </section>
+              <div className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-medium text-[#66758a]">
+                {pageState.proposals.length} 条待审核
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {pageState.proposals.length > 0 ? (
+                pageState.proposals.map((proposal) => (
+                  <div
+                    key={proposal.id}
+                    className="grid gap-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-4 lg:grid-cols-[1fr_auto]"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-[#172033]">
+                          {proposalUserLabel(proposal.sourceUser)}
+                        </span>
+                        <span className="text-xs text-[#7b8ca2]">可能是</span>
+                        <span className="text-sm font-semibold text-[#172033]">
+                          {proposalTargetLabel(proposal)}
+                        </span>
+                        <span className="rounded-full border border-[#c9d6e5] bg-white px-2 py-0.5 text-xs text-[#66758a]">
+                          {Math.round(proposal.confidence * 100)}%
+                        </span>
+                      </div>
+                      <div className="mt-2 text-xs leading-6 text-[#617188]">
+                        {proposal.reason}
+                      </div>
+                      <div className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+                        {proposalEvidenceText(proposal) || "暂无详细证据。"}
+                      </div>
+                      <div className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+                        已有身份账号：{proposalTargetUsersText(proposal)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 lg:justify-end">
+                      <button
+                        type="button"
+                        disabled={pageState.saving}
+                        onClick={() => void reviewIdentityProposal(proposal.id, "approve")}
+                        className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
+                      >
+                        通过
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pageState.saving}
+                        onClick={() => void reviewIdentityProposal(proposal.id, "reject")}
+                        className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        忽略
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                  暂无待审核的身份怀疑。
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[#172033]">关系变更</h3>
+                <p className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+                  最近 20 条程序或 admin 写入记录。左侧按类型筛选，摘要完整展示，不再混成一串。
+                </p>
+              </div>
+              <div className="rounded-full bg-[#f8fbff] px-3 py-1 text-xs font-medium text-[#66758a]">
+                {pageState.events.length} 条记录
+              </div>
+            </div>
+            {eventTypeOptions.length > 1 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {eventTypeOptions.map((option) => (
+                  <button
+                    key={option.type}
+                    type="button"
+                    onClick={() => setEventTypeFilter(option.type)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      eventTypeFilter === option.type
+                        ? "border-[#a9bfd7] bg-[#eaf2fb] text-[#27496d]"
+                        : "border-[#d9e2ec] bg-[#f8fbff] text-[#66758a] hover:bg-white"
+                    }`}
+                  >
+                    {option.label} {option.count}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.95fr)]">
+              {pageState.events.length > 0 ? (
+                <>
+                  <div className="grid gap-4 self-start">
+                    {groupedEvents.length > 0 ? (
+                      groupedEvents.map((group) => (
+                        <div
+                          key={group.type}
+                          className="overflow-hidden rounded-lg border border-[#d9e2ec] bg-[#f8fbff]"
+                        >
+                          <div className="flex items-center justify-between gap-3 border-b border-[#d9e2ec] bg-white px-4 py-3">
+                            <div className="text-sm font-semibold text-[#172033]">
+                              {eventTypeLabel(group.type)}
+                            </div>
+                            <div className="rounded-full bg-[#f8fbff] px-2.5 py-1 text-xs text-[#66758a]">
+                              {group.events.length} 条
+                            </div>
+                          </div>
+                          <div className="divide-y divide-[#d9e2ec]">
+                            {group.events.map((event) => {
+                              const active = selectedEvent?.id === event.id;
+                              return (
+                                <button
+                                  key={event.id}
+                                  type="button"
+                                  onClick={() => setSelectedEventId(event.id)}
+                                  className={`w-full px-4 py-3 text-left transition ${
+                                    active ? "bg-[#eaf2fb]" : "bg-[#f8fbff] hover:bg-white"
+                                  }`}
+                                >
+                                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
+                                    <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 font-semibold text-[#334155]">
+                                      {event.source ?? "unknown"}
+                                    </span>
+                                    {event.channel && <span>渠道：{event.channel}</span>}
+                                    <span>{formatDate(event.createdAt)}</span>
+                                  </div>
+                                  <div className="mt-2 break-words text-sm leading-6 text-[#334155]">
+                                    {event.summary || "这条记录没有摘要。"}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                        当前筛选下没有关系变更。
+                      </div>
+                    )}
+                  </div>
+                  <StateChangeDetail
+                    event={selectedEvent}
+                    eventTypeLabel={eventTypeLabel}
+                    fieldLabels={relationshipFieldLabels}
+                    title="关系变化解释"
+                  />
+                </>
+              ) : (
+                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
+                  暂无关系变更。
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : (
+        <section className="rounded-lg border border-[#d9e2ec] bg-white px-5 py-8 text-sm text-[#7b8ca2]">
+          {pageState.loading ? "正在读取关系详情..." : "没有找到这条关系状态。"}
+        </section>
+      )}
     </div>
   );
 }
@@ -904,11 +1031,22 @@ function MetricSlider({
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: number }) {
+function RelationshipScoreCell({
+  label,
+  value,
+  dangerHigh = false,
+}: {
+  label: string;
+  value: number;
+  dangerHigh?: boolean;
+}) {
+  const good = dangerHigh ? value < 45 : value >= 45;
   return (
-    <div className="rounded-md bg-white px-2 py-1">
-      <div>{label}</div>
-      <div className="mt-0.5 font-semibold text-[#172033]">{value}</div>
+    <div className="rounded-md border border-[#e2e8f0] bg-[#f8fbff] px-2 py-2 text-center lg:border-transparent lg:bg-transparent lg:px-0">
+      <div className="text-[10px] font-semibold text-[#7b8ca2] lg:hidden">{label}</div>
+      <div className={`mt-0.5 text-sm font-semibold ${good ? "text-[#3f7b5d]" : "text-[#9a6048]"}`}>
+        {value}
+      </div>
     </div>
   );
 }

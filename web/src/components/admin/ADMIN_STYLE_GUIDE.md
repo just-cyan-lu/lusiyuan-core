@@ -2,6 +2,8 @@
 
 这份规范用于陆思源 admin 平台。目标是保留后台的可读性和操作效率，同时明确带有温暖、圆润、轻游戏感的个人色彩。
 
+具体接入和组件使用方式见 `web/src/components/admin/ANIMAL_ISLAND_UI_USAGE.md`。这份文件更适合作为后续 session / 其他 agent 的交接手册；本文只保留视觉和交互规范。
+
 ## 风格原则
 
 - 主视觉使用 animal-island-ui：奶油米白背景、暖棕文字、薄荷绿主色、彩色浅底 pattern 卡片。
