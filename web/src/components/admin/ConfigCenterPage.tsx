@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
+import { SectionPanel } from "./AdminDetailPrimitives";
 import {
   API_BASE_URL,
   clearDatabaseData,
@@ -632,7 +633,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         )}
       </section>
 
-      <Panel title="危险操作" subtitle="仅用于开发期清理测试数据">
+      <SectionPanel bg="muted" title="危险操作" subtitle="仅用于开发期清理测试数据">
         <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
@@ -691,9 +692,9 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             </div>
           )}
         </div>
-      </Panel>
+      </SectionPanel>
 
-      <Panel title="运行配置" subtitle="保存在数据库；开关和下拉即时生效，不需要重启">
+      <SectionPanel bg="muted" title="运行配置" subtitle="保存在数据库；开关和下拉即时生效，不需要重启">
         {runtimeSettings ? (
           <RuntimeSettingsEditor
             groups={runtimeGroups}
@@ -707,9 +708,9 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         ) : (
           <LoadingHint loading={state.loading} />
         )}
-      </Panel>
+      </SectionPanel>
 
-      <Panel title="最近配置变更" subtitle="记录运行配置何时从什么值改成什么值">
+      <SectionPanel bg="muted" title="最近配置变更" subtitle="记录运行配置何时从什么值改成什么值">
         {state.settingEvents.length > 0 ? (
           <div className="divide-y divide-[#e5edf5] rounded-lg border border-[#d9e2ec] bg-white">
             {state.settingEvents.slice(0, 20).map((event) => (
@@ -730,7 +731,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         ) : (
           <div className="rounded-lg border border-dashed border-[#c9d7e6] bg-white px-4 py-5 text-sm text-[#7b8ca2]">还没有运行配置变更。</div>
         )}
-      </Panel>
+      </SectionPanel>
 
       <Panel
         title="连接与启动配置"
@@ -748,7 +749,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         ) : (
           <LoadingHint loading={state.loading} />
         )}
-      </Panel>
+      </SectionPanel>
 
       <section className="grid gap-5 xl:grid-cols-4">
         <SummaryCard
@@ -774,7 +775,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="模型提供商" subtitle="只读状态，不展示密钥原文">
+        <SectionPanel bg="muted" title="模型提供商" subtitle="只读状态，不展示密钥原文">
           {runtime ? (
             <div className="grid gap-3 md:grid-cols-2">
               {runtime.providers.map((provider) => (
@@ -784,9 +785,9 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           ) : (
             <LoadingHint loading={state.loading} />
           )}
-        </Panel>
+        </SectionPanel>
 
-        <Panel title="配置检查" subtitle="上线前值得看一眼的小雷达">
+        <SectionPanel bg="muted" title="配置检查" subtitle="上线前值得看一眼的小雷达">
           {runtime ? (
             <div className="grid gap-3">
               {findings.map((finding) => (
@@ -796,11 +797,11 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           ) : (
             <LoadingHint loading={state.loading} />
           )}
-        </Panel>
+        </SectionPanel>
       </section>
 
       <section className="grid gap-5 lg:grid-cols-3">
-        <Panel title="渠道状态" subtitle="外部入口是否启用与关键凭证状态">
+        <SectionPanel bg="muted" title="渠道状态" subtitle="外部入口是否启用与关键凭证状态">
           {runtime ? (
             <div className="grid gap-3">
               <ChannelCard
@@ -824,26 +825,26 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           ) : (
             <LoadingHint loading={state.loading} />
           )}
-        </Panel>
+        </SectionPanel>
 
-        <Panel title="功能开关" subtitle="来自数据库的实时运行配置">
+        <SectionPanel bg="muted" title="功能开关" subtitle="来自数据库的实时运行配置">
           {runtime ? (
             <ToggleGrid values={runtime.features} labels={featureLabels} />
           ) : (
             <LoadingHint loading={state.loading} />
           )}
-        </Panel>
+        </SectionPanel>
 
-        <Panel title="安全策略" subtitle="自动写入和工具风险边界">
+        <SectionPanel bg="muted" title="安全策略" subtitle="自动写入和工具风险边界">
           {runtime ? (
             <ToggleGrid values={runtime.safety} labels={safetyLabels} />
           ) : (
             <LoadingHint loading={state.loading} />
           )}
-        </Panel>
+        </SectionPanel>
       </section>
 
-      <Panel title="限制参数" subtitle="当前已生效的数据库运行配置">
+      <SectionPanel bg="muted" title="限制参数" subtitle="当前已生效的数据库运行配置">
         {runtime ? (
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {Object.entries(runtime.limits).map(([key, value]) => (
@@ -866,28 +867,8 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         ) : (
           <LoadingHint loading={state.loading} />
         )}
-      </Panel>
+      </SectionPanel>
     </div>
-  );
-}
-
-function Panel({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-5">
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-[#172033]">{title}</h3>
-        <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">{subtitle}</p>
-      </div>
-      {children}
-    </section>
   );
 }
 

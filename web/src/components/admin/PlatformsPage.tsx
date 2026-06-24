@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
+import { SectionPanel } from "./AdminDetailPrimitives";
 import {
   fetchSkills,
   fetchXiaohongshuImportStatus,
@@ -423,7 +424,7 @@ export function XiaohongshuPlatformPage({
 
       <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
         <div className="space-y-5">
-          <Panel title="从小红书读取" subtitle="粘贴帖子 URL，读取当前页面已经加载的内容">
+          <SectionPanel title="从小红书读取" subtitle="粘贴帖子 URL，读取当前页面已经加载的内容">
             <div className="grid gap-3">
               <FieldInput
                 label="小红书帖子 URL"
@@ -451,9 +452,9 @@ export function XiaohongshuPlatformPage({
                 系统不会刷新或滚动页面，只会有限展开当前已加载评论里的“展开 N 条回复”，读取后页面会保留。
               </p>
             </div>
-          </Panel>
+          </SectionPanel>
 
-          <Panel title="帖子列表" subtitle={`${posts.length} 条帖子`}>
+          <SectionPanel title="帖子列表" subtitle={`${posts.length} 条帖子`}>
             <div className="grid gap-2">
               {posts.length > 0 ? posts.map((post) => (
                 <button
@@ -479,11 +480,11 @@ export function XiaohongshuPlatformPage({
                 <EmptyBlock>还没有帖子。粘贴真实小红书 URL 后会自动出现在这里。</EmptyBlock>
               )}
             </div>
-          </Panel>
+          </SectionPanel>
         </div>
 
         <div className="space-y-5">
-          <Panel
+          <SectionPanel
             title={selectedPost ? selectedPost.title : "评论"}
             subtitle={selectedPost
               ? `${selectedPost.comments.length} 条顶层评论 · ${selectedPost.comments.reduce((total, comment) => total + comment.replies.length, 0)} 条子回复`
@@ -531,7 +532,7 @@ export function XiaohongshuPlatformPage({
             ) : (
               <EmptyBlock>先粘贴 URL 读取帖子，或从左侧选择已有帖子。</EmptyBlock>
             )}
-          </Panel>
+          </SectionPanel>
         </div>
       </section>
     </div>
@@ -1072,26 +1073,6 @@ function OwnerReplyRecorder({
         </Button>
       </div>
     </div>
-  );
-}
-
-function Panel({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
-      <div className="mb-4">
-        <h3 className="font-semibold text-[#172033]">{title}</h3>
-        <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">{subtitle}</p>
-      </div>
-      {children}
-    </section>
   );
 }
 
