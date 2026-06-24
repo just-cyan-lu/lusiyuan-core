@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchRuntimeSettings,
   fetchRegisteredTools,
@@ -781,47 +782,67 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         )}
       </Panel>
 
-      <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+      <section className="admin-select-host grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
         <Panel title="调用日志" subtitle="来自 tool_call_logs">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <select value={toolName} onChange={(event) => setToolName(event.target.value)} className="field-input">
-              <option value="all">全部工具</option>
-              {toolOptions.map((tool) => (
-                <option key={tool.name} value={tool.name}>
-                  {tool.name}
-                </option>
-              ))}
-            </select>
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="field-input">
-              <option value="all">全部状态</option>
-              <option value="success">成功</option>
-              <option value="failed">失败</option>
-              <option value="blocked">已阻断</option>
-            </select>
-            <select value={riskLevel} onChange={(event) => setRiskLevel(event.target.value)} className="field-input">
-              <option value="all">全部风险</option>
-              <option value="low">低风险</option>
-              <option value="medium">中风险</option>
-              <option value="high">高风险</option>
-            </select>
-            <select value={blocked} onChange={(event) => setBlocked(event.target.value)} className="field-input">
-              <option value="all">全部阻断状态</option>
-              <option value="true">只看阻断</option>
-              <option value="false">排除阻断</option>
-            </select>
-            <select value={datePreset} onChange={(event) => setDatePreset(event.target.value as DatePreset)} className="field-input">
-              {datePresetOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select value={limit} onChange={(event) => setLimit(event.target.value)} className="field-input">
-              <option value="30">30 条</option>
-              <option value="80">80 条</option>
-              <option value="150">150 条</option>
-              <option value="200">200 条</option>
-            </select>
+            <AdminSelect
+              ariaLabel="工具"
+              value={toolName}
+              onChange={(value) => setToolName(value)}
+              options={[
+                { key: "all", label: "全部工具" },
+                ...toolOptions.map((tool) => ({ key: tool.name, label: tool.name })),
+              ]}
+            />
+            <AdminSelect
+              ariaLabel="状态"
+              value={status}
+              onChange={(value) => setStatus(value)}
+              options={[
+                { key: "all", label: "全部状态" },
+                { key: "success", label: "成功" },
+                { key: "failed", label: "失败" },
+                { key: "blocked", label: "已阻断" },
+              ]}
+            />
+            <AdminSelect
+              ariaLabel="风险"
+              value={riskLevel}
+              onChange={(value) => setRiskLevel(value)}
+              options={[
+                { key: "all", label: "全部风险" },
+                { key: "low", label: "低风险" },
+                { key: "medium", label: "中风险" },
+                { key: "high", label: "高风险" },
+              ]}
+            />
+            <AdminSelect
+              ariaLabel="阻断状态"
+              value={blocked}
+              onChange={(value) => setBlocked(value)}
+              options={[
+                { key: "all", label: "全部阻断状态" },
+                { key: "true", label: "只看阻断" },
+                { key: "false", label: "排除阻断" },
+              ]}
+            />
+            <AdminSelect
+              ariaLabel="时间范围"
+              value={datePreset}
+              onChange={(value) => setDatePreset(value as DatePreset)}
+              options={datePresetOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+            <AdminSelect
+              ariaLabel="返回条数"
+              value={limit}
+              onChange={(value) => setLimit(value)}
+              options={[
+                { key: "30", label: "30 条" },
+                { key: "80", label: "80 条" },
+                { key: "150", label: "150 条" },
+                { key: "200", label: "200 条" },
+              ]}
+            />
             <input
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
