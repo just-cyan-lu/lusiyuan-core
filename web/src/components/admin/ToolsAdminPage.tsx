@@ -993,7 +993,7 @@ function PolicyConfigItem({
   const booleanOn = currentValue === "true";
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
+    <div className="admin-select-host rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-medium text-[#172033]">{label}</div>
         {field && isBoolean ? (
@@ -1012,18 +1012,13 @@ function PolicyConfigItem({
       {field && !isBoolean && (
         <div className="mt-3 flex items-center gap-2">
           {field.type === "select" ? (
-            <select
+            <AdminSelect
+              ariaLabel={label}
               value={currentValue}
               disabled={disabled}
-              onChange={(event) => onChange(field.key, event.target.value)}
-              className="field-input bg-white"
-            >
-              {(field.options ?? []).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => onChange(field.key, value)}
+              options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
+            />
           ) : (
             <input
               value={currentValue}
@@ -1310,7 +1305,7 @@ function ConfigFieldControl({
 
   return (
     <div
-      className={`rounded-lg border px-3 py-3 ${
+      className={`admin-select-host rounded-lg border px-3 py-3 ${
         deleted ? "border-[#ead4c8] bg-[#fff6f1]" : "border-[#d9e2ec] bg-white"
       }`}
     >
@@ -1399,28 +1394,24 @@ function ConfigFieldControl({
 
       <div className="mt-3">
         {field.type === "boolean" ? (
-          <select
+          <AdminSelect
+            ariaLabel={field.label}
             value={value || "false"}
             disabled={disabled || deleted}
-            onChange={(event) => onChange(event.target.value)}
-            className="field-input bg-[#f8fbff]"
-          >
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
+            onChange={(next) => onChange(next)}
+            options={[
+              { key: "true", label: "true" },
+              { key: "false", label: "false" },
+            ]}
+          />
         ) : field.type === "select" ? (
-          <select
+          <AdminSelect
+            ariaLabel={field.label}
             value={value}
             disabled={disabled || deleted}
-            onChange={(event) => onChange(event.target.value)}
-            className="field-input bg-[#f8fbff]"
-          >
-            {(field.options ?? []).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => onChange(next)}
+            options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
+          />
         ) : (
           <input
             value={value}
