@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Button, Card, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import {
@@ -239,7 +239,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
             <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">搜索</span>
             <Input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
               placeholder="情境、回复或经验"
               className="h-10"
               allowClear

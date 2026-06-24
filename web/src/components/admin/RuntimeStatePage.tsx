@@ -677,7 +677,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               <label className="mt-4 flex items-center gap-3 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
                 <Switch
                   checked={form.autoUpdateEnabled}
-                  onChange={(checked) => setForm({ ...form, autoUpdateEnabled: checked })}
+                  onChange={(checked: boolean) => setForm({ ...form, autoUpdateEnabled: checked })}
                   aria-label="允许受控入口自动校准长期状态"
                 />
                 允许受控入口自动校准长期状态
