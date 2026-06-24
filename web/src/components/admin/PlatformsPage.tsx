@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
   fetchSkills,
@@ -654,12 +654,12 @@ function PostRecordEditor({
                   <label htmlFor={`post-alt-${post.id}-${index}`} className="text-xs text-[#7b8ca2]">
                     第 {index + 1} 张
                   </label>
-                  <input
+                  <AdminInput
                     id={`post-alt-${post.id}-${index}`}
                     value={alt}
                     onChange={(event) => updateAlt(index, event.target.value)}
                     placeholder="留空，之后由你补充"
-                    className="field-input h-10"
+                    aria-label={`第 ${index + 1} 张备选文案`}
                   />
                   <Button size="small" type="default" danger onClick={() => removeAltSlot(index)}>
                     删除
@@ -1088,10 +1088,10 @@ function FieldInput({
   return (
     <label>
       <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
-      <input
+      <AdminInput
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="field-input h-10"
+        aria-label={label}
       />
     </label>
   );
