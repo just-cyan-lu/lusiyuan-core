@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchRuntimeStateEventSources,
   fetchRuntimeState,
@@ -599,7 +600,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               </div>
             </div>
 
-            <div className="rounded-lg border border-[#d9e2ec] bg-white p-5 xl:col-span-2">
+            <div className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 xl:col-span-2">
               <h3 className="text-base font-semibold text-[#172033]">配置与控制</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="心情">
@@ -611,31 +612,31 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                     }
                   />
                 </Field>
-                <Field label="更新模式">
-                  <select
-                    className="field-input"
+                <div className="flex flex-col gap-1">
+                  <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">更新模式</span>
+                  <AdminSelect
+                    ariaLabel="更新模式"
                     value={form.updateMode}
-                    onChange={(event) =>
-                      setForm({ ...form, updateMode: event.target.value })
-                    }
-                  >
-                    <option value="quiet">安静</option>
-                    <option value="balanced">平衡</option>
-                    <option value="active">主动</option>
-                  </select>
-                </Field>
-                <Field label="更新策略">
-                  <select
-                    className="field-input"
+                    onChange={(value) => setForm({ ...form, updateMode: value })}
+                    options={[
+                      { key: "quiet", label: "安静" },
+                      { key: "balanced", label: "平衡" },
+                      { key: "active", label: "主动" },
+                    ]}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">更新策略</span>
+                  <AdminSelect
+                    ariaLabel="更新策略"
                     value={form.updateStrategy}
-                    onChange={(event) =>
-                      setForm({ ...form, updateStrategy: event.target.value })
-                    }
-                  >
-                    <option value="rules">规则校准</option>
-                    <option value="llm">LLM 提议校验</option>
-                  </select>
-                </Field>
+                    onChange={(value) => setForm({ ...form, updateStrategy: value })}
+                    options={[
+                      { key: "rules", label: "规则校准" },
+                      { key: "llm", label: "LLM 提议校验" },
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className="mt-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-xs leading-6 text-[#617188]">
