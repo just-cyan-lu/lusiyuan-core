@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Card, Icon, Input } from "animal-island-ui";
+import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchSkills,
   fetchXiaohongshuImportStatus,
@@ -592,7 +593,7 @@ function PostRecordEditor({
   }
 
   return (
-    <section className="border-b border-[#d9e2ec] pb-5">
+    <section className="admin-select-host border-b border-[#d9e2ec] pb-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold text-[#8a6f5a]">已读取的帖子内容</div>
@@ -615,7 +616,15 @@ function PostRecordEditor({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <FieldInput label="标题" value={title} onChange={setTitle} />
         <FieldInput label="作者" value={authorName} onChange={setAuthorName} />
-        <SelectInput label="帖子类型" value={postType} options={postTypes} onChange={setPostType} />
+        <div>
+          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">帖子类型</span>
+          <AdminSelect
+            ariaLabel="帖子类型"
+            value={postType}
+            onChange={setPostType}
+            options={Object.entries(postTypes).map(([key, label]) => ({ key, label }))}
+          />
+        </div>
       </div>
       <label className="mt-3 block">
         <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">帖子文案</span>
@@ -1103,29 +1112,6 @@ function FieldInput({
         onChange={(event) => onChange(event.target.value)}
         className="field-input h-10"
       />
-    </label>
-  );
-}
-
-function SelectInput({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Record<string, string>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label>
-      <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="field-input h-10">
-        {Object.entries(options).map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>{optionLabel}</option>
-        ))}
-      </select>
     </label>
   );
 }
