@@ -22,3 +22,35 @@ export function RawJsonDetails({ title, value }: { title: string; value: unknown
     </details>
   );
 }
+
+type SectionPanelBg = "white" | "muted";
+
+export function SectionPanel({
+  title,
+  subtitle,
+  bg = "white",
+  actions,
+  children,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  bg?: SectionPanelBg;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const sectionClass = bg === "muted"
+    ? "rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-5"
+    : "rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm";
+  return (
+    <section className={sectionClass}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-[#172033]">{title}</h3>
+          {subtitle && <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">{subtitle}</p>}
+        </div>
+        {actions}
+      </div>
+      {children}
+    </section>
+  );
+}

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
+import { SectionPanel } from "./AdminDetailPrimitives";
 import {
   fetchRuntimeSettings,
   fetchRegisteredTools,
@@ -682,7 +683,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       </section>
 
       {state.policy && (
-        <Panel title="工具策略" subtitle="开关即时写入；数字参数手动保存">
+        <SectionPanel title="工具策略" subtitle="开关即时写入；数字参数手动保存">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PolicyConfigItem
               label="工具层"
@@ -746,10 +747,10 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
           <div className="mt-4 rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
             开关点击后会立即写入数据库；数字参数修改后点击“保存工具参数”，页面提示成功时新的工具权限和限制已经生效。
           </div>
-        </Panel>
+        </SectionPanel>
       )}
 
-      <Panel title="已注册工具" subtitle="来自内置 Tool Registry">
+      <SectionPanel title="已注册工具" subtitle="来自内置 Tool Registry">
         {state.tools.length > 0 ? (
           <div className="space-y-2">
             {toolOptions.map((tool) => {
@@ -780,10 +781,10 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         ) : (
           <EmptyState loading={state.loading} text="还没有读取到工具注册表。" />
         )}
-      </Panel>
+      </SectionPanel>
 
       <section className="admin-select-host grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-        <Panel title="调用日志" subtitle="来自 tool_call_logs">
+        <SectionPanel title="调用日志" subtitle="来自 tool_call_logs">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <AdminSelect
               ariaLabel="工具"
@@ -917,15 +918,15 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               )}
             </div>
           </div>
-        </Panel>
+        </SectionPanel>
 
-        <Panel title="调用详情" subtitle={selectedLog ? selectedLog.id : "选择一条日志"}>
+        <SectionPanel title="调用详情" subtitle={selectedLog ? selectedLog.id : "选择一条日志"}>
           {selectedLog ? (
             <LogDetail log={selectedLog} />
           ) : (
             <EmptyState loading={state.loading} text="选择左侧一条调用日志后查看详情。" />
           )}
-        </Panel>
+        </SectionPanel>
       </section>
     </div>
   );
@@ -946,28 +947,6 @@ function MetricCard({
       <div className="mt-2 text-2xl font-semibold text-[#172033]">{value}</div>
       <div className="mt-1 text-xs text-[#66758a]">{detail}</div>
     </div>
-  );
-}
-
-function Panel({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-[#172033]">{title}</h3>
-          <p className="mt-1 text-xs text-[#7b8ca2]">{subtitle}</p>
-        </div>
-      </div>
-      {children}
-    </section>
   );
 }
 
