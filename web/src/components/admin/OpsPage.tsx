@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button, Tooltip } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchDreamDailyNotes,
   fetchDreamDeepSleep,
@@ -917,30 +917,30 @@ function ReflectionRunCard({
           />
         </div>
         <Field label="读取消息数">
-          <input
+          <AdminInput
             value={reflectionMessageLimit}
             onChange={(event) => onMessageLimitChange(event.target.value)}
             type="number"
             min={1}
-            className="field-input h-10"
+            aria-label="读取消息数"
           />
         </Field>
         <Field label="User ID">
-          <input
+          <AdminInput
             value={reflectionUserId}
             onChange={(event) => onUserIdChange(event.target.value)}
             placeholder="选择“单个用户”时填写"
             disabled={reflectionScope !== "user"}
-            className="field-input h-10 disabled:opacity-50"
+            aria-label="User ID"
           />
         </Field>
         <Field label="Conversation ID">
-          <input
+          <AdminInput
             value={reflectionConversationId}
             onChange={(event) => onConversationIdChange(event.target.value)}
             placeholder="选择“单个会话”时填写"
             disabled={reflectionScope !== "conversation"}
-            className="field-input h-10 disabled:opacity-50"
+            aria-label="Conversation ID"
           />
         </Field>
       </div>
@@ -974,20 +974,20 @@ function DreamRunCard({
     >
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="User ID（可选）">
-          <input
+          <AdminInput
             value={dreamUserId}
             onChange={(event) => onUserIdChange(event.target.value)}
             placeholder="不填则运行全局 daily"
-            className="field-input h-10"
+            aria-label="User ID（可选）"
           />
         </Field>
         <Field label="回看小时数">
-          <input
+          <AdminInput
             value={dreamLookbackHours}
             onChange={(event) => onLookbackHoursChange(event.target.value)}
             type="number"
             min={1}
-            className="field-input h-10"
+            aria-label="回看小时数"
           />
         </Field>
       </div>
@@ -1548,26 +1548,28 @@ function HistoryDateControls({
       </div>
       <label className="block">
         <span className="text-[11px] font-medium text-[#7b8ca2]">开始</span>
-        <input
+        <AdminInput
           type="date"
           value={fromDate}
           onChange={(event) => {
             onFromDateChange(event.target.value);
             onPresetChange("custom");
           }}
-          className="mt-1 h-9 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-2 text-xs text-[#172033] outline-none focus:border-[#a9bfd7]"
+          aria-label="开始日期"
+          className="mt-1"
         />
       </label>
       <label className="block">
         <span className="text-[11px] font-medium text-[#7b8ca2]">结束</span>
-        <input
+        <AdminInput
           type="date"
           value={toDate}
           onChange={(event) => {
             onToDateChange(event.target.value);
             onPresetChange("custom");
           }}
-          className="mt-1 h-9 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-2 text-xs text-[#172033] outline-none focus:border-[#a9bfd7]"
+          aria-label="结束日期"
+          className="mt-1"
         />
       </label>
     </div>
