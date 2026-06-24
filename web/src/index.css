@@ -640,3 +640,39 @@ textarea.field-input {
   background: linear-gradient(90deg, #f7cd67, #f8a6b2, #82d5bb);
   pointer-events: none;
 }
+
+/*
+ * animal-island-ui@1.0.x Select 包装样式
+ * ---------------------------------------------------------------------------
+ * 1. 组件内部把 dropdown 渲染为 wrapper 的兄弟节点，并用内联 style 硬编码了
+ *    position: absolute + left/right/top 计算（基于 trigger 的
+ *    getBoundingClientRect）。它的默认行为是「侧向」弹出（左侧不够空间时再切
+ *    换方向），而且 dropdown 的位置受组件库 `transform` 创建的新堆叠上下文影响。
+ * 2. 项目里 admin 筛选区希望统一「向下」展开。下游只要把
+ *    animal-island-ui 的 Select 放在任意带 `.admin-select-below` class 的元素
+ *    里，本段样式就会接管 dropdown 的位置/宽度/层级，无需每个调用点重复 !important。
+ * 3. 一旦 animal-island-ui 在 Select 上暴露 placement / dropdownStyle / renderDropdown
+ *    这类受控 prop，本段应删除。
+ */
+.admin-select-below .animal-dropdown-0l6jF {
+  left: 0 !important;
+  right: auto !important;
+  top: calc(100% + 6px) !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  min-width: 12rem !important;
+  z-index: 9999 !important;
+}
+
+/*
+ * 外层包含 .admin-select-below 的卡片，其 transform 会把 dropdown 的 z-index
+ * 困在卡片自己的 stacking context 里，浮不到经验列表之上。这里用 :has() 把整张
+ * 卡片（同时声明 .admin-select-host）的 z-index 提到与经验列表同级比较的范围。
+ * 调用方在筛选卡根节点上挂 .admin-select-host 即可。
+ */
+.admin-select-host:has(.admin-select-below) {
+  position: relative;
+  z-index: 40;
+}

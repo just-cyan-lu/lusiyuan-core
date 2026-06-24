@@ -190,7 +190,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
         />
       </section>
 
-      <Card className="p-4 md:p-5" pattern="none">
+      <Card className="admin-select-host p-4 md:p-5" pattern="none">
         <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#9f927d]">
           <Icon name="icon-map" size={14} />
           筛选条件
@@ -568,7 +568,7 @@ function FilterSelect({
   options: SelectOption[];
 }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className="admin-select-below flex flex-col gap-1">
       <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
       <Select
         options={options}
