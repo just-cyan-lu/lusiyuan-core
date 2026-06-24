@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Tooltip } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
   API_BASE_URL,
@@ -660,22 +660,21 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <label>
               <span className="mb-1 block text-xs font-semibold text-[#8d6048]">清空密码</span>
-              <input
+              <AdminInput
                 type="password"
                 value={clearPassword}
                 disabled={state.clearing}
                 onChange={(event) => setClearPassword(event.target.value)}
-                className="field-input bg-white"
                 placeholder="输入 .env 中的确认密码"
+                aria-label="清空数据库的确认密码"
               />
             </label>
             <label>
               <span className="mb-1 block text-xs font-semibold text-[#8d6048]">确认文字</span>
-              <input
+              <AdminInput
                 value={clearConfirmText}
                 disabled={state.clearing}
                 onChange={(event) => setClearConfirmText(event.target.value)}
-                className="field-input bg-white"
                 placeholder="输入：清空数据库"
               />
             </label>
@@ -957,7 +956,7 @@ function RuntimeSettingsEditor({
                         className="field-input min-h-32 resize-y py-2 leading-6"
                       />
                     ) : (
-                      <input
+                      <AdminInput
                         type={field.type === "integer" || field.type === "number" ? "number" : "text"}
                         min={field.min}
                         max={field.max}
@@ -965,7 +964,7 @@ function RuntimeSettingsEditor({
                         value={value}
                         disabled={disabled}
                         onChange={(event) => onChange(field.key, event.target.value)}
-                        className="field-input h-10"
+                        aria-label={field.label}
                       />
                     )}
                   </span>
@@ -1077,7 +1076,7 @@ function EnvConfigFieldControl({
             options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
           />
         ) : (
-          <input
+          <AdminInput
             value={value}
             type={field.type === "secret" ? "password" : field.type === "string" ? "text" : "number"}
             min={field.min}
@@ -1092,7 +1091,7 @@ function EnvConfigFieldControl({
                   : "输入新值"
                 : undefined
             }
-            className="field-input"
+            aria-label={field.label}
           />
         )}
       </div>
