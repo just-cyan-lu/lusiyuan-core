@@ -343,6 +343,14 @@ export interface AdminConversationMessagesResponse {
   messages: AdminConversationMessage[];
 }
 
+export interface WebChatConversationSummary extends ConversationSummary {
+  user: RelationshipUser;
+}
+
+export interface WebChatConversationsResponse {
+  conversations: WebChatConversationSummary[];
+}
+
 export interface RelationshipUpdateInput {
   token: string;
   relationshipId: string;
@@ -1318,6 +1326,22 @@ export async function fetchAdminConversationMessages(input: {
     }
   );
   return parseJsonResponse<AdminConversationMessagesResponse>(response, "无法读取会话消息");
+}
+
+export async function fetchWebChatConversations(input: {
+  token: string;
+  limit?: number;
+}): Promise<WebChatConversationsResponse> {
+  const params = new URLSearchParams();
+  if (input.limit) params.set("limit", String(input.limit));
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/web-chat/conversations${query ? `?${query}` : ""}`,
+    {
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<WebChatConversationsResponse>(response, "无法读取 Web Chat 会话");
 }
 
 export async function fetchEditableEnvConfig(token: string): Promise<EditableEnvConfig> {

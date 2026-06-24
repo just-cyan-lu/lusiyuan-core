@@ -44,6 +44,15 @@ function publicChatOutput(output: ChatOutput) {
   };
 }
 
+const webChatConversationIdPattern =
+  /^web:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertWebChatConversationId(conversationId: string): void {
+  if (!webChatConversationIdPattern.test(conversationId)) {
+    throw new Error("Web chat conversation_id must be web:<uuid>");
+  }
+}
+
 function ssePayload(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -115,6 +124,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
       };
 
       try {
+        assertWebChatConversationId(input.conversation_id);
         const output = await chat({
           ...input,
           channel: "web",

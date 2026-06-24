@@ -616,6 +616,77 @@ function latestConversationMessage(conversation: {
   return conversation.messages[0] ?? null;
 }
 
+const webChatConversationIdPattern =
+  /^web:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isSelectableWebChatConversationId(value: string): boolean {
+  return webChatConversationIdPattern.test(value);
+}
+
+async function listWebChatConversations(limit: number) {
+  const queryLimit = Math.max(clampLimit(limit, 80) * 4, 220);
+  const conversations = await prisma.conversation.findMany({
+    where: {
+      channel: "web",
+      externalConversationId: { startsWith: "web:" },
+    },
+    orderBy: { createdAt: "desc" },
+    take: queryLimit,
+    select: {
+      id: true,
+      userId: true,
+      channel: true,
+      externalConversationId: true,
+      metadata: true,
+      createdAt: true,
+      updatedAt: true,
+      user: {
+        select: {
+          id: true,
+          externalId: true,
+          displayName: true,
+        },
+      },
+      _count: { select: { messages: true } },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { role: true, content: true, createdAt: true },
+      },
+    },
+  });
+
+  const summaries = conversations
+    .filter((conversation) =>
+      isSelectableWebChatConversationId(conversation.externalConversationId)
+    )
+    .map((conversation) => {
+      const latest = latestConversationMessage(conversation);
+      return {
+        id: conversation.id,
+        userId: conversation.userId,
+        channel: conversation.channel,
+        externalConversationId: conversation.externalConversationId,
+        metadata: conversation.metadata,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        user: conversation.user,
+        messageCount: conversation._count.messages,
+        lastMessageAt: latest?.createdAt ?? null,
+        lastMessageRole: latest?.role ?? null,
+        lastMessagePreview: latest ? messagePreview(latest.content) : null,
+      };
+    });
+
+  summaries.sort((a, b) => {
+    const aTime = a.lastMessageAt?.getTime() ?? a.createdAt.getTime();
+    const bTime = b.lastMessageAt?.getTime() ?? b.createdAt.getTime();
+    return bTime - aTime;
+  });
+
+  return summaries.slice(0, clampLimit(limit, 80));
+}
+
 async function listConversationPeople(input: { query?: string; limit?: number }) {
   const q = cleanString(input.query);
   const people = await prisma.personIdentity.findMany({
@@ -1196,6 +1267,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       clampLimit(query.limit, 120)
     );
     return reply.send(detail);
+  });
+
+  app.get("/v1/admin/web-chat/conversations", async (request, reply) => {
+    const query = request.query as { limit?: string };
+    const conversations = await listWebChatConversations(clampLimit(query.limit, 80));
+    return reply.send({ conversations });
   });
 
   app.get("/v1/admin/relationships", async (request, reply) => {

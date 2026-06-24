@@ -191,7 +191,7 @@ export default function App() {
     }
 
     if (route.section === "chat") {
-      return <ChatPage />;
+      return <ChatPage adminToken={adminToken} />;
     }
 
     if (route.section === "runtime") {
