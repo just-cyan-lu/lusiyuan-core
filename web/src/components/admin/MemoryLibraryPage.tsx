@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   archiveAdminMemory,
   createAdminMemory,
@@ -559,29 +560,41 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-[0_18px_48px_rgba(91,117,150,0.1)]">
+      <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-[0_18px_48px_rgba(91,117,150,0.1)]">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <FilterSelect
-            label="状态"
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as MemoryStatusFilter)}
-            options={statusOptions}
-          />
-          <FilterSelect
-            label="范围"
-            value={scopeFilter}
-            onChange={(value) => setScopeFilter(value as MemoryScopeFilter)}
-            options={scopeOptions}
-          />
-          <FilterSelect
-            label="类型"
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={typeOptions.map((value) => ({
-              value,
-              label: value === "all" ? "全部类型" : value,
-            }))}
-          />
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">状态</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="状态"
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as MemoryStatusFilter)}
+              options={statusOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">范围</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="范围"
+              value={scopeFilter}
+              onChange={(value) => setScopeFilter(value as MemoryScopeFilter)}
+              options={scopeOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">类型</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="类型"
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={typeOptions.map((value) => ({
+                key: value,
+                label: value === "all" ? "全部类型" : value,
+              }))}
+            />
+          </div>
           <FilterInput
             label="User ID"
             value={userFilter}
@@ -594,18 +607,26 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             placeholder="id / content / user / channel"
             onChange={setQuery}
           />
-          <FilterSelect
-            label="时间字段"
-            value={dateField}
-            onChange={(value) => setDateField(value as MemoryDateField)}
-            options={dateFieldOptions}
-          />
-          <FilterSelect
-            label="时间范围"
-            value={datePreset}
-            onChange={(value) => setDatePreset(value as MemoryDatePreset)}
-            options={datePresetOptions}
-          />
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">时间字段</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="时间字段"
+              value={dateField}
+              onChange={(value) => setDateField(value as MemoryDateField)}
+              options={dateFieldOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">时间范围</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="时间范围"
+              value={datePreset}
+              onChange={(value) => setDatePreset(value as MemoryDatePreset)}
+              options={datePresetOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
           <FilterInput
             label="开始日期"
             value={fromDate}
@@ -624,18 +645,26 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
               setDatePreset("custom");
             }}
           />
-          <FilterSelect
-            label="排序"
-            value={sortKey}
-            onChange={(value) => setSortKey(value as MemorySortKey)}
-            options={sortOptions}
-          />
-          <FilterSelect
-            label="热力图"
-            value={activityMetric}
-            onChange={(value) => setActivityMetric(value as MemoryActivityMetric)}
-            options={activityMetricOptions}
-          />
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">排序</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="排序"
+              value={sortKey}
+              onChange={(value) => setSortKey(value as MemorySortKey)}
+              options={sortOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
+          <div className="block">
+            <span className="text-[11px] font-medium text-[#7b8ca2]">热力图</span>
+            <AdminSelect
+              className="mt-1"
+              ariaLabel="热力图"
+              value={activityMetric}
+              onChange={(value) => setActivityMetric(value as MemoryActivityMetric)}
+              options={activityMetricOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
           <Button
             type="default"
             className="h-11 self-end"
@@ -970,40 +999,33 @@ function MemoryEditor({
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
-        <Field label="Type">
-          <select
+      <div className="admin-select-host mt-5 grid gap-3 md:grid-cols-2">
+        <div className="block">
+          <span className="text-[11px] font-medium text-[#7b8ca2]">Type</span>
+          <AdminSelect
+            className="mt-1"
+            ariaLabel="Type"
             value={form.type}
-            onChange={(event) => update("type", event.target.value)}
-            className="field-input"
-          >
-            {editableTypeOptions.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Scope">
-          <select
+            onChange={(value) => update("type", value)}
+            options={editableTypeOptions.map((type) => ({ key: type, label: type }))}
+          />
+        </div>
+        <div className="block">
+          <span className="text-[11px] font-medium text-[#7b8ca2]">Scope</span>
+          <AdminSelect
+            className="mt-1"
+            ariaLabel="Scope"
             value={form.scope}
-            onChange={(event) => {
-              const scope = event.target.value;
+            onChange={(scope) => {
               onFormChange({
                 ...form,
                 scope,
                 userId: requiresUser(scope) ? form.userId : "",
               });
             }}
-            className="field-input"
-          >
-            {editableScopes.map((scope) => (
-              <option key={scope} value={scope}>
-                {scope}
-              </option>
-            ))}
-          </select>
-        </Field>
+            options={editableScopes.map((scope) => ({ key: scope, label: scope }))}
+          />
+        </div>
         <Field label={userRequired ? "User ID" : "User ID（全局记忆不需要）"}>
           <input
             value={form.userId}
@@ -1013,19 +1035,16 @@ function MemoryEditor({
             placeholder="externalId / id"
           />
         </Field>
-        <Field label="Status">
-          <select
+        <div className="block">
+          <span className="text-[11px] font-medium text-[#7b8ca2]">Status</span>
+          <AdminSelect
+            className="mt-1"
+            ariaLabel="Status"
             value={form.status}
-            onChange={(event) => update("status", event.target.value)}
-            className="field-input"
-          >
-            {editableStatuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </Field>
+            onChange={(value) => update("status", value)}
+            options={editableStatuses.map((status) => ({ key: status, label: status }))}
+          />
+        </div>
         <Field label="Importance">
           <input
             type="number"
@@ -1187,35 +1206,6 @@ function FilterInput({
         placeholder={placeholder}
         className="mt-1 h-10 w-full rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 text-sm text-[#172033] outline-none placeholder:text-[#9aa8b8] focus:border-[#a9bfd7]"
       />
-    </label>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-[11px] font-medium text-[#7b8ca2]">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-10 w-full rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 text-sm text-[#172033] outline-none focus:border-[#a9bfd7]"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
     </label>
   );
 }
