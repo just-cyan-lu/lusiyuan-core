@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button, Switch } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchRuntimeStateEventSources,
   fetchRuntimeState,
@@ -604,12 +604,12 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               <h3 className="text-base font-semibold text-[#172033]">配置与控制</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="心情">
-                  <input
-                    className="field-input"
+                  <AdminInput
                     value={form.moodLabel}
                     onChange={(event) =>
                       setForm({ ...form, moodLabel: event.target.value })
                     }
+                    aria-label="心情"
                   />
                 </Field>
                 <div className="flex flex-col gap-1">

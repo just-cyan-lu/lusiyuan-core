@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   applyMemoryProposalGlobally,
   applyMemoryProposal,
@@ -377,11 +377,11 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
         <div className="admin-select-host mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <label>
             <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">搜索</span>
-            <input
+            <AdminInput
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="内容 / 理由 / ID / report"
-              className="field-input h-10"
+              aria-label="搜索"
             />
           </label>
           <div className="flex flex-col gap-1">
