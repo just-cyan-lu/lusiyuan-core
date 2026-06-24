@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button } from "animal-island-ui";
 import {
   fetchRuntimeStateEventSources,
   fetchRuntimeState,
@@ -477,36 +478,27 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void loadState()}
-              className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
-            >
+            <Button type="default" onClick={() => void loadState()}>
               刷新
-            </button>
-            <button
-              type="button"
-              disabled={!dirty || pageState.saving}
+            </Button>
+            <Button
+              type="primary"
+              loading={pageState.saving}
+              disabled={!dirty}
               onClick={() => void saveState()}
-              className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
             >
-              {pageState.saving ? "保存中" : "保存"}
-            </button>
-            <button
-              type="button"
+              保存
+            </Button>
+            <Button
+              type="default"
               disabled={pageState.saving}
               onClick={() => void runAutonomyCheck()}
-              className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               自启动检查
-            </button>
-            <button
-              type="button"
-              onClick={() => void resetState()}
-              className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-2 text-sm font-medium text-[#8d6048] transition hover:bg-[#fff0e8]"
-            >
+            </Button>
+            <Button type="default" danger onClick={() => void resetState()}>
               重置
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -744,10 +736,8 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                           key={event.id}
                           type="button"
                           onClick={() => setSelectedRuntimeEventId(event.id)}
-                          className={`grid gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_7rem_11rem] ${
-                            active
-                              ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                              : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
+                          className={`admin-layout-button grid w-full gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_7rem_11rem] ${
+                            active ? "is-active" : ""
                           }`}
                         >
                           <div>
@@ -805,10 +795,8 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                           key={event.id}
                           type="button"
                           onClick={() => setSelectedStateEventId(event.id)}
-                          className={`grid gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_11rem] ${
-                            active
-                              ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                              : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
+                          className={`admin-layout-button grid w-full gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_11rem] ${
+                            active ? "is-active" : ""
                           }`}
                         >
                           <div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button } from "animal-island-ui";
 import {
   fetchRuntimeSettings,
   fetchRegisteredTools,
@@ -636,22 +637,22 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
+            <Button
+              type="default"
+              loading={state.loading}
+              disabled={state.saving}
               onClick={() => void loadTools()}
-              disabled={state.loading || state.saving}
-              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
             >
-              {state.loading ? "刷新中" : "刷新工具"}
-            </button>
-            <button
-              type="button"
+              刷新工具
+            </Button>
+            <Button
+              type="primary"
+              loading={state.saving}
+              disabled={!state.settingsConfig || state.loading}
               onClick={() => void saveToolConfig()}
-              disabled={!state.settingsConfig || state.loading || state.saving}
-              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
             >
-              {state.saving ? "保存中" : "保存工具参数"}
-            </button>
+              保存工具参数
+            </Button>
           </div>
         </div>
 
@@ -849,14 +850,13 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                 placeholder="模糊搜索工具名、错误、阻断原因、渠道、会话 id"
                 className="field-input"
               />
-              <button
-                type="button"
+              <Button
+                type="primary"
+                loading={state.loading}
                 onClick={() => void loadTools()}
-                disabled={state.loading}
-                className="shrink-0 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
               >
                 查询
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -1319,23 +1319,13 @@ function ConfigFieldControl({
             </div>
             {canDelete && maskedValues.length > 1 && (
               deleted ? (
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={onRestore}
-                  className="shrink-0 rounded-md border border-[#c9d7e6] bg-white px-2.5 py-1 text-xs font-medium text-[#66758a] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                >
+                <Button size="small" type="default" disabled={disabled} onClick={onRestore}>
                   撤销全部
-                </button>
+                </Button>
               ) : (
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={onDelete}
-                  className="shrink-0 rounded-md border border-[#ead4c8] bg-white px-2.5 py-1 text-xs font-medium text-[#8d6048] transition hover:bg-[#fff6f1] disabled:opacity-60"
-                >
+                <Button size="small" type="default" danger disabled={disabled} onClick={onDelete}>
                   删除全部
-                </button>
+                </Button>
               )
             )}
           </div>
@@ -1359,23 +1349,13 @@ function ConfigFieldControl({
                   </div>
                   {canDelete && (
                     itemDeleted ? (
-                      <button
-                        type="button"
-                        disabled={disabled || deleted}
-                        onClick={() => onRestoreSecretValue?.(index)}
-                        className="shrink-0 rounded-md border border-[#c9d7e6] bg-white px-2.5 py-1 text-xs font-medium text-[#66758a] transition hover:bg-[#f8fbff] disabled:opacity-60"
-                      >
+                      <Button size="small" type="default" disabled={disabled || deleted} onClick={() => onRestoreSecretValue?.(index)}>
                         撤销
-                      </button>
+                      </Button>
                     ) : (
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => onDeleteSecretValue?.(index)}
-                        className="shrink-0 rounded-md border border-[#ead4c8] bg-white px-2.5 py-1 text-xs font-medium text-[#8d6048] transition hover:bg-[#fff6f1] disabled:opacity-60"
-                      >
+                      <Button size="small" type="default" danger disabled={disabled} onClick={() => onDeleteSecretValue?.(index)}>
                         删除
-                      </button>
+                      </Button>
                     )
                   )}
                 </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button } from "animal-island-ui";
 import {
   approveIdentityLinkProposal,
   fetchIdentityLinkProposals,
@@ -509,47 +510,38 @@ export function RelationshipStatePage({
 
           <div className="flex flex-wrap gap-2">
             {selectedRelationshipId && (
-              <button
-                type="button"
-                onClick={() => onBackToRelationshipList?.()}
-                className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
-              >
+              <Button type="default" onClick={() => onBackToRelationshipList?.()}>
                 返回列表
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => void loadList(query, selectedRelationshipId)}
-              className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
-            >
+            <Button type="default" onClick={() => void loadList(query, selectedRelationshipId)}>
               刷新
-            </button>
+            </Button>
             {selectedRelationshipId && (
               <>
-                <button
-                  type="button"
-                  disabled={!dirty || pageState.saving}
+                <Button
+                  type="primary"
+                  loading={pageState.saving}
+                  disabled={!dirty}
                   onClick={() => void saveRelationship()}
-                  className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
                 >
-                  {pageState.saving ? "保存中" : "保存"}
-                </button>
-                <button
-                  type="button"
+                  保存
+                </Button>
+                <Button
+                  type="default"
                   disabled={!pageState.selected || pageState.saving}
                   onClick={() => void reviewSelectedRelationship()}
-                  className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   复盘
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  type="default"
+                  danger
                   disabled={!pageState.selected || pageState.saving}
                   onClick={() => void resetSelectedRelationship()}
-                  className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-2 text-sm font-medium text-[#8d6048] transition hover:bg-[#fff0e8] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   重置
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -589,12 +581,9 @@ export function RelationshipStatePage({
                 placeholder="搜索用户或摘要"
                 className="field-input h-10 min-w-0 flex-1 md:w-72"
               />
-              <button
-                type="submit"
-                className="rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155]"
-              >
+              <Button htmlType="submit" type="default">
                 搜索
-              </button>
+              </Button>
             </form>
           </div>
 
@@ -615,7 +604,7 @@ export function RelationshipStatePage({
                   key={relationship.id}
                   type="button"
                   onClick={() => void selectRelationship(relationship.id)}
-                  className="grid w-full gap-3 border-t border-[#edf2f7] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[#f8fbff] lg:grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_repeat(4,4.5rem)_minmax(8rem,0.75fr)_2rem] lg:items-center"
+                  className="admin-layout-button grid w-full gap-3 border-t border-[#edf2f7] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[#f8fbff] lg:grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_repeat(4,4.5rem)_minmax(8rem,0.75fr)_2rem] lg:items-center"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -695,17 +684,16 @@ export function RelationshipStatePage({
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
+                <Button
+                  type="primary"
                   onClick={() => {
                     if (pageState.selected?.personId) {
                       onOpenConversationPerson?.(pageState.selected.personId);
                     }
                   }}
-                  className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
                 >
                   查看对话记录
-                </button>
+                </Button>
                 <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
                   {pageState.selected.relationshipLabel}
                 </div>
@@ -749,14 +737,13 @@ export function RelationshipStatePage({
                     onChange={(event) => setLinkUserId(event.target.value)}
                     placeholder="User externalId / id，例如 telegram:123"
                   />
-                  <button
-                    type="button"
+                  <Button
+                    type="primary"
                     disabled={!linkUserId.trim() || pageState.saving}
                     onClick={() => void linkUserToSelectedPerson()}
-                    className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
                   >
                     绑定
-                  </button>
+                  </Button>
                 </div>
                 <p className="mt-2 text-xs leading-6 text-[#7b8ca2]">
                   只有明确确认是同一个现实用户时再绑定。绑定后多个渠道会共用这一份关系状态。
@@ -838,22 +825,20 @@ export function RelationshipStatePage({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 lg:justify-end">
-                      <button
-                        type="button"
+                      <Button
+                        type="primary"
                         disabled={pageState.saving}
                         onClick={() => void reviewIdentityProposal(proposal.id, "approve")}
-                        className="rounded-lg bg-[#6f8fb8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5f7fa7] disabled:cursor-not-allowed disabled:bg-[#b9c7d8]"
                       >
                         通过
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        type="default"
                         disabled={pageState.saving}
                         onClick={() => void reviewIdentityProposal(proposal.id, "reject")}
-                        className="rounded-lg border border-[#c9d6e5] bg-white px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         忽略
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -884,10 +869,8 @@ export function RelationshipStatePage({
                     key={option.type}
                     type="button"
                     onClick={() => setEventTypeFilter(option.type)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      eventTypeFilter === option.type
-                        ? "border-[#a9bfd7] bg-[#eaf2fb] text-[#27496d]"
-                        : "border-[#d9e2ec] bg-[#f8fbff] text-[#66758a] hover:bg-white"
+                    className={`admin-pill-button rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      eventTypeFilter === option.type ? "is-active" : ""
                     }`}
                   >
                     {option.label} {option.count}
@@ -921,8 +904,8 @@ export function RelationshipStatePage({
                                   key={event.id}
                                   type="button"
                                   onClick={() => setSelectedEventId(event.id)}
-                                  className={`w-full px-4 py-3 text-left transition ${
-                                    active ? "bg-[#eaf2fb]" : "bg-[#f8fbff] hover:bg-white"
+                                  className={`admin-layout-button w-full px-4 py-3 text-left transition ${
+                                    active ? "is-active" : ""
                                   }`}
                                 >
                                   <div className="flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">

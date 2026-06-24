@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "animal-island-ui";
 import {
   applyMemoryProposalGlobally,
   applyMemoryProposal,
@@ -350,30 +351,25 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
+            <Button
+              type="primary"
+              loading={busyBulkAction === "approvePending"}
+              disabled={loading || (busyBulkAction !== null && busyBulkAction !== "approvePending")}
               onClick={() => void runBulkAction("approvePending")}
-              disabled={loading || busyBulkAction !== null}
-              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
             >
-              {busyBulkAction === "approvePending" ? "处理中" : "批准当前待审"}
-            </button>
-            <button
-              type="button"
+              批准当前待审
+            </Button>
+            <Button
+              type="primary"
+              loading={busyBulkAction === "applyApproved"}
+              disabled={loading || (busyBulkAction !== null && busyBulkAction !== "applyApproved")}
               onClick={() => void runBulkAction("applyApproved")}
-              disabled={loading || busyBulkAction !== null}
-              className="h-10 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 text-sm font-medium text-[#3f7b5d] transition hover:bg-[#e3f2e9] disabled:opacity-60"
             >
-              {busyBulkAction === "applyApproved" ? "处理中" : "应用当前已批准"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void loadProposals()}
-              disabled={loading}
-              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
-            >
-              {loading ? "刷新中" : "刷新队列"}
-            </button>
+              应用当前已批准
+            </Button>
+            <Button type="default" loading={loading} onClick={() => void loadProposals()}>
+              刷新队列
+            </Button>
           </div>
         </div>
 
@@ -421,10 +417,8 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
                 key={option.value}
                 type="button"
                 onClick={() => setStatusFilter(option.value)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                  active
-                    ? "border-[#a9bfd7] bg-[#eaf2fb] text-[#27496d]"
-                    : "border-[#d9e2ec] bg-white text-[#66758a] hover:bg-[#f8fbff]"
+                className={`admin-pill-button rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  active ? "is-active" : ""
                 }`}
               >
                 {option.label}
@@ -530,10 +524,8 @@ function ProposalListItem({
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-lg border px-4 py-3 text-left transition ${
-        selected
-          ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
-          : "border-[#d9e2ec] bg-white hover:border-[#c9d7e6] hover:bg-[#fdfefe]"
+      className={`admin-layout-button block w-full rounded-lg border px-4 py-3 text-left transition ${
+        selected ? "is-active" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -758,13 +750,9 @@ function ProposalDetail({
           onRunAction={onRunAction}
         />
         {proposal.appliedMemoryId && onOpenMemory && (
-          <button
-            type="button"
-            onClick={() => onOpenMemory(proposal.appliedMemoryId ?? "")}
-            className="h-10 rounded-lg border border-[#c9d7e6] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
-          >
+          <Button type="default" onClick={() => onOpenMemory(proposal.appliedMemoryId ?? "")}>
             查看已应用记忆
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -901,19 +889,14 @@ function ActionButton({
   const enabled = isEnabledForAction(proposal, action);
   const busy = busyAction === action;
   return (
-    <button
-      type="button"
-      onClick={() => void onRunAction(action)}
+    <Button
+      type={action === "reject" ? "default" : action === "revoke" ? "default" : "primary"}
+      danger={action === "reject"}
+      loading={busy}
       disabled={!enabled || busyAction !== null}
-      className={`h-10 rounded-lg px-4 text-sm font-medium transition ${
-        action === "reject"
-          ? "border border-[#ead4c8] bg-[#fff6f1] text-[#8d6048] hover:bg-[#fff0e6]"
-          : action === "revoke"
-            ? "border border-[#d8d3cb] bg-[#f7f4ef] text-[#6f6257] hover:bg-[#eee9e1]"
-          : "border border-[#a9bfd7] bg-[#eaf2fb] text-[#27496d] hover:bg-[#ddebf7]"
-      } disabled:cursor-not-allowed disabled:opacity-45`}
+      onClick={() => void onRunAction(action)}
     >
-      {busy ? "处理中" : label}
-    </button>
+      {label}
+    </Button>
   );
 }

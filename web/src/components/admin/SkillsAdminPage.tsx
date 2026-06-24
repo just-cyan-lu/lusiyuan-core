@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "animal-island-ui";
 import {
   fetchSkills,
   fetchXiaohongshuReplyConfig,
@@ -223,22 +224,13 @@ export function SkillsAdminPage({
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedSkill && (
-              <button
-                type="button"
-                onClick={onBackToList}
-                className="h-10 rounded-lg border border-[#c9d7e6] bg-white px-4 text-sm font-medium text-[#66758a] transition hover:bg-[#f8fbff]"
-              >
+              <Button type="default" onClick={onBackToList}>
                 返回列表
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={state.loading}
-              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
-            >
-              {state.loading ? "刷新中" : "刷新"}
-            </button>
+            <Button type="default" loading={state.loading} onClick={() => void load()}>
+              刷新
+            </Button>
           </div>
         </div>
 
@@ -378,14 +370,13 @@ function SkillDetail({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill active={skill.enabled} label={skill.enabled ? "运行中" : "已关闭"} />
-              <button
-                type="button"
+              <Button
+                type="primary"
                 disabled={saving || configSaving || !config}
                 onClick={() => onAccessModeChange(nextAccessMode(savedMode))}
-                className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
               >
                 切换为：{accessLabel(nextAccessMode(savedMode))}
-              </button>
+              </Button>
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -450,22 +441,12 @@ function XiaohongshuPromptEditor({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onReset}
-            disabled={saving}
-            className="h-10 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 text-sm font-medium text-[#8d6048] transition hover:bg-[#ffede4] disabled:opacity-60"
-          >
+          <Button type="default" danger disabled={saving} onClick={onReset}>
             恢复默认
-          </button>
-          <button
-            type="button"
-            onClick={() => onSave(draft)}
-            disabled={saving}
-            className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
-          >
-            {saving ? "保存中" : "保存规范"}
-          </button>
+          </Button>
+          <Button type="primary" loading={saving} onClick={() => onSave(draft)}>
+            保存规范
+          </Button>
         </div>
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-[1fr_9rem]">
@@ -571,14 +552,14 @@ function XiaohongshuReplyTester({
             className="field-input min-h-20 resize-y leading-6"
           />
         </label>
-        <button
-          type="button"
-          disabled={testing || !tester.postTitle.trim() || !tester.comment.trim()}
+        <Button
+          type="primary"
+          loading={testing}
+          disabled={!tester.postTitle.trim() || !tester.comment.trim()}
           onClick={onRun}
-          className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
         >
-          {testing ? "生成中" : "生成回复草稿"}
-        </button>
+          生成回复草稿
+        </Button>
       </div>
 
       {result && (

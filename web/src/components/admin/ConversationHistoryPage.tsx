@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { Button, Card, Icon, Input } from "animal-island-ui";
 import {
   fetchAdminConversationMessages,
   fetchConversationPeople,
@@ -9,6 +11,7 @@ import {
   type ConversationPersonSummary,
   type ConversationSummary,
 } from "../../api/lusiyuan-api";
+import { StatusPill } from "./StatusPill";
 
 interface ConversationHistoryPageProps {
   adminToken: string;
@@ -233,24 +236,37 @@ export function ConversationHistoryPage({
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Conversation Trace</div>
-        <h2 className="mt-3 text-3xl font-semibold text-[#172033]">对话追溯</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
-          请先在顶部输入 Admin Token。这里会按现实身份查看渠道账号、会话和消息。
-        </p>
-      </section>
+      <div className="mx-auto max-w-7xl space-y-5">
+        <Card className="overflow-hidden p-6 md:p-8" pattern="app-pink">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="admin-chip admin-chip-pink">
+              <Icon name="icon-chat" size={18} />
+              Conversation Trace
+            </span>
+          </div>
+          <h2 className="mt-6 text-3xl font-black leading-tight text-[#794f27]">对话追溯</h2>
+          <p className="mt-4 max-w-3xl text-sm font-semibold leading-7 text-[#725d42] md:text-base">
+            请先在顶部输入 Admin Token。这里会按现实身份查看渠道账号、会话和消息。
+          </p>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-7">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">Conversation Trace</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">对话追溯</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+      <Card className="overflow-hidden p-6 md:p-8" pattern="app-pink">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="admin-chip admin-chip-pink">
+                <Icon name="icon-chat" size={18} />
+                Conversation Trace
+              </span>
+              <span className="admin-chip admin-chip-mint">先看身份，再看消息</span>
+            </div>
+            <h2 className="mt-6 text-3xl font-black leading-tight text-[#794f27]">对话追溯</h2>
+            <p className="mt-4 text-sm font-semibold leading-7 text-[#725d42] md:text-base">
               先按现实身份找人，再查看这个身份绑定的渠道账号、会话和消息。关系修改仍回关系页处理。
             </p>
           </div>
@@ -262,41 +278,57 @@ export function ConversationHistoryPage({
               void loadPeople(query);
             }}
           >
-            <input
+            <Input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                setQuery(event.target.value)
+              }
               placeholder="搜索现实身份 / 渠道 user / 显示名"
-              className="field-input h-10 min-w-0"
+              type="text"
+              size="middle"
+              shadow
+              allowClear
+              className="min-w-0 flex-1"
             />
-            <button
-              type="submit"
-              className="h-10 rounded-lg border border-[#c9d6e5] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-white"
+            <Button
+              type="primary"
+              size="middle"
+              icon={<Icon name="icon-critterpedia" size={18} />}
+              onClick={() => void loadPeople(query)}
             >
               搜索
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              type="default"
+              size="middle"
+              icon={<Icon name="icon-variant" size={18} />}
+              loading={state.loadingList}
               onClick={() => void loadPeople(query)}
-              className="h-10 rounded-lg border border-[#c9d6e5] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
             >
               刷新
-            </button>
+            </Button>
           </form>
         </div>
 
         {state.error && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-6 rounded-[22px] border-2 border-[#f8a6b2] bg-[#fde4e8] px-4 py-3 text-sm font-semibold leading-6 text-[#a85565]">
             {state.error}
           </div>
         )}
-      </section>
+      </Card>
 
       <section className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
-        <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
+        <Card className="h-full p-5" pattern="app-yellow">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-[#172033]">现实身份</h3>
-              <p className="mt-1 text-xs text-[#7b8ca2]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="admin-chip admin-chip-yellow">
+                  <Icon name="icon-critterpedia" size={16} />
+                  现实身份
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-[#794f27]">按人查对话</h3>
+              <p className="mt-1 text-xs font-semibold text-[#9f927d]">
                 {state.loadingList ? "读取中" : `${state.people.length} 个结果`}
               </p>
             </div>
@@ -311,32 +343,26 @@ export function ConversationHistoryPage({
                     key={person.person.id}
                     type="button"
                     onClick={() => selectPerson(person.person.id)}
-                    className={`rounded-lg border px-4 py-3 text-left transition ${
-                      active
-                        ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
-                        : "border-[#d9e2ec] bg-[#f8fbff] hover:bg-white"
+                    className={`admin-island-row w-full px-4 py-3 text-left transition ${
+                      active ? "border-[#21b9aa] bg-[#e6f9f6]" : "hover:bg-[#fff9e8]"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-semibold text-[#172033]">
+                          <span className="truncate text-sm font-black text-[#794f27]">
                             {personLabel(person.person)}
                           </span>
-                          {person.isOwner && (
-                            <span className="rounded-full border border-[#b9d8c7] bg-[#eef8f2] px-2 py-0.5 text-[11px] font-medium text-[#3f7b5d]">
-                              owner
-                            </span>
-                          )}
+                          {person.isOwner && <StatusPill active label="owner" />}
                         </div>
-                        <div className="mt-1 text-xs text-[#7b8ca2]">
+                        <div className="mt-1 text-xs font-semibold text-[#9f927d]">
                           {person.relationship?.relationshipLabel ?? "暂无关系状态"}
                         </div>
-                        <div className="mt-1 truncate text-xs text-[#7b8ca2]">
+                        <div className="mt-1 truncate text-xs font-semibold text-[#9f927d]">
                           {linkedUsersText(person)}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right text-xs text-[#7b8ca2]">
+                      <div className="shrink-0 text-right text-xs font-semibold text-[#9f927d]">
                         <div>{formatDate(person.lastMessageAt)}</div>
                         <div className="mt-1">{person.messageCount} 条</div>
                       </div>
@@ -345,74 +371,80 @@ export function ConversationHistoryPage({
                 );
               })
             ) : (
-              <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+              <div className="admin-island-soft-panel px-4 py-6 text-sm font-semibold text-[#8a7b66]">
                 {state.loadingList ? "正在读取现实身份..." : "暂无结果。"}
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         <div className="space-y-5">
           {state.detail ? (
             <>
-              <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+              <Card className="p-5" pattern="app-teal">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <div className="text-xs font-semibold text-[#8a6f5a]">现实身份详情</div>
-                    <h3 className="mt-2 text-2xl font-semibold text-[#172033]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="admin-chip admin-chip-mint">
+                        <Icon name="icon-miles" size={16} />
+                        现实身份详情
+                      </span>
+                      {state.detail.isOwner && <StatusPill active label="owner" />}
+                    </div>
+                    <h3 className="mt-3 text-2xl font-black leading-tight text-[#794f27]">
                       {detailPersonLabel(state.detail)}
                     </h3>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#66758a]">
-                      <span>{state.detail.relationship?.relationshipLabel ?? "暂无关系状态"}</span>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#9f927d]">
+                      <span className="admin-chip admin-chip-yellow">
+                        {state.detail.relationship?.relationshipLabel ?? "暂无关系状态"}
+                      </span>
                       <span>·</span>
                       <span>最近消息 {formatDate(state.detail.lastMessageAt)}</span>
-                      {state.detail.isOwner && (
-                        <>
-                          <span>·</span>
-                          <span className="font-semibold text-[#3f7b5d]">owner</span>
-                        </>
-                      )}
                     </div>
                   </div>
                   {state.detail.relationship && (
-                    <button
-                      type="button"
+                    <Button
+                      type="primary"
+                      size="middle"
+                      icon={<Icon name="icon-chat" size={18} />}
                       onClick={() => {
                         if (state.detail?.relationship?.id) {
                           onOpenRelationship?.(state.detail.relationship.id);
                         }
                       }}
-                      className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
                     >
                       查看关系详情
-                    </button>
+                    </Button>
                   )}
                 </div>
-              </section>
+              </Card>
 
               <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-                  <h3 className="text-base font-semibold text-[#172033]">渠道账号与会话</h3>
-                  <div className="mt-4 grid gap-4">
+                <Card className="h-full p-5" pattern="app-pink">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="admin-chip admin-chip-pink">
+                          <Icon name="icon-shopping" size={16} />
+                          渠道账号
+                        </span>
+                      </div>
+                      <h3 className="mt-3 text-base font-black text-[#794f27]">渠道账号与会话</h3>
+                    </div>
+                  </div>
+                  <div className="grid gap-3">
                     {state.detail.users.map((userDetail) => (
-                      <div
-                        key={userDetail.user.id}
-                        className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4"
-                      >
+                      <div key={userDetail.user.id} className="admin-island-row p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-[#172033]">
+                            <div className="truncate text-sm font-black text-[#794f27]">
                               {userDetail.user.displayName ?? userDetail.user.externalId}
                             </div>
-                            <div className="mt-1 truncate text-xs text-[#7b8ca2]">
+                            <div className="mt-1 truncate text-xs font-semibold text-[#9f927d]">
                               {userDetail.user.externalId}
                             </div>
                           </div>
-                          {userDetail.isOwner && (
-                            <span className="rounded-full border border-[#b9d8c7] bg-[#eef8f2] px-2 py-0.5 text-[11px] font-medium text-[#3f7b5d]">
-                              owner
-                            </span>
-                          )}
+                          {userDetail.isOwner && <StatusPill active label="owner" />}
                         </div>
                         <div className="mt-3 grid gap-2">
                           {userDetail.conversations.length > 0 ? (
@@ -423,22 +455,22 @@ export function ConversationHistoryPage({
                                   key={conversation.id}
                                   type="button"
                                   onClick={() => selectConversation(conversation.id)}
-                                  className={`rounded-lg border px-3 py-3 text-left transition ${
+                                  className={`admin-island-row w-full px-3 py-3 text-left transition ${
                                     active
-                                      ? "border-[#a9bfd7] bg-[#eaf2fb]"
-                                      : "border-[#d9e2ec] bg-white hover:bg-[#fdfefe]"
+                                      ? "border-[#21b9aa] bg-[#e6f9f6]"
+                                      : "hover:bg-[#fff9e8]"
                                   }`}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <div className="truncate text-sm font-medium text-[#172033]">
+                                      <div className="truncate text-sm font-bold text-[#725d42]">
                                         {conversationTitle(conversation)}
                                       </div>
-                                      <div className="mt-1 truncate text-xs text-[#7b8ca2]">
+                                      <div className="mt-1 truncate text-xs font-semibold text-[#9f927d]">
                                         {conversation.lastMessagePreview ?? "暂无消息"}
                                       </div>
                                     </div>
-                                    <div className="shrink-0 text-right text-xs text-[#7b8ca2]">
+                                    <div className="shrink-0 text-right text-xs font-semibold text-[#9f927d]">
                                       <div>{formatDate(conversation.lastMessageAt)}</div>
                                       <div className="mt-1">{conversation.messageCount} 条</div>
                                     </div>
@@ -447,7 +479,7 @@ export function ConversationHistoryPage({
                               );
                             })
                           ) : (
-                            <div className="rounded-lg border border-dashed border-[#cdd9e6] bg-white px-3 py-4 text-sm text-[#7b8ca2]">
+                            <div className="admin-island-soft-panel px-3 py-4 text-sm font-semibold text-[#8a7b66]">
                               这个渠道账号还没有会话。
                             </div>
                           )}
@@ -455,60 +487,76 @@ export function ConversationHistoryPage({
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
 
-                <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-                  <div className="flex items-start justify-between gap-3">
+                <Card className="h-full p-5" pattern="app-yellow">
+                  <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-base font-semibold text-[#172033]">消息记录</h3>
-                      <p className="mt-1 text-xs text-[#7b8ca2]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="admin-chip admin-chip-yellow">
+                          <Icon name="icon-chat" size={16} />
+                          消息记录
+                        </span>
+                      </div>
+                      <h3 className="mt-3 text-base font-black text-[#794f27]">
                         {selectedConversation
                           ? conversationTitle(selectedConversation)
                           : "请选择一个会话"}
-                      </p>
+                      </h3>
                     </div>
-                    <div className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#66758a]">
+                    <span className="admin-chip admin-chip-mint shrink-0">
                       {state.loadingMessages ? "读取中" : `${state.messages.length} 条`}
-                    </div>
+                    </span>
                   </div>
 
-                  <div className="mt-4 grid max-h-[54rem] gap-3 overflow-y-auto pr-1">
+                  <div className="grid max-h-[54rem] gap-3 overflow-y-auto pr-1">
                     {state.messages.length > 0 ? (
-                      state.messages.map((message) => (
-                        <article
-                          key={message.id}
-                          className={`rounded-lg border px-4 py-3 ${
-                            message.role === "assistant"
-                              ? "border-[#c9d7e6] bg-[#f8fbff]"
-                              : "border-[#d9e2ec] bg-white"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3 text-xs text-[#7b8ca2]">
-                            <span className="font-semibold text-[#334155]">
-                              {messageRoleLabel(message.role)}
-                            </span>
-                            <span>{formatDate(message.createdAt)}</span>
-                          </div>
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#172033]">
-                            {message.content}
-                          </p>
-                        </article>
-                      ))
+                      state.messages.map((message) => {
+                        const isAssistant = message.role === "assistant";
+                        return (
+                          <article
+                            key={message.id}
+                            className={`admin-island-row p-4 ${
+                              isAssistant ? "bg-[#fff4c7]/60" : ""
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span
+                                className={`admin-chip ${
+                                  isAssistant
+                                    ? "admin-chip-yellow"
+                                    : message.role === "tool"
+                                      ? "admin-chip-mint"
+                                      : "admin-chip-pink"
+                                }`}
+                              >
+                                {messageRoleLabel(message.role)}
+                              </span>
+                              <span className="text-xs font-semibold text-[#9f927d]">
+                                {formatDate(message.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-7 text-[#172033]">
+                              {message.content}
+                            </p>
+                          </article>
+                        );
+                      })
                     ) : (
-                      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+                      <div className="admin-island-soft-panel px-4 py-6 text-sm font-semibold text-[#8a7b66]">
                         {state.loadingDetail || state.loadingMessages
                           ? "正在读取消息..."
                           : "暂无消息。"}
                       </div>
                     )}
                   </div>
-                </div>
+                </Card>
               </section>
             </>
           ) : (
-            <section className="rounded-lg border border-[#d9e2ec] bg-white px-5 py-8 text-sm text-[#7b8ca2]">
+            <div className="admin-island-soft-panel px-5 py-8 text-sm font-semibold text-[#8a7b66]">
               {state.loadingDetail ? "正在读取现实身份详情..." : "选择一个现实身份后查看对话。"}
-            </section>
+            </div>
           )}
         </div>
       </section>

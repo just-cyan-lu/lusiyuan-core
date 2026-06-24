@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button } from "animal-island-ui";
 import {
   API_BASE_URL,
   clearDatabaseData,
@@ -586,30 +587,30 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
+            <Button
+              type="default"
+              loading={state.loading}
+              disabled={state.saving || state.savingRuntime}
               onClick={() => void loadConfig()}
-              disabled={state.loading || state.saving || state.savingRuntime}
-              className="h-10 rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
             >
-              {state.loading ? "刷新中" : "刷新配置"}
-            </button>
-            <button
-              type="button"
+              刷新配置
+            </Button>
+            <Button
+              type="primary"
+              loading={state.savingRuntime}
+              disabled={!runtimeSettings || state.loading}
               onClick={() => void saveLiveConfig()}
-              disabled={!runtimeSettings || state.loading || state.savingRuntime}
-              className="h-10 rounded-lg border border-[#8da9c7] bg-[#6f8fb8] px-4 text-sm font-medium text-white transition hover:bg-[#607fa5] disabled:opacity-60"
             >
-              {state.savingRuntime ? "保存中" : "保存手动编辑项"}
-            </button>
-            <button
-              type="button"
+              保存手动编辑项
+            </Button>
+            <Button
+              type="primary"
+              loading={state.saving}
+              disabled={!envConfig || state.loading}
               onClick={() => void saveConfig()}
-              disabled={!envConfig || state.loading || state.saving}
-              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-60"
             >
-              {state.saving ? "保存中" : "保存 .env 连接"}
-            </button>
+              保存 .env 连接
+            </Button>
           </div>
         </div>
 
@@ -639,18 +640,19 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
                 会删除聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物、工具日志和页面快照。不会删除运行配置、Skill 配置、配置变更记录、`.env`、persona 或 migration。
               </p>
             </div>
-            <button
-              type="button"
+            <Button
+              type="primary"
+              danger
+              loading={state.clearing}
               disabled={
                 state.clearing ||
                 clearPassword.trim().length === 0 ||
                 clearConfirmText.trim() !== "清空数据库"
               }
               onClick={() => void clearAllDatabaseData()}
-              className="h-10 shrink-0 rounded-lg border border-[#c77e63] bg-[#a6573f] px-4 text-sm font-semibold text-white transition hover:bg-[#934b35] disabled:cursor-not-allowed disabled:border-[#d9b8aa] disabled:bg-[#d9b8aa]"
             >
-              {state.clearing ? "清空中" : "清空数据库"}
-            </button>
+              清空数据库
+            </Button>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">

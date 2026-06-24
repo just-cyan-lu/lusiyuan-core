@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Button } from "animal-island-ui";
 import {
   archiveAdminMemory,
   createAdminMemory,
@@ -635,21 +636,17 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             onChange={(value) => setActivityMetric(value as MemoryActivityMetric)}
             options={activityMetricOptions}
           />
-          <button
-            type="button"
+          <Button
+            type="default"
+            className="h-11 self-end"
+            loading={loading}
             onClick={() => void loadMemories()}
-            disabled={loading}
-            className="h-11 self-end rounded-lg border border-[#c9d7e6] bg-[#f8fbff] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#eef5fb] disabled:opacity-60"
           >
-            {loading ? "读取中" : "刷新"}
-          </button>
-          <button
-            type="button"
-            onClick={startCreate}
-            className="h-11 self-end rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
-          >
+            刷新
+          </Button>
+          <Button type="primary" className="h-11 self-end" onClick={startCreate}>
             新增记忆
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -1140,23 +1137,13 @@ function MemoryEditor({
       )}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={saving}
-          className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7] disabled:opacity-50"
-        >
-          {saving ? "保存中" : form.mode === "create" ? "保存新增" : "保存修改"}
-        </button>
+        <Button type="primary" loading={saving} onClick={onSubmit}>
+          {form.mode === "create" ? "保存新增" : "保存修改"}
+        </Button>
         {selectedMemory && selectedMemory.status !== "archived" && (
-          <button
-            type="button"
-            onClick={onArchive}
-            disabled={saving}
-            className="h-10 rounded-lg border border-[#d8d3cb] bg-[#f7f4ef] px-4 text-sm font-medium text-[#6f6257] transition hover:bg-[#eee9e1] disabled:opacity-50"
-          >
+          <Button type="default" disabled={saving} onClick={onArchive}>
             归档记忆
-          </button>
+          </Button>
         )}
       </div>
 
