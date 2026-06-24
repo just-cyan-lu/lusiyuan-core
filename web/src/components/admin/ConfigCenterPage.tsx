@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   API_BASE_URL,
   clearDatabaseData,
@@ -914,7 +915,7 @@ function RuntimeSettingsEditor({
             {group}
             <span className="ml-2 text-xs font-normal text-[#7b8ca2]">{fields.length} 项</span>
           </summary>
-          <div className="grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="admin-select-host grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
             {fields.map((field) => {
               const value = values[field.key] ?? String(field.value);
               const enabled = value === "true";
@@ -947,9 +948,13 @@ function RuntimeSettingsEditor({
                         </span>
                       </button>
                     ) : field.type === "select" ? (
-                      <select value={value} disabled={disabled} onChange={(event) => onCommit(field, event.target.value)} className="field-input h-10">
-                        {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
-                      </select>
+                      <AdminSelect
+                        ariaLabel={field.label}
+                        value={value}
+                        disabled={disabled}
+                        onChange={(next) => onCommit(field, next)}
+                        options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
+                      />
                     ) : field.type === "text" ? (
                       <textarea
                         value={value}
@@ -1009,7 +1014,7 @@ function EnvConfigEditor({
               {fields.length} 项
             </span>
           </summary>
-          <div className="grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="admin-select-host grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
             {fields.map((field) => (
               <EnvConfigFieldControl
                 key={field.key}
@@ -1057,30 +1062,26 @@ function EnvConfigFieldControl({
         </span>
       </span>
 
-      <div className="mt-3">
+      <div className="admin-select-host mt-3">
         {field.type === "boolean" ? (
-          <select
+          <AdminSelect
+            ariaLabel={field.label}
             value={value || "false"}
             disabled={disabled}
-            onChange={(event) => onChange(event.target.value)}
-            className="field-input"
-          >
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
+            onChange={onChange}
+            options={[
+              { key: "true", label: "true" },
+              { key: "false", label: "false" },
+            ]}
+          />
         ) : field.type === "select" ? (
-          <select
+          <AdminSelect
+            ariaLabel={field.label}
             value={value}
             disabled={disabled}
-            onChange={(event) => onChange(event.target.value)}
-            className="field-input"
-          >
-            {(field.options ?? []).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+            onChange={onChange}
+            options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
+          />
         ) : (
           <input
             value={value}
