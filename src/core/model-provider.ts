@@ -54,6 +54,7 @@ function getActiveProviderConfig(): ProviderConfig {
     qwen: { baseURL: env.QWEN_BASE_URL, apiKey: env.QWEN_API_KEY, model: env.QWEN_MODEL, type: "openai-compatible" },
     deepseek: { baseURL: env.DEEPSEEK_BASE_URL, apiKey: env.DEEPSEEK_API_KEY, model: env.DEEPSEEK_MODEL, type: "openai-compatible" },
     minimax: { baseURL: env.MINIMAX_BASE_URL, apiKey: env.MINIMAX_API_KEY, model: env.MINIMAX_MODEL, type: "openai-compatible" },
+    kimi: { baseURL: env.KIMI_BASE_URL, apiKey: env.KIMI_API_KEY, model: env.KIMI_MODEL, type: "openai-compatible" },
     siliconflow: { baseURL: env.SILICONFLOW_BASE_URL, apiKey: env.SILICONFLOW_API_KEY, model: env.SILICONFLOW_MODEL, type: "openai-compatible" },
   };
 

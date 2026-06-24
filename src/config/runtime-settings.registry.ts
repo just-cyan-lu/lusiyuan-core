@@ -12,7 +12,7 @@ export interface RuntimeSettingDefinition<T extends boolean | number | string = 
 }
 
 export const runtimeSettingDefinitions = {
-  ACTIVE_MODEL_PROVIDER: { group: "模型运行", label: "当前模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "siliconflow"], description: "从 .env 已配置的模型渠道中选择，保存后下一次模型调用立即使用。" },
+  ACTIVE_MODEL_PROVIDER: { group: "模型运行", label: "当前模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow"], description: "从 .env 已配置的模型渠道中选择，保存后下一次模型调用立即使用。" },
   MINIMAX_THINKING_TYPE: { group: "模型运行", label: "MiniMax Thinking Type", type: "select", defaultValue: "adaptive", options: ["adaptive", "disabled"] },
   MINIMAX_REASONING_SPLIT: { group: "模型运行", label: "MiniMax Reasoning Split", type: "boolean", defaultValue: false },
   MINIMAX_MAX_COMPLETION_TOKENS: { group: "模型运行", label: "MiniMax 最大生成 Token", type: "integer", defaultValue: 0, min: 0, description: "0 表示不额外限制。" },
