@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchSkills,
   fetchXiaohongshuReplyConfig,
@@ -431,7 +432,7 @@ function XiaohongshuPromptEditor({
   }
 
   return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold text-[#8a6f5a]">Prompt</div>
@@ -450,20 +451,21 @@ function XiaohongshuPromptEditor({
         </div>
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-[1fr_9rem]">
-        <label>
+        <div>
           <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">账号模式</span>
-          <select
+          <AdminSelect
+            ariaLabel="账号模式"
             value={draft.accountMode}
-            onChange={(event) =>
-              setDraft({ ...draft, accountMode: event.target.value as XiaohongshuReplyConfig["accountMode"] })
+            onChange={(value) =>
+              setDraft({ ...draft, accountMode: value as XiaohongshuReplyConfig["accountMode"] })
             }
-            className="field-input h-10"
-          >
-            <option value="mixed">混合</option>
-            <option value="siyuan_first">思源优先</option>
-            <option value="creator_first">创作者优先</option>
-          </select>
-        </label>
+            options={[
+              { key: "mixed", label: "混合" },
+              { key: "siyuan_first", label: "思源优先" },
+              { key: "creator_first", label: "创作者优先" },
+            ]}
+          />
+        </div>
         <label>
           <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">最长字数</span>
           <input
@@ -500,7 +502,7 @@ function XiaohongshuReplyTester({
   onRun: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
       <div className="text-xs font-semibold text-[#8a6f5a]">Test</div>
       <h3 className="mt-2 text-2xl font-semibold text-[#172033]">手动测试</h3>
       <p className="mt-3 text-sm leading-7 text-[#617188]">
@@ -520,22 +522,23 @@ function XiaohongshuReplyTester({
             className="field-input min-h-24 resize-y leading-6"
           />
         </label>
-        <label>
+        <div>
           <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">帖子类型</span>
-          <select
+          <AdminSelect
+            ariaLabel="帖子类型"
             value={tester.postType}
-            onChange={(event) => onTesterChange({ ...tester, postType: event.target.value })}
-            className="field-input h-10"
-          >
-            <option value="daily">日常分享</option>
-            <option value="making">创作过程</option>
-            <option value="technical">技术制作</option>
-            <option value="thought">想法与感受</option>
-            <option value="showcase">作品展示</option>
-            <option value="announcement">账号动态</option>
-            <option value="interactive">互动讨论</option>
-          </select>
-        </label>
+            onChange={(value) => onTesterChange({ ...tester, postType: value })}
+            options={[
+              { key: "daily", label: "日常分享" },
+              { key: "making", label: "创作过程" },
+              { key: "technical", label: "技术制作" },
+              { key: "thought", label: "想法与感受" },
+              { key: "showcase", label: "作品展示" },
+              { key: "announcement", label: "账号动态" },
+              { key: "interactive", label: "互动讨论" },
+            ]}
+          />
+        </div>
         <label>
           <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">评论</span>
           <textarea
