@@ -676,3 +676,33 @@ textarea.field-input {
   position: relative;
   z-index: 40;
 }
+
+/*
+ * animal-island-ui@1.0.x Input 包装样式
+ * ---------------------------------------------------------------------------
+ * 1. UI 库 Input 默认视觉（border-radius 50px 胶囊形、height 40px、box-shadow
+ *    0 3px #d4c9b4）与项目 admin 视觉（border-radius 1.1rem 圆角、height
+ *    45px、box-shadow 0 2px 0 #d4c9b4）不一致。本段用 .admin-input 接管
+ *    UI 库 Input 的 border-radius / height / box-shadow，保留 UI 库本身的
+ *    颜色、focus、disabled、allowClear 等行为。
+ * 2. 用法：调用方把 UI 库 Input 放在 .admin-input 元素里。
+ */
+.admin-input {
+  display: block;
+  width: 100%;
+}
+.admin-input .animal-wrapper-IRrhj {
+  border-radius: 1.1rem;
+  height: var(--admin-control-height);
+  box-shadow: 0 2px 0 #d4c9b4;
+}
+.admin-input .animal-wrapper-IRrhj:hover:not(.animal-wrapper-disabled-MWwHK) {
+  box-shadow: 0 2px 0 #c4b89e;
+}
+.admin-input .animal-wrapper-middle-zXqMR {
+  height: var(--admin-control-height);
+  padding: 0 0.9rem;
+}
+.admin-input .animal-input-12WUn {
+  font-weight: 600;
+}
