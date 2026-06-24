@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchDreamDailyNotes,
   fetchDreamDeepSleep,
@@ -905,20 +906,16 @@ function ReflectionRunCard({
       buttonLabel={runningReflection ? "复盘中" : "运行 Reflection"}
       onRun={onRun}
     >
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="复盘范围">
-          <select
+      <div className="admin-select-host grid gap-3 md:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-[#7b8ca2]">复盘范围</span>
+          <AdminSelect
+            ariaLabel="复盘范围"
             value={reflectionScope}
-            onChange={(event) => onScopeChange(event.target.value as ReflectionScope)}
-            className="field-input h-10"
-          >
-            {reflectionScopes.map((scope) => (
-              <option key={scope.value} value={scope.value}>
-                {scope.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+            onChange={(value) => onScopeChange(value as ReflectionScope)}
+            options={reflectionScopes.map((scope) => ({ key: scope.value, label: scope.label }))}
+          />
+        </div>
         <Field label="读取消息数">
           <input
             value={reflectionMessageLimit}
@@ -1286,17 +1283,15 @@ function DreamPanel({
             title="Dream Signal"
             subtitle={`展示 ${visibleSignals.length} 条`}
             action={
-              <select
+              <AdminSelect
+                ariaLabel="Dream Signal 类型"
                 value={signalFilter}
-                onChange={(event) => onSignalFilterChange(event.target.value)}
-                className="h-9 rounded-lg border border-[#d9e2ec] bg-white px-2 text-xs text-[#334155] outline-none"
-              >
-                {dreamSignalTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type === "all" ? "全部类型" : type}
-                  </option>
-                ))}
-              </select>
+                onChange={onSignalFilterChange}
+                options={dreamSignalTypes.map((type) => ({
+                  key: type,
+                  label: type === "all" ? "全部类型" : type,
+                }))}
+              />
             }
           >
             {visibleSignals.length === 0 ? (
@@ -1539,21 +1534,16 @@ function HistoryDateControls({
   onToDateChange: (value: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <label className="block">
+    <div className="admin-select-host flex flex-wrap items-end gap-2">
+      <div className="block">
         <span className="text-[11px] font-medium text-[#7b8ca2]">时间范围</span>
-        <select
+        <AdminSelect
+          ariaLabel="时间范围"
           value={preset}
-          onChange={(event) => onPresetChange(event.target.value as HistoryDatePreset)}
-          className="mt-1 h-9 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-2 text-xs text-[#172033] outline-none focus:border-[#a9bfd7]"
-        >
-          {historyDateOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          onChange={(value) => onPresetChange(value as HistoryDatePreset)}
+          options={historyDateOptions.map((option) => ({ key: option.value, label: option.label }))}
+        />
+      </div>
       <label className="block">
         <span className="text-[11px] font-medium text-[#7b8ca2]">开始</span>
         <input
@@ -1625,7 +1615,7 @@ function ContentPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-[#172033]">{title}</h3>
