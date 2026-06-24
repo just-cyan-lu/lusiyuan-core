@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Tooltip } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
   fetchRuntimeSettings,
@@ -844,33 +844,43 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                 { key: "200", label: "200 条" },
               ]}
             />
-            <input
+            <AdminInput
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
               placeholder="User externalId / id"
-              className="field-input"
+              aria-label="User ID"
             />
-            <input
+            <AdminInput
               value={conversationId}
               onChange={(event) => setConversationId(event.target.value)}
               placeholder="Conversation ID"
-              className="field-input"
+              aria-label="Conversation ID"
             />
             {datePreset === "custom" && (
               <>
-                <input value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} type="date" className="field-input" />
-                <input value={customTo} onChange={(event) => setCustomTo(event.target.value)} type="date" className="field-input" />
+                <AdminInput
+                  value={customFrom}
+                  onChange={(event) => setCustomFrom(event.target.value)}
+                  type="date"
+                  aria-label="开始日期"
+                />
+                <AdminInput
+                  value={customTo}
+                  onChange={(event) => setCustomTo(event.target.value)}
+                  type="date"
+                  aria-label="结束日期"
+                />
               </>
             )}
             <div className="flex gap-2 md:col-span-2 xl:col-span-4">
-              <input
+              <AdminInput
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") void loadTools();
                 }}
                 placeholder="模糊搜索工具名、错误、阻断原因、渠道、会话 id"
-                className="field-input"
+                aria-label="模糊搜索"
               />
               <Button
                 type="primary"
@@ -1003,15 +1013,15 @@ function PolicyConfigItem({
               options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
             />
           ) : (
-            <input
+            <AdminInput
               value={currentValue}
               disabled={disabled}
               type={field.type === "integer" || field.type === "number" ? "number" : "text"}
               min={field.min}
               max={field.max}
-              step={field.type === "number" ? "0.01" : undefined}
+              step={field.type === "number" ? 0.01 : undefined}
               onChange={(event) => onChange(field.key, event.target.value)}
-              className="field-input bg-white"
+              aria-label={label}
             />
           )}
           {unit && <span className="shrink-0 text-xs text-[#66758a]">{unit}</span>}
@@ -1396,12 +1406,12 @@ function ConfigFieldControl({
             options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
           />
         ) : (
-          <input
+          <AdminInput
             value={value}
             type={field.type === "secret" ? "password" : field.type === "string" ? "text" : "number"}
             min={field.min}
             max={field.max}
-            step={field.type === "number" ? "0.01" : undefined}
+            step={field.type === "number" ? 0.01 : undefined}
             disabled={disabled || deleted}
             onChange={(event) => onChange(event.target.value)}
             placeholder={
@@ -1411,7 +1421,7 @@ function ConfigFieldControl({
                   : "输入新值"
                 : undefined
             }
-            className="field-input bg-[#f8fbff]"
+            aria-label={field.label}
           />
         )}
       </div>
