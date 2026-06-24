@@ -1,35 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { streamChatMessage, fetchConversationMessages } from "../api/lusiyuan-api";
-import { getWebIdentity } from "../utils/storage";
 import type { ChatMessage, ChatReplyPart } from "../types/chat";
+import type { WebIdentity } from "../utils/storage";
 
-export function useChat() {
-  const { userId, conversationId } = getWebIdentity();
+export function useChat(identity: WebIdentity) {
+  const { userId, conversationId } = identity;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const initialized = useRef(false);
 
-  // Load conversation history on mount
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
+    let cancelled = false;
+    setMessages([]);
+    setError(null);
+    setIsLoadingHistory(true);
 
     fetchConversationMessages(conversationId)
       .then((history) => {
-        if (history.length > 0) {
-          setMessages(
-            history.map((m) => ({
-              id: crypto.randomUUID(),
-              role: m.role,
-              content: m.content,
-              createdAt: m.createdAt,
-            }))
-          );
-        }
+        if (cancelled) return;
+        setMessages(
+          history.map((m) => ({
+            id: crypto.randomUUID(),
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          }))
+        );
       })
-      .finally(() => setIsLoadingHistory(false));
+      .finally(() => {
+        if (!cancelled) setIsLoadingHistory(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId]);
 
   async function sendMessage(text: string) {
