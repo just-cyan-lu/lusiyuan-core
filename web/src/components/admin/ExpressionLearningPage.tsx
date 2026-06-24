@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Card, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
+import { Button, Card, Icon, Input, Select, type CardColor, type IconName, type SelectOption } from "animal-island-ui";
 import {
   fetchExpressionLearningExamples,
   reanalyzeExpressionLearningExample,
@@ -196,22 +196,35 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           筛选条件
         </div>
         <div className="grid gap-3 md:grid-cols-4">
-          <FilterSelect label="平台" value={platform} onChange={setPlatform}>
-            <option value="all">全部平台</option>
-            {state.platforms.map((item) => (
-              <option key={item} value={item}>{platformLabel(item)}</option>
-            ))}
-          </FilterSelect>
-          <FilterSelect label="状态" value={status} onChange={setStatus}>
-            <option value="all">全部状态</option>
-            <option value="active">参与生成</option>
-            <option value="disabled">已停用</option>
-          </FilterSelect>
-          <FilterSelect label="最终决定" value={outcome} onChange={setOutcome}>
-            <option value="all">全部决定</option>
-            <option value="sent">发布回复</option>
-            <option value="skipped">不回复</option>
-          </FilterSelect>
+          <FilterSelect
+            label="平台"
+            value={platform}
+            onChange={setPlatform}
+            options={[
+              { key: "all", label: "全部平台" },
+              ...state.platforms.map((item) => ({ key: item, label: platformLabel(item) })),
+            ]}
+          />
+          <FilterSelect
+            label="状态"
+            value={status}
+            onChange={setStatus}
+            options={[
+              { key: "all", label: "全部状态" },
+              { key: "active", label: "参与生成" },
+              { key: "disabled", label: "已停用" },
+            ]}
+          />
+          <FilterSelect
+            label="最终决定"
+            value={outcome}
+            onChange={setOutcome}
+            options={[
+              { key: "all", label: "全部决定" },
+              { key: "sent", label: "发布回复" },
+              { key: "skipped", label: "不回复" },
+            ]}
+          />
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">搜索</span>
             <Input
@@ -547,19 +560,22 @@ function FilterSelect({
   label,
   value,
   onChange,
-  children,
+  options,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  children: ReactNode;
+  options: SelectOption[];
 }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="field-input h-10">
-        {children}
-      </select>
+      <Select
+        options={options}
+        value={value}
+        onChange={onChange}
+        aria-label={label}
+      />
     </label>
   );
 }
