@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   applyMemoryProposalGlobally,
   applyMemoryProposal,
@@ -373,7 +374,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
+        <div className="admin-select-host mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <label>
             <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">搜索</span>
             <input
@@ -383,30 +384,39 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
               className="field-input h-10"
             />
           </label>
-          <FilterSelect
-            label="风险"
-            value={riskFilter}
-            onChange={(value) => setRiskFilter(value as ProposalRiskFilter)}
-            options={riskOptions}
-          />
-          <FilterSelect
-            label="提案类型"
-            value={proposalTypeFilter}
-            onChange={setProposalTypeFilter}
-            options={proposalTypeOptions.map((value) => ({
-              value,
-              label: value === "all" ? "全部类型" : proposalTypeLabels[value] ?? value,
-            }))}
-          />
-          <FilterSelect
-            label="范围"
-            value={scopeFilter}
-            onChange={setScopeFilter}
-            options={scopeOptions.map((value) => ({
-              value,
-              label: value === "all" ? "全部范围" : value,
-            }))}
-          />
+          <div className="flex flex-col gap-1">
+            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">风险</span>
+            <AdminSelect
+              ariaLabel="风险"
+              value={riskFilter}
+              onChange={(value) => setRiskFilter(value as ProposalRiskFilter)}
+              options={riskOptions.map((option) => ({ key: option.value, label: option.label }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">提案类型</span>
+            <AdminSelect
+              ariaLabel="提案类型"
+              value={proposalTypeFilter}
+              onChange={setProposalTypeFilter}
+              options={proposalTypeOptions.map((value) => ({
+                key: value,
+                label: value === "all" ? "全部类型" : proposalTypeLabels[value] ?? value,
+              }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">范围</span>
+            <AdminSelect
+              ariaLabel="范围"
+              value={scopeFilter}
+              onChange={setScopeFilter}
+              options={scopeOptions.map((value) => ({
+                key: value,
+                label: value === "all" ? "全部范围" : value,
+              }))}
+            />
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -756,35 +766,6 @@ function ProposalDetail({
         )}
       </div>
     </div>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label>
-      <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="field-input h-10"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
