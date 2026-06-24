@@ -1,5 +1,4 @@
 import { Input, Select, type InputProps, type SelectOption } from "animal-island-ui";
-import type { ChangeEvent } from "react";
 
 export type { InputProps, SelectOption };
 
@@ -42,6 +41,24 @@ export function AdminSelect({
   );
 }
 
+type AdminInputProps = Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "size" | "prefix" | "onChange"
+> & {
+  /** UI 库 onChange 改用 ChangeEvent（不是 FormEvent），便于调用方直接访问 event.target.value */
+  onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  /** 允许清除 */
+  allowClear?: boolean;
+  /** 是否显示阴影 */
+  shadow?: boolean;
+  /** 错误状态 */
+  status?: "error" | "warning";
+  /** 清除按钮的无障碍标签 */
+  clearAriaLabel?: string;
+  /** 无障碍标签 */
+  "aria-label"?: string;
+};
+
 /**
  * 统一 admin 输入框。
  * - 必须挂 .admin-input 才能让 UI 库 Input 复用 admin 视觉（border-radius 1.1rem、
@@ -59,13 +76,13 @@ export function AdminInput({
   className,
   "aria-label": ariaLabel,
   ...rest
-}: InputProps) {
+}: AdminInputProps) {
   return (
     <div className={`admin-input ${className ?? ""}`.trim()}>
       <Input
         value={value}
-        onChange={onChange as ((event: ChangeEvent<HTMLInputElement>) => void) | undefined}
-        type={type}
+        onChange={onChange}
+        type={type as InputProps["type"]}
         placeholder={placeholder}
         disabled={disabled}
         allowClear={allowClear}
