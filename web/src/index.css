@@ -766,37 +766,46 @@ textarea.field-input {
 }
 .click-particle {
   position: fixed;
-  width: 6px;
-  height: 6px;
+  /* size 由 hook inline 写入 --particle-size */
+  width: var(--particle-size, 6px);
+  height: var(--particle-size, 6px);
   border-radius: 50%;
   background: var(--particle-color, #95c7ae);
   pointer-events: none;
-  transform: translate(-50%, -50%) scale(0);
+  /* 起点偏移 1-3px（hook inline 写入 --particle-ox/oy），避免所有粒子从同一点冒 */
+  transform: translate(
+      calc(-50% + var(--particle-ox, 0px)),
+      calc(-50% + var(--particle-oy, 0px))
+    ) scale(0);
   opacity: 1;
   z-index: 9999;
+  will-change: transform, opacity;
 }
 .click-particle--active {
-  animation: click-particle-fly 500ms ease-out forwards;
+  animation: click-particle-fly var(--particle-dur, 500ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-/* 8 套方向：每 45° 一个落点，dx/dy 用 cos/sin */
-.click-particle:nth-child(1) { --dx:  26px; --dy:   0px; }
-.click-particle:nth-child(2) { --dx:  18px; --dy:  18px; }
-.click-particle:nth-child(3) { --dx:   0px; --dy:  26px; }
-.click-particle:nth-child(4) { --dx: -18px; --dy:  18px; }
-.click-particle:nth-child(5) { --dx: -26px; --dy:   0px; }
-.click-particle:nth-child(6) { --dx: -18px; --dy: -18px; }
-.click-particle:nth-child(7) { --dx:   0px; --dy: -26px; }
-.click-particle:nth-child(8) { --dx:  18px; --dy: -18px; }
+/* 落点：dx/dy 由 hook inline 写入 --particle-dx/--particle-dy（每粒独立随机） */
 @keyframes click-particle-fly {
   0% {
-    transform: translate(-50%, -50%) scale(0);
+    transform: translate(
+        calc(-50% + var(--particle-ox, 0px)),
+        calc(-50% + var(--particle-oy, 0px))
+      ) scale(0);
     opacity: 1;
   }
-  60% {
+  20% {
     opacity: 1;
+    /* 中段略大，模拟冲量 */
+    transform: translate(
+        calc(-50% + var(--particle-dx, 0px) * 0.6 + var(--particle-ox, 0px)),
+        calc(-50% + var(--particle-dy, 0px) * 0.6 + var(--particle-oy, 0px))
+      ) scale(1.15);
   }
   100% {
-    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(1);
+    transform: translate(
+        calc(-50% + var(--particle-dx, 0px) + var(--particle-ox, 0px)),
+        calc(-50% + var(--particle-dy, 0px) + var(--particle-oy, 0px))
+      ) scale(0.6);
     opacity: 0;
   }
 }
