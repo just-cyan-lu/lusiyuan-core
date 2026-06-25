@@ -73,6 +73,12 @@ const limitLabels: Record<string, string> = {
   dreamMaxLookbackDays: "Dream 最大回看天数",
 };
 
+const minimaxRuntimeSettingKeys = new Set([
+  "MINIMAX_THINKING_TYPE",
+  "MINIMAX_REASONING_SPLIT",
+  "MINIMAX_MAX_COMPLETION_TOKENS",
+]);
+
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes("fetch failed") || message.includes("Failed to fetch")) {
@@ -205,6 +211,16 @@ function groupRuntimeFields(fields: RuntimeSettingField[]): Array<[string, Runti
     groups.set(field.group, group);
   }
   return Array.from(groups.entries());
+}
+
+function visibleRuntimeFields(
+  fields: RuntimeSettingField[],
+  values: Record<string, string>
+): RuntimeSettingField[] {
+  const activeProvider = values.ACTIVE_MODEL_PROVIDER
+    ?? String(fields.find((field) => field.key === "ACTIVE_MODEL_PROVIDER")?.value ?? "");
+  if (activeProvider === "minimax") return fields;
+  return fields.filter((field) => !minimaxRuntimeSettingKeys.has(field.key));
 }
 
 function runtimeFormValues(config: RuntimeSettingsResponse): Record<string, string> {
@@ -394,9 +410,13 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
   const envConfig = state.envConfig;
   const runtimeSettings = state.runtimeSettings;
   const editableGroups = useMemo(() => groupEnvFields(envConfig?.fields ?? []), [envConfig]);
+  const visibleRuntimeSettingFields = useMemo(
+    () => visibleRuntimeFields(runtimeSettings?.fields ?? [], runtimeValues),
+    [runtimeSettings, runtimeValues]
+  );
   const runtimeGroups = useMemo(
-    () => groupRuntimeFields(runtimeSettings?.fields ?? []),
-    [runtimeSettings]
+    () => groupRuntimeFields(visibleRuntimeSettingFields),
+    [visibleRuntimeSettingFields]
   );
   const activeProvider = useMemo(
     () => runtime?.providers.find((provider) => provider.active) ?? null,
@@ -452,7 +472,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     if (!adminToken || !runtimeSettings) return;
     setState((current) => ({ ...current, savingRuntime: true, saveError: null, saveMessage: null }));
     try {
-      const values = changedRuntimeValues(runtimeSettings.fields, runtimeValues);
+      const values = changedRuntimeValues(visibleRuntimeSettingFields, runtimeValues);
       if (Object.keys(values).length === 0) {
         setState((current) => ({
           ...current,

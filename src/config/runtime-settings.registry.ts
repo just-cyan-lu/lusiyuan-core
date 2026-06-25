@@ -13,8 +13,8 @@ export interface RuntimeSettingDefinition<T extends boolean | number | string = 
 
 export const runtimeSettingDefinitions = {
   ACTIVE_MODEL_PROVIDER: { group: "模型运行", label: "当前模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow"], description: "从 .env 已配置的模型渠道中选择，保存后下一次模型调用立即使用。" },
-  MINIMAX_THINKING_TYPE: { group: "模型运行", label: "MiniMax Thinking Type", type: "select", defaultValue: "adaptive", options: ["adaptive", "disabled"] },
-  MINIMAX_REASONING_SPLIT: { group: "模型运行", label: "MiniMax Reasoning Split", type: "boolean", defaultValue: false },
+  MINIMAX_THINKING_TYPE: { group: "模型运行", label: "MiniMax Thinking Type", type: "select", defaultValue: "adaptive", options: ["adaptive", "disabled"], description: "MiniMax-M3 专用：adaptive=按需思考，disabled=关闭思考。" },
+  MINIMAX_REASONING_SPLIT: { group: "模型运行", label: "MiniMax Reasoning Split", type: "boolean", defaultValue: false, description: "MiniMax-M3 专用：将 reasoning 单独返回，避免思考内容混进最终回复。" },
   MINIMAX_MAX_COMPLETION_TOKENS: { group: "模型运行", label: "MiniMax 最大生成 Token", type: "integer", defaultValue: 0, min: 0, description: "0 表示不额外限制。" },
 
   MAX_MESSAGE_LENGTH: { group: "聊天限制", label: "单条消息最大长度", type: "integer", defaultValue: 4000, min: 1, max: 100000 },
