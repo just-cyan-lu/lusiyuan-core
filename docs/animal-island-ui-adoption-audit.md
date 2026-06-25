@@ -1,6 +1,6 @@
 # animal-island-ui 接入系统盘点与改造计划
 
-> 状态：P0 全部完成；P1 任务 6 完成；P2 待办
+> 状态：P0 全部完成；P1 任务 6 完成、任务 5 决定不替换；P2 待办
 > 起始：2026-06-24
 > 最后更新：2026-06-25
 > 范围：`web/` 目录下 admin + 业务页面对 UI 库 `animal-island-ui@1.0.16` 的接入情况
@@ -149,11 +149,14 @@
 
 #### 5. `<details>` (RawJsonDetails) → UI 库 `Collapse`
 
-- **背景**：`AdminDetailPrimitives.tsx:RawJsonDetails` 用 `<details>/<summary>` 折叠 JSON；UI 库 `Collapse` 有 Grid 展开动画 + 叶子装饰。
-- **做法**：可选，**JSON 折叠场景保留 `<details>` 也合理**（无 JS 行为、屏幕阅读器友好、稳定可靠）。本项标 P1 但不强推，由后续开发决定。
-- **替换点**：
-  - `AdminDetailPrimitives.tsx:RawJsonDetails`（JSON 折叠）
-  - `ConfigCenterPage.tsx:912, 1001`（配置组折叠）
+- **状态**：⏸ **2026-06-25 决定不替换（试错后撤回）**
+- **背景**：`AdminDetailPrimitives.tsx:RawJsonDetails` 用 `<details>/<summary>` 折叠 JSON；UI 库 `Collapse` 是 FAQ Q&A 卡片组件（青色 `+`/`−` 圆按钮 + 叶子 svg + CSS Grid 0fr→1fr 展开动画）。
+- **试错过程**：临时替换 `RawJsonDetails` 为 UI 库 `Collapse` 后在 `/admin/runtime` 看实际效果：青色 `+` 圆按钮 + 叶子 svg 跟 admin 米黄/棕色主题反差明显，标题被 UI 库 `--animal-text-color` 覆盖为非棕色，视觉上变成"两个 UI 库风格硬拼"。功能 100% 正常（aria、键盘、动画都对），但**视觉一致性输了**。撤回。
+- **不替换理由**：
+  - admin 的 `<details>` 是"分组/详情折叠"语义（配置组、工具卡片、JSON 折叠），不是 Q&A；UI 库 `Collapse` 是 FAQ 卡片组件，语义错配
+  - HTML 原生 `<details>` 已经做好（零依赖、键盘可达、`aria-expanded` 自带），换 UI 库收益小、视觉损失大
+  - audit doc 原文已经标"不强推"
+- **盘点**:admin 内 `<details>` 共 9 处 — `AdminDetailPrimitives.tsx` 1 处 + `ConfigCenterPage.tsx` 2 处(配置组) + `ToolsAdminPage.tsx` 4 处(工具卡片) + `PlatformsPage.tsx` 2 处(帖子编辑/原文预览)。全部保留原生 `<details>`。
 
 #### 6. 自实现 `admin-switch-button` → UI 库 `Switch`（单 key 场景）
 
@@ -230,4 +233,4 @@
 - [x] **2026-06-25 任务 3 进行中**：`title=` → `Tooltip variant="island"`，**仅做 7 个高价值单点**（AdminShell apiBaseUrl、ConfigCenterPage provider.model + envConfig.envPath、ToolsAdminPage log.toolName + log.channel、OpsPage report.id、DashboardPage large metric），其余 ~70 个 truncated text 暂不动（原 `title=` 已够用）
 - [x] **2026-06-25 任务 4 完成**：全量替换 33 处 input → UI 库 `Input`（详见上方任务 4 提交清单，13 个 commit，AdminInput 共享 primitive + `.admin-input` CSS wrapper，textarea 17 处保留）
 - [x] **2026-06-25 任务 6 完成**：ConfigCenterPage 自实现 `admin-switch-button` → UI 库 `Switch`（22 个运行配置 boolean 字段统一替换，commit aa521a0；保留 ToggleGrid 多 key 网格用 StatusPill）
-- [ ] 5. `<details>` → UI 库 `Collapse`（可选，JSON 折叠场景）
+- [x] **2026-06-25 任务 5 决定不替换**：试错后撤回。HTML 原生 `<details>` 在 admin 内 9 处全保留（`AdminDetailPrimitives.tsx` 1 + `ConfigCenterPage.tsx` 2 + `ToolsAdminPage.tsx` 4 + `PlatformsPage.tsx` 2），UI 库 `Collapse` 是 FAQ 卡片，视觉风格不匹配
