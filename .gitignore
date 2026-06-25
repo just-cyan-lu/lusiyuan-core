@@ -13,3 +13,6 @@ web/dist
 web/node_modules
 web/.verify/
 .pnpm-store/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
