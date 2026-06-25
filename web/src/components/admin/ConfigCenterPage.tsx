@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Tooltip } from "animal-island-ui";
+import { Button, Switch, Tooltip } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
@@ -913,33 +913,24 @@ function RuntimeSettingsEditor({
               const value = values[field.key] ?? String(field.value);
               const enabled = value === "true";
               return (
-                <label
-                  key={field.key}
-                  className={`block min-w-0 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3 ${
-                    field.type === "text" ? "md:col-span-2 xl:col-span-3" : ""
-                  }`}
-                >
+                <label key={field.key} className="block min-w-0 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3">
                   <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
                   <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>{field.key}</span>
                   <span className="mt-3 block">
                     {field.type === "boolean" ? (
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={enabled}
-                        disabled={disabled}
-                        onClick={() => onCommit(field, enabled ? "false" : "true")}
-                        className={`admin-switch-button flex h-10 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium transition disabled:opacity-60 ${
-                          enabled
-                            ? "border-[#9fc7ae] bg-[#eef8f2] text-[#3f7b5d]"
-                            : "border-[#c9d7e6] bg-white text-[#66758a]"
-                        }`}
-                      >
+                      <span className={`flex h-10 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium disabled:opacity-60 ${
+                        enabled
+                          ? "border-[#9fc7ae] bg-[#eef8f2] text-[#3f7b5d]"
+                          : "border-[#c9d7e6] bg-white text-[#66758a]"
+                      }`}>
                         <span>{enabled ? "已开启" : "已关闭"}</span>
-                        <span className={`h-5 w-9 rounded-full p-0.5 ${enabled ? "bg-[#75a184]" : "bg-[#cbd5df]"}`}>
-                          <span className={`block h-4 w-4 rounded-full bg-white transition ${enabled ? "translate-x-4" : "translate-x-0"}`} />
-                        </span>
-                      </button>
+                        <Switch
+                          checked={enabled}
+                          disabled={disabled}
+                          onChange={(next: boolean) => onCommit(field, next ? "true" : "false")}
+                          aria-label={field.label}
+                        />
+                      </span>
                     ) : field.type === "select" ? (
                       <AdminSelect
                         ariaLabel={field.label}
@@ -947,13 +938,6 @@ function RuntimeSettingsEditor({
                         disabled={disabled}
                         onChange={(next) => onCommit(field, next)}
                         options={(field.options ?? []).map((option) => ({ key: option, label: option }))}
-                      />
-                    ) : field.type === "text" ? (
-                      <textarea
-                        value={value}
-                        disabled={disabled}
-                        onChange={(event) => onChange(field.key, event.target.value)}
-                        className="field-input min-h-32 resize-y py-2 leading-6"
                       />
                     ) : (
                       <AdminInput
