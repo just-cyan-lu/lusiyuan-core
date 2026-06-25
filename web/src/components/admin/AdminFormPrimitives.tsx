@@ -4,8 +4,8 @@ export type { InputProps, SelectOption };
 
 type AdminSelectProps = {
   options: SelectOption[];
-  value: string;
-  onChange: (value: string) => void;
+  value?: string;
+  onChange?: (value: string) => void;
   ariaLabel: string;
   disabled?: boolean;
   placeholder?: string;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
-import { Button, Card, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
+import { Button, Card, Form, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   createExpressionLearningExample,
   downloadExpressionLearningTrainingExport,
@@ -553,34 +553,43 @@ function ManualTeachingPanel({
     contextText: string;
   }) => Promise<{ draftText: string; trainingRecordId: string | null } | null>;
 }) {
-  const [form, setForm] = useState<TeachingForm>(defaultTeachingForm);
+  const [form, setForm] = useState<Omit<TeachingForm, "platform" | "scene" | "scope" | "status">>({
+    contextText: "",
+    draftText: "",
+    finalText: "",
+    outcome: "sent",
+    ownerNote: "",
+  });
   const [trainingRecordId, setTrainingRecordId] = useState<string | null>(null);
+  const [libForm] = Form.useForm<Pick<TeachingForm, "platform" | "scene" | "scope" | "status">>();
 
-  function update<K extends keyof TeachingForm>(key: K, value: TeachingForm[K]) {
+  function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
   function submit() {
+    const grid = libForm.getFieldsValue();
     onCreate({
       trainingRecordId,
       sourceType: "manual_teaching",
-      platform: form.platform,
-      scene: form.scene,
-      scope: form.scope,
+      platform: grid.platform ?? defaultTeachingForm.platform,
+      scene: grid.scene ?? defaultTeachingForm.scene,
+      scope: grid.scope ?? defaultTeachingForm.scope,
       contextText: form.contextText,
       draftText: form.draftText || null,
       finalText: form.outcome === "skipped" ? null : form.finalText,
       outcome: form.outcome,
       ownerAction: form.outcome === "skipped" ? "skipped" : "owner_taught",
       ownerNote: form.ownerNote || null,
-      status: form.status,
+      status: grid.status ?? defaultTeachingForm.status,
     });
   }
 
   async function generateDraft() {
+    const grid = libForm.getFieldsValue();
     const result = await onGenerateDraft({
-      platform: form.platform,
-      scene: form.scene,
+      platform: grid.platform ?? defaultTeachingForm.platform,
+      scene: grid.scene ?? defaultTeachingForm.scene,
       contextText: form.contextText,
     });
     if (result?.draftText) {
@@ -603,31 +612,46 @@ function ManualTeachingPanel({
 
       <ScopeHelp />
 
-      <div className="grid gap-3 lg:grid-cols-4">
-        <TextField label="平台" value={form.platform} onChange={(value) => update("platform", value)} />
-        <TextField label="场景" value={form.scene} onChange={(value) => update("scene", value)} />
-        <SelectField
-          label="范围"
-          value={form.scope}
-          onChange={(value) => update("scope", value)}
-          options={[
-            { key: "global", label: "全局" },
-            { key: "platform", label: "同平台" },
-            { key: "scene", label: "同场景" },
-            { key: "private", label: "仅存档" },
-          ]}
-        />
-        <SelectField
-          label="状态"
-          value={form.status}
-          onChange={(value) => update("status", value as TeachingForm["status"])}
-          options={[
-            { key: "active", label: "参与生成" },
-            { key: "pending", label: "待审核" },
-            { key: "disabled", label: "已停用" },
-          ]}
-        />
-      </div>
+      <Form
+        form={libForm}
+        layout="vertical"
+        initialValues={{
+          platform: defaultTeachingForm.platform,
+          scene: defaultTeachingForm.scene,
+          scope: defaultTeachingForm.scope,
+          status: defaultTeachingForm.status,
+        }}
+      >
+        <div className="grid gap-3 lg:grid-cols-4">
+          <Form.Item name="platform" label="平台">
+            <AdminInput aria-label="平台" />
+          </Form.Item>
+          <Form.Item name="scene" label="场景">
+            <AdminInput aria-label="场景" />
+          </Form.Item>
+          <Form.Item name="scope" label="范围">
+            <AdminSelect
+              ariaLabel="范围"
+              options={[
+                { key: "global", label: "全局" },
+                { key: "platform", label: "同平台" },
+                { key: "scene", label: "同场景" },
+                { key: "private", label: "仅存档" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="status" label="状态">
+            <AdminSelect
+              ariaLabel="状态"
+              options={[
+                { key: "active", label: "参与生成" },
+                { key: "pending", label: "待审核" },
+                { key: "disabled", label: "已停用" },
+              ]}
+            />
+          </Form.Item>
+        </div>
+      </Form>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <EditField label="情境 / 问题" value={form.contextText} onChange={(value) => update("contextText", value)} rows={8} />
