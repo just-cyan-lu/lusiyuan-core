@@ -3,7 +3,10 @@ export type ExpressionLearningOwnerAction =
   | "owner_written"
   | "edited_draft"
   | "accepted_draft"
-  | "skipped";
+  | "skipped"
+  | "owner_taught";
+
+export type ExpressionLearningStatus = "pending" | "active" | "disabled";
 
 export interface ExpressionLearningInput {
   sourceRef: string;
@@ -18,6 +21,7 @@ export interface ExpressionLearningInput {
   outcome: ExpressionLearningOutcome;
   ownerAction: ExpressionLearningOwnerAction;
   ownerNote?: string | null;
+  status?: ExpressionLearningStatus;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -38,3 +42,29 @@ export interface ExpressionLearningRetrievalInput {
   limit?: number;
 }
 
+export interface ExpressionLearningPracticeInput {
+  platform: string;
+  scene: string;
+  focus?: string | null;
+}
+
+export interface ExpressionLearningPracticeQuestion {
+  platform: string;
+  scene: string;
+  contextText: string;
+  draftText: string | null;
+  teachingFocus: string;
+  expectedOwnerInput: string;
+  tags: string[];
+}
+
+export interface ExpressionLearningDraftInput {
+  platform: string;
+  scene: string;
+  contextText: string;
+}
+
+export interface ExpressionLearningDraftOutput {
+  draftText: string;
+  referenceExampleIds: string[];
+}

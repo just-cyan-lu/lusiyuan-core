@@ -1,5 +1,7 @@
 import type { ExpressionLearningExample, Prisma } from "@prisma/client";
 import { modelProvider } from "../core/model-provider.js";
+import { buildChatPrompt } from "../core/prompt-builder.js";
+import { loadPersona } from "../core/persona-loader.js";
 import { prisma } from "../db/prisma.js";
 import { createMemoryContentHash } from "../embeddings/content-hash.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
@@ -9,9 +11,14 @@ import {
 } from "./pgvector-expression-learning-index.js";
 import type {
   ExpressionLearningAnalysis,
+  ExpressionLearningDraftInput,
+  ExpressionLearningDraftOutput,
   ExpressionLearningInput,
   ExpressionLearningOwnerAction,
+  ExpressionLearningPracticeInput,
+  ExpressionLearningPracticeQuestion,
   ExpressionLearningRetrievalInput,
+  ExpressionLearningStatus,
 } from "./expression-learning.types.js";
 
 const analysisPrompt = `你负责分析 owner 如何教陆思源回应外部世界。
@@ -39,6 +46,28 @@ const analysisPrompt = `你负责分析 owner 如何教陆思源回应外部世�
   "confidence": 0.0
 }`;
 
+const practiceQuestionPrompt = `你负责给 owner 设计“表达学习”练习题。
+
+目标不是考知识，而是制造一个具体表达情境，让 owner 教陆思源该怎么回应。
+
+规则：
+- 情境要具体，有真实语气和上下文。
+- 不要要求 owner 暴露隐私。
+- 如果是公开平台，问题应适合公开回复；如果是 chat，问题应适合私人聊天。
+- draftText 可以给一个陆思源可能会写但仍可被 owner 修正的草稿。
+- teachingFocus 要说明这题想训练什么表达能力。
+- expectedOwnerInput 要告诉 owner 应该怎么作答。
+- 只输出 JSON。
+
+格式：
+{
+  "contextText": "具体情境",
+  "draftText": "陆思源可选草稿，允许为空",
+  "teachingFocus": "这题训练的表达能力",
+  "expectedOwnerInput": "提示 owner 应该如何回答",
+  "tags": ["标签"]
+}`;
+
 function cleanText(value: unknown, fallback = "", max = 4000): string {
   const text = typeof value === "string" ? value.trim() : "";
   return (text || fallback).slice(0, max);
@@ -56,6 +85,11 @@ function cleanConfidence(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return 0.65;
   return Math.min(Math.max(parsed, 0.3), 0.98);
+}
+
+function cleanStatus(value: unknown): ExpressionLearningStatus {
+  if (value === "pending" || value === "active" || value === "disabled") return value;
+  return "active";
 }
 
 export function deriveExpressionOwnerAction(
@@ -89,6 +123,32 @@ export function normalizeExpressionLearningAnalysis(
     avoidances: cleanStringList(raw.avoidances),
     tags: cleanStringList(raw.tags),
     confidence: cleanConfidence(raw.confidence),
+  };
+}
+
+function normalizePracticeQuestion(
+  value: unknown,
+  input: ExpressionLearningPracticeInput
+): ExpressionLearningPracticeQuestion {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const platform = cleanText(input.platform, "general", 80);
+  const scene = cleanText(input.scene, "general", 80);
+  const focus = cleanText(input.focus, "", 200);
+  const fallbackContext = focus
+    ? `有人在 ${platform} / ${scene} 场景里提出一个需要“${focus}”的表达问题。`
+    : `有人在 ${platform} / ${scene} 场景里提出一个需要陆思源回应的问题。`;
+  return {
+    platform,
+    scene,
+    contextText: cleanText(raw.contextText, fallbackContext, 4000),
+    draftText: cleanText(raw.draftText, "", 2000) || null,
+    teachingFocus: cleanText(raw.teachingFocus, focus || "训练陆思源的表达判断。", 500),
+    expectedOwnerInput: cleanText(
+      raw.expectedOwnerInput,
+      "请写下你希望陆思源最终采用的回复，也可以说明为什么选择不回复。",
+      500
+    ),
+    tags: cleanStringList(raw.tags),
   };
 }
 
@@ -140,6 +200,81 @@ async function analyze(input: ExpressionLearningInput): Promise<ExpressionLearni
   }
 }
 
+export async function generateExpressionLearningPracticeQuestion(
+  input: ExpressionLearningPracticeInput
+): Promise<ExpressionLearningPracticeQuestion> {
+  const normalized: ExpressionLearningPracticeInput = {
+    platform: cleanText(input.platform, "general", 80),
+    scene: cleanText(input.scene, "general", 80),
+    focus: cleanText(input.focus, "", 200) || null,
+  };
+  try {
+    const raw = await modelProvider.chatJson<ExpressionLearningPracticeQuestion>([
+      { role: "system", content: practiceQuestionPrompt },
+      { role: "user", content: JSON.stringify(normalized, null, 2) },
+    ]);
+    return normalizePracticeQuestion(raw, normalized);
+  } catch (error) {
+    console.warn("Expression learning practice question failed:", error);
+    return normalizePracticeQuestion({}, normalized);
+  }
+}
+
+export async function generateExpressionLearningDraft(
+  input: ExpressionLearningDraftInput
+): Promise<ExpressionLearningDraftOutput> {
+  const normalized: ExpressionLearningDraftInput = {
+    platform: cleanText(input.platform, "general", 80),
+    scene: cleanText(input.scene, "general", 80),
+    contextText: cleanText(input.contextText, "", 12000),
+  };
+  if (!normalized.contextText) {
+    throw Object.assign(new Error("contextText is required"), { statusCode: 400 });
+  }
+
+  const [persona, learnedExamples] = await Promise.all([
+    loadPersona(),
+    retrieveExpressionLearningExamples({
+      platform: normalized.platform,
+      scene: normalized.scene,
+      query: normalized.contextText,
+      limit: 4,
+    }),
+  ]);
+  const learnedContext = formatExpressionLearningExamples(learnedExamples);
+  const userMessage = [
+    "请根据下面的表达学习情境，生成一版“陆思源可能会写的原草稿”。",
+    "",
+    `平台：${normalized.platform}`,
+    `场景：${normalized.scene}`,
+    "",
+    "情境：",
+    normalized.contextText,
+    "",
+    learnedContext ? `可参考的既有表达经验：\n${learnedContext}` : "",
+    "",
+    "要求：",
+    "- 只输出回复正文，不要解释、不加标题。",
+    "- 这是一版可被 owner 修正的草稿，不需要追求完美。",
+    "- 如果情境明显不该回复，也请输出一句克制的短回复草稿，方便 owner 判断和教学。",
+  ].filter(Boolean).join("\n");
+  const draft = await modelProvider.chat(buildChatPrompt({
+    persona,
+    memories: [],
+    recentMessages: [],
+    userMessage,
+    channel: normalized.platform,
+  }));
+  return {
+    draftText: cleanText(
+      draft.replace(/^草稿[:：]\s*/i, "").replace(/^回复[:：]\s*/i, ""),
+      "",
+      4000
+    ),
+    referenceExampleIds: learnedExamples.map((example) => example.id),
+  };
+}
+
 async function indexExample(example: ExpressionLearningExample): Promise<ExpressionLearningExample> {
   const text = buildExpressionLearningEmbeddingText(example);
   try {
@@ -179,6 +314,7 @@ export async function learnExpression(input: ExpressionLearningInput) {
     draftText: cleanText(input.draftText, "", 4000) || null,
     finalText: cleanText(input.finalText, "", 4000) || null,
     ownerNote: cleanText(input.ownerNote, "", 2000) || null,
+    status: cleanStatus(input.status),
   };
   if (!normalized.sourceRef || !normalized.contextText) {
     throw Object.assign(new Error("sourceRef and contextText are required"), { statusCode: 400 });
@@ -207,7 +343,7 @@ export async function learnExpression(input: ExpressionLearningInput) {
     avoidances: analysis.avoidances,
     tags: analysis.tags,
     confidence: analysis.confidence,
-    status: "active",
+    status: normalized.status,
     analysisVersion: 1,
     embeddingStatus: "pending",
     embeddingError: null,
@@ -231,19 +367,26 @@ function rankRecentExamples(examples: ExpressionLearningExample[], scene: string
   });
 }
 
+export function buildExpressionLearningRetrievalWhere(
+  input: Pick<ExpressionLearningRetrievalInput, "platform" | "scene">
+): Prisma.ExpressionLearningExampleWhereInput {
+  return {
+    status: "active",
+    OR: [
+      { scope: "global" },
+      { platform: input.platform, scope: "platform" },
+      { platform: input.platform, scene: input.scene, scope: "scene" },
+    ],
+  };
+}
+
 export async function retrieveExpressionLearningExamples(
   input: ExpressionLearningRetrievalInput
 ): Promise<ExpressionLearningExample[]> {
   const limit = Math.min(Math.max(input.limit ?? 4, 1), 8);
   let examples: ExpressionLearningExample[] = [];
   const recent = await prisma.expressionLearningExample.findMany({
-    where: {
-      status: "active",
-      OR: [
-        { scope: "global" },
-        { platform: input.platform, scope: { in: ["platform", "scene"] } },
-      ],
-    },
+    where: buildExpressionLearningRetrievalWhere(input),
     orderBy: { createdAt: "desc" },
     take: limit * 3,
   });
@@ -257,6 +400,7 @@ export async function retrieveExpressionLearningExamples(
       model: embeddingProvider.model,
       dimensions: embeddingProvider.dimensions,
       platform: input.platform,
+      scene: input.scene,
       limit: limit * 3,
     });
     if (matches.length > 0) {
@@ -316,6 +460,7 @@ export async function reanalyzeExpressionLearningExample(id: string) {
     outcome: example.outcome as ExpressionLearningInput["outcome"],
     ownerAction: example.ownerAction as ExpressionLearningInput["ownerAction"],
     ownerNote: example.ownerNote,
+    status: example.status as ExpressionLearningInput["status"],
     metadata: example.metadata as Record<string, unknown> | null,
   });
 }
@@ -331,6 +476,8 @@ export async function reindexExpressionLearningExample(id: string) {
 
 export const expressionLearningService = {
   learn: learnExpression,
+  generateDraft: generateExpressionLearningDraft,
+  generatePracticeQuestion: generateExpressionLearningPracticeQuestion,
   retrieve: retrieveExpressionLearningExamples,
   reanalyze: reanalyzeExpressionLearningExample,
   reindex: reindexExpressionLearningExample,
