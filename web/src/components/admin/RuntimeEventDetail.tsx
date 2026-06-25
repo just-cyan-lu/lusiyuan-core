@@ -46,7 +46,7 @@ export function RuntimeEventDetail({
 }: RuntimeEventDetailProps) {
   if (!event) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
         选择一条运行事件后查看详情。
       </div>
     );
@@ -60,16 +60,16 @@ export function RuntimeEventDetail({
     typeof stateImpact.mutationGate === "string" ? stateImpact.mutationGate : null;
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#7b8ca2]">事件解释</div>
-          <h4 className="mt-1 text-lg font-semibold text-[#172033]">
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">事件解释</div>
+          <h4 className="mt-1 text-lg font-semibold text-[var(--ls-ink-strong)]">
             {runtimeEventTypeLabel(event.eventType)}
           </h4>
-          <p className="mt-2 text-sm leading-7 text-[#334155]">{event.summary}</p>
+          <p className="mt-2 text-sm leading-7 text-[var(--ls-ink-strong)]">{event.summary}</p>
         </div>
-        <div className="rounded-full border border-[#c9d6e5] bg-white px-3 py-1 text-xs text-[#66758a]">
+        <div className="rounded-full border border-[var(--ls-border-cold)] bg-white px-3 py-1 text-xs text-[var(--ls-ink-soft)]">
           {formatAdminDate(event.createdAt)}
         </div>
       </div>
@@ -82,20 +82,20 @@ export function RuntimeEventDetail({
       </div>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">事件信号</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">事件信号</div>
         <div className="mt-3 grid gap-3 md:grid-cols-[8rem_1fr]">
-          <div className="rounded-lg border border-[#d9e2ec] bg-white px-3 py-3">
-            <div className="text-[11px] font-semibold text-[#7b8ca2]">重要度</div>
-            <div className="mt-1 text-lg font-semibold text-[#172033]">{event.importance}</div>
-            <div className="mt-2 h-2 rounded-full bg-[#e4ebf3]">
+          <div className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-3">
+            <div className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">重要度</div>
+            <div className="mt-1 text-lg font-semibold text-[var(--ls-ink-strong)]">{event.importance}</div>
+            <div className="mt-2 h-2 rounded-full bg-[var(--ls-panel-cold-deep)]">
               <div
-                className="h-2 rounded-full bg-[#6f8fb8]"
+                className="h-2 rounded-full bg-[var(--ls-link-soft)]"
                 style={{ width: `${Math.min(Math.max(event.importance, 0), 100)}%` }}
               />
             </div>
           </div>
-          <div className="rounded-lg border border-[#d9e2ec] bg-white px-3 py-3">
-            <div className="text-[11px] font-semibold text-[#7b8ca2]">观察到的状态信号</div>
+          <div className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-3">
+            <div className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">观察到的状态信号</div>
             <div className="mt-2 flex flex-wrap gap-2">
               <SignalPill label="心情" value={event.moodSignal} />
               <SignalPill label="精力" value={event.energySignal} />
@@ -107,35 +107,35 @@ export function RuntimeEventDetail({
       </section>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">能不能影响长期状态</div>
-        <div className="mt-3 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">能不能影响长期状态</div>
+        <div className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                canMutate ? "bg-[#eef8f2] text-[#3f7b5d]" : "bg-[#fff6f1] text-[#8d6048]"
+                canMutate ? "bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]" : "bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]"
               }`}
             >
               {canMutate ? "有资格进入校准" : "只作为事件材料"}
             </span>
-            <span className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#66758a]">
+            <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-1 text-xs text-[var(--ls-ink-soft)]">
               {mutationGate ? mutationGateLabels[mutationGate] ?? mutationGate : "暂无入口规则"}
             </span>
           </div>
-          <p className="mt-3 text-sm leading-7 text-[#334155]">
+          <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-strong)]">
             {stateImpactText(event, stateImpact, relatedStateEvents)}
           </p>
         </div>
       </section>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">候选影响</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">候选影响</div>
         <div className="mt-3 grid gap-2">
           {impactPreviewEntries(stateImpact).length > 0 ? (
             impactPreviewEntries(stateImpact).map((entry) => (
               <DetailInfoLine key={entry.label} label={entry.label} value={entry.value} />
             ))
           ) : (
-            <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm text-[#7b8ca2]">
+            <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm text-[var(--ls-ink-soft)]">
               暂无候选影响。
             </div>
           )}
@@ -143,25 +143,25 @@ export function RuntimeEventDetail({
       </section>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">和状态变化的关系</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">和状态变化的关系</div>
         {relatedStateEvents.length > 0 ? (
           <div className="mt-3 grid gap-2">
             {relatedStateEvents.map(({ event: stateEvent, reason }) => (
               <div
                 key={stateEvent.id}
-                className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3"
+                className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3"
               >
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-[#172033]">
+                    <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
                       {stateEventTypeLabel(stateEvent.eventType)}
                     </div>
-                    <p className="mt-1 text-sm leading-6 text-[#334155]">
+                    <p className="mt-1 text-sm leading-6 text-[var(--ls-ink-strong)]">
                       {stateEvent.summary}
                     </p>
-                    <div className="mt-2 text-xs text-[#7b8ca2]">{reason}</div>
+                    <div className="mt-2 text-xs text-[var(--ls-ink-soft)]">{reason}</div>
                   </div>
-                  <div className="text-xs text-[#7b8ca2] md:text-right">
+                  <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
                     {formatAdminDate(stateEvent.createdAt)}
                   </div>
                 </div>
@@ -169,14 +169,14 @@ export function RuntimeEventDetail({
             ))}
           </div>
         ) : (
-          <div className="mt-3 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm leading-6 text-[#66758a]">
+          <div className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--ls-ink-soft)]">
             最近状态变更里没有找到对应写入。它可能只是普通事件材料，也可能是候选影响被程序拦下，或对应变化已经不在最近列表里。
           </div>
         )}
       </section>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">来源信息</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">来源信息</div>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           <DetailInfoLine label="用户" value={event.userId ?? "暂无"} />
           <DetailInfoLine label="会话" value={event.conversationId ?? "暂无"} />
@@ -191,7 +191,7 @@ export function RuntimeEventDetail({
       </div>
 
       {isRecord(payload) && isRecord(payload.generatedPatch) ? (
-        <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fffaf7] px-4 py-3 text-xs leading-6 text-[#8d6048]">
+        <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-panel-cold)] px-4 py-3 text-xs leading-6 text-[var(--ls-warning-text)]">
           这条事件里带有候选状态补丁；是否真的写入，要看右侧“和状态变化的关系”，不要把候选补丁当成最终状态。
         </div>
       ) : null}
@@ -201,7 +201,7 @@ export function RuntimeEventDetail({
 
 function SignalPill({ label, value }: { label: string; value: string | null }) {
   return (
-    <span className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#334155]">
+    <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-1 text-xs text-[var(--ls-ink-strong)]">
       {label}：{value ?? "暂无"}
     </span>
   );

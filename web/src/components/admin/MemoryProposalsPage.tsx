@@ -328,10 +328,10 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Memory Review</div>
-        <h2 className="mt-3 text-3xl font-semibold text-[#172033]">记忆提案审核</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
+      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Memory Review</div>
+        <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">记忆提案审核</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
           这里会读取 Reflection / Dream 生成的 MemoryProposal。请先在顶部输入 Admin Token，
           页面只会把 token 保存在浏览器本地。
         </p>
@@ -341,12 +341,12 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">Memory Review</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">记忆提案审核</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Memory Review</div>
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">记忆提案审核</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               逐条检查提案内容、理由、置信度和风险等级，再决定批准、拒绝或应用到长期记忆。长期测试时优先处理低风险、用户范围的提案。
             </p>
           </div>
@@ -376,7 +376,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
 
         <div className="admin-select-host mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <label>
-            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">搜索</span>
+            <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">搜索</span>
             <AdminInput
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -385,7 +385,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
             />
           </label>
           <div className="flex flex-col gap-1">
-            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">风险</span>
+            <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">风险</span>
             <AdminSelect
               ariaLabel="风险"
               value={riskFilter}
@@ -394,7 +394,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">提案类型</span>
+            <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">提案类型</span>
             <AdminSelect
               ariaLabel="提案类型"
               value={proposalTypeFilter}
@@ -406,7 +406,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">范围</span>
+            <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">范围</span>
             <AdminSelect
               ariaLabel="范围"
               value={scopeFilter}
@@ -439,17 +439,17 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
       </section>
 
       {error && (
-        <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+        <div className="rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
           {error}
         </div>
       )}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.1fr)]">
-        <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+        <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-[#172033]">提案队列</h3>
-              <p className="mt-1 text-xs text-[#7b8ca2]">
+              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">提案队列</h3>
+              <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                 当前筛选 {proposals.length} 条
               </p>
             </div>
@@ -460,7 +460,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
             {Object.entries(statusSummary).map(([status, count]) => (
               <span
                 key={status}
-                className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-xs text-[#66758a]"
+                className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]"
               >
                 {statusLabels[status] ?? status}: {count}
               </span>
@@ -515,7 +515,7 @@ function actionMessageFor(action: ProposalAction): string {
 
 function QueuePlaceholder({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#cdd9e6] bg-white px-4 py-8 text-center text-sm text-[#66758a]">
+    <div className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white px-4 py-8 text-center text-sm text-[var(--ls-ink-soft)]">
       {text}
     </div>
   );
@@ -541,15 +541,15 @@ function ProposalListItem({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[#172033]">
+            <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">
               {proposalTypeLabels[proposal.proposalType] ?? proposal.proposalType}
             </span>
-            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[#66758a]">
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
               {proposal.scope}/{proposal.type}
             </span>
           </div>
           <p
-            className="mt-2 line-clamp-2 text-sm leading-6 text-[#334155]"
+            className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--ls-ink-strong)]"
             title={proposal.summary || proposal.content}
           >
             {proposal.summary || proposal.content}
@@ -557,7 +557,7 @@ function ProposalListItem({
         </div>
         <StatusPill active={proposal.status === "pending"} label={statusLabels[proposal.status] ?? proposal.status} />
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
         <span>{formatConfidence(proposal.confidence)}</span>
         <span>·</span>
         <span>{riskLabels[proposal.riskLevel] ?? proposal.riskLevel}</span>
@@ -589,9 +589,9 @@ function ProposalDetail({
 }) {
   if (!proposal) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-sm">
-        <h3 className="text-base font-semibold text-[#172033]">提案详情</h3>
-        <p className="mt-3 text-sm leading-7 text-[#66758a]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-sm">
+        <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">提案详情</h3>
+        <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-soft)]">
           从左侧选择一条提案后，这里会显示完整内容和审核动作。
         </p>
       </div>
@@ -603,11 +603,11 @@ function ProposalDetail({
   const sourceMessageIds = toTextList(proposal.sourceMessageIds);
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.1)]">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">Proposal Detail</div>
-          <h3 className="mt-2 text-2xl font-semibold text-[#172033]">
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Proposal Detail</div>
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">
             {proposalTypeLabels[proposal.proposalType] ?? proposal.proposalType}
           </h3>
         </div>
@@ -623,25 +623,25 @@ function ProposalDetail({
         <Metric label="创建时间" value={formatDate(proposal.createdAt)} title={proposal.createdAt} />
       </div>
 
-      <section className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-        <h4 className="text-sm font-semibold text-[#172033]">提案内容</h4>
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#334155]">
+      <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+        <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">提案内容</h4>
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-strong)]">
           {proposal.content}
         </p>
       </section>
 
       {proposal.summary && (
-        <section className="mt-4 rounded-lg border border-[#d9e2ec] bg-white p-4">
-          <h4 className="text-sm font-semibold text-[#172033]">摘要</h4>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#617188]">
+        <section className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white p-4">
+          <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">摘要</h4>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-soft)]">
             {proposal.summary}
           </p>
         </section>
       )}
 
-      <section className="mt-4 rounded-lg border border-[#d9e2ec] bg-white p-4">
-        <h4 className="text-sm font-semibold text-[#172033]">生成理由</h4>
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#617188]">
+      <section className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white p-4">
+        <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">生成理由</h4>
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-soft)]">
           {proposal.reason}
         </p>
       </section>
@@ -684,14 +684,14 @@ function ProposalDetail({
       <JsonBlock title="Metadata" value={proposal.metadata} />
 
       <div className="mt-5">
-        <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-[#617188]">
-          <span className="font-semibold text-[#172033]">按钮说明：</span>
+        <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-ink-soft)]">
+          <span className="font-semibold text-[var(--ls-ink-strong)]">按钮说明：</span>
           仅批准只是通过审核，不写入记忆；应用到当前用户会让这条记忆只对当前用户生效；全局应用会写成陆思源基础记忆，对所有用户生效；撤回会撤销批准或让已应用记忆失效。
         </div>
       </div>
 
       <div className="mt-5">
-        <label className="text-sm font-semibold text-[#172033]" htmlFor="reject-reason">
+        <label className="text-sm font-semibold text-[var(--ls-ink-strong)]" htmlFor="reject-reason">
           拒绝原因
         </label>
         <textarea
@@ -700,18 +700,18 @@ function ProposalDetail({
           onChange={(event) => onRejectReasonChange(event.target.value)}
           rows={3}
           placeholder="可选。拒绝时会写入 proposal metadata。"
-          className="mt-2 w-full resize-none rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2 text-sm leading-6 text-[#172033] outline-none placeholder:text-[#9aa8b8] focus:border-[#a9bfd7]"
+          className="mt-2 w-full resize-none rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-sm leading-6 text-[var(--ls-ink-strong)] outline-none placeholder:text-[var(--ls-ink-soft)] focus:border-[var(--ls-border-cold-soft)]"
         />
       </div>
 
       {actionError && (
-        <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+        <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
           {actionError}
         </div>
       )}
 
       {actionMessage && (
-        <div className="mt-4 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+        <div className="mt-4 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
           {actionMessage}
         </div>
       )}
@@ -771,9 +771,9 @@ function ProposalDetail({
 
 function Metric({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
-      <div className="text-xs text-[#7b8ca2]">{label}</div>
-      <div className="mt-2 truncate text-sm font-semibold text-[#172033]" title={title ?? value}>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
+      <div className="text-xs text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-2 truncate text-sm font-semibold text-[var(--ls-ink-strong)]" title={title ?? value}>
         {value}
       </div>
     </div>
@@ -782,9 +782,9 @@ function Metric({ label, value, title }: { label: string; value: string; title?:
 
 function DetailRow({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2">
-      <div className="text-[11px] text-[#7b8ca2]">{label}</div>
-      <div className="mt-1 break-words text-sm text-[#334155]" title={title ?? value}>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2">
+      <div className="text-[11px] text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-1 break-words text-sm text-[var(--ls-ink-strong)]" title={title ?? value}>
         {value}
       </div>
     </div>
@@ -803,13 +803,13 @@ function TagBlock({
   if (items.length === 0) return null;
   return (
     <div className="mt-4">
-      <div className="text-sm font-semibold text-[#172033]">{title}</div>
+      <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</div>
       <div className="mt-2 flex flex-wrap gap-2">
         {items.map((item, index) => (
           <span
             key={`${item}-${index}`}
             title={itemTitles?.[index] ?? item}
-            className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-2.5 py-1 text-xs text-[#66758a]"
+            className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]"
           >
             {item}
           </span>
@@ -824,11 +824,11 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
 
   const text = JSON.stringify(value, null, 2);
   return (
-    <section className="mt-4 rounded-lg border border-[#d9e2ec] bg-white p-4">
-      <h4 className="text-sm font-semibold text-[#172033]">{title}</h4>
+    <section className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white p-4">
+      <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</h4>
       <pre
         title={text}
-        className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-[#f8fbff] p-3 text-xs leading-5 text-[#334155]"
+        className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--ls-panel-soft)] p-3 text-xs leading-5 text-[var(--ls-ink-strong)]"
       >
         {text}
       </pre>
@@ -843,10 +843,10 @@ function RiskPill({ risk }: { risk: string }) {
     <span
       className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${
         high
-          ? "border-[#ead4c8] bg-[#fff6f1] text-[#9a6a4f]"
+          ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]"
           : medium
-            ? "border-[#e4d8b6] bg-[#fff9e8] text-[#7d6a34]"
-            : "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
+            ? "border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-info-text)]"
+            : "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
       }`}
     >
       {riskLabels[risk] ?? risk}

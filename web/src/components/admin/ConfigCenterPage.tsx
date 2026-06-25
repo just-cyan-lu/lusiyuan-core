@@ -567,10 +567,10 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Configuration</div>
-        <h2 className="mt-3 text-3xl font-semibold text-[#172033]">配置中心</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
+      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Configuration</div>
+        <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">配置中心</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
           请先在顶部输入 Admin Token。配置中心只读取安全摘要，不展示 API key、token 或 secret 原文。
         </p>
       </section>
@@ -579,12 +579,12 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-7">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)] md:p-7">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">Configuration</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">配置中心</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Configuration</div>
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">配置中心</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               日常开关和规则保存在数据库，切换后立即生效；连接密钥和启动安全信息继续留在 `.env`。
             </p>
           </div>
@@ -617,28 +617,28 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         </div>
 
         {state.error && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {state.error}
           </div>
         )}
         {state.saveError && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {state.saveError}
           </div>
         )}
         {state.saveMessage && (
-          <div className="mt-5 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
             {state.saveMessage}
           </div>
         )}
       </section>
 
       <SectionPanel bg="muted" title="危险操作" subtitle="仅用于开发期清理测试数据">
-        <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] p-4">
+        <div className="rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <h4 className="text-sm font-semibold text-[#172033]">清空数据库业务数据</h4>
-              <p className="mt-2 text-sm leading-6 text-[#8d6048]">
+              <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">清空数据库业务数据</h4>
+              <p className="mt-2 text-sm leading-6 text-[var(--ls-warning-text)]">
                 会删除聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物、工具日志和页面快照。不会删除运行配置、Skill 配置、配置变更记录、`.env`、persona 或 migration。
               </p>
             </div>
@@ -659,7 +659,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <label>
-              <span className="mb-1 block text-xs font-semibold text-[#8d6048]">清空密码</span>
+              <span className="mb-1 block text-xs font-semibold text-[var(--ls-warning-text)]">清空密码</span>
               <AdminInput
                 type="password"
                 value={clearPassword}
@@ -670,7 +670,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
               />
             </label>
             <label>
-              <span className="mb-1 block text-xs font-semibold text-[#8d6048]">确认文字</span>
+              <span className="mb-1 block text-xs font-semibold text-[var(--ls-warning-text)]">确认文字</span>
               <AdminInput
                 value={clearConfirmText}
                 disabled={state.clearing}
@@ -681,12 +681,12 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           </div>
 
           {state.dangerError && (
-            <div className="mt-4 rounded-lg border border-[#d7a28e] bg-white px-4 py-3 text-sm text-[#8d6048]">
+            <div className="mt-4 rounded-lg border border-[var(--ls-warning-border-strong)] bg-white px-4 py-3 text-sm text-[var(--ls-warning-text)]">
               {state.dangerError}
             </div>
           )}
           {state.dangerMessage && (
-            <div className="mt-4 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+            <div className="mt-4 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
               {state.dangerMessage}
             </div>
           )}
@@ -711,24 +711,24 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
 
       <SectionPanel bg="muted" title="最近配置变更" subtitle="记录运行配置何时从什么值改成什么值">
         {state.settingEvents.length > 0 ? (
-          <div className="divide-y divide-[#e5edf5] rounded-lg border border-[#d9e2ec] bg-white">
+          <div className="divide-y divide-[var(--ls-border)] rounded-lg border border-[var(--ls-border)] bg-white">
             {state.settingEvents.slice(0, 20).map((event) => (
               <div key={event.id} className="grid gap-2 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_9rem] md:items-center">
                 <div className="min-w-0">
-                  <div className="truncate font-mono text-xs font-semibold text-[#334155]" title={event.key}>{event.key}</div>
-                  <div className="mt-1 text-xs text-[#7b8ca2]">{event.changedBy || event.source}</div>
+                  <div className="truncate font-mono text-xs font-semibold text-[var(--ls-ink-strong)]" title={event.key}>{event.key}</div>
+                  <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">{event.changedBy || event.source}</div>
                 </div>
-                <div className="min-w-0 text-xs text-[#617188]">
+                <div className="min-w-0 text-xs text-[var(--ls-ink-soft)]">
                   <span className="break-all">{JSON.stringify(event.oldValue)}</span>
-                  <span className="px-2 text-[#9aa8b8]">→</span>
-                  <span className="break-all font-medium text-[#334155]">{JSON.stringify(event.newValue)}</span>
+                  <span className="px-2 text-[var(--ls-ink-soft)]">→</span>
+                  <span className="break-all font-medium text-[var(--ls-ink-strong)]">{JSON.stringify(event.newValue)}</span>
                 </div>
-                <div className="text-xs text-[#7b8ca2] md:text-right">{formatDate(event.createdAt)}</div>
+                <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">{formatDate(event.createdAt)}</div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-[#c9d7e6] bg-white px-4 py-5 text-sm text-[#7b8ca2]">还没有运行配置变更。</div>
+          <div className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white px-4 py-5 text-sm text-[var(--ls-ink-soft)]">还没有运行配置变更。</div>
         )}
       </SectionPanel>
 
@@ -862,15 +862,15 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             {Object.entries(runtime.limits).map(([key, value]) => (
               <div
                 key={key}
-                className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3"
+                className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3"
               >
-                <div className="text-xs text-[#7b8ca2]">
+                <div className="text-xs text-[var(--ls-ink-soft)]">
                   {limitLabels[key] ?? formatKey(key)}
                 </div>
-                <div className="mt-2 text-lg font-semibold text-[#172033]">
+                <div className="mt-2 text-lg font-semibold text-[var(--ls-ink-strong)]">
                   {value}
                 </div>
-                <div className="mt-1 truncate font-mono text-[11px] text-[#9aa8b8]" title={key}>
+                <div className="mt-1 truncate font-mono text-[11px] text-[var(--ls-ink-soft)]" title={key}>
                   {key}
                 </div>
               </div>
@@ -899,29 +899,29 @@ function RuntimeSettingsEditor({
 }) {
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm leading-6 text-[#3f7b5d]">
+      <div className="rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm leading-6 text-[var(--ls-success-text)]">
         开关和下拉选择会立即写入数据库并通知运行中的模型、定时器、渠道和 MCP；文本和数字项编辑后点击“保存手动编辑项”。
       </div>
       {groups.map(([group, fields], index) => (
-        <details key={group} open={index < 2} className="rounded-lg border border-[#d9e2ec] bg-white">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[#172033]">
+        <details key={group} open={index < 2} className="rounded-lg border border-[var(--ls-border)] bg-white">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--ls-ink-strong)]">
             {group}
-            <span className="ml-2 text-xs font-normal text-[#7b8ca2]">{fields.length} 项</span>
+            <span className="ml-2 text-xs font-normal text-[var(--ls-ink-soft)]">{fields.length} 项</span>
           </summary>
-          <div className="admin-select-host grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="admin-select-host grid gap-3 border-t border-[var(--ls-border)] p-4 md:grid-cols-2 xl:grid-cols-3">
             {fields.map((field) => {
               const value = values[field.key] ?? String(field.value);
               const enabled = value === "true";
               return (
-                <label key={field.key} className="block min-w-0 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3">
-                  <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
-                  <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>{field.key}</span>
+                <label key={field.key} className="block min-w-0 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-3">
+                  <span className="block text-sm font-medium text-[var(--ls-ink-strong)]">{field.label}</span>
+                  <span className="mt-1 block truncate font-mono text-[11px] text-[var(--ls-ink-soft)]" title={field.key}>{field.key}</span>
                   <span className="mt-3 block">
                     {field.type === "boolean" ? (
                       <span className={`flex h-10 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium disabled:opacity-60 ${
                         enabled
-                          ? "border-[#9fc7ae] bg-[#eef8f2] text-[#3f7b5d]"
-                          : "border-[#c9d7e6] bg-white text-[#66758a]"
+                          ? "border-[var(--ls-success-border-light)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
+                          : "border-[var(--ls-border)] bg-white text-[var(--ls-ink-soft)]"
                       }`}>
                         <span>{enabled ? "已开启" : "已关闭"}</span>
                         <Switch
@@ -952,7 +952,7 @@ function RuntimeSettingsEditor({
                       />
                     )}
                   </span>
-                  {field.description && <span className="mt-2 block text-xs leading-5 text-[#7b8ca2]">{field.description}</span>}
+                  {field.description && <span className="mt-2 block text-xs leading-5 text-[var(--ls-ink-soft)]">{field.description}</span>}
                 </label>
               );
             })}
@@ -976,22 +976,22 @@ function EnvConfigEditor({
 }) {
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
+      <div className="rounded-lg border border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-info-text)]">
         这里只保留外部连接、密钥和服务启动参数。API key / token / secret 留空表示不修改；保存后需要重启后端。
       </div>
       {groups.map(([group, fields], index) => (
         <details
           key={group}
           open={index < 3}
-          className="rounded-lg border border-[#d9e2ec] bg-white"
+          className="rounded-lg border border-[var(--ls-border)] bg-white"
         >
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[#172033]">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--ls-ink-strong)]">
             {group}
-            <span className="ml-2 text-xs font-normal text-[#7b8ca2]">
+            <span className="ml-2 text-xs font-normal text-[var(--ls-ink-soft)]">
               {fields.length} 项
             </span>
           </summary>
-          <div className="admin-select-host grid gap-3 border-t border-[#d9e2ec] p-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="admin-select-host grid gap-3 border-t border-[var(--ls-border)] p-4 md:grid-cols-2 xl:grid-cols-3">
             {fields.map((field) => (
               <EnvConfigFieldControl
                 key={field.key}
@@ -1020,19 +1020,19 @@ function EnvConfigFieldControl({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-3">
+    <label className="block rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-3">
       <span className="flex items-start justify-between gap-3">
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
-          <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>
+          <span className="block text-sm font-medium text-[var(--ls-ink-strong)]">{field.label}</span>
+          <span className="mt-1 block truncate font-mono text-[11px] text-[var(--ls-ink-soft)]" title={field.key}>
             {field.key}
           </span>
         </span>
         <span
           className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
             field.fromFile
-              ? "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
-              : "border-[#d9e2ec] bg-white text-[#7b8ca2]"
+              ? "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
+              : "border-[var(--ls-border)] bg-white text-[var(--ls-ink-soft)]"
           }`}
         >
           {field.fromFile ? "env" : "默认"}
@@ -1081,7 +1081,7 @@ function EnvConfigFieldControl({
       </div>
 
       {field.description && (
-        <p className="mt-2 text-xs leading-5 text-[#7b8ca2]">{field.description}</p>
+        <p className="mt-2 text-xs leading-5 text-[var(--ls-ink-soft)]">{field.description}</p>
       )}
     </label>
   );
@@ -1097,12 +1097,12 @@ function SummaryCard({
   active: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-[#7b8ca2]">{label}</div>
+        <div className="text-xs text-[var(--ls-ink-soft)]">{label}</div>
         <StatusPill active={active} label={active ? "正常" : "待配置"} />
       </div>
-      <div className="mt-4 truncate text-lg font-semibold text-[#172033]" title={value}>
+      <div className="mt-4 truncate text-lg font-semibold text-[var(--ls-ink-strong)]" title={value}>
         {value}
       </div>
     </div>
@@ -1115,19 +1115,19 @@ function ProviderCard({ provider }: { provider: RuntimeProvider }) {
     <article
       className={`rounded-lg border px-4 py-4 ${
         provider.active
-          ? "border-[#a9bfd7] bg-[#eaf2fb]"
-          : "border-[#d9e2ec] bg-white"
+          ? "border-[var(--ls-border-cold-soft)] bg-[var(--ls-panel-soft)]"
+          : "border-[var(--ls-border)] bg-white"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-[#172033]">{provider.label}</h4>
+          <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">{provider.label}</h4>
           <Tooltip
             title={provider.model ?? "未设置模型"}
             variant="island"
             placement="bottom"
           >
-            <p className="mt-1 truncate font-mono text-xs text-[#7b8ca2]">
+            <p className="mt-1 truncate font-mono text-xs text-[var(--ls-ink-soft)]">
               {provider.model ?? "未设置模型"}
             </p>
           </Tooltip>
@@ -1137,7 +1137,7 @@ function ProviderCard({ provider }: { provider: RuntimeProvider }) {
           label={provider.active ? "当前" : ready ? "可用" : "缺配置"}
         />
       </div>
-      <div className="mt-4 grid gap-2 text-xs text-[#66758a]">
+      <div className="mt-4 grid gap-2 text-xs text-[var(--ls-ink-soft)]">
         <MiniRow label="Base URL" active={provider.baseUrlConfigured} />
         <MiniRow label="API Key" active={provider.apiKeyConfigured} />
         <MiniRow label="Model" active={Boolean(provider.model)} />
@@ -1156,16 +1156,16 @@ function ChannelCard({
   rows: Array<[string, string]>;
 }) {
   return (
-    <article className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-4">
+    <article className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-4">
       <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold text-[#172033]">{title}</h4>
+        <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</h4>
         <StatusPill active={enabled} label={enabled ? "已启用" : "未启用"} />
       </div>
       <div className="mt-4 grid gap-2">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between gap-3 text-xs">
-            <span className="text-[#7b8ca2]">{label}</span>
-            <span className="truncate text-[#334155]" title={value}>
+            <span className="text-[var(--ls-ink-soft)]">{label}</span>
+            <span className="truncate text-[var(--ls-ink-strong)]" title={value}>
               {value}
             </span>
           </div>
@@ -1187,9 +1187,9 @@ function ToggleGrid({
       {Object.entries(values).map(([key, enabled]) => (
         <div
           key={key}
-          className="flex items-center justify-between gap-3 rounded-lg border border-[#d9e2ec] bg-white px-3 py-2.5"
+          className="flex items-center justify-between gap-3 rounded-lg border border-[var(--ls-border)] bg-white px-3 py-2.5"
         >
-          <span className="text-sm text-[#334155]">{labels[key] ?? formatKey(key)}</span>
+          <span className="text-sm text-[var(--ls-ink-strong)]">{labels[key] ?? formatKey(key)}</span>
           <StatusPill active={enabled} />
         </div>
       ))}
@@ -1201,7 +1201,7 @@ function MiniRow({ label, active }: { label: string; active: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span>{label}</span>
-      <span className={active ? "text-[#3f7b5d]" : "text-[#9a6a4f]"}>
+      <span className={active ? "text-[var(--ls-success-text)]" : "text-[var(--ls-warning-text)]"}>
         {configuredLabel(active)}
       </span>
     </div>
@@ -1210,9 +1210,9 @@ function MiniRow({ label, active }: { label: string; active: boolean }) {
 
 function FindingCard({ finding }: { finding: Finding }) {
   const styles = {
-    ok: "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]",
-    warn: "border-[#e4d8b6] bg-[#fff9e8] text-[#7d6a34]",
-    danger: "border-[#ead4c8] bg-[#fff6f1] text-[#8d6048]",
+    ok: "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]",
+    warn: "border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-info-text)]",
+    danger: "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]",
   };
   return (
     <article className={`rounded-lg border px-4 py-3 ${styles[finding.level]}`}>
@@ -1224,7 +1224,7 @@ function FindingCard({ finding }: { finding: Finding }) {
 
 function LoadingHint({ loading }: { loading: boolean }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#cdd9e6] bg-white/70 px-4 py-5 text-sm leading-6 text-[#66758a]">
+    <div className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white/70 px-4 py-5 text-sm leading-6 text-[var(--ls-ink-soft)]">
       {loading ? "正在读取配置..." : "暂无配置数据。"}
     </div>
   );

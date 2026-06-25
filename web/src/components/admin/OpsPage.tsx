@@ -669,14 +669,14 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">
+      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">
           {fixedPane === "dream" ? "Dream Cycle" : "Reflection"}
         </div>
-        <h2 className="mt-3 text-3xl font-semibold text-[#172033]">
+        <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">
           {fixedPane === "dream" ? "梦境循环" : "复盘报告"}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
           请先在顶部输入 Admin Token。这里会连接真实运行记录和生成结果。
         </p>
       </section>
@@ -685,16 +685,16 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-6">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-[var(--ls-shadow)] md:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">
               {fixedPane === "dream" ? "Dream Cycle" : fixedPane === "reflection" ? "Reflection" : "Dream / Reflection"}
             </div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">
               {fixedPane === "dream" ? "梦境循环" : fixedPane === "reflection" ? "复盘报告" : "系统运行与复盘"}
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               {fixedPane === "dream"
                 ? "查看 Dream Cycle 的作业、Daily Note、Signal、内心日记、Deep Sleep 整合结果和 Morning Brief。"
                 : fixedPane === "reflection"
@@ -721,17 +721,17 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
         </div>
 
         {pageError && (
-          <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {pageError}
           </div>
         )}
         {actionError && (
-          <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {actionError}
           </div>
         )}
         {actionMessage && (
-          <div className="mt-4 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+          <div className="mt-4 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
             {actionMessage}
           </div>
         )}
@@ -765,7 +765,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
         )}
       </section>
 
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-4 shadow-[0_18px_48px_rgba(91,117,150,0.1)] md:p-5">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-4 shadow-[var(--ls-shadow)] md:p-5">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           {!fixedPane && (
             <div className="flex flex-wrap gap-2">
@@ -789,7 +789,7 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
             onFromDateChange={setHistoryFromDate}
             onToDateChange={setHistoryToDate}
           />
-          <div className="flex flex-wrap gap-2 text-xs text-[#66758a]">
+          <div className="flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
             {fixedPane !== "dream" && (
               <StatusPill
                 active={!reflectionLoading}
@@ -858,12 +858,12 @@ function RunCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-5">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">{eyebrow}</div>
-          <h3 className="mt-2 text-xl font-semibold text-[#172033]">{title}</h3>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[#617188]">{description}</p>
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">{eyebrow}</div>
+          <h3 className="mt-2 text-xl font-semibold text-[var(--ls-ink-strong)]">{title}</h3>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--ls-ink-soft)]">{description}</p>
         </div>
         <Button type="primary" loading={busy} onClick={onRun}>
           {buttonLabel}
@@ -908,7 +908,7 @@ function ReflectionRunCard({
     >
       <div className="admin-select-host grid gap-3 md:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-[#7b8ca2]">复盘范围</span>
+          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">复盘范围</span>
           <AdminSelect
             ariaLabel="复盘范围"
             value={reflectionScope}
@@ -1012,7 +1012,7 @@ function ReflectionPanel({
 }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.15fr)]">
-      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
         <PanelHeader
           title="报告队列"
           subtitle={loading ? "正在读取 Reflection 报告" : `最近 ${reports.length} 份报告`}
@@ -1031,12 +1031,12 @@ function ReflectionPanel({
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="line-clamp-2 min-w-0 text-sm font-medium leading-6 text-[#172033]" title={report.summary}>
+                  <p className="line-clamp-2 min-w-0 text-sm font-medium leading-6 text-[var(--ls-ink-strong)]" title={report.summary}>
                     {report.summary}
                   </p>
                   <StatusPill active={report.confidence >= 0.8} label={formatPercent(report.confidence)} />
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#7b8ca2]">
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
                   <Tooltip title={report.id} variant="island" placement="bottom">
                     <span>{shortId(report.id)}</span>
                   </Tooltip>
@@ -1076,9 +1076,9 @@ function ReflectionDetail({
 }) {
   if (!report) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-white p-6">
-        <h3 className="text-base font-semibold text-[#172033]">报告详情</h3>
-        <p className="mt-3 text-sm leading-7 text-[#66758a]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-white p-6">
+        <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">报告详情</h3>
+        <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-soft)]">
           运行一次 Reflection 后，这里会展示报告摘要、提案、风险项和成长日志。
         </p>
       </div>
@@ -1086,21 +1086,21 @@ function ReflectionDetail({
   }
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">Reflection Detail</div>
-          <h3 className="mt-2 text-2xl font-semibold text-[#172033]">复盘报告</h3>
-          <p className="mt-2 text-xs text-[#7b8ca2]" title={report.id}>
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Reflection Detail</div>
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">复盘报告</h3>
+          <p className="mt-2 text-xs text-[var(--ls-ink-soft)]" title={report.id}>
             {shortId(report.id)} · {formatDate(report.createdAt)}
           </p>
         </div>
         <StatusPill active={report.confidence >= 0.8} label={formatPercent(report.confidence)} />
       </div>
 
-      <section className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-        <h4 className="text-sm font-semibold text-[#172033]">Summary</h4>
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#334155]">
+      <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+        <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">Summary</h4>
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-strong)]">
           {report.summary}
         </p>
       </section>
@@ -1207,7 +1207,7 @@ function DreamPanel({
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.15fr)]">
-      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
         <PanelHeader
           title="Dream 作业"
           subtitle={loading ? "正在读取 Dream 作业" : `最近 ${jobs.length} 个作业`}
@@ -1227,16 +1227,16 @@ function DreamPanel({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-[#172033]" title={job.id}>
+                    <div className="truncate text-sm font-semibold text-[var(--ls-ink-strong)]" title={job.id}>
                       {job.triggerType} · {job.scope}
                     </div>
-                    <div className="mt-2 truncate text-xs text-[#7b8ca2]" title={job.phase ?? "无 phase"}>
+                    <div className="mt-2 truncate text-xs text-[var(--ls-ink-soft)]" title={job.phase ?? "无 phase"}>
                       phase: {job.phase ?? "未记录"}
                     </div>
                   </div>
                   <StatusPill active={job.status === "completed"} label={job.status} />
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#7b8ca2]">
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
                   <span>{formatDate(job.createdAt)}</span>
                   <span>·</span>
                   <span>{jobCount(job, "signals")} signals</span>
@@ -1351,9 +1351,9 @@ function DreamJobDetail({
 }) {
   if (!job) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-white p-6">
-        <h3 className="text-base font-semibold text-[#172033]">Dream 详情</h3>
-        <p className="mt-3 text-sm leading-7 text-[#66758a]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-white p-6">
+        <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">Dream 详情</h3>
+        <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-soft)]">
           运行一次 Dream 后，这里会展示作业状态和关联产物。
         </p>
       </div>
@@ -1361,14 +1361,14 @@ function DreamJobDetail({
   }
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">Dream Detail</div>
-          <h3 className="mt-2 text-2xl font-semibold text-[#172033]">
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Dream Detail</div>
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">
             {job.triggerType} · {job.scope}
           </h3>
-          <p className="mt-2 text-xs text-[#7b8ca2]" title={job.id}>
+          <p className="mt-2 text-xs text-[var(--ls-ink-soft)]" title={job.id}>
             {shortId(job.id)} · {formatDate(job.createdAt)}
           </p>
         </div>
@@ -1390,7 +1390,7 @@ function DreamJobDetail({
       </div>
 
       {job.error && (
-        <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm leading-6 text-[#8d6048]">
+        <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm leading-6 text-[var(--ls-warning-text)]">
           {job.error}
         </div>
       )}
@@ -1403,15 +1403,15 @@ function DreamJobDetail({
               ? "展开 Morning Brief"
               : "查看 Morning Brief"}
         </Button>
-        {briefError && <span className="text-sm text-[#8d6048]">{briefError}</span>}
+        {briefError && <span className="text-sm text-[var(--ls-warning-text)]">{briefError}</span>}
       </div>
 
       {morningBrief && (
-        <section className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-          <h4 className="text-sm font-semibold text-[#172033]">Morning Brief</h4>
+        <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+          <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">Morning Brief</h4>
           <pre
             title={morningBrief.summary}
-            className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#334155]"
+            className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-strong)]"
           >
             {morningBrief.summary}
           </pre>
@@ -1439,12 +1439,12 @@ function DeepSleepPanel({
   const latestReport = detail?.reports[0] ?? null;
 
   return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">Deep Sleep</div>
-          <h3 className="mt-2 text-2xl font-semibold text-[#172033]">深度整合结果</h3>
-          <p className="mt-2 text-sm leading-6 text-[#617188]">
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Deep Sleep</div>
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">深度整合结果</h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--ls-ink-soft)]">
             Deep Sleep 会把 Dream Signal 整合成正式提案和风险项，但不会直接写入长期记忆。
           </p>
         </div>
@@ -1452,7 +1452,7 @@ function DeepSleepPanel({
       </div>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+        <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
           {error}
         </div>
       )}
@@ -1461,9 +1461,9 @@ function DeepSleepPanel({
         <QueuePlaceholder text="这个 Dream Job 还没有 Deep Sleep 整合报告。" />
       ) : latestReport ? (
         <>
-          <section className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-            <h4 className="text-sm font-semibold text-[#172033]">Summary</h4>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#334155]">
+          <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+            <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">Summary</h4>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-strong)]">
               {latestReport.summary || "Deep Sleep 没有生成摘要。"}
             </p>
           </section>
@@ -1538,7 +1538,7 @@ function HistoryDateControls({
   return (
     <div className="admin-select-host flex flex-wrap items-end gap-2">
       <div className="block">
-        <span className="text-[11px] font-medium text-[#7b8ca2]">时间范围</span>
+        <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">时间范围</span>
         <AdminSelect
           ariaLabel="时间范围"
           value={preset}
@@ -1547,7 +1547,7 @@ function HistoryDateControls({
         />
       </div>
       <label className="block">
-        <span className="text-[11px] font-medium text-[#7b8ca2]">开始</span>
+        <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">开始</span>
         <AdminInput
           type="date"
           value={fromDate}
@@ -1560,7 +1560,7 @@ function HistoryDateControls({
         />
       </label>
       <label className="block">
-        <span className="text-[11px] font-medium text-[#7b8ca2]">结束</span>
+        <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">结束</span>
         <AdminInput
           type="date"
           value={toDate}
@@ -1601,8 +1601,8 @@ function PaneButton({
 function PanelHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="mb-3">
-      <h3 className="text-base font-semibold text-[#172033]">{title}</h3>
-      <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">{subtitle}</p>
+      <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">{title}</h3>
+      <p className="mt-1 text-xs leading-5 text-[var(--ls-ink-soft)]">{subtitle}</p>
     </div>
   );
 }
@@ -1619,11 +1619,11 @@ function ContentPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <section className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-[#172033]">{title}</h3>
-          <p className="mt-1 text-xs text-[#7b8ca2]">{subtitle}</p>
+          <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">{title}</h3>
+          <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">{subtitle}</p>
         </div>
         {action}
       </div>
@@ -1645,9 +1645,9 @@ function SectionList<T>({
 }) {
   return (
     <section className="mt-5">
-      <h4 className="text-sm font-semibold text-[#172033]">{title}</h4>
+      <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</h4>
       {items.length === 0 ? (
-        <div className="mt-2 rounded-lg border border-dashed border-[#cdd9e6] bg-[#f8fbff] px-4 py-5 text-sm text-[#66758a]">
+        <div className="mt-2 rounded-lg border border-dashed border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-5 text-sm text-[var(--ls-ink-soft)]">
           {emptyText}
         </div>
       ) : (
@@ -1669,19 +1669,19 @@ function CompactItem({
   metaTitle?: string;
 }) {
   return (
-    <article className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
+    <article className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <h4 className="text-sm font-semibold text-[#172033]" title={title}>
+        <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]" title={title}>
           {title}
         </h4>
         <span
-          className="max-w-full text-xs text-[#7b8ca2] sm:max-w-[18rem] sm:truncate"
+          className="max-w-full text-xs text-[var(--ls-ink-soft)] sm:max-w-[18rem] sm:truncate"
           title={metaTitle ?? meta}
         >
           {meta}
         </span>
       </div>
-      <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#617188]" title={body}>
+      <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--ls-ink-soft)]" title={body}>
         {body}
       </p>
     </article>
@@ -1690,13 +1690,13 @@ function CompactItem({
 
 function RiskItem({ risk }: { risk: ReflectionRiskFlag }) {
   return (
-    <article className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
+    <article className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-[#172033]" title={risk.type}>
+          <div className="truncate text-sm font-semibold text-[var(--ls-ink-strong)]" title={risk.type}>
             {risk.type}
           </div>
-          <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#617188]" title={risk.description}>
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--ls-ink-soft)]" title={risk.description}>
             {risk.description}
           </p>
         </div>
@@ -1713,10 +1713,10 @@ function RiskPill({ severity }: { severity: string }) {
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${
         high
-          ? "border-[#ead4c8] bg-[#fff6f1] text-[#9a6a4f]"
+          ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]"
           : medium
-            ? "border-[#e4d8b6] bg-[#fff9e8] text-[#7d6a34]"
-            : "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
+            ? "border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-info-text)]"
+            : "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
       }`}
     >
       {severity}
@@ -1726,9 +1726,9 @@ function RiskPill({ severity }: { severity: string }) {
 
 function Metric({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
-      <div className="text-xs text-[#7b8ca2]">{label}</div>
-      <div className="mt-2 truncate text-sm font-semibold text-[#172033]" title={title ?? value}>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
+      <div className="text-xs text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-2 truncate text-sm font-semibold text-[var(--ls-ink-strong)]" title={title ?? value}>
         {value}
       </div>
     </div>
@@ -1737,9 +1737,9 @@ function Metric({ label, value, title }: { label: string; value: string; title?:
 
 function DetailRow({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2">
-      <div className="text-[11px] text-[#7b8ca2]">{label}</div>
-      <div className="mt-1 truncate text-sm text-[#334155]" title={title ?? value}>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2">
+      <div className="text-[11px] text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-1 truncate text-sm text-[var(--ls-ink-strong)]" title={title ?? value}>
         {value}
       </div>
     </div>
@@ -1751,13 +1751,13 @@ function TagList({ title, items }: { title: string; items: string[] }) {
   if (normalized.length === 0) return null;
   return (
     <div className="mt-4">
-      <div className="text-sm font-semibold text-[#172033]">{title}</div>
+      <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</div>
       <div className="mt-2 flex flex-wrap gap-2">
         {normalized.map((item, index) => (
           <span
             key={`${item}-${index}`}
             title={item}
-            className="max-w-full truncate rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-xs text-[#66758a]"
+            className="max-w-full truncate rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]"
           >
             {item}
           </span>
@@ -1769,7 +1769,7 @@ function TagList({ title, items }: { title: string; items: string[] }) {
 
 function QueuePlaceholder({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#cdd9e6] bg-white px-4 py-8 text-center text-sm text-[#66758a]">
+    <div className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white px-4 py-8 text-center text-sm text-[var(--ls-ink-soft)]">
       {text}
     </div>
   );
@@ -1784,7 +1784,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-medium text-[#7b8ca2]">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

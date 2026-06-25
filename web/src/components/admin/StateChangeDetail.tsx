@@ -57,7 +57,7 @@ export function StateChangeDetail({
 }: StateChangeDetailProps) {
   if (!event) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
         选择一条状态变更后查看详情。
       </div>
     );
@@ -67,16 +67,16 @@ export function StateChangeDetail({
   const patchEntries = patchPreviewEntries(event.patch, fieldLabels);
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#7b8ca2]">{title}</div>
-          <h4 className="mt-1 text-lg font-semibold text-[#172033]">
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{title}</div>
+          <h4 className="mt-1 text-lg font-semibold text-[var(--ls-ink-strong)]">
             {eventTypeLabel(event.eventType)}
           </h4>
-          <p className="mt-2 text-sm leading-7 text-[#334155]">{event.summary}</p>
+          <p className="mt-2 text-sm leading-7 text-[var(--ls-ink-strong)]">{event.summary}</p>
         </div>
-        <div className="rounded-full border border-[#c9d6e5] bg-white px-3 py-1 text-xs text-[#66758a]">
+        <div className="rounded-full border border-[var(--ls-border-cold)] bg-white px-3 py-1 text-xs text-[var(--ls-ink-soft)]">
           {formatAdminDate(event.createdAt)}
         </div>
       </div>
@@ -91,29 +91,29 @@ export function StateChangeDetail({
       </div>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">实际改动</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">实际改动</div>
         {changes.length > 0 ? (
-          <div className="mt-3 overflow-hidden rounded-lg border border-[#d9e2ec] bg-white">
+          <div className="mt-3 overflow-hidden rounded-lg border border-[var(--ls-border)] bg-white">
             {changes.map((change) => (
               <div
                 key={change.key}
-                className="grid gap-2 border-b border-[#edf2f7] px-4 py-3 last:border-b-0 md:grid-cols-[8rem_1fr_1fr]"
+                className="grid gap-2 border-b border-[var(--ls-border)] px-4 py-3 last:border-b-0 md:grid-cols-[8rem_1fr_1fr]"
               >
-                <div className="text-xs font-semibold text-[#7b8ca2]">{change.label}</div>
+                <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{change.label}</div>
                 <ValueBox label="变化前" value={change.before} />
                 <ValueBox label="变化后" value={change.after} strong />
               </div>
             ))}
           </div>
         ) : (
-          <div className="mt-3 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm leading-6 text-[#66758a]">
+          <div className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--ls-ink-soft)]">
             这条记录没有改动核心状态字段。它更像一次信号、观察或失败记录，会作为以后复盘的材料。
           </div>
         )}
       </section>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">程序准备写入的内容</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">程序准备写入的内容</div>
         {patchEntries.length > 0 ? (
           <div className="mt-3 grid gap-2">
             {patchEntries.map((entry) => (
@@ -121,7 +121,7 @@ export function StateChangeDetail({
             ))}
           </div>
         ) : (
-          <div className="mt-3 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm text-[#7b8ca2]">
+          <div className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm text-[var(--ls-ink-soft)]">
             暂无可读的写入内容。
           </div>
         )}
@@ -196,10 +196,10 @@ function ValueBox({
 }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold text-[#9aa8b8]">{label}</div>
+      <div className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">{label}</div>
       <div
         className={`mt-1 break-words text-sm leading-6 ${
-          strong ? "text-[#172033]" : "text-[#66758a]"
+          strong ? "text-[var(--ls-ink-strong)]" : "text-[var(--ls-ink-soft)]"
         }`}
       >
         {readableValue(value)}

@@ -141,10 +141,10 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                   陆思源核心系统管理台
                 </Title>
               </div>
-              <h2 className="block text-2xl font-black leading-tight text-[#794f27] sm:hidden">
+              <h2 className="block text-2xl font-black leading-tight text-[var(--ls-ink-strong)] sm:hidden">
                 陆思源核心系统管理台
               </h2>
-              <p className="mt-5 text-sm font-semibold leading-7 text-[#725d42] md:text-base">
+              <p className="mt-5 text-sm font-semibold leading-7 text-[var(--ls-ink)] md:text-base">
                 这里集中查看运行态、关系、记忆、Reflection、Dream、配置和聊天入口。长期测试时，先从这里看他最近发生了什么、状态为什么变化、哪些提案还需要审核。
               </p>
             </div>
@@ -161,7 +161,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           </div>
 
           {state.error && (
-            <div className="mt-6 rounded-[22px] border-2 border-[#f8a6b2] bg-[#fde4e8] px-4 py-3 text-sm font-semibold leading-6 text-[#a85565]">
+            <div className="mt-6 rounded-[22px] border-2 border-[var(--ls-pink)] bg-[var(--ls-pink-soft)] px-4 py-3 text-sm font-semibold leading-6 text-[var(--ls-pink-text)]">
               {state.error}
             </div>
           )}
@@ -202,8 +202,8 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           {state.runtimeState ? (
             <div className="grid gap-3">
               <div className="admin-island-row px-4 py-3">
-                <div className="text-xs font-black uppercase text-[#9f927d]">最近心情</div>
-                <div className="mt-1 text-2xl font-black text-[#794f27]">
+                <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">最近心情</div>
+                <div className="mt-1 text-2xl font-black text-[var(--ls-ink-strong)]">
                   {state.runtimeState.moodLabel}
                 </div>
               </div>
@@ -275,17 +275,17 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 <div
                   key={provider.name}
                   className={`admin-island-row px-4 py-3 ${
-                    provider.active ? "border-[#82d5bb] bg-[#e6f9f6]" : ""
+                    provider.active ? "border-[var(--ls-mint-light)] bg-[var(--ls-mint-soft)]" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-black text-[#794f27]">{provider.label}</div>
+                    <div className="font-black text-[var(--ls-ink-strong)]">{provider.label}</div>
                     <StatusPill
                       active={providerReady(provider)}
                       label={provider.active ? "当前" : providerReady(provider) ? "可用" : "缺配置"}
                     />
                   </div>
-                  <div className="mt-2 truncate text-xs font-semibold text-[#9f927d]">
+                  <div className="mt-2 truncate text-xs font-semibold text-[var(--ls-ink-soft)]">
                     {provider.model ?? "未设置模型"}
                   </div>
                 </div>
@@ -309,10 +309,10 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
               "渠道状态：查看连接和平台入口",
             ].map((item, index) => (
               <div key={item} className="admin-island-row flex items-center gap-3 px-4 py-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[16px] border-2 border-[#f7cd67] bg-[#fff4c7] text-xs font-black text-[#794f27]">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[16px] border-2 border-[var(--ls-yellow)] bg-[var(--ls-yellow-soft)] text-xs font-black text-[var(--ls-ink-strong)]">
                   {index + 1}
                 </span>
-                <span className="text-sm font-bold leading-6 text-[#725d42]">{item}</span>
+                <span className="text-sm font-bold leading-6 text-[var(--ls-ink)]">{item}</span>
               </div>
             ))}
           </div>
@@ -339,10 +339,10 @@ function Panel({
     <Card className="h-full p-5" pattern={pattern}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-black text-[#794f27]">{title}</h3>
-          <p className="mt-1 text-xs font-semibold text-[#9f927d]">{subtitle}</p>
+          <h3 className="text-base font-black text-[var(--ls-ink-strong)]">{title}</h3>
+          <p className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">{subtitle}</p>
         </div>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border-2 border-[#e8dcc8] bg-[#f7f3df]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border-2 border-[var(--ls-border)] bg-[var(--ls-panel)]">
           <Icon name={icon} size={24} />
         </span>
       </div>
@@ -367,14 +367,14 @@ function StatusCard({
   return (
     <Card className="p-5" pattern={color}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-black uppercase text-[#9f927d]">
+        <div className="flex items-center gap-2 text-xs font-black uppercase text-[var(--ls-ink-soft)]">
           <Icon name={icon} size={22} bounce={active} />
           {label}
         </div>
         <StatusPill active={active} />
       </div>
       <Tooltip title={value} variant="island" placement="bottom">
-        <div className="mt-4 truncate text-xl font-black text-[#794f27]">
+        <div className="mt-4 truncate text-xl font-black text-[var(--ls-ink-strong)]">
           {value}
         </div>
       </Tooltip>
@@ -386,8 +386,8 @@ function ChannelRow({ label, active, detail }: { label: string; active: boolean;
   return (
     <div className="admin-island-row flex items-center justify-between gap-3 px-4 py-3">
       <div>
-        <div className="text-sm font-black text-[#794f27]">{label}</div>
-        <div className="mt-1 text-xs font-semibold text-[#9f927d]">{detail}</div>
+        <div className="text-sm font-black text-[var(--ls-ink-strong)]">{label}</div>
+        <div className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">{detail}</div>
       </div>
       <StatusPill active={active} />
     </div>
@@ -397,7 +397,7 @@ function ChannelRow({ label, active, detail }: { label: string; active: boolean;
 function ConfigRow({ label, enabled }: { label: string; enabled: boolean }) {
   return (
     <div className="admin-island-row flex items-center justify-between gap-3 px-3 py-2.5">
-      <span className="text-sm font-bold text-[#725d42]">{label}</span>
+      <span className="text-sm font-bold text-[var(--ls-ink)]">{label}</span>
       <StatusPill active={enabled} />
     </div>
   );
@@ -405,7 +405,7 @@ function ConfigRow({ label, enabled }: { label: string; enabled: boolean }) {
 
 function InfoBlock({ children }: { children: ReactNode }) {
   return (
-    <div className="admin-island-row px-4 py-3 text-sm font-semibold leading-6 text-[#725d42]">
+    <div className="admin-island-row px-4 py-3 text-sm font-semibold leading-6 text-[var(--ls-ink)]">
       {children}
     </div>
   );
@@ -413,7 +413,7 @@ function InfoBlock({ children }: { children: ReactNode }) {
 
 function TokenHint() {
   return (
-    <div className="admin-island-soft-panel px-4 py-5 text-sm font-semibold leading-6 text-[#8a7b66]">
+    <div className="admin-island-soft-panel px-4 py-5 text-sm font-semibold leading-6 text-[var(--ls-ink-muted)]">
       填入 Admin Token 后，这里会显示安全的只读配置摘要。
     </div>
   );
