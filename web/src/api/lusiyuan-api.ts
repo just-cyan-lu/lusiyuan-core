@@ -655,8 +655,20 @@ export interface ExpressionLearningTrainingRecord {
   exportPayload: unknown;
   rawPayload: unknown;
   exampleId: string | null;
+  example?: ExpressionLearningExample | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExpressionLearningTrainingRecordsResponse {
+  records: ExpressionLearningTrainingRecord[];
+  summary: {
+    total: number;
+    open: number;
+    archived: number;
+    completed: number;
+    dismissed: number;
+  };
 }
 
 export interface XiaohongshuComment {
@@ -1576,6 +1588,49 @@ export async function downloadExpressionLearningTrainingExport(input: {
     throw new Error(message || "导出训练数据失败");
   }
   return response.blob();
+}
+
+export async function fetchExpressionLearningTrainingRecords(input: {
+  token: string;
+  sourceType?: string;
+  status?: string;
+}): Promise<ExpressionLearningTrainingRecordsResponse> {
+  const params = new URLSearchParams();
+  if (input.sourceType && input.sourceType !== "all") params.set("sourceType", input.sourceType);
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/training-records?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ExpressionLearningTrainingRecordsResponse>(
+    response,
+    "无法读取表达习题册"
+  );
+}
+
+export async function updateExpressionLearningTrainingRecord(input: {
+  token: string;
+  recordId: string;
+  status?: string;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  reasonText?: string | null;
+}): Promise<{ record: ExpressionLearningTrainingRecord }> {
+  const { token, recordId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/training-records/${recordId}`,
+    {
+      method: "PATCH",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ record: ExpressionLearningTrainingRecord }>(
+    response,
+    "保存习题状态失败"
+  );
 }
 
 export async function updateExpressionLearningExample(input: {

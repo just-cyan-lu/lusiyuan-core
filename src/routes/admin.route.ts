@@ -48,6 +48,8 @@ import {
   completeExpressionLearningTrainingRecord,
   createExpressionLearningTrainingRecord,
   exportExpressionLearningTrainingRecords,
+  listExpressionLearningTrainingRecords,
+  updateExpressionLearningTrainingRecord,
 } from "../expression-learning/expression-learning-training-records.js";
 import type {
   ExpressionLearningOwnerAction,
@@ -1559,6 +1561,46 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       return reply.type("application/x-ndjson; charset=utf-8").send(exported);
     }
     return reply.type("application/json; charset=utf-8").send(exported);
+  });
+
+  app.get("/v1/admin/expression-learning/training-records", async (request, reply) => {
+    const query = request.query as {
+      sourceType?: string;
+      status?: string;
+      limit?: string;
+    };
+    const result = await listExpressionLearningTrainingRecords({
+      sourceType: cleanString(query.sourceType) ?? "practice_question",
+      status: cleanString(query.status) ?? "all",
+      limit: clampLimit(query.limit, 100),
+    });
+    return reply.send(result);
+  });
+
+  app.patch("/v1/admin/expression-learning/training-records/:recordId", async (request, reply) => {
+    const { recordId } = request.params as { recordId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const nextStatus = cleanNullableString(body.status) ?? undefined;
+    if (
+      nextStatus &&
+      !["question_generated", "answered_archived", "completed", "dismissed"].includes(nextStatus)
+    ) {
+      throw routeError("invalid expression-learning training record status", 400);
+    }
+    const record = await updateExpressionLearningTrainingRecord(recordId, {
+      status: hasOwn(body, "status") ? nextStatus : undefined,
+      finalText: hasOwn(body, "finalText") ? cleanNullableString(body.finalText) ?? null : undefined,
+      outcome: hasOwn(body, "outcome") ? cleanNullableString(body.outcome) ?? null : undefined,
+      ownerAction: hasOwn(body, "ownerAction")
+        ? cleanNullableString(body.ownerAction) ?? null
+        : undefined,
+      ownerNote: hasOwn(body, "ownerNote") ? cleanNullableString(body.ownerNote) ?? null : undefined,
+      reasonText: hasOwn(body, "reasonText")
+        ? cleanNullableString(body.reasonText) ?? null
+        : undefined,
+      rawPayload: body,
+    });
+    return reply.send({ record });
   });
 
   app.get("/v1/admin/expression-learning/examples", async (request, reply) => {
