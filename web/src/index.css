@@ -762,7 +762,7 @@ textarea.field-input {
   inset: 0;
   pointer-events: none;
   z-index: 9999;
-  overflow: hidden;
+  /* 不设 overflow: hidden：layer 已 inset:0 与视口同大；hidden 反而阻止 GPU 优化 */
 }
 .click-particle {
   position: fixed;
@@ -779,7 +779,8 @@ textarea.field-input {
     ) scale(0);
   opacity: 1;
   z-index: 9999;
-  will-change: transform, opacity;
+  /* 不设 will-change：浏览器会自动 promote transform/animation 元素到合成层。
+     显式 will-change 在 100+ 粒子时会创建过多合成层拖累合成器。 */
 }
 .click-particle--active {
   animation: click-particle-fly var(--particle-dur, 500ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
