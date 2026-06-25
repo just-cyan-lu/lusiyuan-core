@@ -756,13 +756,16 @@ textarea.field-input {
   font-weight: 600;
 }
 
-/* 点击粒子飞散（useClickParticles hook 创建的 span） */
-[data-ripple] {
-  position: relative;
-  overflow: visible;
+/* 点击粒子飞散（useClickParticles hook）—— 全局任意点击触发 */
+.click-particles-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
 }
 .click-particle {
-  position: absolute;
+  position: fixed;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -770,7 +773,7 @@ textarea.field-input {
   pointer-events: none;
   transform: translate(-50%, -50%) scale(0);
   opacity: 1;
-  z-index: 60;
+  z-index: 9999;
 }
 .click-particle--active {
   animation: click-particle-fly 500ms ease-out forwards;

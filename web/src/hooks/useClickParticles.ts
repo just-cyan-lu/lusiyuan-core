@@ -3,41 +3,45 @@ import { useEffect } from "react";
 const PARTICLE_COUNT = 8;
 const COLORS = ["#95c7ae", "#e59266", "#d4c9b4"] as const;
 const ANIMATION_MS = 500;
-const FLY_DISTANCE = 26;
+const LAYER_ID = "click-particles-layer";
 
 /**
- * 监听全局 click 事件，在带 [data-ripple] 的元素上创建粒子飞散效果。
- * 每次点击创建 PARTICLE_COUNT 个 span，绝对定位到点击点，
- * 用 nth-child 给 8 套方向（每 45°）播放扩散 + 淡出 500ms 动画。
- * 颜色从 3 色调色板中随机，DOM 在动画结束后自动移除。
+ * 全局监听 click 事件，在点击位置创建粒子飞散效果。
+ * 粒子挂在 document.body 的专用层（position: fixed），不依赖任何祖先元素。
+ * 任何 DOM 元素的点击都会触发，无需 [data-ripple] 标记。
  */
-export function useClickParticles(selector = "[data-ripple]") {
+export function useClickParticles() {
   useEffect(() => {
-    function handleClick(event: MouseEvent) {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const host = target.closest<HTMLElement>(selector);
-      if (!host) return;
+    let layer = document.getElementById(LAYER_ID);
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = LAYER_ID;
+      layer.className = "click-particles-layer";
+      document.body.appendChild(layer);
+    }
 
-      // host 需要 position: relative + overflow: visible（CSS 已配）
-      const rect = host.getBoundingClientRect();
+    function handleClick(event: MouseEvent) {
+      // 忽略右键、修饰键、文本选择拖动
+      if (event.button !== 0 || event.metaKey || event.ctrlKey) return;
+      if (!layer) return;
+
       const color = COLORS[Math.floor(Math.random() * COLORS.length)];
 
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const particle = document.createElement("span");
-        particle.className = "click-particle";
+        particle.className = "click-particle click-particle--active";
         particle.style.setProperty("--particle-color", color);
-        particle.style.left = `${event.clientX - rect.left}px`;
-        particle.style.top = `${event.clientY - rect.top}px`;
-        host.appendChild(particle);
-        // 触发 CSS 动画：先 reflow 再加 active class
-        particle.offsetHeight;
-        particle.classList.add("click-particle--active");
+        // 用 clientX/Y 直接定位（layer 是 position: fixed，相对视口）
+        particle.style.left = `${event.clientX}px`;
+        particle.style.top = `${event.clientY}px`;
+        layer.appendChild(particle);
         window.setTimeout(() => particle.remove(), ANIMATION_MS);
       }
     }
 
     document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, [selector]);
+    return () => {
+      document.removeEventListener("click", handleClick);
+    };
+  }, []);
 }
