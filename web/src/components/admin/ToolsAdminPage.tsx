@@ -617,10 +617,10 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Tools</div>
-        <h2 className="mt-2 text-3xl font-semibold text-[#172033]">工具调用</h2>
-        <p className="mt-3 text-sm leading-7 text-[#617188]">
+      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Tools</div>
+        <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">工具调用</h2>
+        <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-soft)]">
           工具注册表和调用日志需要 Admin Token。先在右上角填入 token，再刷新这一页。
         </p>
       </section>
@@ -629,12 +629,12 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-7">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)] md:p-7">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">Tool Console</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">工具调用</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Tool Console</div>
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">工具调用</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               查看已注册工具、运行策略、最近调用结果和阻断原因。工具开关与限制保存到数据库并立即生效，但不会在这里手动触发工具执行。
             </p>
           </div>
@@ -659,17 +659,17 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         </div>
 
         {state.error && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {state.error}
           </div>
         )}
         {state.saveError && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {state.saveError}
           </div>
         )}
         {state.saveMessage && (
-          <div className="mt-5 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
             {state.saveMessage}
           </div>
         )}
@@ -744,7 +744,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               onChange={handlePolicyConfigChange}
             />
           </div>
-          <div className="mt-4 rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#7d6a34]">
+          <div className="mt-4 rounded-lg border border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-info-text)]">
             开关点击后会立即写入数据库；数字参数修改后点击“保存工具参数”，页面提示成功时新的工具权限和限制已经生效。
           </div>
         </SectionPanel>
@@ -892,15 +892,15 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-lg border border-[#d9e2ec]">
-            <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 border-b border-[#d9e2ec] bg-[#f8fbff] px-4 py-2 text-xs font-semibold text-[#66758a] md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr]">
+          <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
+            <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 border-b border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-2 text-xs font-semibold text-[var(--ls-ink-soft)] md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr]">
               <div>工具</div>
               <div>状态</div>
               <div>风险</div>
               <div>耗时</div>
               <div className="hidden md:block">时间</div>
             </div>
-            <div className="divide-y divide-[#edf2f7]">
+            <div className="divide-y divide-[var(--ls-border)]">
               {state.logs.length > 0 ? (
                 state.logs.map((log) => (
                   <button
@@ -908,23 +908,23 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
                     type="button"
                     onClick={() => setSelectedLog(log)}
                     className={`admin-layout-button grid w-full grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 px-4 py-3 text-left text-sm transition md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr] ${
-                      selectedLog?.id === log.id ? "bg-[#eaf2fb]" : "bg-white hover:bg-[#f8fbff]"
+                      selectedLog?.id === log.id ? "bg-[var(--ls-panel-soft)]" : "bg-white hover:bg-[var(--ls-panel-soft)]"
                     }`}
                   >
                     <div className="min-w-0">
                       <Tooltip title={log.toolName} variant="island" placement="bottom">
-                        <div className="truncate font-medium text-[#172033]">
+                        <div className="truncate font-medium text-[var(--ls-ink-strong)]">
                           {log.toolName}
                         </div>
                       </Tooltip>
-                      <div className="mt-1 truncate text-xs text-[#7b8ca2]" title={log.channel ?? undefined}>
+                      <div className="mt-1 truncate text-xs text-[var(--ls-ink-soft)]" title={log.channel ?? undefined}>
                         {log.channel ?? "unknown"} · {shortId(log.conversationId)}
                       </div>
                     </div>
                     <div><StatusBadge value={statusLabel(log.status, log.blocked)} tone={log.blocked ? "blocked" : log.status} /></div>
-                    <div className="text-[#66758a]">{riskLabel(log.riskLevel)}</div>
-                    <div className="text-[#66758a]">{formatDuration(log.durationMs)}</div>
-                    <div className="hidden text-[#66758a] md:block">{formatDate(log.createdAt)}</div>
+                    <div className="text-[var(--ls-ink-soft)]">{riskLabel(log.riskLevel)}</div>
+                    <div className="text-[var(--ls-ink-soft)]">{formatDuration(log.durationMs)}</div>
+                    <div className="hidden text-[var(--ls-ink-soft)] md:block">{formatDate(log.createdAt)}</div>
                   </button>
                 ))
               ) : (
@@ -956,10 +956,10 @@ function MetricCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white px-5 py-4 shadow-sm">
-      <div className="text-xs text-[#7b8ca2]">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-[#172033]">{value}</div>
-      <div className="mt-1 text-xs text-[#66758a]">{detail}</div>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-5 py-4 shadow-sm">
+      <div className="text-xs text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">{value}</div>
+      <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">{detail}</div>
     </div>
   );
 }
@@ -986,9 +986,9 @@ function PolicyConfigItem({
   const booleanOn = currentValue === "true";
 
   return (
-    <div className="admin-select-host rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
+    <div className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-[#172033]">{label}</div>
+        <div className="text-sm font-medium text-[var(--ls-ink-strong)]">{label}</div>
         {field && isBoolean ? (
           <button
             type="button"
@@ -1024,10 +1024,10 @@ function PolicyConfigItem({
               aria-label={label}
             />
           )}
-          {unit && <span className="shrink-0 text-xs text-[#66758a]">{unit}</span>}
+          {unit && <span className="shrink-0 text-xs text-[var(--ls-ink-soft)]">{unit}</span>}
         </div>
       )}
-      <div className="mt-2 truncate text-xs text-[#66758a]" title={field?.key}>
+      <div className="mt-2 truncate text-xs text-[var(--ls-ink-soft)]" title={field?.key}>
         {runtimeText}
         {field ? ` · ${field.key}` : ""}
       </div>
@@ -1074,18 +1074,18 @@ function ToolCard({
   );
 
   return (
-    <details className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff]">
+    <details className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)]">
       <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <h4 className="min-w-[12rem] shrink-0 truncate font-semibold text-[#172033]" title={tool.name}>
+          <h4 className="min-w-[12rem] shrink-0 truncate font-semibold text-[var(--ls-ink-strong)]" title={tool.name}>
             {tool.name}
           </h4>
-          <p className="hidden min-w-0 truncate text-sm text-[#617188] md:block" title={tool.description}>
+          <p className="hidden min-w-0 truncate text-sm text-[var(--ls-ink-soft)] md:block" title={tool.description}>
             {tool.description}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs">
-          <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-[#66758a]">
+          <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 text-[var(--ls-ink-soft)]">
             {riskLabel(tool.riskLevel)}
           </span>
           {modeField && (
@@ -1098,12 +1098,12 @@ function ToolCard({
             />
           )}
           {!modeField && tool.ownerOnly && (
-            <span className="hidden rounded-full border border-[#e4d8b6] bg-[#fff9e8] px-2.5 py-1 text-[#7d6a34] sm:inline-flex">
+            <span className="hidden rounded-full border border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 text-[var(--ls-info-text)] sm:inline-flex">
               Owner only
             </span>
           )}
           {!modeField && !tool.enabled && (
-            <span className="hidden rounded-full border border-[#ead4c8] bg-[#fff6f1] px-2.5 py-1 text-[#8d6048] sm:inline-flex">
+            <span className="hidden rounded-full border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-2.5 py-1 text-[var(--ls-warning-text)] sm:inline-flex">
               注册关闭
             </span>
           )}
@@ -1113,9 +1113,9 @@ function ToolCard({
           />
         </div>
       </summary>
-      <div className="border-t border-[#d9e2ec] p-4">
+      <div className="border-t border-[var(--ls-border)] p-4">
       {tool.disabledReason && (
-        <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
+        <div className="mt-3 rounded-lg border border-[var(--ls-warning-border)] bg-white px-3 py-2 text-xs text-[var(--ls-warning-text)]">
           {tool.disabledReason}
         </div>
       )}
@@ -1124,12 +1124,12 @@ function ToolCard({
         <GuideRow label="怎么用" value={guide?.usage ?? "由模型根据用户意图自动调用。"} />
         <GuideRow label="触发" value={guide?.trigger ?? "聊天服务提供工具列表后，由模型按需触发。"} />
       </div>
-      <details className="mt-3 rounded-lg border border-[#d9e2ec] bg-white">
-        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[#66758a]">
+      <details className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white">
+        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[var(--ls-ink-soft)]">
           可编辑配置
-          <span className="ml-2 text-[#9aa8b8]">{envFields.length > 0 ? `${envFields.length} 项` : "无单独配置"}</span>
+          <span className="ml-2 text-[var(--ls-ink-soft)]">{envFields.length > 0 ? `${envFields.length} 项` : "无单独配置"}</span>
         </summary>
-        <div className="border-t border-[#d9e2ec] p-3">
+        <div className="border-t border-[var(--ls-border)] p-3">
           {envFields.length > 0 ? (
             <ConfigFieldsGrid
               fields={envFields}
@@ -1144,18 +1144,18 @@ function ToolCard({
               onRestoreSecretValue={onRestoreSecretValue}
             />
           ) : (
-            <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2 text-xs leading-5 text-[#66758a]">
+            <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-xs leading-5 text-[var(--ls-ink-soft)]">
               这个工具没有独立 env 配置，主要受全局 TOOLS_ENABLED、风险策略和代码注册状态控制。
             </div>
           )}
         </div>
       </details>
       {Boolean(tool.parameters) && (
-        <details className="mt-3 rounded-lg border border-[#d9e2ec] bg-white">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[#66758a]">
+        <details className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-[var(--ls-ink-soft)]">
             参数 schema
           </summary>
-          <pre className="max-h-48 overflow-auto border-t border-[#d9e2ec] p-3 text-xs leading-5 text-[#334155]">
+          <pre className="max-h-48 overflow-auto border-t border-[var(--ls-border)] p-3 text-xs leading-5 text-[var(--ls-ink-strong)]">
             {stringifyJson(tool.parameters, 3000)}
           </pre>
         </details>
@@ -1181,10 +1181,10 @@ function ToolAccessModeButton({
   const currentMode = resolveAccessMode(value || field.value, runtimeMode);
   const className =
     currentMode === "off"
-      ? "border-[#ead4c8] bg-[#fff6f1] text-[#8d6048] hover:bg-[#ffefe7]"
+      ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)] hover:bg-[var(--ls-warning-bg-hover)]"
       : currentMode === "owner_only"
-        ? "border-[#e4d8b6] bg-[#fff9e8] text-[#7d6a34] hover:bg-[#fff4d6]"
-        : "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d] hover:bg-[#e2f3ea]";
+        ? "border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-info-text)] hover:bg-[var(--ls-info-bg-hover)]"
+        : "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)] hover:bg-[var(--ls-success-bg-hover)]";
 
   return (
     <button
@@ -1207,8 +1207,8 @@ function ToolAccessModeButton({
 function GuideRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[4rem_1fr]">
-      <div className="text-xs font-semibold text-[#7b8ca2]">{label}</div>
-      <div className="text-[#475569]">{value}</div>
+      <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="text-[var(--ls-ink-cold)]">{value}</div>
     </div>
   );
 }
@@ -1299,21 +1299,21 @@ function ConfigFieldControl({
   return (
     <div
       className={`admin-select-host rounded-lg border px-3 py-3 ${
-        deleted ? "border-[#ead4c8] bg-[#fff6f1]" : "border-[#d9e2ec] bg-white"
+        deleted ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)]" : "border-[var(--ls-border)] bg-white"
       }`}
     >
       <span className="flex items-start justify-between gap-3">
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-[#172033]">{field.label}</span>
-          <span className="mt-1 block truncate font-mono text-[11px] text-[#9aa8b8]" title={field.key}>
+          <span className="block text-sm font-medium text-[var(--ls-ink-strong)]">{field.label}</span>
+          <span className="mt-1 block truncate font-mono text-[11px] text-[var(--ls-ink-soft)]" title={field.key}>
             {field.key}
           </span>
         </span>
         <span
           className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
             field.fromFile
-              ? "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
-              : "border-[#d9e2ec] bg-[#f8fbff] text-[#7b8ca2]"
+              ? "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
+              : "border-[var(--ls-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-ink-soft)]"
           }`}
         >
           {field.fromFile ? "数据库" : "默认"}
@@ -1321,9 +1321,9 @@ function ConfigFieldControl({
       </span>
 
       {field.secret && field.configured && maskedValues.length > 0 && (
-        <div className="mt-3 space-y-2 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2">
+        <div className="mt-3 space-y-2 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] text-[#7b8ca2]">
+            <div className="text-[11px] text-[var(--ls-ink-soft)]">
               当前 key{maskedValues.length > 1 ? ` · ${maskedValues.length} 个` : ""}
             </div>
             {canDelete && maskedValues.length > 1 && (
@@ -1346,13 +1346,13 @@ function ConfigFieldControl({
                   key={`${field.key}-${index}`}
                   className={`flex items-center justify-between gap-3 rounded-md border px-2.5 py-2 ${
                     itemDeleted
-                      ? "border-[#ead4c8] bg-[#fff6f1]"
-                      : "border-[#e5edf5] bg-white"
+                      ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)]"
+                      : "border-[var(--ls-border)] bg-white"
                   }`}
                 >
                   <div className="min-w-0">
-                    <div className="text-[10px] text-[#9aa8b8]">#{index + 1}</div>
-                    <div className="truncate font-mono text-xs text-[#334155]" title={maskedValue}>
+                    <div className="text-[10px] text-[var(--ls-ink-soft)]">#{index + 1}</div>
+                    <div className="truncate font-mono text-xs text-[var(--ls-ink-strong)]" title={maskedValue}>
                       {maskedValue}
                     </div>
                   </div>
@@ -1375,12 +1375,12 @@ function ConfigFieldControl({
       )}
 
       {deleted && (
-        <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
+        <div className="mt-3 rounded-lg border border-[var(--ls-warning-border)] bg-white px-3 py-2 text-xs text-[var(--ls-warning-text)]">
           已标记恢复默认。点击“保存工具参数”后会写入该项的代码默认值。
         </div>
       )}
       {!deleted && deletedSecretValueIndexes.length > 0 && (
-        <div className="mt-3 rounded-lg border border-[#ead4c8] bg-white px-3 py-2 text-xs text-[#8d6048]">
+        <div className="mt-3 rounded-lg border border-[var(--ls-warning-border)] bg-white px-3 py-2 text-xs text-[var(--ls-warning-text)]">
           已标记删除 {deletedSecretValueIndexes.length} 个 key。点击“保存工具参数”后会从逗号列表中移除。
         </div>
       )}
@@ -1427,7 +1427,7 @@ function ConfigFieldControl({
       </div>
 
       {field.description && (
-        <p className="mt-2 text-xs leading-5 text-[#7b8ca2]">{field.description}</p>
+        <p className="mt-2 text-xs leading-5 text-[var(--ls-ink-soft)]">{field.description}</p>
       )}
     </div>
   );
@@ -1436,12 +1436,12 @@ function ConfigFieldControl({
 function StatusBadge({ value, tone }: { value: string; tone: string }) {
   const className =
     tone === "success"
-      ? "border-[#b9d8c7] bg-[#eef8f2] text-[#3f7b5d]"
+      ? "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
       : tone === "failed"
-        ? "border-[#ead4c8] bg-[#fff6f1] text-[#8d6048]"
+        ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]"
         : tone === "blocked"
-          ? "border-[#e4d8b6] bg-[#fff9e8] text-[#7d6a34]"
-          : "border-[#d9e2ec] bg-white text-[#66758a]";
+          ? "border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-info-text)]"
+          : "border-[var(--ls-border)] bg-white text-[var(--ls-ink-soft)]";
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${className}`}>
       {value}
@@ -1465,12 +1465,12 @@ function LogDetail({ log }: { log: ToolCallLog }) {
       </div>
 
       {log.error && (
-        <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-3 py-2 text-sm leading-6 text-[#8d6048]">
+        <div className="rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-3 py-2 text-sm leading-6 text-[var(--ls-warning-text)]">
           {log.error}
         </div>
       )}
       {log.blockReason && (
-        <div className="rounded-lg border border-[#e4d8b6] bg-[#fff9e8] px-3 py-2 text-sm leading-6 text-[#7d6a34]">
+        <div className="rounded-lg border border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-sm leading-6 text-[var(--ls-info-text)]">
           {log.blockReason}
         </div>
       )}
@@ -1484,19 +1484,19 @@ function LogDetail({ log }: { log: ToolCallLog }) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[5rem_1fr] gap-3">
-      <div className="text-[#7b8ca2]">{label}</div>
-      <div className="min-w-0 break-all font-mono text-xs text-[#334155]" title={value}>{value}</div>
+      <div className="text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="min-w-0 break-all font-mono text-xs text-[var(--ls-ink-strong)]" title={value}>{value}</div>
     </div>
   );
 }
 
 function JsonBlock({ title, value }: { title: string; value: unknown }) {
   return (
-    <details open className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff]">
-      <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-[#172033]">
+    <details open className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)]">
+      <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-[var(--ls-ink-strong)]">
         {title}
       </summary>
-      <pre className="max-h-80 overflow-auto border-t border-[#d9e2ec] p-3 text-xs leading-5 text-[#334155]">
+      <pre className="max-h-80 overflow-auto border-t border-[var(--ls-border)] p-3 text-xs leading-5 text-[var(--ls-ink-strong)]">
         {stringifyJson(value)}
       </pre>
     </details>
@@ -1505,7 +1505,7 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
 
 function EmptyState({ loading, text }: { loading: boolean; text: string }) {
   return (
-    <div className="px-4 py-8 text-center text-sm text-[#7b8ca2]">
+    <div className="px-4 py-8 text-center text-sm text-[var(--ls-ink-soft)]">
       {loading ? "读取中..." : text}
     </div>
   );

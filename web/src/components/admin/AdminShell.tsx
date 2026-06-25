@@ -42,7 +42,7 @@ const navItems: Array<{
     description: "状态与配置",
     icon: "icon-map",
     color: "app-teal",
-    accentClass: "bg-[#82d5bb] text-[#285d50]",
+    accentClass: "bg-[var(--ls-mint-light)] text-[var(--ls-section-mint-text)]",
   },
   {
     section: "runtime",
@@ -51,7 +51,7 @@ const navItems: Array<{
     description: "心情 / 状态",
     icon: "icon-miles",
     color: "app-yellow",
-    accentClass: "bg-[#f7cd67] text-[#725d42]",
+    accentClass: "bg-[var(--ls-yellow)] text-[var(--ls-ink)]",
   },
   {
     section: "relationships",
@@ -60,7 +60,7 @@ const navItems: Array<{
     description: "用户关系状态",
     icon: "icon-chat",
     color: "app-pink",
-    accentClass: "bg-[#f8a6b2] text-white",
+    accentClass: "bg-[var(--ls-pink)] text-white",
   },
   {
     section: "memory",
@@ -69,7 +69,7 @@ const navItems: Array<{
     description: "记忆库 / 提案",
     icon: "icon-critterpedia",
     color: "lime-green",
-    accentClass: "bg-[#d1da49] text-[#3d5a1a]",
+    accentClass: "bg-[var(--ls-section-lime)] text-[var(--ls-section-lime-text)]",
   },
   {
     section: "conversations",
@@ -78,7 +78,7 @@ const navItems: Array<{
     description: "现实身份追溯",
     icon: "icon-chat",
     color: "app-blue",
-    accentClass: "bg-[#889df0] text-white",
+    accentClass: "bg-[var(--ls-blue)] text-white",
   },
   {
     section: "learning",
@@ -87,7 +87,7 @@ const navItems: Array<{
     description: "Owner 表达经验",
     icon: "icon-design",
     color: "purple",
-    accentClass: "bg-[#b77dee] text-white",
+    accentClass: "bg-[var(--ls-section-purple)] text-white",
   },
   {
     section: "chat",
@@ -96,7 +96,7 @@ const navItems: Array<{
     description: "Web Chat",
     icon: "icon-chat",
     color: "app-pink",
-    accentClass: "bg-[#f8a6b2] text-white",
+    accentClass: "bg-[var(--ls-pink)] text-white",
   },
   {
     section: "reflection",
@@ -105,7 +105,7 @@ const navItems: Array<{
     description: "Reflection",
     icon: "icon-camera",
     color: "warm-peach-pink",
-    accentClass: "bg-[#e18c6f] text-white",
+    accentClass: "bg-[var(--ls-section-warm-peach)] text-white",
   },
   {
     section: "dream",
@@ -114,7 +114,7 @@ const navItems: Array<{
     description: "Dream Cycle",
     icon: "icon-helicopter",
     color: "app-blue",
-    accentClass: "bg-[#889df0] text-white",
+    accentClass: "bg-[var(--ls-blue)] text-white",
   },
   {
     section: "skills",
@@ -123,7 +123,7 @@ const navItems: Array<{
     description: "能力开关",
     icon: "icon-diy",
     color: "app-orange",
-    accentClass: "bg-[#e59266] text-white",
+    accentClass: "bg-[var(--ls-orange)] text-white",
   },
   {
     section: "platforms",
@@ -132,7 +132,7 @@ const navItems: Array<{
     description: "外部平台工作台",
     icon: "icon-shopping",
     color: "yellow-green",
-    accentClass: "bg-[#ecdf52] text-[#725d42]",
+    accentClass: "bg-[var(--ls-section-yellow-green)] text-[var(--ls-ink)]",
   },
   {
     section: "tools",
@@ -141,7 +141,7 @@ const navItems: Array<{
     description: "调用与日志",
     icon: "icon-variant",
     color: "app-green",
-    accentClass: "bg-[#8ac68a] text-white",
+    accentClass: "bg-[var(--ls-green)] text-white",
   },
   {
     section: "settings",
@@ -150,7 +150,7 @@ const navItems: Array<{
     description: "实时设置 / 连接",
     icon: "icon-diy",
     color: "brown",
-    accentClass: "bg-[#9a835a] text-white",
+    accentClass: "bg-[var(--ls-section-brown)] text-white",
   },
 ];
 
@@ -187,14 +187,14 @@ export function AdminShell({
             >
               <LusiyuanAvatar
                 fallbackText="源"
-                className="admin-brand-mark flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] border-2 border-[#f7cd67] bg-[#fff4c7] text-xl font-black text-[#794f27]"
+                className="admin-brand-mark flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] border-2 border-[var(--ls-yellow)] bg-[var(--ls-yellow-soft)] text-xl font-black text-[var(--ls-ink-strong)]"
                 imgClassName="h-full w-full object-cover"
               />
               <span className="min-w-0">
                 <Title size="small" color="app-teal">
                   Lusiyuan Core
                 </Title>
-                <span className="ml-3 mt-1 block text-xs font-bold text-[#9f927d]">
+                <span className="ml-3 mt-1 block text-xs font-bold text-[var(--ls-ink-soft)]">
                   ENFP-flavored admin
                 </span>
               </span>
@@ -202,13 +202,13 @@ export function AdminShell({
 
             <Card className="hidden px-4 py-4 lg:mt-6 lg:block" pattern="app-yellow">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-black uppercase text-[#794f27]">Island Clock</span>
+                <span className="text-xs font-black uppercase text-[var(--ls-ink-strong)]">Island Clock</span>
                 <Icon name="icon-miles" size={24} bounce />
               </div>
               <div className="admin-sidebar-time mt-3">
                 <Time />
               </div>
-              <p className="mt-3 text-xs leading-5 text-[#8a7b66]">
+              <p className="mt-3 text-xs leading-5 text-[var(--ls-ink-muted)]">
                 先看发生了什么，再决定要不要动长期状态。
               </p>
             </Card>
@@ -217,7 +217,7 @@ export function AdminShell({
           <nav className="admin-sidebar-nav mt-4 flex gap-2 overflow-x-auto pb-2 lg:mt-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:overflow-x-hidden lg:pb-2 lg:pr-1">
             {navGroups.map((group) => (
               <div key={group.label} className="contents lg:block">
-                <div className="mb-1 hidden px-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#b19a82] lg:block">
+                <div className="mb-1 hidden px-2 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--ls-ink-faint)] lg:block">
                   {group.label}
                 </div>
                 <div className="contents lg:grid lg:gap-2">
@@ -235,16 +235,16 @@ export function AdminShell({
                         }`}
                       >
                         <span
-                          className={`admin-nav-index flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] ${active ? item.accentClass : "bg-[#f7f3df] text-[#9f927d]"}`}
+                          className={`admin-nav-index flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] ${active ? item.accentClass : "bg-[var(--ls-panel)] text-[var(--ls-ink-soft)]"}`}
                         >
                           <Icon name={item.icon} size={22} bounce={active} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-3">
-                            <span className="block truncate text-sm font-black text-[#794f27]">{item.label}</span>
-                            <span className="text-[10px] font-black text-[#c4b89e]">{item.index}</span>
+                            <span className="block truncate text-sm font-black text-[var(--ls-ink-strong)]">{item.label}</span>
+                            <span className="text-[10px] font-black text-[var(--ls-disabled-text)]">{item.index}</span>
                           </span>
-                          <span className="mt-0.5 block truncate text-xs font-semibold text-[#9f927d]">
+                          <span className="mt-0.5 block truncate text-xs font-semibold text-[var(--ls-ink-soft)]">
                             {item.description}
                           </span>
                         </span>
@@ -268,25 +268,25 @@ export function AdminShell({
                   </span>
                   <span className="admin-chip admin-chip-yellow">{activeItem.index}</span>
                 </div>
-                <h1 className="text-2xl font-black leading-tight text-[#794f27] md:text-3xl">
+                <h1 className="text-2xl font-black leading-tight text-[var(--ls-ink-strong)] md:text-3xl">
                   {activeItem.description}
                 </h1>
               </div>
 
               <div className="grid gap-3 md:grid-cols-[minmax(12rem,1fr)_minmax(18rem,24rem)] xl:w-[44rem]">
                 <Card className="px-4 py-3" pattern={activeItem.color}>
-                  <div className="text-[11px] font-black uppercase text-[#794f27]">API Base</div>
+                  <div className="text-[11px] font-black uppercase text-[var(--ls-ink-strong)]">API Base</div>
                   <Tooltip title={apiBaseUrl} variant="island" placement="bottom">
-                    <div className="mt-1 truncate text-sm font-bold text-[#725d42]">
+                    <div className="mt-1 truncate text-sm font-bold text-[var(--ls-ink)]">
                       {apiBaseUrl}
                     </div>
                   </Tooltip>
                 </Card>
 
                 <Card className="px-4 py-3" pattern="app-teal">
-                  <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-black uppercase text-[#794f27]">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-black uppercase text-[var(--ls-ink-strong)]">
                     <span>Admin Token</span>
-                    <span className={adminToken ? "text-[#17766e]" : "text-[#a85565]"}>
+                    <span className={adminToken ? "text-[var(--ls-mint-text)]" : "text-[var(--ls-pink-text)]"}>
                       {adminToken ? "已保存" : "未配置"}
                     </span>
                   </div>

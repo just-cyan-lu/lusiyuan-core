@@ -69,12 +69,12 @@ export function MemoryAdminPage({ adminToken }: MemoryAdminPageProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-4 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-5">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-4 shadow-[var(--ls-shadow)] md:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">Memory Center</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">记忆管理</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-7 text-[#617188]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Memory Center</div>
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">记忆管理</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               一边管理已经生效的长期记忆，一边审核尚未写入的提案。全局记忆会成为陆思源的基础记忆，用户记忆只影响对应用户。
             </p>
           </div>

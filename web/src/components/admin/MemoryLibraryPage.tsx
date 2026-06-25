@@ -548,10 +548,10 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
 
   if (!adminToken) {
     return (
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Memory Library</div>
-        <h3 className="mt-3 text-3xl font-semibold text-[#172033]">记忆库</h3>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Memory Library</div>
+        <h3 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">记忆库</h3>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
           请先在顶部输入 Admin Token。这里会读取和管理已写入 `memories` 表的长期记忆。
         </p>
       </section>
@@ -560,10 +560,10 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
 
   return (
     <div className="space-y-5">
-      <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-[0_18px_48px_rgba(91,117,150,0.1)]">
+      <section className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-[var(--ls-shadow)]">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">状态</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">状态</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="状态"
@@ -573,7 +573,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             />
           </div>
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">范围</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">范围</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="范围"
@@ -583,7 +583,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             />
           </div>
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">类型</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">类型</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="类型"
@@ -608,7 +608,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             onChange={setQuery}
           />
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">时间字段</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">时间字段</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="时间字段"
@@ -618,7 +618,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             />
           </div>
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">时间范围</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">时间范围</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="时间范围"
@@ -646,7 +646,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             }}
           />
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">排序</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">排序</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="排序"
@@ -656,7 +656,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             />
           </div>
           <div className="block">
-            <span className="text-[11px] font-medium text-[#7b8ca2]">热力图</span>
+            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">热力图</span>
             <AdminSelect
               className="mt-1"
               ariaLabel="热力图"
@@ -679,20 +679,20 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
         </div>
 
         {error && (
-          <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {error}
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#66758a]">
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
           <StatusPill active={!loading} label={loading ? "读取中" : "已读取"} />
-          <span className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-2.5 py-1">
+          <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1">
             当前 {memories.length} 条
           </span>
           {Object.entries(summary).map(([status, count]) => (
             <span
               key={status}
-              className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-2.5 py-1"
+              className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1"
             >
               {status}: {count}
             </span>
@@ -709,10 +709,10 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.1fr)]">
-        <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+        <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
           <div className="mb-3">
-            <h3 className="text-base font-semibold text-[#172033]">记忆列表</h3>
-            <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">
+            <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">记忆列表</h3>
+            <p className="mt-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
               全局记忆会跨用户生效；用户记忆只在对应 userId 下参与检索。
             </p>
           </div>
@@ -767,34 +767,34 @@ function MemoryListItem({
       onClick={onSelect}
       className={`admin-layout-button w-full rounded-lg border px-4 py-3 text-left transition ${
         selected
-          ? "border-[#a9bfd7] bg-[#eaf2fb] shadow-sm"
-          : "border-[#d9e2ec] bg-white hover:border-[#c9d7e6] hover:bg-[#fdfefe]"
+          ? "border-[var(--ls-border-cold-soft)] bg-[var(--ls-panel-soft)] shadow-sm"
+          : "border-[var(--ls-border)] bg-white hover:border-[var(--ls-border)] hover:bg-[var(--ls-panel-cold)]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[#172033]">{memory.type}</span>
+            <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">{memory.type}</span>
             <span
-              className="rounded-full bg-white/80 px-2 py-0.5 font-mono text-xs text-[#66758a]"
+              className="rounded-full bg-white/80 px-2 py-0.5 font-mono text-xs text-[var(--ls-ink-soft)]"
               title={memory.id}
             >
               ID {shortId(memory.id)}
             </span>
-            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[#66758a]">
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
               {memory.scope}
             </span>
-            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[#66758a]">
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
               {ownerLabel(memory)}
             </span>
           </div>
-          <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#334155]" title={memory.content}>
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--ls-ink-strong)]" title={memory.content}>
             {memory.summary || memory.content}
           </p>
         </div>
         <StatusPill active={memory.status === "active"} label={memory.status} />
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
         <span>重要度 {memory.importance}</span>
         <span>·</span>
         <span>置信度 {Math.round(memory.confidence * 100)}%</span>
@@ -867,27 +867,27 @@ function MemoryActivityHeatmap({
 
   function cellClass(level: number, selected: boolean): string {
     const colors = [
-      "bg-[#eef3f8]",
-      "bg-[#dbeaf4]",
-      "bg-[#bfd9ea]",
-      "bg-[#91bad8]",
-      "bg-[#5f94bd]",
+      "bg-[var(--ls-panel-cold-deep)]",
+      "bg-[var(--ls-panel-cold-light)]",
+      "bg-[var(--ls-panel-cold-light)]",
+      "bg-[var(--ls-link)]",
+      "bg-[var(--ls-link)]",
     ];
     return `${colors[level]} ${
-      selected ? "ring-2 ring-[#8a6f5a] ring-offset-1" : "ring-1 ring-white/80"
+      selected ? "ring-2 ring-[var(--ls-eyebrow-text)] ring-offset-1" : "ring-1 ring-white/80"
     }`;
   }
 
   return (
-    <section className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-[#172033]">记忆活跃度</h3>
-          <p className="mt-1 text-xs leading-5 text-[#7b8ca2]">
+          <h3 className="text-sm font-semibold text-[var(--ls-ink-strong)]">记忆活跃度</h3>
+          <p className="mt-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
             最近一年按天统计。点击方块会筛选当天记忆。
           </p>
         </div>
-        <span className="text-xs text-[#66758a]">
+        <span className="text-xs text-[var(--ls-ink-soft)]">
           {activity ? `全年 ${activity.totalCount} 条` : "统计读取中"}
         </span>
       </div>
@@ -914,7 +914,7 @@ function MemoryActivityHeatmap({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-1 text-[11px] text-[#7b8ca2]">
+      <div className="mt-3 flex items-center justify-end gap-1 text-[11px] text-[var(--ls-ink-soft)]">
         <span>少</span>
         {[0, 1, 2, 3, 4].map((level) => (
           <span
@@ -971,18 +971,18 @@ function MemoryEditor({
   return (
     <div
       ref={editorRef}
-      className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.1)]"
+      className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)]"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">
             {form.mode === "create" ? "New Memory" : "Memory Detail"}
           </div>
-          <h3 className="mt-2 text-2xl font-semibold text-[#172033]">
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">
             {form.mode === "create" ? "新增记忆" : selectedMemory?.type ?? "记忆详情"}
           </h3>
           {selectedMemory && (
-            <p className="mt-2 text-xs text-[#7b8ca2]" title={selectedMemory.id}>
+            <p className="mt-2 text-xs text-[var(--ls-ink-soft)]" title={selectedMemory.id}>
               {shortId(selectedMemory.id)} · {ownerLabel(selectedMemory)}
             </p>
           )}
@@ -1001,7 +1001,7 @@ function MemoryEditor({
 
       <div className="admin-select-host mt-5 grid gap-3 md:grid-cols-2">
         <div className="block">
-          <span className="text-[11px] font-medium text-[#7b8ca2]">Type</span>
+          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Type</span>
           <AdminSelect
             className="mt-1"
             ariaLabel="Type"
@@ -1011,7 +1011,7 @@ function MemoryEditor({
           />
         </div>
         <div className="block">
-          <span className="text-[11px] font-medium text-[#7b8ca2]">Scope</span>
+          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Scope</span>
           <AdminSelect
             className="mt-1"
             ariaLabel="Scope"
@@ -1036,7 +1036,7 @@ function MemoryEditor({
           />
         </Field>
         <div className="block">
-          <span className="text-[11px] font-medium text-[#7b8ca2]">Status</span>
+          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Status</span>
           <AdminSelect
             className="mt-1"
             ariaLabel="Status"
@@ -1144,13 +1144,13 @@ function MemoryEditor({
       </Field>
 
       {actionError && (
-        <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+        <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
           {actionError}
         </div>
       )}
 
       {actionMessage && (
-        <div className="mt-4 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+        <div className="mt-4 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
           {actionMessage}
         </div>
       )}
@@ -1177,7 +1177,7 @@ function MemoryEditor({
 
 function QueuePlaceholder({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#cdd9e6] bg-white px-4 py-8 text-center text-sm text-[#66758a]">
+    <div className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white px-4 py-8 text-center text-sm text-[var(--ls-ink-soft)]">
       {text}
     </div>
   );
@@ -1198,7 +1198,7 @@ function FilterInput({
 }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-medium text-[#7b8ca2]">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">{label}</span>
       <AdminInput
         type={type}
         value={value}
@@ -1221,7 +1221,7 @@ function Field({
 }) {
   return (
     <label className={`block ${className}`}>
-      <span className="text-[11px] font-medium text-[#7b8ca2]">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -1229,9 +1229,9 @@ function Field({
 
 function DetailRow({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-3 py-2">
-      <div className="text-[11px] text-[#7b8ca2]">{label}</div>
-      <div className="mt-1 truncate text-sm text-[#334155]" title={title ?? value}>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2">
+      <div className="text-[11px] text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-1 truncate text-sm text-[var(--ls-ink-strong)]" title={title ?? value}>
         {value}
       </div>
     </div>
@@ -1243,11 +1243,11 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
 
   const text = JSON.stringify(value, null, 2);
   return (
-    <section className="rounded-lg border border-[#d9e2ec] bg-white p-4">
-      <h4 className="text-sm font-semibold text-[#172033]">{title}</h4>
+    <section className="rounded-lg border border-[var(--ls-border)] bg-white p-4">
+      <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</h4>
       <pre
         title={text}
-        className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-[#f8fbff] p-3 text-xs leading-5 text-[#334155]"
+        className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--ls-panel-soft)] p-3 text-xs leading-5 text-[var(--ls-ink-strong)]"
       >
         {text}
       </pre>

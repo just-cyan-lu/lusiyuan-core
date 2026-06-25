@@ -196,10 +196,10 @@ export function SkillsAdminPage({
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Skills</div>
-        <h2 className="mt-3 text-3xl font-semibold text-[#172033]">Skill 管理</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
+      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Skills</div>
+        <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">Skill 管理</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
           请先在顶部输入 Admin Token。这里会显示系统能力、平台工作流和开关状态。
         </p>
       </section>
@@ -208,16 +208,16 @@ export function SkillsAdminPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-7">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)] md:p-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">
               {selectedSkill ? "Skill Detail" : "Skill Directory"}
             </div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">
               {selectedSkill ? selectedSkill.label : "Skill 管理"}
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               {selectedSkill
                 ? "这里管理这个 skill 的运行模式、prompt 和测试入口。"
                 : "Skill 是正式工作流。现在的小红书回复 skill 会用 LLM 判断评论是否需要回复，并生成待审核草稿。"}
@@ -236,12 +236,12 @@ export function SkillsAdminPage({
         </div>
 
         {state.error && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {state.error}
           </div>
         )}
         {state.message && (
-          <div className="mt-5 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
             {state.message}
           </div>
         )}
@@ -292,16 +292,16 @@ function SkillDirectory({
             key={skill.id}
             type="button"
             onClick={() => onOpenSkill(skill.id)}
-            className="admin-layout-button group flex min-h-[17rem] w-full flex-col rounded-lg border border-[#d9e2ec] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#a9bfd7] hover:shadow-[0_18px_44px_rgba(91,117,150,0.14)]"
+            className="admin-layout-button group flex min-h-[17rem] w-full flex-col rounded-lg border border-[var(--ls-border)] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--ls-border-cold-soft)] hover:shadow-[0_18px_44px_rgba(91,117,150,0.14)]"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold text-[#8a6f5a]">{skill.category}</div>
-                <h3 className="mt-2 text-2xl font-semibold text-[#172033]">{skill.label}</h3>
+                <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">{skill.category}</div>
+                <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">{skill.label}</h3>
               </div>
               <StatusPill active={skill.enabled} label={skill.enabled ? "运行中" : "已关闭"} />
             </div>
-            <p className="mt-4 line-clamp-3 text-sm leading-7 text-[#617188]">{skill.description}</p>
+            <p className="mt-4 line-clamp-3 text-sm leading-7 text-[var(--ls-ink-soft)]">{skill.description}</p>
             <div className="mt-5 grid grid-cols-3 gap-2">
               <CompactMetric label="模式" value={accessLabel(savedMode)} />
               <CompactMetric label="入口" value={String(skill.entryPoints.length)} />
@@ -311,15 +311,15 @@ function SkillDirectory({
               {skill.profiles.map((profile) => (
                 <span
                   key={profile.id}
-                  className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-2.5 py-1 text-xs text-[#66758a]"
+                  className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]"
                 >
                   {profile.label}
                 </span>
               ))}
             </div>
-            <div className="mt-auto flex items-center justify-between gap-3 border-t border-[#edf2f7] pt-4">
-              <span className="text-xs text-[#7b8ca2]">点击查看详情</span>
-              <span className="text-sm font-medium text-[#5f7fa7] transition group-hover:translate-x-0.5">
+            <div className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--ls-border)] pt-4">
+              <span className="text-xs text-[var(--ls-ink-soft)]">点击查看详情</span>
+              <span className="text-sm font-medium text-[var(--ls-link-soft)] transition group-hover:translate-x-0.5">
                 进入详情
               </span>
             </div>
@@ -362,12 +362,12 @@ function SkillDetail({
   return (
     <section className="grid gap-5 xl:grid-cols-[1fr_0.86fr]">
       <div className="space-y-5">
-        <section className="rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+        <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="text-xs font-semibold text-[#8a6f5a]">{skill.id}</div>
-              <h3 className="mt-2 text-2xl font-semibold text-[#172033]">运行和边界</h3>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">{skill.description}</p>
+              <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">{skill.id}</div>
+              <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">运行和边界</h3>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">{skill.description}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill active={skill.enabled} label={skill.enabled ? "运行中" : "已关闭"} />
@@ -385,7 +385,7 @@ function SkillDetail({
             <InfoBlock title="配置来源" value="SkillConfig" />
             <InfoBlock title="保存方式" value="立即生效" />
           </div>
-          <div className="mt-5 rounded-lg border border-[#e5edf5] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-[#66758a]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-ink-soft)]">
             {skill.disabledBehavior}
           </div>
         </section>
@@ -425,19 +425,19 @@ function XiaohongshuPromptEditor({
 
   if (!draft) {
     return (
-      <section className="rounded-lg border border-dashed border-[#cdd9e6] bg-white p-5 text-sm text-[#66758a]">
+      <section className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white p-5 text-sm text-[var(--ls-ink-soft)]">
         配置加载中。
       </section>
     );
   }
 
   return (
-    <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
+    <section className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#8a6f5a]">Prompt</div>
-          <h3 className="mt-2 text-2xl font-semibold text-[#172033]">回复规范</h3>
-          <p className="mt-2 text-sm leading-6 text-[#617188]">
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Prompt</div>
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">回复规范</h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--ls-ink-soft)]">
             这里写的是小红书评论回复规范。LLM 会按它判断是否回复、风险和草稿正文。
           </p>
         </div>
@@ -452,7 +452,7 @@ function XiaohongshuPromptEditor({
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-[1fr_9rem]">
         <div>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">账号模式</span>
+          <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">账号模式</span>
           <AdminSelect
             ariaLabel="账号模式"
             value={draft.accountMode}
@@ -467,7 +467,7 @@ function XiaohongshuPromptEditor({
           />
         </div>
         <label>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">最长字数</span>
+          <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">最长字数</span>
           <AdminInput
             type="number"
             value={draft.maxReplyChars}
@@ -477,7 +477,7 @@ function XiaohongshuPromptEditor({
         </label>
       </div>
       <label className="mt-4 block">
-        <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">Skill Prompt</span>
+        <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">Skill Prompt</span>
         <textarea
           value={draft.prompt}
           onChange={(event) => setDraft({ ...draft, prompt: event.target.value })}
@@ -502,10 +502,10 @@ function XiaohongshuReplyTester({
   onRun: () => void;
 }) {
   return (
-    <section className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 shadow-sm">
-      <div className="text-xs font-semibold text-[#8a6f5a]">Test</div>
-      <h3 className="mt-2 text-2xl font-semibold text-[#172033]">手动测试</h3>
-      <p className="mt-3 text-sm leading-7 text-[#617188]">
+    <section className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-sm">
+      <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Test</div>
+      <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">手动测试</h3>
+      <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-soft)]">
         这里直接调用小红书回复 skill。结果是人可看的判断和草稿，不展示 JSON。
       </p>
       <div className="mt-5 grid gap-3">
@@ -515,7 +515,7 @@ function XiaohongshuReplyTester({
           onChange={(value) => onTesterChange({ ...tester, postTitle: value })}
         />
         <label>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">帖子正文</span>
+          <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">帖子正文</span>
           <textarea
             value={tester.postCaption}
             onChange={(event) => onTesterChange({ ...tester, postCaption: event.target.value })}
@@ -523,7 +523,7 @@ function XiaohongshuReplyTester({
           />
         </label>
         <div>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">帖子类型</span>
+          <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">帖子类型</span>
           <AdminSelect
             ariaLabel="帖子类型"
             value={tester.postType}
@@ -540,7 +540,7 @@ function XiaohongshuReplyTester({
           />
         </div>
         <label>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">评论</span>
+          <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">评论</span>
           <textarea
             value={tester.comment}
             onChange={(event) => onTesterChange({ ...tester, comment: event.target.value })}
@@ -548,7 +548,7 @@ function XiaohongshuReplyTester({
           />
         </label>
         <label>
-          <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">评论线程上下文</span>
+          <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">评论线程上下文</span>
           <textarea
             value={tester.threadContext}
             onChange={(event) => onTesterChange({ ...tester, threadContext: event.target.value })}
@@ -566,18 +566,18 @@ function XiaohongshuReplyTester({
       </div>
 
       {result && (
-        <div className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+        <div className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill active={result.risk !== "skip"} label={riskLabel(result.risk)} />
-            <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-xs text-[#66758a]">
+            <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]">
               {result.comment_type}
             </span>
-            <span className="rounded-full border border-[#d9e2ec] bg-white px-2.5 py-1 text-xs text-[#66758a]">
+            <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]">
               {result.voice}
             </span>
           </div>
-          <div className="mt-3 text-sm leading-6 text-[#66758a]">{result.reason}</div>
-          <div className="mt-4 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm leading-7 text-[#172033]">
+          <div className="mt-3 text-sm leading-6 text-[var(--ls-ink-soft)]">{result.reason}</div>
+          <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm leading-7 text-[var(--ls-ink-strong)]">
             {result.reply || "建议不回复。"}
           </div>
         </div>
@@ -588,18 +588,18 @@ function XiaohongshuReplyTester({
 
 function InfoBlock({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[#e5edf5] bg-[#f8fbff] px-4 py-3">
-      <div className="text-[11px] font-medium text-[#7b8ca2]">{title}</div>
-      <div className="mt-1 text-sm font-semibold text-[#172033]">{value}</div>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
+      <div className="text-[11px] font-medium text-[var(--ls-ink-soft)]">{title}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--ls-ink-strong)]">{value}</div>
     </div>
   );
 }
 
 function CompactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[#e5edf5] bg-[#f8fbff] px-3 py-2">
-      <div className="text-[11px] text-[#7b8ca2]">{label}</div>
-      <div className="mt-1 truncate text-sm font-semibold text-[#172033]">{value}</div>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2">
+      <div className="text-[11px] text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-[var(--ls-ink-strong)]">{value}</div>
     </div>
   );
 }
@@ -615,7 +615,7 @@ function FieldInput({
 }) {
   return (
     <label>
-      <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
       <AdminInput
         value={value}
         onChange={(event) => onChange(event.target.value)}

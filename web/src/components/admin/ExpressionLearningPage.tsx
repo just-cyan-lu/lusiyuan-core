@@ -256,10 +256,10 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
         <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <h2 className="text-3xl font-black leading-tight text-[#794f27] md:text-[2.1rem]">
+            <h2 className="text-3xl font-black leading-tight text-[var(--ls-ink-strong)] md:text-[2.1rem]">
               表达学习
             </h2>
-            <p className="mt-3 text-sm font-semibold leading-7 text-[#725d42] md:text-[0.95rem]">
+            <p className="mt-3 text-sm font-semibold leading-7 text-[var(--ls-ink)] md:text-[0.95rem]">
               这里记录你如何修改、采用或放弃思源的回复。它学习的是表达选择，不会改写人格和长期记忆。
             </p>
           </div>
@@ -330,7 +330,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
       <LearningTabs active={activeTab} onChange={setActiveTab} />
 
       {error && (
-        <div className="rounded-[20px] border-2 border-[#f8a6b2] bg-[#fde4e8] px-4 py-3 text-sm font-semibold leading-6 text-[#a85565]">
+        <div className="rounded-[20px] border-2 border-[var(--ls-pink)] bg-[var(--ls-pink-soft)] px-4 py-3 text-sm font-semibold leading-6 text-[var(--ls-pink-text)]">
           {error}
         </div>
       )}
@@ -357,7 +357,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
       {activeTab === "library" && (
         <>
           <Card className="admin-select-host p-4 md:p-5" pattern="none">
-            <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#9f927d]">
+            <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
               <Icon name="icon-map" size={14} />
               筛选条件
             </div>
@@ -416,11 +416,11 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
           <section className="grid min-h-[36rem] gap-5 2xl:grid-cols-[minmax(32rem,0.95fr)_minmax(0,1.05fr)]">
         <div className="min-w-0 space-y-2">
-          <div className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-wide text-[#9f927d]">
+          <div className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
             <Icon name="icon-critterpedia" size={14} />
             <span>经验列表</span>
             <span className="admin-chip admin-chip-mint !py-0.5">{state.examples.length}</span>
-            <span className="ml-auto text-[10px] font-semibold tracking-normal text-[#b9aa92]">点击切换查看</span>
+            <span className="ml-auto text-[10px] font-semibold tracking-normal text-[var(--ls-ink-faint)]">点击切换查看</span>
           </div>
 
           {state.examples.map((example) => (
@@ -433,7 +433,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           ))}
 
           {!loading && state.examples.length === 0 && (
-            <div className="admin-island-soft-panel px-5 py-10 text-center text-sm font-semibold leading-7 text-[#8a7b66]">
+            <div className="admin-island-soft-panel px-5 py-10 text-center text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
               还没有表达经验。可以先用手动教学或练习出题创建第一条。
             </div>
           )}
@@ -497,17 +497,17 @@ function LearningTabs({
 
 function ScopeHelp() {
   return (
-    <div className="grid gap-3 rounded-[20px] border-2 border-dashed border-[#e8dcc8] bg-[#fff9e8] p-4 text-xs font-semibold leading-6 text-[#8a7b66] md:grid-cols-3">
+    <div className="grid gap-3 rounded-[20px] border-2 border-dashed border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4 text-xs font-semibold leading-6 text-[var(--ls-ink-muted)] md:grid-cols-3">
       <div>
-        <span className="font-black text-[#794f27]">平台</span>
+        <span className="font-black text-[var(--ls-ink-strong)]">平台</span>
         <p className="mt-1">这条经验属于哪个渠道，例如 `xiaohongshu`、`chat`、`general`。</p>
       </div>
       <div>
-        <span className="font-black text-[#794f27]">场景</span>
+        <span className="font-black text-[var(--ls-ink-strong)]">场景</span>
         <p className="mt-1">平台里的具体任务，例如 `comment_reply`、`web_chat`、`boundary_reply`。</p>
       </div>
       <div>
-        <span className="font-black text-[#794f27]">范围</span>
+        <span className="font-black text-[var(--ls-ink-strong)]">范围</span>
         <p className="mt-1">生效半径：全局、同平台、同场景，或仅存档不参与生成。</p>
       </div>
     </div>
@@ -601,11 +601,11 @@ function ManualTeachingPanel({
   return (
     <Card className="admin-select-host space-y-5 p-5" pattern="app-yellow">
       <div>
-        <div className="text-xs font-black uppercase tracking-wide text-[#9f927d]">
+        <div className="text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
           Manual Teaching
         </div>
-        <h3 className="mt-2 text-2xl font-black text-[#794f27]">手动教学</h3>
-        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[#8a7b66]">
+        <h3 className="mt-2 text-2xl font-black text-[var(--ls-ink-strong)]">手动教学</h3>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
           写一个具体情境，可以先让陆思源现场试答，再用你的最终回复或不回复理由教他。
         </p>
       </div>
@@ -774,11 +774,11 @@ function PracticePanel({
   return (
     <Card className="admin-select-host space-y-5 p-5" pattern="app-blue">
       <div>
-        <div className="text-xs font-black uppercase tracking-wide text-[#9f927d]">
+        <div className="text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
           Practice Prompt
         </div>
-        <h3 className="mt-2 text-2xl font-black text-[#794f27]">练习出题</h3>
-        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[#8a7b66]">
+        <h3 className="mt-2 text-2xl font-black text-[var(--ls-ink-strong)]">练习出题</h3>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
           让系统生成一个表达情境，你写下希望陆思源采用的回复。题目只是引子，真正的经验来自你的答案。
         </p>
       </div>
@@ -808,7 +808,7 @@ function PracticePanel({
             )}
             <DetailReadBlock label="练习重点" value={question.teachingFocus} icon="icon-map" tone="admin-chip-pink" />
           </div>
-          <div className="space-y-3 rounded-[20px] border-2 border-[#e8dcc8] bg-[#fff9e8] p-4">
+          <div className="space-y-3 rounded-[20px] border-2 border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
             <SelectField
               label="你的决定"
               value={outcome}
@@ -906,9 +906,9 @@ function Metric({
         <Icon name={icon} size={22} bounce />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-black uppercase tracking-wide text-[#9f927d]">{label}</span>
-        <span className="mt-1 block text-3xl font-black leading-none text-[#794f27]">{value}</span>
-        <span className="mt-2 block text-[11px] font-semibold leading-5 text-[#8a7b66]">{accent}</span>
+        <span className="block text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">{label}</span>
+        <span className="mt-1 block text-3xl font-black leading-none text-[var(--ls-ink-strong)]">{value}</span>
+        <span className="mt-2 block text-[11px] font-semibold leading-5 text-[var(--ls-ink-muted)]">{accent}</span>
       </span>
     </Card>
   );
@@ -941,25 +941,25 @@ function ExampleRow({
           active={example.status === "active"}
           label={statusLabel(example.status)}
         />
-        <span className="ml-auto shrink-0 text-[11px] font-semibold text-[#9f927d] tabular-nums">
+        <span className="ml-auto shrink-0 text-[11px] font-semibold text-[var(--ls-ink-soft)] tabular-nums">
           {formatTime(example.updatedAt)}
         </span>
       </div>
 
-      <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[#794f27]">
+      <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">
         {example.lesson}
       </p>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-[#8a7b66]">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-[var(--ls-ink-muted)]">
         <span className="inline-flex items-center gap-1 whitespace-nowrap">
           <Icon name="icon-chat" size={12} />
           {actionLabel(example.ownerAction)}
         </span>
-        <span className="text-[#d4c9b4]">·</span>
+        <span className="text-[var(--ls-3d-shadow)]">·</span>
         <span className="whitespace-nowrap">使用 {example.accessCount} 次</span>
-        <span className="text-[#d4c9b4]">·</span>
+        <span className="text-[var(--ls-3d-shadow)]">·</span>
         <span className="whitespace-nowrap">可信度 {confidence}%</span>
-      </div>      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#f7f3df]">
+      </div>      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--ls-panel)]">
         <div
           className="admin-learning-confidence h-full rounded-full"
           style={{ width: `${confidence}%` }}
@@ -1023,8 +1023,8 @@ function ExpressionDetail({
       <div>
         <div className="mb-3 flex items-center gap-3">
           <SectionTitle icon="icon-diy">编辑这条经验</SectionTitle>
-          <span className="h-px flex-1 bg-[#e8dcc8]" />
-          <span className="text-[11px] font-semibold text-[#9f927d]">修改后保存</span>
+          <span className="h-px flex-1 bg-[var(--ls-border)]" />
+          <span className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">修改后保存</span>
         </div>
         <div className="grid gap-3">
           <EditField label="学到的经验" value={lesson} onChange={setLesson} rows={3} />
@@ -1040,7 +1040,7 @@ function ExpressionDetail({
         <div>
           <div className="mb-3 flex items-center gap-3">
             <SectionTitle icon="icon-map">检索与避雷</SectionTitle>
-            <span className="h-px flex-1 bg-[#e8dcc8]" />
+            <span className="h-px flex-1 bg-[var(--ls-border)]" />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {tags.length > 0 && (
@@ -1053,7 +1053,7 @@ function ExpressionDetail({
         </div>
       )}
 
-      <div className="flex flex-col gap-3 border-t-2 border-dashed border-[#e8dcc8] pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t-2 border-dashed border-[var(--ls-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <EmbeddingHint status={example.embeddingStatus} />
         <Button
           type="primary"
@@ -1084,17 +1084,17 @@ function DetailHeader({
   onReanalyze: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b-2 border-dashed border-[#e8dcc8] pb-4 md:flex-row md:items-start md:justify-between">
+    <div className="flex flex-col gap-4 border-b-2 border-dashed border-[var(--ls-border)] pb-4 md:flex-row md:items-start md:justify-between">
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#8a7b66]">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--ls-ink-muted)]">
           <span className="admin-chip admin-chip-yellow">{platformLabel(example.platform)}</span>
           <span>·</span>
           <span>{example.scene}</span>
         </div>
-        <h3 className="mt-2 text-2xl font-black leading-tight text-[#794f27]">
+        <h3 className="mt-2 text-2xl font-black leading-tight text-[var(--ls-ink-strong)]">
           {actionLabel(example.ownerAction)}
         </h3>
-        <p className="mt-1 text-xs font-semibold text-[#8a7b66]">
+        <p className="mt-1 text-xs font-semibold text-[var(--ls-ink-muted)]">
           {outcomeLabel(example.outcome)} · 使用过 {example.accessCount} 次 · 可信度 {confidence}%
         </p>
       </div>
@@ -1123,7 +1123,7 @@ function DetailHeader({
 
 function SectionTitle({ icon, children }: { icon: IconName; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#9f927d]">
+    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
       <Icon name={icon} size={14} />
       {children}
     </div>
@@ -1149,7 +1149,7 @@ function DetailReadBlock({
           {label}
         </span>
       </div>
-      <div className="mt-2 whitespace-pre-wrap rounded-[18px] border-2 border-[#e8dcc8] border-l-[6px] border-l-[#82d5bb] bg-[#fff9e8] px-4 py-3 text-sm font-semibold leading-7 text-[#725d42]">
+      <div className="mt-2 whitespace-pre-wrap rounded-[18px] border-2 border-[var(--ls-border)] border-l-[6px] border-l-[var(--ls-mint-light)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm font-semibold leading-7 text-[var(--ls-ink)]">
         {value}
       </div>
     </div>
@@ -1209,10 +1209,10 @@ function TagBlock({
 function EmbeddingHint({ status }: { status: string }) {
   const ready = status === "ready";
   return (
-    <div className="flex items-center gap-2 text-xs font-semibold text-[#8a7b66]">
+    <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ls-ink-muted)]">
       <span
         className={`inline-block h-2 w-2 rounded-full ${
-          ready ? "bg-[#19c8b9]" : "bg-[#f7cd67]"
+          ready ? "bg-[var(--ls-mint)]" : "bg-[var(--ls-yellow)]"
         }`}
       />
       向量索引：{ready ? "可用" : status}

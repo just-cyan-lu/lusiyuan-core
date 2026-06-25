@@ -244,8 +244,8 @@ export function ConversationHistoryPage({
               Conversation Trace
             </span>
           </div>
-          <h2 className="mt-6 text-3xl font-black leading-tight text-[#794f27]">对话追溯</h2>
-          <p className="mt-4 max-w-3xl text-sm font-semibold leading-7 text-[#725d42] md:text-base">
+          <h2 className="mt-6 text-3xl font-black leading-tight text-[var(--ls-ink-strong)]">对话追溯</h2>
+          <p className="mt-4 max-w-3xl text-sm font-semibold leading-7 text-[var(--ls-ink)] md:text-base">
             请先在顶部输入 Admin Token。这里会按现实身份查看渠道账号、会话和消息。
           </p>
         </Card>
@@ -265,8 +265,8 @@ export function ConversationHistoryPage({
               </span>
               <span className="admin-chip admin-chip-mint">先看身份，再看消息</span>
             </div>
-            <h2 className="mt-6 text-3xl font-black leading-tight text-[#794f27]">对话追溯</h2>
-            <p className="mt-4 text-sm font-semibold leading-7 text-[#725d42] md:text-base">
+            <h2 className="mt-6 text-3xl font-black leading-tight text-[var(--ls-ink-strong)]">对话追溯</h2>
+            <p className="mt-4 text-sm font-semibold leading-7 text-[var(--ls-ink)] md:text-base">
               先按现实身份找人，再查看这个身份绑定的渠道账号、会话和消息。关系修改仍回关系页处理。
             </p>
           </div>
@@ -311,7 +311,7 @@ export function ConversationHistoryPage({
         </div>
 
         {state.error && (
-          <div className="mt-6 rounded-[22px] border-2 border-[#f8a6b2] bg-[#fde4e8] px-4 py-3 text-sm font-semibold leading-6 text-[#a85565]">
+          <div className="mt-6 rounded-[22px] border-2 border-[var(--ls-pink)] bg-[var(--ls-pink-soft)] px-4 py-3 text-sm font-semibold leading-6 text-[var(--ls-pink-text)]">
             {state.error}
           </div>
         )}
@@ -327,8 +327,8 @@ export function ConversationHistoryPage({
                   现实身份
                 </span>
               </div>
-              <h3 className="mt-3 text-base font-black text-[#794f27]">按人查对话</h3>
-              <p className="mt-1 text-xs font-semibold text-[#9f927d]">
+              <h3 className="mt-3 text-base font-black text-[var(--ls-ink-strong)]">按人查对话</h3>
+              <p className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">
                 {state.loadingList ? "读取中" : `${state.people.length} 个结果`}
               </p>
             </div>
@@ -344,25 +344,25 @@ export function ConversationHistoryPage({
                     type="button"
                     onClick={() => selectPerson(person.person.id)}
                     className={`admin-island-row w-full px-4 py-3 text-left transition ${
-                      active ? "border-[#21b9aa] bg-[#e6f9f6]" : "hover:bg-[#fff9e8]"
+                      active ? "border-[var(--ls-mint)] bg-[var(--ls-mint-soft)]" : "hover:bg-[var(--ls-panel-soft)]"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-black text-[#794f27]">
+                          <span className="truncate text-sm font-black text-[var(--ls-ink-strong)]">
                             {personLabel(person.person)}
                           </span>
                           {person.isOwner && <StatusPill active label="owner" />}
                         </div>
-                        <div className="mt-1 text-xs font-semibold text-[#9f927d]">
+                        <div className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">
                           {person.relationship?.relationshipLabel ?? "暂无关系状态"}
                         </div>
-                        <div className="mt-1 truncate text-xs font-semibold text-[#9f927d]">
+                        <div className="mt-1 truncate text-xs font-semibold text-[var(--ls-ink-soft)]">
                           {linkedUsersText(person)}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right text-xs font-semibold text-[#9f927d]">
+                      <div className="shrink-0 text-right text-xs font-semibold text-[var(--ls-ink-soft)]">
                         <div>{formatDate(person.lastMessageAt)}</div>
                         <div className="mt-1">{person.messageCount} 条</div>
                       </div>
@@ -371,7 +371,7 @@ export function ConversationHistoryPage({
                 );
               })
             ) : (
-              <div className="admin-island-soft-panel px-4 py-6 text-sm font-semibold text-[#8a7b66]">
+              <div className="admin-island-soft-panel px-4 py-6 text-sm font-semibold text-[var(--ls-ink-muted)]">
                 {state.loadingList ? "正在读取现实身份..." : "暂无结果。"}
               </div>
             )}
@@ -391,10 +391,10 @@ export function ConversationHistoryPage({
                       </span>
                       {state.detail.isOwner && <StatusPill active label="owner" />}
                     </div>
-                    <h3 className="mt-3 text-2xl font-black leading-tight text-[#794f27]">
+                    <h3 className="mt-3 text-2xl font-black leading-tight text-[var(--ls-ink-strong)]">
                       {detailPersonLabel(state.detail)}
                     </h3>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#9f927d]">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--ls-ink-soft)]">
                       <span className="admin-chip admin-chip-yellow">
                         {state.detail.relationship?.relationshipLabel ?? "暂无关系状态"}
                       </span>
@@ -429,7 +429,7 @@ export function ConversationHistoryPage({
                           渠道账号
                         </span>
                       </div>
-                      <h3 className="mt-3 text-base font-black text-[#794f27]">渠道账号与会话</h3>
+                      <h3 className="mt-3 text-base font-black text-[var(--ls-ink-strong)]">渠道账号与会话</h3>
                     </div>
                   </div>
                   <div className="grid gap-3">
@@ -437,10 +437,10 @@ export function ConversationHistoryPage({
                       <div key={userDetail.user.id} className="admin-island-row p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-black text-[#794f27]">
+                            <div className="truncate text-sm font-black text-[var(--ls-ink-strong)]">
                               {userDetail.user.displayName ?? userDetail.user.externalId}
                             </div>
-                            <div className="mt-1 truncate text-xs font-semibold text-[#9f927d]">
+                            <div className="mt-1 truncate text-xs font-semibold text-[var(--ls-ink-soft)]">
                               {userDetail.user.externalId}
                             </div>
                           </div>
@@ -457,20 +457,20 @@ export function ConversationHistoryPage({
                                   onClick={() => selectConversation(conversation.id)}
                                   className={`admin-island-row w-full px-3 py-3 text-left transition ${
                                     active
-                                      ? "border-[#21b9aa] bg-[#e6f9f6]"
-                                      : "hover:bg-[#fff9e8]"
+                                      ? "border-[var(--ls-mint)] bg-[var(--ls-mint-soft)]"
+                                      : "hover:bg-[var(--ls-panel-soft)]"
                                   }`}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <div className="truncate text-sm font-bold text-[#725d42]">
+                                      <div className="truncate text-sm font-bold text-[var(--ls-ink)]">
                                         {conversationTitle(conversation)}
                                       </div>
-                                      <div className="mt-1 truncate text-xs font-semibold text-[#9f927d]">
+                                      <div className="mt-1 truncate text-xs font-semibold text-[var(--ls-ink-soft)]">
                                         {conversation.lastMessagePreview ?? "暂无消息"}
                                       </div>
                                     </div>
-                                    <div className="shrink-0 text-right text-xs font-semibold text-[#9f927d]">
+                                    <div className="shrink-0 text-right text-xs font-semibold text-[var(--ls-ink-soft)]">
                                       <div>{formatDate(conversation.lastMessageAt)}</div>
                                       <div className="mt-1">{conversation.messageCount} 条</div>
                                     </div>
@@ -479,7 +479,7 @@ export function ConversationHistoryPage({
                               );
                             })
                           ) : (
-                            <div className="admin-island-soft-panel px-3 py-4 text-sm font-semibold text-[#8a7b66]">
+                            <div className="admin-island-soft-panel px-3 py-4 text-sm font-semibold text-[var(--ls-ink-muted)]">
                               这个渠道账号还没有会话。
                             </div>
                           )}
@@ -498,7 +498,7 @@ export function ConversationHistoryPage({
                           消息记录
                         </span>
                       </div>
-                      <h3 className="mt-3 text-base font-black text-[#794f27]">
+                      <h3 className="mt-3 text-base font-black text-[var(--ls-ink-strong)]">
                         {selectedConversation
                           ? conversationTitle(selectedConversation)
                           : "请选择一个会话"}
@@ -517,7 +517,7 @@ export function ConversationHistoryPage({
                           <article
                             key={message.id}
                             className={`admin-island-row p-4 ${
-                              isAssistant ? "bg-[#fff4c7]/60" : ""
+                              isAssistant ? "bg-[var(--ls-yellow-soft)]/60" : ""
                             }`}
                           >
                             <div className="flex items-center justify-between gap-3">
@@ -532,18 +532,18 @@ export function ConversationHistoryPage({
                               >
                                 {messageRoleLabel(message.role)}
                               </span>
-                              <span className="text-xs font-semibold text-[#9f927d]">
+                              <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">
                                 {formatDate(message.createdAt)}
                               </span>
                             </div>
-                            <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-7 text-[#172033]">
+                            <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-7 text-[var(--ls-ink-strong)]">
                               {message.content}
                             </p>
                           </article>
                         );
                       })
                     ) : (
-                      <div className="admin-island-soft-panel px-4 py-6 text-sm font-semibold text-[#8a7b66]">
+                      <div className="admin-island-soft-panel px-4 py-6 text-sm font-semibold text-[var(--ls-ink-muted)]">
                         {state.loadingDetail || state.loadingMessages
                           ? "正在读取消息..."
                           : "暂无消息。"}
@@ -554,7 +554,7 @@ export function ConversationHistoryPage({
               </section>
             </>
           ) : (
-            <div className="admin-island-soft-panel px-5 py-8 text-sm font-semibold text-[#8a7b66]">
+            <div className="admin-island-soft-panel px-5 py-8 text-sm font-semibold text-[var(--ls-ink-muted)]">
               {state.loadingDetail ? "正在读取现实身份详情..." : "选择一个现实身份后查看对话。"}
             </div>
           )}

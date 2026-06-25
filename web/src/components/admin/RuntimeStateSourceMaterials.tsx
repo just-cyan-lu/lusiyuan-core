@@ -24,7 +24,7 @@ export function RuntimeStateSourceMaterials({
 }: RuntimeStateSourceMaterialsProps) {
   if (loading) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
         正在读取来源材料...
       </div>
     );
@@ -32,7 +32,7 @@ export function RuntimeStateSourceMaterials({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-4 text-sm leading-6 text-[#8d6048]">
+      <div className="rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-4 text-sm leading-6 text-[var(--ls-warning-text)]">
         {error}
       </div>
     );
@@ -40,20 +40,20 @@ export function RuntimeStateSourceMaterials({
 
   if (!detail) {
     return (
-      <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2]">
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
         暂无来源材料。
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[#7b8ca2]">来源材料</div>
-          <h4 className="mt-1 text-lg font-semibold text-[#172033]">这次变化参考了什么</h4>
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">来源材料</div>
+          <h4 className="mt-1 text-lg font-semibold text-[var(--ls-ink-strong)]">这次变化参考了什么</h4>
         </div>
-        <div className="rounded-full border border-[#c9d6e5] bg-white px-3 py-1 text-xs text-[#66758a]">
+        <div className="rounded-full border border-[var(--ls-border-cold)] bg-white px-3 py-1 text-xs text-[var(--ls-ink-soft)]">
           {detail.runtimeEvents.length} 个事件 / {detail.messages.length} 条消息
         </div>
       </div>
@@ -64,7 +64,7 @@ export function RuntimeStateSourceMaterials({
       />
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">运行事件来源</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">运行事件来源</div>
         <div className="mt-3 grid gap-3">
           {detail.runtimeEvents.length > 0 ? (
             detail.runtimeEvents.map((event) => (
@@ -81,7 +81,7 @@ export function RuntimeStateSourceMaterials({
       </section>
 
       <section className="mt-5">
-        <div className="text-xs font-semibold text-[#7b8ca2]">消息来源</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">消息来源</div>
         <div className="mt-3 grid gap-3">
           {detail.messages.length > 0 ? (
             detail.messages.map((message) => (
@@ -104,24 +104,24 @@ function RuntimeEventSourceCard({
   runtimeEventTypeLabel: (eventType: string) => string;
 }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-sm font-semibold text-[#172033]">
+          <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
             {runtimeEventTypeLabel(event.eventType)}
           </div>
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#7b8ca2]">
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
             <span>{event.source}</span>
             <span>{event.status}</span>
             <span>重要度 {event.importance}</span>
             <span>ID {shortAdminId(event.id)}</span>
           </div>
         </div>
-        <div className="text-xs text-[#7b8ca2] md:text-right">
+        <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
           {formatAdminDate(event.createdAt)}
         </div>
       </div>
-      <p className="mt-3 text-sm leading-7 text-[#334155]">{event.summary}</p>
+      <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-strong)]">{event.summary}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <SourceSignal label="心情" value={event.moodSignal} />
         <SourceSignal label="精力" value={event.energySignal} />
@@ -141,13 +141,13 @@ function MessageSourceCard({ message }: { message: RuntimeSourceMessage }) {
   const displayName = user.displayName || user.externalId;
 
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-sm font-semibold text-[#172033]">
+          <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
             {roleLabel(message.role)} · {displayName}
           </div>
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#7b8ca2]">
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
             <span>{message.conversation.channel}</span>
             <span>会话 {shortAdminId(message.conversation.externalConversationId)}</span>
             <span>消息 {shortAdminId(message.id)}</span>
@@ -156,15 +156,15 @@ function MessageSourceCard({ message }: { message: RuntimeSourceMessage }) {
             ) : null}
           </div>
         </div>
-        <div className="text-xs text-[#7b8ca2] md:text-right">
+        <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
           {formatAdminDate(message.createdAt)}
         </div>
       </div>
-      <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-[#edf2f7] bg-[#f8fbff] px-3 py-2 text-sm leading-7 text-[#334155]">
+      <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-sm leading-7 text-[var(--ls-ink-strong)]">
         {message.content}
       </div>
       {message.isIntermediate ? (
-        <div className="mt-2 text-xs text-[#8d6048]">中间消息</div>
+        <div className="mt-2 text-xs text-[var(--ls-warning-text)]">中间消息</div>
       ) : null}
     </div>
   );
@@ -180,7 +180,7 @@ function MissingSources({
   if (runtimeEventIds.length === 0 && messageIds.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-lg border border-[#ead4c8] bg-[#fffaf7] px-4 py-3 text-xs leading-6 text-[#8d6048]">
+    <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-panel-cold)] px-4 py-3 text-xs leading-6 text-[var(--ls-warning-text)]">
       {runtimeEventIds.length > 0 ? (
         <div>缺失运行事件：{runtimeEventIds.map(shortAdminId).join(" / ")}</div>
       ) : null}
@@ -193,7 +193,7 @@ function MissingSources({
 
 function EmptySource({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3 text-sm text-[#7b8ca2]">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm text-[var(--ls-ink-soft)]">
       {text}
     </div>
   );
@@ -201,7 +201,7 @@ function EmptySource({ text }: { text: string }) {
 
 function SourceSignal({ label, value }: { label: string; value: string | null }) {
   return (
-    <span className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-3 py-1 text-xs text-[#334155]">
+    <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-1 text-xs text-[var(--ls-ink-strong)]">
       {label}：{value ?? "暂无"}
     </span>
   );

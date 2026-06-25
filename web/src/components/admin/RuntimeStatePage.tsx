@@ -453,10 +453,10 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[#d9e2ec] bg-white p-7 shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-        <div className="text-xs font-semibold text-[#8a6f5a]">Runtime State</div>
-        <h2 className="mt-3 text-3xl font-semibold text-[#172033]">陆思源运行态</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-[#617188]">
+      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+        <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
+        <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
           请先在顶部输入 Admin Token。运行态会保存陆思源最近的心情、精力、关注点和正在做的事。
         </p>
       </section>
@@ -468,12 +468,12 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <section className="rounded-lg border border-[#d9e2ec] bg-white p-6 shadow-[0_18px_48px_rgba(91,117,150,0.13)] md:p-7">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)] md:p-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="text-xs font-semibold text-[#8a6f5a]">Runtime State</div>
-            <h2 className="mt-2 text-3xl font-semibold text-[#172033]">陆思源运行态</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#617188]">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
               数据库里的当前状态。普通聊天只记录事件；长期状态由 owner 对话、复盘、梦境、自启动和手动校准更新。
             </p>
           </div>
@@ -504,12 +504,12 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         </div>
 
         {pageState.error && (
-          <div className="mt-5 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-4 py-3 text-sm text-[#8d6048]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
             {pageState.error}
           </div>
         )}
         {pageState.message && (
-          <div className="mt-5 rounded-lg border border-[#b9d8c7] bg-[#eef8f2] px-4 py-3 text-sm text-[#3f7b5d]">
+          <div className="mt-5 rounded-lg border border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] px-4 py-3 text-sm text-[var(--ls-success-text)]">
             {pageState.message}
           </div>
         )}
@@ -518,14 +518,14 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       {runtime && form ? (
         <>
           <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+            <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <div className="text-sm text-[#7b8ca2]">最近心情</div>
-                  <div className="mt-2 text-3xl font-semibold text-[#172033]">
+                  <div className="text-sm text-[var(--ls-ink-soft)]">最近心情</div>
+                  <div className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">
                     {runtime.moodLabel}
                   </div>
-                  <div className="mt-2 text-sm text-[#617188]">
+                  <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">
                     {moodTone(runtime.moodScore)} · 更新于 {formatDate(runtime.updatedAt)}
                   </div>
                 </div>
@@ -543,8 +543,8 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               </div>
             </div>
 
-            <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-5">
-              <h3 className="text-base font-semibold text-[#172033]">当前在做的事</h3>
+            <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-5">
+              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">当前在做的事</h3>
               <InfoBlock label="当前目标" value={runtime.currentGoal} />
               <InfoBlock label="最近关注" value={runtime.currentFocus} />
               <InfoBlock label="正在做" value={runtime.currentActivity} />
@@ -552,8 +552,8 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           </section>
 
           <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-              <h3 className="text-base font-semibold text-[#172033]">详情信息</h3>
+            <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">详情信息</h3>
               <div className="mt-4 grid gap-3">
                 <DetailRow label="State ID" value={runtime.id} />
                 <DetailRow label="Key" value={runtime.key} />
@@ -569,24 +569,24 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                 />
               </div>
 
-              <div className="mt-5 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-                <div className="text-xs font-semibold text-[#7b8ca2]">最近事件</div>
-                <p className="mt-2 text-sm leading-7 text-[#334155]">
+              <div className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+                <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">最近事件</div>
+                <p className="mt-2 text-sm leading-7 text-[var(--ls-ink-strong)]">
                   {runtime.recentEventSummary || "暂无新的运行事件。"}
                 </p>
               </div>
 
-              <div className="mt-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
-                <div className="text-xs font-semibold text-[#7b8ca2]">状态备注</div>
-                <p className="mt-2 text-sm leading-7 text-[#334155]">
+              <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+                <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">状态备注</div>
+                <p className="mt-2 text-sm leading-7 text-[var(--ls-ink-strong)]">
                   {runtime.statusNote || "暂无备注。"}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-lg border border-[#d9e2ec] bg-white p-5">
-              <h3 className="text-base font-semibold text-[#172033]">内在详情</h3>
-              <p className="mt-1 text-xs leading-6 text-[#7b8ca2]">
+            <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">内在详情</h3>
+              <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
                 LLM 提议校验、复盘和梦境会填充这些细节；普通聊天只留下事件材料。
               </p>
               <div className="mt-4 grid gap-3">
@@ -600,8 +600,8 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               </div>
             </div>
 
-            <div className="admin-select-host rounded-lg border border-[#d9e2ec] bg-white p-5 xl:col-span-2">
-              <h3 className="text-base font-semibold text-[#172033]">配置与控制</h3>
+            <div className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 xl:col-span-2">
+              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">配置与控制</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="心情">
                   <AdminInput
@@ -613,7 +613,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                   />
                 </Field>
                 <div className="flex flex-col gap-1">
-                  <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">更新模式</span>
+                  <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">更新模式</span>
                   <AdminSelect
                     ariaLabel="更新模式"
                     value={form.updateMode}
@@ -626,7 +626,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">更新策略</span>
+                  <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">更新策略</span>
                   <AdminSelect
                     ariaLabel="更新策略"
                     value={form.updateStrategy}
@@ -639,7 +639,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-xs leading-6 text-[#617188]">
+              <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-xs leading-6 text-[var(--ls-ink-soft)]">
                 规则校准更稳定省资源；LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、复盘、梦境或自启动。普通聊天不会直接改这里。
               </div>
 
@@ -674,7 +674,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                 />
               </div>
 
-              <label className="mt-4 flex items-center gap-3 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 text-sm text-[#334155]">
+              <label className="mt-4 flex items-center gap-3 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm text-[var(--ls-ink-strong)]">
                 <Switch
                   checked={form.autoUpdateEnabled}
                   onChange={(checked: boolean) => setForm({ ...form, autoUpdateEnabled: checked })}
@@ -715,11 +715,11 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             </div>
           </section>
 
-          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-semibold text-[#172033]">运行事件</h3>
-                <p className="mt-1 text-xs text-[#7b8ca2]">
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">运行事件</h3>
+                <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                   最近 12 条经历和观察；点开一条可以看它是否有资格影响长期状态。
                 </p>
               </div>
@@ -740,19 +740,19 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                           }`}
                         >
                           <div>
-                            <div className="text-sm font-semibold text-[#172033]">
+                            <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
                               {runtimeEventTypeLabel(event.eventType)}
                             </div>
-                            <div className="mt-1 text-xs text-[#7b8ca2]">
+                            <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                               {event.source ?? "unknown"}
                             </div>
                           </div>
-                          <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
-                          <div className="text-xs leading-6 text-[#7b8ca2]">
+                          <div className="text-sm leading-6 text-[var(--ls-ink-strong)]">{event.summary}</div>
+                          <div className="text-xs leading-6 text-[var(--ls-ink-soft)]">
                             <div>{event.topic ?? "暂无主题"}</div>
                             <div>重要度 {event.importance}</div>
                           </div>
-                          <div className="text-xs text-[#7b8ca2] md:text-right">
+                          <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
                             {formatDate(event.createdAt)}
                           </div>
                         </button>
@@ -767,18 +767,18 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                   />
                 </>
               ) : (
-                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
+                <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)] xl:col-span-2">
                   暂无运行事件。
                 </div>
               )}
             </div>
           </section>
 
-          <section className="rounded-lg border border-[#d9e2ec] bg-white p-5">
+          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-semibold text-[#172033]">状态变更</h3>
-                <p className="mt-1 text-xs text-[#7b8ca2]">
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">状态变更</h3>
+                <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                   最近 12 条真正写入 RuntimeState 的变化；点开一条可以看为什么变、变了哪些字段。
                 </p>
               </div>
@@ -799,15 +799,15 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                           }`}
                         >
                           <div>
-                            <div className="text-sm font-semibold text-[#172033]">
+                            <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
                               {eventTypeLabel(event.eventType)}
                             </div>
-                            <div className="mt-1 text-xs text-[#7b8ca2]">
+                            <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                               {event.source ?? "unknown"}
                             </div>
                           </div>
-                          <div className="text-sm leading-6 text-[#334155]">{event.summary}</div>
-                          <div className="text-xs text-[#7b8ca2] md:text-right">
+                          <div className="text-sm leading-6 text-[var(--ls-ink-strong)]">{event.summary}</div>
+                          <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
                             {formatDate(event.createdAt)}
                           </div>
                         </button>
@@ -830,7 +830,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                   </div>
                 </>
               ) : (
-                <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-6 text-sm text-[#7b8ca2] xl:col-span-2">
+                <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)] xl:col-span-2">
                   暂无状态变更。
                 </div>
               )}
@@ -838,7 +838,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           </section>
         </>
       ) : (
-        <div className="rounded-lg border border-[#d9e2ec] bg-white px-5 py-8 text-sm text-[#7b8ca2]">
+        <div className="rounded-lg border border-[var(--ls-border)] bg-white px-5 py-8 text-sm text-[var(--ls-ink-soft)]">
           {pageState.loading ? "正在读取运行态..." : "暂无运行态数据。"}
         </div>
       )}
@@ -849,7 +849,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label>
-      <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
       {children}
     </label>
   );
@@ -866,7 +866,7 @@ function TextAreaField({
 }) {
   return (
     <label>
-      <span className="mb-1 block text-xs font-semibold text-[#7b8ca2]">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
       <textarea
         className="field-input min-h-20 resize-y leading-6"
         value={value}
@@ -890,10 +890,10 @@ function SliderField({
   onChange: (value: number) => void;
 }) {
   return (
-    <label className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
-      <span className="flex items-center justify-between gap-3 text-xs font-semibold text-[#7b8ca2]">
+    <label className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
+      <span className="flex items-center justify-between gap-3 text-xs font-semibold text-[var(--ls-ink-soft)]">
         <span>{label}</span>
-        <span className="text-[#172033]">{value}</span>
+        <span className="text-[var(--ls-ink-strong)]">{value}</span>
       </span>
       <input
         type="range"
@@ -901,7 +901,7 @@ function SliderField({
         max={max}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-3 w-full accent-[#6f8fb8]"
+        className="mt-3 w-full accent-[var(--ls-link-soft)]"
       />
     </label>
   );
@@ -924,14 +924,14 @@ function MetricBar({
   const clampedPercent = Math.min(Math.max(percent, 0), 100);
   const strong = dangerHigh ? value < 55 : value >= 45;
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-[#f8fbff] p-4">
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold text-[#7b8ca2]">{label}</div>
-        <div className="text-sm font-semibold text-[#172033]">{value}</div>
+        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
+        <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">{value}</div>
       </div>
-      <div className="mt-3 h-2 rounded-full bg-[#e4ebf3]">
+      <div className="mt-3 h-2 rounded-full bg-[var(--ls-panel-cold-deep)]">
         <div
-          className={`h-2 rounded-full ${strong ? "bg-[#6aa47e]" : "bg-[#c48a6a]"}`}
+          className={`h-2 rounded-full ${strong ? "bg-[var(--ls-success-text-soft)]" : "bg-[var(--ls-warning-text-strong)]"}`}
           style={{ width: `${clampedPercent}%` }}
         />
       </div>
@@ -941,30 +941,30 @@ function MetricBar({
 
 function InfoBlock({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="mt-4 rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
-      <div className="text-xs font-semibold text-[#7b8ca2]">{label}</div>
-      <div className="mt-2 text-sm leading-6 text-[#334155]">{value || "暂无"}</div>
+    <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
+      <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">{value || "暂无"}</div>
     </div>
   );
 }
 
 function InfoList({ label, items }: { label: string; items: string[] }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white px-4 py-3">
-      <div className="text-xs font-semibold text-[#7b8ca2]">{label}</div>
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
+      <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
       {items.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {items.map((item) => (
             <span
               key={item}
-              className="rounded-full border border-[#d9e2ec] bg-[#f8fbff] px-2.5 py-1 text-xs text-[#334155]"
+              className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 text-xs text-[var(--ls-ink-strong)]"
             >
               {item}
             </span>
           ))}
         </div>
       ) : (
-        <div className="mt-2 text-sm text-[#7b8ca2]">暂无</div>
+        <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">暂无</div>
       )}
     </div>
   );
@@ -972,9 +972,9 @@ function InfoList({ label, items }: { label: string; items: string[] }) {
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-2 rounded-lg border border-[#d9e2ec] bg-[#f8fbff] px-4 py-3 md:grid-cols-[7rem_1fr]">
-      <div className="text-xs font-semibold text-[#7b8ca2]">{label}</div>
-      <div className="break-all text-sm text-[#334155]">{value}</div>
+    <div className="grid gap-2 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 md:grid-cols-[7rem_1fr]">
+      <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="break-all text-sm text-[var(--ls-ink-strong)]">{value}</div>
     </div>
   );
 }
