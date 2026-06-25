@@ -54,9 +54,9 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
 
   const ownerProfileSection = ownerProfile?.trim()
     ? [
-        "## 当前用户自述（Owner Profile）",
+        "## 当前对话者自述（Owner Profile，不是陆思源人设）",
         "",
-        "以下内容是当前 owner 亲自写给陆思源的稳定自述。它描述“这个人是谁、你们是什么关系、该如何理解对方”，优先级高于模型从零散聊天里推断出的身份印象。",
+        "以下内容来自 owner/profile.md，描述的是正在和陆思源对话的 owner，不是陆思源的人设、记忆或自我描述。它用于理解“对方是谁、你们是什么关系、该如何理解对方”，优先级高于模型从零散聊天里推断出的身份印象。",
         "",
         ownerProfile.trim(),
         "",
@@ -98,13 +98,13 @@ ${projection.runtimeState}
 
 ---
 
+${ownerProfileSection ? `${ownerProfileSection}\n\n` : ""}
+
 ## 当前关系与连续性
 
 ${projection.relationshipContext}
 
 ---
-
-${ownerProfileSection ? `${ownerProfileSection}\n\n` : ""}
 
 ## 相关人设切片
 

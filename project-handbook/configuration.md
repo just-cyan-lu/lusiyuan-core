@@ -18,8 +18,6 @@
 
 每次修改会写入 `SystemSettingEvent`，记录旧值、新值和修改时间。代码里的配置注册表负责默认值、类型、范围和合法选项；数据库只保存经过校验的值。
 
-`OWNER_PROFILE` 是 owner 亲自写给陆思源的稳定自述，只在 owner 对话里进入 prompt。它用来描述“当前这个人是谁、和陆思源是什么关系、陆思源应该如何理解对方”，优先级高于模型从零散聊天中自行推断出的身份印象。
-
 特殊组件会在保存后重新配置：
 
 - 切换模型渠道：下一次模型调用重建客户端。
@@ -32,6 +30,12 @@
 Web Chat 不再把浏览器随机 id 当成默认用户。默认操作者是 `WEBCHAT_OWNER_USER_ID`（默认 `web:owner`），Codex 代聊或测试使用 `WEBCHAT_CODEX_USER_ID`（默认 `web:codex`）。两者虽然都来自 `web` 渠道，但会分别写入不同的 User、Conversation、关系状态和记忆。
 
 `WEBCHAT_OWNER_USER_ID` 会被视为 owner。多个 owner 渠道账号会自动链接到同一个 `PersonIdentity`，避免陆思源把 Telegram owner 和 Web owner 当成两个不同的人。
+
+## Owner 自述
+
+`owner/profile.md` 是 owner 亲自写给陆思源的稳定自述，只在 owner 对话里进入 prompt。它用来描述“当前这个人是谁、和陆思源是什么关系、陆思源应该如何理解对方”，优先级高于模型从零散聊天中自行推断出的身份印象。
+
+这份 markdown 不放在配置中心，也不放在 `persona/` 里。它描述的是“和陆思源对话的人”，不是陆思源的人设或自我描述。数据库里的 `RelationshipState` 会在它的基础上描述当前关系状态和近期变化，用来做微调，而不是替代 owner 自述。
 
 ## Skill 配置
 

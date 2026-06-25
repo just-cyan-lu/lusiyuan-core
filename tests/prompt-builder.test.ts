@@ -178,8 +178,10 @@ test("includes owner-written profile as stable current-user context", () => {
 
   const systemPrompt = messages[0].content;
   assert.equal(typeof systemPrompt, "string");
-  assert.match(systemPrompt as string, /当前用户自述（Owner Profile）/);
+  assert.match(systemPrompt as string, /当前对话者自述（Owner Profile，不是陆思源人设）/);
   assert.match(systemPrompt as string, /我是 Cyan/);
+  assert.match(systemPrompt as string, /owner\/profile\.md/);
+  assert.match(systemPrompt as string, /不是陆思源的人设、记忆或自我描述/);
   assert.match(systemPrompt as string, /优先级高于模型从零散聊天里推断出的身份印象/);
 });
 

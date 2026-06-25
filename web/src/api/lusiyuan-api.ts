@@ -387,7 +387,6 @@ export interface RuntimeStateUpdateInput {
 export type EnvConfigFieldType =
   | "string"
   | "secret"
-  | "text"
   | "boolean"
   | "integer"
   | "number"

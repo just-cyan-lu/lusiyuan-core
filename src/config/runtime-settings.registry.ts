@@ -1,4 +1,4 @@
-export type RuntimeSettingType = "boolean" | "integer" | "number" | "string" | "text" | "select";
+export type RuntimeSettingType = "boolean" | "integer" | "number" | "string" | "select";
 
 export interface RuntimeSettingDefinition<T extends boolean | number | string = boolean | number | string> {
   group: string;
@@ -16,7 +16,6 @@ export const runtimeSettingDefinitions = {
   MINIMAX_THINKING_TYPE: { group: "模型运行", label: "MiniMax Thinking Type", type: "select", defaultValue: "adaptive", options: ["adaptive", "disabled"] },
   MINIMAX_REASONING_SPLIT: { group: "模型运行", label: "MiniMax Reasoning Split", type: "boolean", defaultValue: false },
   MINIMAX_MAX_COMPLETION_TOKENS: { group: "模型运行", label: "MiniMax 最大生成 Token", type: "integer", defaultValue: 0, min: 0, description: "0 表示不额外限制。" },
-  OWNER_PROFILE: { group: "关系与身份", label: "关于我（Owner 自述）", type: "text", defaultValue: "", description: "你亲自写给陆思源的稳定自述。只在 owner 对话中进入 prompt，优先级高于模型从聊天里推断出的身份印象。" },
 
   MAX_MESSAGE_LENGTH: { group: "聊天限制", label: "单条消息最大长度", type: "integer", defaultValue: 4000, min: 1, max: 100000 },
   REPLY_DELIVERY_MODE: { group: "回复投递", label: "回复投递模式", type: "select", defaultValue: "hybrid", options: ["single", "final_blocks", "hybrid"], description: "single=最终一条；final_blocks=最终自然分条；hybrid=工具即时反应 + 最终自然分条。" },
