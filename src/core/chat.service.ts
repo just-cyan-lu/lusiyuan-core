@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma.js";
 import { loadPersona } from "./persona-loader.js";
+import { loadOwnerProfile } from "./owner-profile-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
 import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
@@ -184,8 +185,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     throw err;
   }
 
-  const [persona, memories, recentMessages, runtimeState, relationshipState] = await Promise.all([
+  const [persona, ownerProfile, memories, recentMessages, runtimeState, relationshipState] = await Promise.all([
     loadPersona(),
+    owner ? loadOwnerProfile() : Promise.resolve(""),
     memoryService.retrieveRelevantMemories(user.id, input.message),
     prisma.message
       .findMany({
@@ -207,7 +209,6 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         return undefined;
       }),
   ]);
-  const ownerProfile = owner ? runtimeConfig.OWNER_PROFILE : undefined;
 
   const availableTools = runtimeConfig.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
 
@@ -221,7 +222,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     channel: input.channel,
     runtimeState,
     relationshipState,
-    ownerProfile,
+    ownerProfile: ownerProfile || undefined,
   });
 
   // If user sent images, append them to the last user message
