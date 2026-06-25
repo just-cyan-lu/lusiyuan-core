@@ -783,7 +783,9 @@ textarea.field-input {
      显式 will-change 在 100+ 粒子时会创建过多合成层拖累合成器。 */
 }
 .click-particle--active {
-  animation: click-particle-fly var(--particle-dur, 500ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  /* 缓动 easeOut：起始快、末端减速，符合"甩出后自然停下"的物理感
+     之前的 cubic-bezier(0.22,1,0.36,1) 末端过于平缓导致"卡在边界"假象 */
+  animation: click-particle-fly var(--particle-dur, 500ms) ease-out forwards;
 }
 /* 落点：dx/dy 由 hook inline 写入 --particle-dx/--particle-dy（每粒独立随机） */
 @keyframes click-particle-fly {
@@ -794,19 +796,20 @@ textarea.field-input {
       ) scale(0);
     opacity: 1;
   }
-  20% {
-    opacity: 1;
-    /* 中段略大，模拟冲量 */
+  10% {
+    /* 快速放大到正常大小（粒子"显形"） */
     transform: translate(
-        calc(-50% + var(--particle-dx, 0px) * 0.6 + var(--particle-ox, 0px)),
-        calc(-50% + var(--particle-dy, 0px) * 0.6 + var(--particle-oy, 0px))
-      ) scale(1.15);
+        calc(-50% + var(--particle-dx, 0px) * 0.15 + var(--particle-ox, 0px)),
+        calc(-50% + var(--particle-dy, 0px) * 0.15 + var(--particle-oy, 0px))
+      ) scale(1);
+    opacity: 1;
   }
   100% {
+    /* 整段位移走完，到达落点；不缩小（避免"卡住"假象） */
     transform: translate(
         calc(-50% + var(--particle-dx, 0px) + var(--particle-ox, 0px)),
         calc(-50% + var(--particle-dy, 0px) + var(--particle-oy, 0px))
-      ) scale(0.6);
+      ) scale(1);
     opacity: 0;
   }
 }
