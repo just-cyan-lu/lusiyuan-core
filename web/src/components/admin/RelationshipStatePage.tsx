@@ -65,12 +65,12 @@ function formatDate(value: string | null): string {
 }
 
 function userLabel(relationship: RelationshipState): string {
-  return relationship.person?.label ?? primaryUserLabel(relationship) ?? relationship.personId;
-}
-
-function primaryUserLabel(relationship: RelationshipState): string | null {
-  const user = relationship.person?.identityLinks[0]?.user;
-  return user?.displayName ?? user?.externalId ?? null;
+  // 优先级：person 自己的 label → 第一个绑定 user 的 displayName → 第一个绑定 user 的 externalId
+  // （不再兜底到 cuid personId，避免在列表行展示无意义的内部 ID）
+  const person = relationship.person;
+  if (person?.label) return person.label;
+  const firstUser = person?.identityLinks?.[0]?.user;
+  return firstUser?.displayName ?? firstUser?.externalId ?? relationship.personId;
 }
 
 function relationshipSummaryText(relationship: RelationshipState): string {
@@ -502,7 +502,7 @@ export function RelationshipStatePage({
             <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">
               {selectedRelationshipId ? "关系详情" : "关系状态"}
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ls-ink-soft)]">
               {selectedRelationshipId
                 ? "这里集中处理一个现实身份的关系状态、渠道绑定和关系变更记录。"
                 : "每个现实身份一份关系状态。列表只放关键关系信息，点进详情后再修正状态和查看变更。"}
@@ -547,6 +547,8 @@ export function RelationshipStatePage({
             )}
           </div>
         </div>
+
+        {!selectedRelationshipId && <RelationshipSummaryStrip relationships={pageState.relationships} />}
 
         {pageState.error && (
           <div className="mt-5 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm text-[var(--ls-warning-text)]">
@@ -612,25 +614,36 @@ export function RelationshipStatePage({
                       <span className="break-words text-sm font-semibold text-[var(--ls-ink-strong)]">
                         {userLabel(relationship)}
                       </span>
-                      <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 text-xs font-medium text-[var(--ls-ink-strong)]">
-                        {relationship.relationshipLabel}
-                      </span>
+                      {(() => {
+                        const tone = relationshipLabelTone(relationship.relationshipLabel);
+                        return (
+                          <span
+                            className="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                            style={{ background: tone.bg, color: tone.text, borderColor: tone.border }}
+                          >
+                            {relationship.relationshipLabel}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-[var(--ls-ink-soft)]">
-                      {(relationship.person?.identityLinks ?? []).length > 0 ? (
-                        relationship.person?.identityLinks.map((link) => (
+                      {(() => {
+                        // 只在 chip 内容与上方 userLabel 不同时才显示，避免同一 user ID 重复两次
+                        const top = userLabel(relationship);
+                        const links = relationship.person?.identityLinks ?? [];
+                        const labels = links
+                          .map((link) => link.user.displayName ?? link.user.externalId)
+                          .filter((label) => label && label !== top);
+                        if (labels.length === 0) return null;
+                        return labels.map((label, i) => (
                           <span
-                            key={link.id}
+                            key={`${label}-${i}`}
                             className="rounded-full bg-[var(--ls-panel-cold)] px-2.5 py-1"
                           >
-                            {link.user.displayName ?? link.user.externalId}
+                            {label}
                           </span>
-                        ))
-                      ) : (
-                        <span className="rounded-full bg-[var(--ls-panel-cold)] px-2.5 py-1">
-                          暂无绑定账号
-                        </span>
-                      )}
+                        ));
+                      })()}
                     </div>
                   </div>
                   <div className="min-w-0 text-sm leading-6 text-[var(--ls-ink-strong)]">
@@ -1025,12 +1038,100 @@ function RelationshipScoreCell({
   dangerHigh?: boolean;
 }) {
   const good = dangerHigh ? value < 45 : value >= 45;
+  const barColor = good ? "var(--ls-mint)" : "var(--ls-orange)";
+  const valueColor = good ? "text-[var(--ls-success-text)]" : "text-[var(--ls-warning-text-strong)]";
   return (
-    <div className="rounded-md border border-[var(--ls-panel-cold-deep)] bg-[var(--ls-panel-soft)] px-2 py-2 text-center lg:border-transparent lg:bg-transparent lg:px-0">
-      <div className="text-[10px] font-semibold text-[var(--ls-ink-soft)] lg:hidden">{label}</div>
-      <div className={`mt-0.5 text-sm font-semibold ${good ? "text-[var(--ls-success-text)]" : "text-[var(--ls-warning-text-strong)]"}`}>
-        {value}
+    <div className="rounded-md border border-[var(--ls-panel-cold-deep)] bg-[var(--ls-panel-soft)] px-2 py-2 lg:border-transparent lg:bg-transparent lg:px-1">
+      <div className="flex items-center justify-between gap-1.5 text-[10px] font-semibold text-[var(--ls-ink-soft)] lg:flex-col lg:items-start lg:gap-0.5">
+        <span>{label}</span>
+        <span className={`text-sm font-black tabular-nums ${valueColor}`}>{value}</span>
+      </div>
+      {/* 水平进度条：直观看到 4 个维度的相对强度 */}
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--ls-panel-cold-deep)] lg:block hidden">
+        <div
+          className="h-full rounded-full transition-[width] duration-300"
+          style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: barColor }}
+        />
       </div>
     </div>
   );
+}
+
+/**
+ * 顶部摘要数据条：把 N 个 relationship 聚合成 4 个一眼可读的数字，
+ * 替代原本空荡荡的标题区。
+ */
+function RelationshipSummaryStrip({ relationships }: { relationships: RelationshipState[] }) {
+  if (relationships.length === 0) return null;
+
+  const avg = (key: keyof Pick<RelationshipState, "familiarity" | "trust" | "closeness" | "tension">) =>
+    Math.round(
+      relationships.reduce((sum, r) => sum + (r[key] ?? 0), 0) / relationships.length
+    );
+  const tensionAlerts = relationships.filter((r) => r.tension >= 45).length;
+  const distinctLabels = new Set(relationships.map((r) => r.relationshipLabel)).size;
+
+  const stats: Array<{ label: string; value: number; tone: "good" | "neutral" | "alert"; suffix?: string }> = [
+    { label: "现实身份", value: relationships.length, tone: "neutral", suffix: "个" },
+    { label: "平均熟悉", value: avg("familiarity"), tone: avg("familiarity") >= 45 ? "good" : "neutral" },
+    { label: "平均信任", value: avg("trust"), tone: avg("trust") >= 45 ? "good" : "neutral" },
+    { label: "关系张力告警", value: tensionAlerts, tone: tensionAlerts > 0 ? "alert" : "good", suffix: tensionAlerts > 0 ? "人" : "" },
+    { label: "关系标签", value: distinctLabels, tone: "neutral", suffix: "种" },
+  ];
+
+  return (
+    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {stats.map((s) => {
+        const toneClass =
+          s.tone === "good"
+            ? "border-[var(--ls-success-border-soft)] bg-[var(--ls-success-bg-soft)]"
+            : s.tone === "alert"
+            ? "border-[var(--ls-pink-text)] bg-[var(--ls-pink-soft)]"
+            : "border-[var(--ls-border)] bg-[var(--ls-panel-soft)]";
+        const valueClass =
+          s.tone === "good"
+            ? "text-[var(--ls-success-text-strong)]"
+            : s.tone === "alert"
+            ? "text-[var(--ls-pink-text)]"
+            : "text-[var(--ls-ink-strong)]";
+        return (
+          <div key={s.label} className={`rounded-lg border px-4 py-3 ${toneClass}`}>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)]">
+              {s.label}
+            </div>
+            <div className="mt-1.5 flex items-baseline gap-1">
+              <span className={`text-2xl font-black tabular-nums ${valueClass}`}>{s.value}</span>
+              {s.suffix && <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">{s.suffix}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 关系标签配色：按 label 关键词匹配项目已有色板，避免所有 chip 同色单调。
+ * 命中规则（按优先级匹配首个命中）：
+ *   - "熟悉/老朋友/老熟" → 薄荷（积极）
+ *   - "认识/刚"          → 蓝（中性，开始）
+ *   - "陌生/未"          → 灰（冷）
+ *   - "冲突/紧张/张力"   → 粉/红（警示）
+ *   - 兜底 → 暖橙
+ */
+function relationshipLabelTone(label: string): { bg: string; text: string; border: string } {
+  const s = label ?? "";
+  if (/(熟悉|老朋友|老熟|亲近|信任)/.test(s)) {
+    return { bg: "var(--ls-mint-soft)", text: "var(--ls-mint-text)", border: "var(--ls-success-border-soft)" };
+  }
+  if (/(认识|初次|刚开始|新建|刚)/.test(s)) {
+    return { bg: "var(--ls-panel-cold)", text: "var(--ls-info-text)", border: "var(--ls-border-cold-soft)" };
+  }
+  if (/(陌生|未形成|未知|未确认)/.test(s)) {
+    return { bg: "var(--ls-panel-soft)", text: "var(--ls-ink-soft)", border: "var(--ls-border)" };
+  }
+  if (/(紧张|冲突|张力|戒备|矛盾|问题)/.test(s)) {
+    return { bg: "var(--ls-pink-soft)", text: "var(--ls-pink-text)", border: "var(--ls-pink-text)" };
+  }
+  return { bg: "var(--ls-warning-bg)", text: "var(--ls-warning-text-strong)", border: "var(--ls-warning-border)" };
 }
