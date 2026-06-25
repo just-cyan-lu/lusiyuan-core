@@ -1,6 +1,6 @@
 # animal-island-ui 接入系统盘点与改造计划
 
-> 状态：P0 全部完成；P1 任务 6 完成、任务 5 决定不替换；P2 待触发；P3 盘点完成
+> 状态：P0 全部完成；P1 任务 5/6 完成；P2 P2.1 试点完成；P3 盘点完成
 > 起始：2026-06-24
 > 最后更新：2026-06-25
 > 范围：`web/` 目录下 admin + 业务页面对 UI 库 `animal-island-ui@1.0.16` 的接入情况
@@ -28,7 +28,7 @@
 | Modal | ❌ | 0 处（暂无可用场景） |
 | Tabs | ❌ | 自实现 `admin-stacked-tab-button`（有意保留，理由见下） |
 | Collapse | ❌ | 用原生 `<details>/<summary>` |
-| Form / FormItem / useForm | ❌ | 手写 useState |
+| Form / FormItem / useForm | 🔬 试点 | ExpressionLearningPage TeachingForm 顶部 4 字段（platform/scene/scope/status）2026-06-25 试点完成（commit 即将），剩下 5 字段保留 useState。详见任务 8 节。 |
 | Typewriter | ❌ | 自实现 `TypingIndicator`（有意保留） |
 | CodeBlock | ❌ | `RawJsonDetails` 是 `<pre>` |
 | Loading | ❌ | 自实现 `LoadingHint`（文本 loading） |
@@ -187,8 +187,21 @@
 
 #### 8. `Form` / `FormItem` / `useForm`
 
+- **状态**：🔬 **2026-06-25 试点完成（4 字段验证，结论：AdminInput + AdminSelect 工作良好，但 5+ 字段表单需谨慎评估）**
 - **场景**：等 ConfigCenterPage 那种"几十个字段+校验"出现时再上；目前手写 useState 还能 hold。
 - **触发条件**：未来有表单字段 > 10 个 + 需要前端校验的页面出现时引入。
+- **试点过程**：ExpressionLearningPage 的 `TeachingForm`（共 9 字段：platform/scene/scope/status/contextText/draftText/finalText/outcome/ownerNote），先把顶部 4 字段（platform/scene/scope/status）从 useState 迁到 `Form.useForm()` + `Form.Item` + `initialValues`，剩下 5 字段（contextText/draftText/finalText/outcome/ownerNote）保留 useState（因为它们有 `outcome === "skipped"` 互斥逻辑，强行塞进 Form/useForm 反而割裂）。
+- **结论**：
+  - `Form.useForm()` + `Form.Item` + `initialValues` 工作良好，`getFieldsValue()` 在 submit 时读出值传给 API 正常
+  - `AdminSelect` 需要把 `value`/`onChange` 改成可选（Form.Item 会注入），已在 `AdminFormPrimitives.tsx` 调整为 optional
+  - 裸 `<input>` 配合 `Form.Item` 会触发 React "uncontrolled → controlled" 警告（Form 异步注入 `initialValues`，首次渲染 value=undefined，二次渲染 value=实际值），**改用 `AdminInput`（UI 库 Input 内部 useState fallback）后警告消失**
+  - 表单字段超过 5 个时仍可保留 useState（如本试点的 5 字段），Form/useForm 不必包揽全部；Form/useForm 主要价值是 **`validateFields` + `rules` 校验**，如果不需要校验，迁移收益有限
+  - "嵌套 label 违法 HTML" 问题在 Form/useForm 模式下消失（Form.Item 渲染 label，AdminInput/AdminSelect 自身不渲染 label，外层是 `<form>` 元素）
+- **踩坑记录**：
+  - `AdminSelect` 必填 `value`/`onChange` → Form.Item 注入时 TS 报错；改为 optional（AdminFormPrimitives.tsx 改动）
+  - 裸 `<input className="field-input h-10" />` 配 `Form.Item name` 触发 controlled→uncontrolled 警告；改用 `AdminInput` 后通过（UI 库 Input 内部 `useState(defaultValue ?? "")` 处理）
+  - `<Form layout="vertical">` 渲染为 `<form>` 元素（不是 div），会作为 block 元素参与 space-y 间距。本试点因为外层是 `space-y-5` Card 没问题；如果塞进 flex/grid 容器需要用 `<div>` 包一层或外层 `display: contents`（但 Form 不支持 component prop 改 div，得用 CSS class 强行覆盖或外层手动 div 包裹）
+- **结论决策**：Form/useForm 暂不推广到其他表单。保留试点代码（4 字段）作为"模式参考"，等真正出现"10+ 字段 + 校验"需求时再扩展。
 
 #### 9. `Table`
 
@@ -288,6 +301,7 @@
 - [x] **2026-06-25 任务 12 决定不替换**：`LoadingHint`（8 处 inline 占位）保留，UI 库 `Loading` 是全屏岛屿动画，语义错配
 - [x] **2026-06-25 任务 13 决定不替换**：`border-t` 14+ 处保留，UI 库 `Divider` 是 12px 固定行高 SVG 木纹，语义错配
 - [x] **2026-06-25 任务 14 初始登记**：自实现 widget 总览表已建，后续每完成改造项登记一行
+- [x] **2026-06-25 P2.1 试点完成**：ExpressionLearningPage TeachingForm 顶部 4 字段（platform/scene/scope/status）迁到 `Form.useForm()` + `Form.Item` + `initialValues`，剩下 5 字段保留 useState。`AdminSelect` `value/onChange` 改为 optional（AdminFormPrimitives.tsx）。**结论**：Form/useForm 工作良好但收益有限（缺校验需求时迁移成本 > 收益），等出现"10+ 字段 + rules 校验"真实需求时再扩展。详见任务 8 节。
 
 ## 剩余任务排序（按 ROI）
 
@@ -297,7 +311,7 @@
 
 | 优先级 | 任务 | 触发条件 | 预计改动量 | 备注 |
 |---|---|---|---|---|
-| P2.1 | `Form` / `useForm`（任务 8） | 出现 10+ 字段 + 校验表单 | 大（需引入校验框架） | 当前 `AdminInput` + `AdminSelect` + `Switch` 已能 hold 30+ 字段无校验（ConfigCenterPage），没迫切需求 |
+| P2.1 | `Form` / `useForm`（任务 8） | 出现 10+ 字段 + 校验表单 | 大（需引入校验框架） | **2026-06-25 试点完成**：4 字段验证通过（platform/scene/scope/status），结论 = 等真校验需求再扩展；详见任务 8 节 |
 | P2.2 | `Table`（任务 9） | ToolsAdminPage "调用日志"需要列视图 | 中（适配 `columns[]` API + 列渲染） | 列表形态已稳定，触发点不明确 |
 | P2.3 | `Modal`（任务 10） | 第一次需要"破坏性操作二次确认"弹窗 | 小（1-2 处即可） | 当前 ConfigCenterPage "清空数据库" 用 inline 强校验（按钮 disabled 等输入），改 Modal 收益小 |
 
