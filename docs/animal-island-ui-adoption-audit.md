@@ -1,6 +1,6 @@
 # animal-island-ui 接入系统盘点与改造计划
 
-> 状态：P0 全部完成；P1 任务 6 完成、任务 5 决定不替换；P2 待办
+> 状态：P0 全部完成；P1 任务 6 完成、任务 5 决定不替换；P2 待触发；P3 盘点完成
 > 起始：2026-06-24
 > 最后更新：2026-06-25
 > 范围：`web/` 目录下 admin + 业务页面对 UI 库 `animal-island-ui@1.0.16` 的接入情况
@@ -199,6 +199,56 @@
 
 - **场景**：未来"危险操作二次确认"弹窗可以用 `Modal`。
 - **触发条件**：第一次需要"破坏性操作二次确认"时引入。
+- **当前可能触发点**：`ConfigCenterPage` "清空数据库业务数据"按钮目前用 `<button disabled>` + 同卡片内"清空密码"和"确认文字"两个 `<input>` 实现二次校验，**已经是强校验模式**(按钮在输入正确前 disabled,不是 Modal 弹窗)。改 Modal 收益小,保留。
+
+### 🔵 P3 - 已盘点不替换（候选登记）
+
+#### 11. `Checkbox` / `Radio` 盘点
+
+- **状态**：✅ **2026-06-25 盘点完成（admin 内 0 处使用）**
+- **背景**：UI 库 `Checkbox` 和 `Radio` 都未在 admin 使用；之前任务 7 已将单 boolean toggle 统一为 UI 库 `Switch`（语义更准确）。
+- **grep 结果**：
+  - `Checkbox`：`grep -rnE '<input[^>]*type="checkbox"' web/src/` 仅 CSS 选择器命中（`index.css:77, 113, 526`），**组件实例 0 处**。
+  - `Radio`：`grep -rnE '<input[^>]*type="radio"' web/src/` 仅 CSS 选择器命中，**组件实例 0 处**。
+- **结论**：admin 完全没有 checkbox / radio 需求（单 boolean 走 Switch，多选走 AdminSelect 多选 instance，多选组暂无需求）。不引入这两个组件。
+
+#### 12. `Loading` 替代 `LoadingHint`（不替换）
+
+- **状态**：⏸ **2026-06-25 盘点完成，决定不替换**
+- **背景**：`ConfigCenterPage.tsx:1225` 自实现 `LoadingHint({ loading })`，admin 内 8 处调用（line 708, 762, 798, 810, 838, 846, 854, 880）。UI 库 `Loading` 是全屏岛屿动画（SVG 鱼 + 叶子 + 水波 + gsap 圆形 mask 揭开 + CSS var `--mask-r` 半径动画）。
+- **不替换理由**：
+  - **语义错配**：`LoadingHint` 是**卡片内 inline placeholder**（一行文字 `"正在读取配置..."` 或 `"暂无配置数据。"`），用于配置卡/事件卡在数据未到位时占位；UI 库 `Loading` 是**全屏页面级 transition**，asset 巨大（SVG 446×540 + gsap 动画 + MotionPathPlugin），适合应用启动 / 路由切换 / 大操作等待，不适合 8 处 inline 占位。
+  - 强行替换 = 把 8 个小卡片塞进全屏动画，体验崩坏。
+  - `LoadingHint` 实现 7 行，零依赖，admin 视觉一致。
+- **保留**：`LoadingHint` 在 `ConfigCenterPage.tsx:1225` 继续使用。
+
+#### 13. `Divider` 替代 `border-t` / `<hr>`（不替换）
+
+- **状态**：⏸ **2026-06-25 盘点完成，决定不替换**
+- **背景**：UI 库 `Divider` 是固定 12px 高 + 棕色 SVG 木纹分隔线（`animal-divider-ZBhpE { background: url(divider-line-brown.svg) center/contain no-repeat }`）。admin 内分隔实际是 `border-t` / `border-t-2` Tailwind 类，14+ 处分布在 `ToolsAdminPage / PlatformsPage / ConfigCenterPage / SkillsAdminPage / ExpressionLearningPage / RelationshipStatePage` 等。
+- **不替换理由**：
+  - **语义错配**：`border-t` 是**卡片内分组视觉**（与 padding、bg、圆角组合形成"section"边界），需要精准控制间距、颜色和层级；`<Divider>` 是**整行水平分隔**（12px 固定高度），相当于把每个 `border-t` 替换成一个完整 row。
+  - 替换后布局塌陷：原来 1px 边线变成 12px gap + SVG，破坏网格布局。
+  - `<hr>` admin 内 0 处使用（grep 命中仅 CSS 选择器）。
+- **保留**：admin 内 `border-t` 系列继续使用 Tailwind utility。
+
+#### 14. 自实现 widget 总览（持续维护）
+
+- **状态**：🔄 **2026-06-25 初始登记**
+- **目的**：把"项目自实现 vs UI 库已有"的判断持续记录在 doc，避免每次重新盘点。
+- **当前自实现 + UI 库已有对照表**：
+
+| 项目自实现 | 位置 | UI 库对应 | 替换结论 |
+|---|---|---|---|
+| `LoadingHint` | `ConfigCenterPage.tsx:1225` | `Loading` | ❌ 不替换（任务 12） |
+| `border-t` 14+ 处 | 多文件 | `Divider` | ❌ 不替换（任务 13） |
+| `ToggleGrid` | `ConfigCenterPage.tsx:1182` | `Switch` 多 key grid | ❌ 不替换（多 key 不适合 Switch） |
+| `SectionPanel` | `AdminDetailPrimitives.tsx:28` | `Card` | ✅ 已合并部分场景（任务 2）；Dashboard 的 icon-variant / Ops 的 PanelHeader 保留 |
+| `StatusPill` | `StatusPill.tsx` | 无 | ❌ 保留（业务实体） |
+| `PlaceholderPage` | `PlaceholderPage.tsx` | 无 | ❌ 保留（占位页骨架） |
+| `admin-stacked-tab-button` | `index.css:422+` | `Tabs` | ❌ 保留（admin 卡片式 vs UI 库水平 tabs） |
+
+- **后续**：每完成一个改造项或发现新的自实现 widget，往此表登记一行。
 
 ### 🟢 不替换（项目自实现保留）
 
@@ -234,3 +284,31 @@
 - [x] **2026-06-25 任务 4 完成**：全量替换 33 处 input → UI 库 `Input`（详见上方任务 4 提交清单，13 个 commit，AdminInput 共享 primitive + `.admin-input` CSS wrapper，textarea 17 处保留）
 - [x] **2026-06-25 任务 6 完成**：ConfigCenterPage 自实现 `admin-switch-button` → UI 库 `Switch`（22 个运行配置 boolean 字段统一替换，commit aa521a0；保留 ToggleGrid 多 key 网格用 StatusPill）
 - [x] **2026-06-25 任务 5 决定不替换**：试错后撤回。HTML 原生 `<details>` 在 admin 内 9 处全保留（`AdminDetailPrimitives.tsx` 1 + `ConfigCenterPage.tsx` 2 + `ToolsAdminPage.tsx` 4 + `PlatformsPage.tsx` 2），UI 库 `Collapse` 是 FAQ 卡片，视觉风格不匹配
+- [x] **2026-06-25 任务 11 完成（盘点）**：`Checkbox` / `Radio` 组件 admin 内 0 处使用，不引入
+- [x] **2026-06-25 任务 12 决定不替换**：`LoadingHint`（8 处 inline 占位）保留，UI 库 `Loading` 是全屏岛屿动画，语义错配
+- [x] **2026-06-25 任务 13 决定不替换**：`border-t` 14+ 处保留，UI 库 `Divider` 是 12px 固定行高 SVG 木纹，语义错配
+- [x] **2026-06-25 任务 14 初始登记**：自实现 widget 总览表已建，后续每完成改造项登记一行
+
+## 剩余任务排序（按 ROI）
+
+**P0 / P1 / 已完成**（共 7 个改造项 + 3 个盘点项）：全部 done。
+
+**P2 触发型**（共 3 个）：等出现真实需求。
+
+| 优先级 | 任务 | 触发条件 | 预计改动量 | 备注 |
+|---|---|---|---|---|
+| P2.1 | `Form` / `useForm`（任务 8） | 出现 10+ 字段 + 校验表单 | 大（需引入校验框架） | 当前 `AdminInput` + `AdminSelect` + `Switch` 已能 hold 30+ 字段无校验（ConfigCenterPage），没迫切需求 |
+| P2.2 | `Table`（任务 9） | ToolsAdminPage "调用日志"需要列视图 | 中（适配 `columns[]` API + 列渲染） | 列表形态已稳定，触发点不明确 |
+| P2.3 | `Modal`（任务 10） | 第一次需要"破坏性操作二次确认"弹窗 | 小（1-2 处即可） | 当前 ConfigCenterPage "清空数据库" 用 inline 强校验（按钮 disabled 等输入），改 Modal 收益小 |
+
+**结论**：P2 三项**当前都没触发条件**。建议做法：
+
+1. **停止继续找替换点**（除非出现新 UI 库组件或新 admin 场景）
+2. **保持 audit doc 作为"未来参考"**：新增 admin 页面时先看本 doc "不替换"表 + UI 库组件表，决定是否用 UI 库组件
+3. **每完成 1 个新功能** → 检查是否新增了自实现 widget → 在任务 14 总览表登记一行
+
+**下个合理切入点**（当 admin 出现新需求时）：
+
+- 如果新增"用户管理 / 权限管理"页面 → 极可能需要 `Table`（行操作 + 多列）
+- 如果新增"批量操作 / 删除"功能 → 极可能需要 `Modal`（二次确认）
+- 如果新增"配置向导"页面 → 极可能需要 `Form` / `useForm`（多步骤 + 校验）
