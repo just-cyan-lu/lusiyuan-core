@@ -1,6 +1,7 @@
 import { Card, Cursor, Icon, Input, Time, Title, Tooltip, type CardColor, type IconName } from "animal-island-ui";
 import type { ChangeEvent, ReactNode } from "react";
 import { LusiyuanAvatar } from "../LusiyuanAvatar";
+import { useClickParticles } from "../../hooks/useClickParticles";
 
 export type AdminSection =
   | "overview"
@@ -173,6 +174,7 @@ export function AdminShell({
   children,
 }: AdminShellProps) {
   const activeItem = navItems.find((item) => item.section === activeSection) ?? navItems[0];
+  useClickParticles();
 
   return (
     <Cursor forceAll className="admin-island-shell">
@@ -182,6 +184,7 @@ export function AdminShell({
             <button
               type="button"
               onClick={() => onNavigate("overview")}
+              data-ripple
               className="admin-brand-button group flex items-center gap-3 text-left"
               aria-label="回到总览"
             >

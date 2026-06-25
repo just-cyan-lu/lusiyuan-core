@@ -755,3 +755,45 @@ textarea.field-input {
 .admin-input .animal-input-12WUn {
   font-weight: 600;
 }
+
+/* 点击粒子飞散（useClickParticles hook 创建的 span） */
+[data-ripple] {
+  position: relative;
+  overflow: visible;
+}
+.click-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--particle-color, #95c7ae);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 1;
+  z-index: 60;
+}
+.click-particle--active {
+  animation: click-particle-fly 500ms ease-out forwards;
+}
+/* 8 套方向：每 45° 一个落点，dx/dy 用 cos/sin */
+.click-particle:nth-child(1) { --dx:  26px; --dy:   0px; }
+.click-particle:nth-child(2) { --dx:  18px; --dy:  18px; }
+.click-particle:nth-child(3) { --dx:   0px; --dy:  26px; }
+.click-particle:nth-child(4) { --dx: -18px; --dy:  18px; }
+.click-particle:nth-child(5) { --dx: -26px; --dy:   0px; }
+.click-particle:nth-child(6) { --dx: -18px; --dy: -18px; }
+.click-particle:nth-child(7) { --dx:   0px; --dy: -26px; }
+.click-particle:nth-child(8) { --dx:  18px; --dy: -18px; }
+@keyframes click-particle-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(1);
+    opacity: 0;
+  }
+}
