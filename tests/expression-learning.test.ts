@@ -104,6 +104,40 @@ test("training export keeps raw materials and a supervised sample", () => {
   ]);
 });
 
+test("dismissed training questions export as rejected question feedback", () => {
+  const exported = buildExpressionLearningTrainingExport({
+    id: "record-bad-question",
+    sourceType: "practice_question",
+    platform: "chat",
+    scene: "web_chat",
+    scope: "scene",
+    status: "dismissed",
+    contextText: "私设一个陆思源认识八年的朋友。",
+    draftText: null,
+    finalText: null,
+    outcome: null,
+    ownerAction: null,
+    ownerNote: "违背人设，关系背景不能凭空编。",
+    reasonText: "违背人设，关系背景不能凭空编。",
+    generatedQuestion: {
+      contextText: "私设一个陆思源认识八年的朋友。",
+      teachingFocus: "朋友祝贺",
+      tags: ["坏题"],
+    },
+    generatedDraft: null,
+    analysisSnapshot: null,
+    exportPayload: null,
+    rawPayload: null,
+    exampleId: null,
+    createdAt: new Date("2026-06-25T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-25T00:00:01.000Z"),
+    example: null,
+  });
+
+  assert.equal(exported.supervised_sample.task, "rejected_question");
+  assert.equal(exported.owner_decision.owner_note, "违背人设，关系背景不能凭空编。");
+});
+
 test("uses a controlled Xiaohongshu post type vocabulary", () => {
   assert.equal(normalizeXiaohongshuPostType("technical"), "technical");
   assert.equal(normalizeXiaohongshuPostType("随便写的类型"), "daily");

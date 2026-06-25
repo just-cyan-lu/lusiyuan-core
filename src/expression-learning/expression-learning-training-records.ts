@@ -35,6 +35,22 @@ export interface CompleteExpressionLearningTrainingRecordInput
   example: ExpressionLearningExample;
 }
 
+export interface ExpressionLearningTrainingRecordUpdateInput {
+  status?: string;
+  finalText?: string | null;
+  outcome?: string | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  reasonText?: string | null;
+  rawPayload?: unknown;
+}
+
+export interface ExpressionLearningTrainingRecordListInput {
+  sourceType?: string | null;
+  status?: string | null;
+  limit?: number;
+}
+
 function cleanText(value: unknown, fallback = "", max = 12000): string {
   const text = typeof value === "string" ? value.trim() : "";
   return (text || fallback).slice(0, max);
@@ -127,7 +143,11 @@ function buildTrainingPayload(input: ExpressionLearningTrainingRecordInput) {
     },
     analysis,
     supervised_sample: {
-      task: outcome === "skipped" ? "skip_reply" : "reply",
+      task: input.status === "dismissed"
+        ? "rejected_question"
+        : outcome === "skipped"
+          ? "skip_reply"
+          : "reply",
       input: contextText,
       rejected_or_reference_response: draftText,
       preferred_response: outcome === "skipped" ? null : finalText,
@@ -224,6 +244,83 @@ export async function completeExpressionLearningTrainingRecord(
   }
 
   return createExpressionLearningTrainingRecord(dataInput);
+}
+
+export async function updateExpressionLearningTrainingRecord(
+  id: string,
+  patch: ExpressionLearningTrainingRecordUpdateInput
+) {
+  const existing = await prisma.expressionLearningTrainingRecord.findUnique({
+    where: { id },
+  });
+  if (!existing) {
+    throw Object.assign(new Error("training record not found"), { statusCode: 404 });
+  }
+
+  const dataInput: ExpressionLearningTrainingRecordInput = {
+    sourceType: existing.sourceType,
+    platform: existing.platform,
+    scene: existing.scene,
+    scope: existing.scope,
+    status: patch.status ?? existing.status,
+    contextText: existing.contextText,
+    draftText: existing.draftText,
+    finalText: patch.finalText !== undefined ? patch.finalText : existing.finalText,
+    outcome: patch.outcome !== undefined ? patch.outcome : existing.outcome,
+    ownerAction: patch.ownerAction !== undefined ? patch.ownerAction : existing.ownerAction,
+    ownerNote: patch.ownerNote !== undefined ? patch.ownerNote : existing.ownerNote,
+    reasonText: patch.reasonText !== undefined ? patch.reasonText : existing.reasonText,
+    generatedQuestion: existing.generatedQuestion,
+    generatedDraft: existing.generatedDraft,
+    analysisSnapshot: existing.analysisSnapshot,
+    rawPayload: {
+      existing: existing.rawPayload,
+      update: patch.rawPayload ?? null,
+    },
+    exampleId: existing.exampleId,
+  };
+
+  return prisma.expressionLearningTrainingRecord.update({
+    where: { id },
+    data: updateData(dataInput),
+    include: { example: true },
+  });
+}
+
+export async function listExpressionLearningTrainingRecords(
+  input: ExpressionLearningTrainingRecordListInput
+) {
+  const where: Prisma.ExpressionLearningTrainingRecordWhereInput = {};
+  if (input.sourceType && input.sourceType !== "all") where.sourceType = input.sourceType;
+  if (input.status && input.status !== "all") {
+    where.status = input.status === "open" ? "question_generated" : input.status;
+  }
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 300);
+  const [records, total, open, archived, completed, dismissed] = await Promise.all([
+    prisma.expressionLearningTrainingRecord.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      include: { example: true },
+    }),
+    prisma.expressionLearningTrainingRecord.count({ where }),
+    prisma.expressionLearningTrainingRecord.count({
+      where: { ...where, status: "question_generated" },
+    }),
+    prisma.expressionLearningTrainingRecord.count({
+      where: { ...where, status: "answered_archived" },
+    }),
+    prisma.expressionLearningTrainingRecord.count({
+      where: { ...where, status: "completed" },
+    }),
+    prisma.expressionLearningTrainingRecord.count({
+      where: { ...where, status: "dismissed" },
+    }),
+  ]);
+  return {
+    records,
+    summary: { total, open, archived, completed, dismissed },
+  };
 }
 
 export function buildExpressionLearningTrainingExport(record: TrainingRecordWithExample) {
