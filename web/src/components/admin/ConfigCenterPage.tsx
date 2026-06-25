@@ -60,7 +60,6 @@ const featureLabels: Record<string, string> = {
 
 const safetyLabels: Record<string, string> = {
   reflectionAutoApply: "Reflection 自动写入",
-  dreamAutoApply: "Dream 自动写入",
   toolsAllowMediumRisk: "允许中风险工具",
   toolsAllowHighRisk: "允许高风险工具",
 };
@@ -149,11 +148,11 @@ function buildFindings(runtime: RuntimeConfig | null): Finding[] {
     });
   }
 
-  if (runtime.safety.reflectionAutoApply || runtime.safety.dreamAutoApply) {
+  if (runtime.safety.reflectionAutoApply) {
     findings.push({
       level: "warn",
-      title: "存在自动写入记忆能力",
-      detail: "Reflection 或 Dream 自动写入开启后，需要更仔细地观察记忆质量。",
+      title: "Reflection 自动写入已开启",
+      detail: "自动应用提案开启后，需要更仔细地观察记忆质量。",
     });
   }
 

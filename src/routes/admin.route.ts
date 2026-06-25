@@ -1152,7 +1152,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       },
       safety: {
         reflectionAutoApply: runtimeConfig.REFLECTION_AUTO_APPLY,
-        dreamAutoApply: runtimeConfig.DREAM_AUTO_APPLY,
         toolsAllowMediumRisk: runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK,
         toolsAllowHighRisk: runtimeConfig.TOOLS_ALLOW_HIGH_RISK,
       },

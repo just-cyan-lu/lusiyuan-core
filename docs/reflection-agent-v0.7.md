@@ -92,7 +92,6 @@ ReflectionProposalService.applyProposal() → 写入 Memory 表
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `REFLECTION_ENABLED` | `true` | 是否启用反思代理 |
-| `REFLECTION_OWNER_ONLY` | `true` | 是否仅 owner 可访问 |
 | `REFLECTION_DEFAULT_MESSAGE_LIMIT` | `80` | 默认读取消息数 |
 | `REFLECTION_MAX_MESSAGE_LIMIT` | `200` | 最大读取消息数 |
 | `REFLECTION_MIN_MESSAGES` | `10` | 少于此数则跳过分析 |

@@ -47,7 +47,6 @@ export const runtimeSettingDefinitions = {
   TOOL_SEND_INTERMEDIATE_MESSAGE_MODE: { group: "工具访问", label: "send_intermediate_message", type: "select", defaultValue: "on", options: ["off", "owner_only", "on"] },
 
   REFLECTION_ENABLED: { group: "Reflection", label: "Reflection 启用", type: "boolean", defaultValue: true },
-  REFLECTION_OWNER_ONLY: { group: "Reflection", label: "仅 Owner 可触发", type: "boolean", defaultValue: true },
   REFLECTION_DEFAULT_MESSAGE_LIMIT: { group: "Reflection", label: "默认消息数", type: "integer", defaultValue: 80, min: 1, max: 1000 },
   REFLECTION_MAX_MESSAGE_LIMIT: { group: "Reflection", label: "最大消息数", type: "integer", defaultValue: 200, min: 1, max: 2000 },
   REFLECTION_MIN_MESSAGES: { group: "Reflection", label: "最少消息数", type: "integer", defaultValue: 10, min: 1, max: 500 },
@@ -73,7 +72,6 @@ export const runtimeSettingDefinitions = {
   DREAM_DEEP_ENABLED: { group: "Dream", label: "Deep 阶段", type: "boolean", defaultValue: true },
   DREAM_DIARY_ENABLED: { group: "Dream", label: "Dream Diary", type: "boolean", defaultValue: true },
   DREAM_MORNING_BRIEF_ENABLED: { group: "Dream", label: "Morning Brief", type: "boolean", defaultValue: true },
-  DREAM_AUTO_APPLY: { group: "Dream", label: "自动应用提案", type: "boolean", defaultValue: false },
   DREAM_ALLOW_MEMORY_PROPOSALS: { group: "Dream", label: "允许记忆提案", type: "boolean", defaultValue: true },
   DREAM_ALLOW_GROWTH_LOG_PROPOSALS: { group: "Dream", label: "允许成长记录提案", type: "boolean", defaultValue: true },
   DREAM_MIN_SIGNAL_SCORE: { group: "Dream", label: "最低信号分数", type: "number", defaultValue: 0.72, min: 0, max: 1 },

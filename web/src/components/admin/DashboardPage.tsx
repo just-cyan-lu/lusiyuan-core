@@ -39,7 +39,6 @@ const featureLabels: Record<string, string> = {
 
 const safetyLabels: Record<string, string> = {
   reflectionAutoApply: "Reflection 自动写入",
-  dreamAutoApply: "Dream 自动写入",
   toolsAllowMediumRisk: "中风险工具",
   toolsAllowHighRisk: "高风险工具",
 };
