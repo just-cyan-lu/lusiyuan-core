@@ -5,6 +5,7 @@ import { requireAdminAuth } from "./admin-auth.js";
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -37,9 +38,22 @@ import {
 import { importXiaohongshuUrl } from "../platforms/xiaohongshu/xiaohongshu-url-import.service.js";
 import { chromeDevtoolsMcpService } from "../mcp/chrome-devtools-mcp.service.js";
 import {
+  generateExpressionLearningDraft,
+  generateExpressionLearningPracticeQuestion,
+  learnExpression,
   reanalyzeExpressionLearningExample,
   reindexExpressionLearningExample,
 } from "../expression-learning/expression-learning.service.js";
+import {
+  completeExpressionLearningTrainingRecord,
+  createExpressionLearningTrainingRecord,
+  exportExpressionLearningTrainingRecords,
+} from "../expression-learning/expression-learning-training-records.js";
+import type {
+  ExpressionLearningOwnerAction,
+  ExpressionLearningOutcome,
+  ExpressionLearningStatus,
+} from "../expression-learning/expression-learning.types.js";
 
 function configured(value: string | string[]): boolean {
   return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
@@ -56,6 +70,12 @@ function cleanString(value: unknown): string | undefined {
 function cleanNullableString(value: unknown): string | null | undefined {
   if (value === null) return null;
   return cleanString(value);
+}
+
+function cleanRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function clampLimit(value: unknown, fallback = 80): number {
@@ -218,6 +238,47 @@ function endOfToday(): Date {
   const date = new Date();
   date.setHours(23, 59, 59, 999);
   return date;
+}
+
+function expressionLearningOutcome(value: unknown): ExpressionLearningOutcome {
+  const outcome = cleanString(value) ?? "sent";
+  if (outcome === "sent" || outcome === "skipped") return outcome;
+  throw routeError("outcome must be sent or skipped", 400);
+}
+
+function expressionLearningOwnerAction(
+  value: unknown,
+  fallback: ExpressionLearningOwnerAction
+): ExpressionLearningOwnerAction {
+  const action = cleanString(value) ?? fallback;
+  const allowed = new Set<ExpressionLearningOwnerAction>([
+    "owner_written",
+    "edited_draft",
+    "accepted_draft",
+    "skipped",
+    "owner_taught",
+  ]);
+  if (allowed.has(action as ExpressionLearningOwnerAction)) {
+    return action as ExpressionLearningOwnerAction;
+  }
+  throw routeError("invalid expression-learning ownerAction", 400);
+}
+
+function expressionLearningStatus(
+  value: unknown,
+  fallback: ExpressionLearningStatus
+): ExpressionLearningStatus {
+  const status = cleanString(value) ?? fallback;
+  if (status === "pending" || status === "active" || status === "disabled") return status;
+  throw routeError("status must be pending, active, or disabled", 400);
+}
+
+function expressionLearningScope(value: unknown, fallback = "scene") {
+  const scope = cleanString(value) ?? fallback;
+  if (scope === "global" || scope === "platform" || scope === "scene" || scope === "private") {
+    return scope;
+  }
+  throw routeError("invalid expression-learning scope", 400);
 }
 
 function daysAgoStart(days: number): Date {
@@ -1374,6 +1435,132 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send({ skills: await listSkills() });
   });
 
+  app.post("/v1/admin/expression-learning/examples", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const sourceType = cleanString(body.sourceType) ?? "manual_teaching";
+    const trainingRecordId = cleanNullableString(body.trainingRecordId) ?? null;
+    const outcome = expressionLearningOutcome(body.outcome);
+    const defaultOwnerAction = outcome === "skipped" ? "skipped" : "owner_taught";
+    const ownerAction = expressionLearningOwnerAction(
+      body.ownerAction,
+      defaultOwnerAction
+    );
+    const status = expressionLearningStatus(body.status, "active");
+    const metadata = cleanRecord(body.metadata) ?? {};
+    const contextText = cleanString(body.contextText) ?? "";
+    const draftText = cleanNullableString(body.draftText) ?? null;
+    const finalText = outcome === "skipped"
+      ? null
+      : cleanNullableString(body.finalText) ?? null;
+    const ownerNote = cleanNullableString(body.ownerNote) ?? null;
+    const example = await learnExpression({
+      sourceRef: cleanString(body.sourceRef) ?? (
+        trainingRecordId ? `training:${trainingRecordId}` : `${sourceType}:${randomUUID()}`
+      ),
+      sourceType,
+      sourceId: cleanNullableString(body.sourceId) ?? null,
+      platform: cleanString(body.platform) ?? "general",
+      scene: cleanString(body.scene) ?? "general",
+      scope: expressionLearningScope(body.scope),
+      contextText,
+      draftText,
+      finalText,
+      outcome,
+      ownerAction,
+      ownerNote,
+      status,
+      metadata: {
+        ...metadata,
+        createdFrom: "admin_expression_learning",
+        trainingRecordId,
+      },
+    });
+    const trainingRecord = await completeExpressionLearningTrainingRecord({
+      trainingRecordId,
+      sourceType,
+      platform: example.platform,
+      scene: example.scene,
+      scope: example.scope,
+      status: "completed",
+      contextText,
+      draftText,
+      finalText,
+      outcome,
+      ownerAction,
+      ownerNote,
+      reasonText: outcome === "skipped" ? ownerNote ?? finalText : ownerNote,
+      rawPayload: body,
+      example,
+    });
+    return reply.status(201).send({ example, trainingRecord });
+  });
+
+  app.post("/v1/admin/expression-learning/practice-question", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const input = {
+      platform: cleanString(body.platform) ?? "general",
+      scene: cleanString(body.scene) ?? "general",
+      focus: cleanNullableString(body.focus) ?? null,
+    };
+    const question = await generateExpressionLearningPracticeQuestion(input);
+    const trainingRecord = await createExpressionLearningTrainingRecord({
+      sourceType: "practice_question",
+      platform: question.platform,
+      scene: question.scene,
+      scope: "scene",
+      status: "question_generated",
+      contextText: question.contextText,
+      draftText: question.draftText,
+      generatedQuestion: question,
+      rawPayload: {
+        request: input,
+      },
+    });
+    return reply.send({ question, trainingRecord });
+  });
+
+  app.post("/v1/admin/expression-learning/draft", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const input = {
+      platform: cleanString(body.platform) ?? "general",
+      scene: cleanString(body.scene) ?? "general",
+      contextText: cleanString(body.contextText) ?? "",
+    };
+    const draft = await generateExpressionLearningDraft(input);
+    const trainingRecord = await createExpressionLearningTrainingRecord({
+      sourceType: "manual_draft",
+      platform: input.platform,
+      scene: input.scene,
+      scope: "scene",
+      status: "draft_generated",
+      contextText: input.contextText,
+      draftText: draft.draftText,
+      generatedDraft: {
+        ...draft,
+        request: input,
+      },
+      rawPayload: {
+        request: input,
+      },
+    });
+    return reply.send({ ...draft, trainingRecord });
+  });
+
+  app.get("/v1/admin/expression-learning/training-records/export", async (request, reply) => {
+    const query = request.query as { format?: string };
+    const format = cleanString(query.format) === "jsonl" ? "jsonl" : "json";
+    const exported = await exportExpressionLearningTrainingRecords(format);
+    const suffix = format === "jsonl" ? "jsonl" : "json";
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="lusiyuan-expression-training-${new Date().toISOString().slice(0, 10)}.${suffix}"`
+    );
+    if (format === "jsonl") {
+      return reply.type("application/x-ndjson; charset=utf-8").send(exported);
+    }
+    return reply.type("application/json; charset=utf-8").send(exported);
+  });
+
   app.get("/v1/admin/expression-learning/examples", async (request, reply) => {
     const query = request.query as {
       platform?: string;
@@ -1400,13 +1587,14 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
           { finalText: { contains: search, mode: "insensitive" } },
           { lesson: { contains: search, mode: "insensitive" } },
           { reasoning: { contains: search, mode: "insensitive" } },
+          { ownerNote: { contains: search, mode: "insensitive" } },
         ],
       });
     }
     const where: Prisma.ExpressionLearningExampleWhereInput = clauses.length > 0
       ? { AND: clauses }
       : {};
-    const [examples, total, active, skipped, platforms] = await Promise.all([
+    const [examples, total, active, pending, skipped, platforms] = await Promise.all([
       prisma.expressionLearningExample.findMany({
         where,
         orderBy: { updatedAt: "desc" },
@@ -1414,6 +1602,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       }),
       prisma.expressionLearningExample.count(),
       prisma.expressionLearningExample.count({ where: { status: "active" } }),
+      prisma.expressionLearningExample.count({ where: { status: "pending" } }),
       prisma.expressionLearningExample.count({ where: { outcome: "skipped" } }),
       prisma.expressionLearningExample.findMany({
         distinct: ["platform"],
@@ -1423,7 +1612,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     ]);
     return reply.send({
       examples,
-      summary: { total, active, skipped },
+      summary: { total, active, pending, skipped },
       platforms: platforms.map((item) => item.platform),
     });
   });
@@ -1439,8 +1628,8 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     if (body.ownerNote !== undefined) data.ownerNote = cleanNullableString(body.ownerNote);
     if (body.status !== undefined) {
       const next = cleanString(body.status);
-      if (!next || !["active", "disabled"].includes(next)) {
-        throw routeError("status must be active or disabled", 400);
+      if (!next || !["pending", "active", "disabled"].includes(next)) {
+        throw routeError("status must be pending, active, or disabled", 400);
       }
       data.status = next;
     }

@@ -16,6 +16,7 @@ interface SearchInput {
   model: string;
   dimensions: number;
   platform: string;
+  scene: string;
   limit: number;
 }
 
@@ -67,7 +68,8 @@ export async function searchExpressionLearningEmbeddings(input: SearchInput) {
       AND e."status" = 'active'
       AND (
         e."scope" = 'global'
-        OR (e."platform" = ${input.platform} AND e."scope" IN ('platform', 'scene'))
+        OR (e."platform" = ${input.platform} AND e."scope" = 'platform')
+        OR (e."platform" = ${input.platform} AND e."scene" = ${input.scene} AND e."scope" = 'scene')
       )
     ORDER BY ele."embedding" <=> ${vectorLiteral}::vector
     LIMIT ${input.limit}

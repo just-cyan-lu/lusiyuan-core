@@ -308,7 +308,8 @@ model ExpressionLearningExample {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  embeddings ExpressionLearningEmbedding[]
+  embeddings       ExpressionLearningEmbedding[]
+  trainingRecords ExpressionLearningTrainingRecord[]
 
   @@index([platform, scene, status])
   @@index([scope, status])
@@ -316,6 +317,41 @@ model ExpressionLearningExample {
   @@index([ownerAction])
   @@index([createdAt])
   @@map("expression_learning_examples")
+}
+
+/// Complete audit record for one expression-learning training interaction.
+model ExpressionLearningTrainingRecord {
+  id                String   @id @default(cuid())
+  sourceType        String
+  platform          String
+  scene             String
+  scope             String?
+  status            String   @default("started")
+  contextText       String?
+  draftText         String?
+  finalText         String?
+  outcome           String?
+  ownerAction       String?
+  ownerNote         String?
+  reasonText        String?
+  generatedQuestion Json?
+  generatedDraft    Json?
+  analysisSnapshot  Json?
+  exportPayload     Json?
+  rawPayload        Json?
+  exampleId         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  example ExpressionLearningExample? @relation(fields: [exampleId], references: [id], onDelete: SetNull)
+
+  @@index([sourceType])
+  @@index([platform, scene])
+  @@index([status])
+  @@index([outcome])
+  @@index([exampleId])
+  @@index([createdAt])
+  @@map("expression_learning_training_records")
 }
 
 /// Vector index for expression-learning examples.

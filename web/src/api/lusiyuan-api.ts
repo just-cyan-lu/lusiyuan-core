@@ -580,7 +580,7 @@ export interface ExpressionLearningExample {
   avoidances: unknown;
   tags: unknown;
   confidence: number;
-  status: "active" | "disabled";
+  status: "pending" | "active" | "disabled";
   analysisVersion: number;
   embeddingStatus: string;
   embeddingError: string | null;
@@ -593,8 +593,70 @@ export interface ExpressionLearningExample {
 
 export interface ExpressionLearningResponse {
   examples: ExpressionLearningExample[];
-  summary: { total: number; active: number; skipped: number };
+  summary: { total: number; active: number; pending: number; skipped: number };
   platforms: string[];
+}
+
+export interface ExpressionLearningCreateInput {
+  token: string;
+  trainingRecordId?: string | null;
+  sourceType?: string;
+  platform: string;
+  scene: string;
+  scope?: string;
+  contextText: string;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome: "sent" | "skipped";
+  ownerAction?: string;
+  ownerNote?: string | null;
+  status?: "pending" | "active" | "disabled";
+  metadata?: Record<string, unknown>;
+}
+
+export interface ExpressionLearningPracticeQuestion {
+  platform: string;
+  scene: string;
+  contextText: string;
+  draftText: string | null;
+  teachingFocus: string;
+  expectedOwnerInput: string;
+  tags: string[];
+}
+
+export interface ExpressionLearningPracticeQuestionResponse {
+  question: ExpressionLearningPracticeQuestion;
+  trainingRecord: ExpressionLearningTrainingRecord;
+}
+
+export interface ExpressionLearningDraftResponse {
+  draftText: string;
+  referenceExampleIds: string[];
+  trainingRecord?: ExpressionLearningTrainingRecord;
+}
+
+export interface ExpressionLearningTrainingRecord {
+  id: string;
+  sourceType: string;
+  platform: string;
+  scene: string;
+  scope: string | null;
+  status: string;
+  contextText: string | null;
+  draftText: string | null;
+  finalText: string | null;
+  outcome: string | null;
+  ownerAction: string | null;
+  ownerNote: string | null;
+  reasonText: string | null;
+  generatedQuestion: unknown;
+  generatedDraft: unknown;
+  analysisSnapshot: unknown;
+  exportPayload: unknown;
+  rawPayload: unknown;
+  exampleId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface XiaohongshuComment {
@@ -1452,6 +1514,70 @@ export async function fetchExpressionLearningExamples(input: {
   return parseJsonResponse<ExpressionLearningResponse>(response, "无法读取表达学习记录");
 }
 
+export async function createExpressionLearningExample(
+  input: ExpressionLearningCreateInput
+): Promise<{ example: ExpressionLearningExample; trainingRecord?: ExpressionLearningTrainingRecord }> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/examples`, {
+    method: "POST",
+    headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<{ example: ExpressionLearningExample; trainingRecord?: ExpressionLearningTrainingRecord }>(
+    response,
+    "创建表达经验失败"
+  );
+}
+
+export async function generateExpressionLearningPracticeQuestion(input: {
+  token: string;
+  platform: string;
+  scene: string;
+  focus?: string | null;
+}): Promise<ExpressionLearningPracticeQuestionResponse> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/practice-question`, {
+    method: "POST",
+    headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<ExpressionLearningPracticeQuestionResponse>(
+    response,
+    "生成练习题失败"
+  );
+}
+
+export async function generateExpressionLearningDraft(input: {
+  token: string;
+  platform: string;
+  scene: string;
+  contextText: string;
+}): Promise<ExpressionLearningDraftResponse> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/draft`, {
+    method: "POST",
+    headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<ExpressionLearningDraftResponse>(response, "生成陆思源草稿失败");
+}
+
+export async function downloadExpressionLearningTrainingExport(input: {
+  token: string;
+  format: "json" | "jsonl";
+}): Promise<Blob> {
+  const params = new URLSearchParams({ format: input.format });
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/training-records/export?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "导出训练数据失败");
+  }
+  return response.blob();
+}
+
 export async function updateExpressionLearningExample(input: {
   token: string;
   exampleId: string;
@@ -1460,7 +1586,7 @@ export async function updateExpressionLearningExample(input: {
   strategy?: string | null;
   tone?: string | null;
   ownerNote?: string | null;
-  status?: "active" | "disabled";
+  status?: "pending" | "active" | "disabled";
   scope?: string;
 }): Promise<{ example: ExpressionLearningExample }> {
   const { token, exampleId, ...body } = input;
