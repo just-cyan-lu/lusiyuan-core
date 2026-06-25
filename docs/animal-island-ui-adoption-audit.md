@@ -1,6 +1,6 @@
 # animal-island-ui 接入系统盘点与改造计划
 
-> 状态：P0 全部完成；P1/P2 待办
+> 状态：P0 全部完成；P1 任务 6 完成；P2 待办
 > 起始：2026-06-24
 > 最后更新：2026-06-25
 > 范围：`web/` 目录下 admin + 业务页面对 UI 库 `animal-island-ui@1.0.16` 的接入情况
@@ -22,7 +22,7 @@
 | Title | ✅ | AdminShell、Dashboard |
 | Cursor | ✅ | AdminShell 外壳 |
 | Checkbox | ❌ | 1 处自实现 |
-| Switch | ❌ | 自实现 `admin-switch-button` + `ToggleGrid` |
+| Switch | ✅ | RuntimeStatePage（任务 7 修正，commit 441fdad）+ ConfigCenterPage 22 个运行配置 boolean 字段（任务 6，commit aa521a0）|
 | Radio | ❌ | 0 处 |
 | Tooltip | ❌ | 全部用 `title=` 属性 |
 | Modal | ❌ | 0 处（暂无可用场景） |
@@ -157,12 +157,18 @@
 
 #### 6. 自实现 `admin-switch-button` → UI 库 `Switch`（单 key 场景）
 
-- **状态**：⏳ 待办
-- **背景**：`ConfigCenterPage.tsx:934, 1194` 用 `<button role="switch">` 自实现开关；UI 库 `Switch` 有 handle 滑动 + loading 状态。
-- **做法**：**先观察** `ToggleGrid`（多 key 开关网格）是否需要保留；UI 库 `Switch` 是一次一个开关，不适合 grid 布局。建议只对单 key 场景替换 `admin-switch-button`，grid 场景保留并加注释。
+- **状态**：✅ **2026-06-25 完成**（commit aa521a0）
+- **背景**：`ConfigCenterPage.tsx:921-937` 用 `<button role="switch">` 自实现"运行配置"区 boolean 字段开关，22 个 boolean field（Dream 11 个 + 模型 + Reflection + Chrome MCP 等）。
+- **做法**：
+  - import 加 `Switch` from `animal-island-ui`
+  - 替换：`<button role="switch">` → `<Switch checked={enabled} disabled={disabled} onChange={(next) => onCommit(field, next ? "true" : "false")} aria-label={field.label} />`
+  - 保留：外层"已开启/已关闭"文字（UI 库 Switch 无可见 label，自带的 `<span>` 保留语义）、绿/灰底色卡片（border + bg）、`h-10 w-full` 满宽布局
+  - 转换：`onChange(event)` 字符串反转 → `onChange(next: boolean)` 直接透传 boolean（`onCommit` 内部仍把 boolean 序列化为 "true"/"false" 写 DB）
 - **验收**：
-  - `grep -nE 'admin-switch-button' web/src/` 命中下降（grid 场景除外）
-  - 替换后 handle 动画正常
+  - ✅ `grep -nE 'admin-switch-button|<button[^>]*role="switch"' web/src/components/admin/ -r` 命中 0
+  - ✅ 浏览器 `/admin/settings` 展开"Dream 27 项"看到 11 个 Switch，点击 `DREAM_AUTO_RUN` toggle → toast "已即时应用 1 项运行配置" + 最近配置变更出现 `DREAM_AUTO_RUN: true → false` + 底部"Dream 自动运行"联动更新
+  - ✅ `tsc -b --force` 0 error / `pnpm build` 0 error
+- **保留**：`ToggleGrid`（line 1182-1214，多 key 状态网格）按 audit "不替换" 表保留 —— 用 `StatusPill` 是因为 Switch 是单 boolean 组件，不适合 grid 网格里多 key 并列显示
 
 #### 7. 自实现 checkbox → UI 库 `Checkbox`
 
@@ -223,5 +229,5 @@
 - [x] **2026-06-25 任务 7 完成**：RuntimeStatePage 自实现 checkbox → UI 库 `Switch`（修正为 Switch 而非 Checkbox，因为 Switch 是单 boolean toggle 的正确语义，commit 441fdad）
 - [x] **2026-06-25 任务 3 进行中**：`title=` → `Tooltip variant="island"`，**仅做 7 个高价值单点**（AdminShell apiBaseUrl、ConfigCenterPage provider.model + envConfig.envPath、ToolsAdminPage log.toolName + log.channel、OpsPage report.id、DashboardPage large metric），其余 ~70 个 truncated text 暂不动（原 `title=` 已够用）
 - [x] **2026-06-25 任务 4 完成**：全量替换 33 处 input → UI 库 `Input`（详见上方任务 4 提交清单，13 个 commit，AdminInput 共享 primitive + `.admin-input` CSS wrapper，textarea 17 处保留）
+- [x] **2026-06-25 任务 6 完成**：ConfigCenterPage 自实现 `admin-switch-button` → UI 库 `Switch`（22 个运行配置 boolean 字段统一替换，commit aa521a0；保留 ToggleGrid 多 key 网格用 StatusPill）
 - [ ] 5. `<details>` → UI 库 `Collapse`（可选，JSON 折叠场景）
-- [ ] 6. `admin-switch-button` → UI 库 `Switch`（单 key 场景，ConfigCenterPage 还在用 `<button role="switch">` 自实现）
