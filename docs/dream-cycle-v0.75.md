@@ -121,7 +121,6 @@ pnpm dream:cleanup-locks              # 清理过期锁
 DREAM_ENABLED=true          # 总开关
 DREAM_AUTO_RUN=false        # 定时自动运行（默认关闭）
 DREAM_CRON="30 3 * * *"     # 自动运行时间（每天 03:30）
-DREAM_AUTO_APPLY=false      # 绝对不要改成 true
 DREAM_MIN_SIGNAL_SCORE=0.72 # 信号提升门槛
 DREAM_MIN_CONFIDENCE=0.70   # 最低置信度
 DREAM_MIN_EVIDENCE_COUNT=2  # 最少证据数
