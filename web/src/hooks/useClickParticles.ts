@@ -34,6 +34,9 @@ export function useClickParticles() {
       const count = Math.floor(rand(6, 11));
       const duration = Math.floor(rand(400, 651));
 
+      // DocumentFragment 批量挂载：避免每次 appendChild 触发 reflow
+      const frag = document.createDocumentFragment();
+
       for (let i = 0; i < count; i++) {
         const angleDeg = Math.random() * 360;
         const distance = rand(18, 34);
@@ -57,9 +60,12 @@ export function useClickParticles() {
         particle.style.top = `${event.clientY}px`;
         particle.style.width = `${size}px`;
         particle.style.height = `${size}px`;
-        layer.appendChild(particle);
+        frag.appendChild(particle);
         window.setTimeout(() => particle.remove(), duration);
       }
+
+      // 一次性挂到 layer（一次 reflow）
+      layer.appendChild(frag);
     }
 
     document.addEventListener("click", handleClick);
