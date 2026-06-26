@@ -3,11 +3,14 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   fetchChannelStatus,
   fetchHealthStatus,
+  fetchRelationships,
   fetchRuntimeConfig,
   fetchRuntimeState,
   type ChannelStatus,
   type HealthStatus,
+  type RelationshipListResponse,
   type RuntimeConfig,
+  type RuntimeEvent,
   type RuntimeProvider,
   type RuntimeState,
 } from "../../api/lusiyuan-api";
@@ -22,31 +25,10 @@ interface DashboardState {
   channels: ChannelStatus | null;
   runtime: RuntimeConfig | null;
   runtimeState: RuntimeState | null;
+  runtimeEvents: RuntimeEvent[];
+  relationships: RelationshipListResponse | null;
   error: string | null;
   loading: boolean;
-}
-
-const featureLabels: Record<string, string> = {
-  memoryRetrieval: "记忆检索",
-  tools: "工具调用",
-  reflection: "Reflection",
-  dream: "Dream",
-  dreamAutoRun: "Dream 自动运行",
-  webSearch: "Web Search",
-  pageReader: "页面读取",
-  mcp: "MCP",
-};
-
-const safetyLabels: Record<string, string> = {
-  reflectionAutoApply: "Reflection 自动写入",
-  toolsAllowMediumRisk: "中风险工具",
-  toolsAllowHighRisk: "高风险工具",
-};
-
-function formatKey(key: string): string {
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (char) => char.toUpperCase());
 }
 
 function providerReady(provider: RuntimeProvider): boolean {
@@ -61,6 +43,73 @@ function friendlyErrorMessage(error: unknown): string {
   return message || "状态读取失败";
 }
 
+function islandSlogan(state: DashboardState): string {
+  if (state.error) return "今天跟岛的连接有点问题，看看下面的提示。";
+  if (!state.runtimeState) return "等主人填入 Admin Token，岛就开始讲今天的故事。";
+  const mood = state.runtimeState.moodLabel;
+  const energy = state.runtimeState.energyLevel;
+  if (energy < 30) return `今天岛上有些疲倦（${mood}），先去 '运行态' 看看要不要加点能量。`;
+  if (energy >= 70) return `今天岛上精神很好（${mood}），可以多去看看大家。`;
+  return `今天岛上一切平静（${mood}），先去 '运行态' 看具体。`;
+}
+
+function weatherFromState(state: RuntimeState): { label: string; emoji: string; tone: "warm" | "cool" | "neutral" } {
+  if (state.stressLevel >= 70) return { label: "有风浪", emoji: "🌊", tone: "cool" };
+  if (state.energyLevel >= 70) return { label: "阳光明媚", emoji: "☀️", tone: "warm" };
+  if (state.energyLevel < 30) return { label: "薄雾", emoji: "🌫️", tone: "cool" };
+  if (state.socialBattery >= 60) return { label: "微风和煦", emoji: "🌤️", tone: "warm" };
+  return { label: "晴间多云", emoji: "⛅", tone: "neutral" };
+}
+
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+}
+
+function moodSignalLabel(signal: string | null): { label: string; tone: "warm" | "cool" | "neutral" } {
+  if (!signal) return { label: "普通", tone: "neutral" };
+  if (signal.includes("bright") || signal.includes("lift")) return { label: "↗ 明亮", tone: "warm" };
+  if (signal.includes("drain")) return { label: "↘ 缓降", tone: "cool" };
+  return { label: signal, tone: "neutral" };
+}
+
+const dailyQuotes: Record<string, string[]> = {
+  warm: [
+    "今天岛上阳光很好——可以多做点事。",
+    "心情在线，适合和远方的朋友多说几句。",
+    "精神头挺足，去 '运行态' 看看大家的状态吧。",
+  ],
+  cool: [
+    "今天风浪有点大，先让自己安静一下。",
+    "累了就歇歇，岛上不缺这一阵风。",
+    "海面不太平——记住要写日记，否则记忆会潮汐。",
+  ],
+  neutral: [
+    "今天岛上一切平静，先听一会儿风。",
+    "日子不紧不慢，记忆沙滩等新的足迹。",
+    "不急——把今天的小事记下来就好。",
+  ],
+};
+
+function pickDailyQuote(seedKey: string, tone: "warm" | "cool" | "neutral"): string {
+  const pool = dailyQuotes[tone];
+  let hash = 0;
+  for (let i = 0; i < seedKey.length; i += 1) {
+    hash = (hash * 31 + seedKey.charCodeAt(i)) >>> 0;
+  }
+  return pool[hash % pool.length];
+}
+
 export function DashboardPage({ adminToken }: DashboardPageProps) {
   const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<DashboardState>({
@@ -68,6 +117,8 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
     channels: null,
     runtime: null,
     runtimeState: null,
+    runtimeEvents: [],
+    relationships: null,
     error: null,
     loading: true,
   });
@@ -82,18 +133,32 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           fetchHealthStatus(),
           fetchChannelStatus(),
         ]);
-        const [runtime, runtimeStateResponse] = adminToken
-          ? await Promise.all([
-              fetchRuntimeConfig(adminToken),
-              fetchRuntimeState(adminToken),
-            ])
-          : [null, null];
-        if (!cancelled) {
+        if (adminToken) {
+          const [runtime, runtimeStateResponse, relationships] = await Promise.all([
+            fetchRuntimeConfig(adminToken),
+            fetchRuntimeState(adminToken),
+            fetchRelationships({ token: adminToken, limit: 5 }).catch(() => null),
+          ]);
+          if (!cancelled) {
+            setState({
+              health,
+              channels,
+              runtime,
+              runtimeState: runtimeStateResponse?.state ?? null,
+              runtimeEvents: runtimeStateResponse?.runtimeEvents ?? [],
+              relationships,
+              error: null,
+              loading: false,
+            });
+          }
+        } else if (!cancelled) {
           setState({
             health,
             channels,
-            runtime,
-            runtimeState: runtimeStateResponse?.state ?? null,
+            runtime: null,
+            runtimeState: null,
+            runtimeEvents: [],
+            relationships: null,
             error: null,
             loading: false,
           });
@@ -120,6 +185,27 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
     [state.runtime]
   );
 
+  const enabledFeatureCount = state.runtime
+    ? Object.values(state.runtime.features).filter(Boolean).length
+    : 0;
+  const totalFeatureCount = state.runtime
+    ? Object.keys(state.runtime.features).length
+    : 0;
+  const enabledSafetyCount = state.runtime
+    ? Object.values(state.runtime.safety).filter(Boolean).length
+    : 0;
+  const totalSafetyCount = state.runtime
+    ? Object.keys(state.runtime.safety).length
+    : 0;
+  const configuredProviderCount = state.runtime
+    ? state.runtime.providers.filter(providerReady).length
+    : 0;
+  const totalProviderCount = state.runtime?.providers.length ?? 0;
+
+  const weather = state.runtimeState
+    ? weatherFromState(state.runtimeState)
+    : null;
+
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
@@ -127,9 +213,9 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="admin-chip admin-chip-mint">
               <Icon name="icon-map" size={18} />
-              Control Room
+              The Isle
             </span>
-            <span className="admin-chip admin-chip-pink">Web Chat 已并入 Admin</span>
+            <span className="admin-chip admin-chip-pink">岛上有 Web Chat 入口</span>
             <span className="admin-chip admin-chip-yellow">长期状态先看证据</span>
           </div>
 
@@ -137,14 +223,14 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
             <div className="max-w-3xl">
               <div className="hidden sm:block">
                 <Title size="large" color="app-yellow">
-                  陆思源核心系统管理台
+                  陆思源的岛
                 </Title>
               </div>
               <h2 className="block text-2xl font-black leading-tight text-[var(--ls-ink-strong)] sm:hidden">
-                陆思源核心系统管理台
+                陆思源的岛
               </h2>
-              <p className="mt-5 text-sm font-semibold leading-7 text-[var(--ls-ink)] md:text-base">
-                这里集中查看运行态、关系、记忆、Reflection、Dream、配置和聊天入口。长期测试时，先从这里看他最近发生了什么、状态为什么变化、哪些提案还需要审核。
+              <p className="mt-5 text-base font-semibold leading-7 text-[var(--ls-ink)] md:text-lg">
+                {islandSlogan(state)}
               </p>
             </div>
             <Button
@@ -155,7 +241,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
               icon={<Icon name="icon-variant" size={20} />}
               onClick={() => setReloadKey((value) => value + 1)}
             >
-              刷新状态
+              刷新一下
             </Button>
           </div>
 
@@ -175,13 +261,6 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
             color="app-teal"
           />
           <StatusCard
-            label="Admin Token"
-            value={adminToken ? "stored locally" : "required for config"}
-            active={Boolean(adminToken)}
-            icon="icon-diy"
-            color="app-yellow"
-          />
-          <StatusCard
             label="Active Model"
             value={activeProvider?.model ?? state.runtime?.activeModelProvider ?? "token needed"}
             active={Boolean(activeProvider && providerReady(activeProvider))}
@@ -191,15 +270,26 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
         </div>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-3">
+      <section className="grid gap-5 lg:grid-cols-[1.4fr_1fr_1fr]">
         <Panel
-          title="陆思源运行态"
-          subtitle="数据库里的当前状态"
+          title="岛中央"
+          subtitle="陆思源本人 / 数据库里的当前状态"
           icon="icon-miles"
           pattern="app-yellow"
+          span={2}
         >
           {state.runtimeState ? (
             <div className="grid gap-3">
+              <div
+                key={`${state.runtimeState.id}-${reloadKey}`}
+                className="admin-island-daily-quote rounded-2xl border-2 border-[var(--ls-yellow)] bg-[var(--ls-yellow-soft)] px-4 py-3 text-sm font-bold leading-6 text-[var(--ls-yellow-text)]"
+              >
+                <span className="mr-1.5 text-base" aria-hidden="true">✦</span>
+                今日一句：{pickDailyQuote(
+                  `${state.runtimeState.id}-${state.runtimeState.updatedAt}`,
+                  weather?.tone ?? "neutral",
+                )}
+              </div>
               <div className="admin-island-row px-4 py-3">
                 <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">最近心情</div>
                 <div className="mt-1 text-2xl font-black text-[var(--ls-ink-strong)]">
@@ -212,13 +302,141 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则校准"}
               </InfoBlock>
               <InfoBlock>{state.runtimeState.currentActivity ?? "暂无正在做的事。"}</InfoBlock>
+
+              {state.runtimeEvents.length > 0 && (
+                <div className="admin-island-row px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">
+                      最近岛上发生
+                    </div>
+                    <span className="text-[10px] font-bold text-[var(--ls-ink-faint)]">
+                      近 {state.runtimeEvents.length} 条
+                    </span>
+                  </div>
+                  <ul className="mt-3 grid gap-2">
+                    {state.runtimeEvents.slice(0, 3).map((event) => {
+                      const mood = moodSignalLabel(event.moodSignal);
+                      const toneBg =
+                        mood.tone === "warm"
+                          ? "var(--ls-mint-soft)"
+                          : mood.tone === "cool"
+                            ? "var(--ls-pink-soft)"
+                            : "var(--ls-panel-soft)";
+                      const toneText =
+                        mood.tone === "warm"
+                          ? "var(--ls-mint-text)"
+                          : mood.tone === "cool"
+                            ? "var(--ls-pink-text)"
+                            : "var(--ls-ink-soft)";
+                      return (
+                        <li
+                          key={event.id}
+                          className="flex items-start gap-3 rounded-2xl border border-[var(--ls-border)] bg-white/60 px-3 py-2.5"
+                        >
+                          <span
+                            className="mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black"
+                            style={{ background: toneBg, color: toneText }}
+                          >
+                            {mood.label}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-xs font-semibold text-[var(--ls-ink)]">
+                              {event.summary}
+                            </div>
+                            <div className="mt-0.5 text-[10px] font-bold text-[var(--ls-ink-faint)]">
+                              {event.topic ?? "日常"} · {formatRelativeTime(event.createdAt)} ·{" "}
+                              {event.channel ?? "—"}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
           ) : (
             <TokenHint />
           )}
         </Panel>
 
-        <Panel title="渠道状态" subtitle="公开状态，可无 token 读取" icon="icon-chat" pattern="app-pink">
+        <Panel
+          title="天气"
+          subtitle="岛的当下气氛"
+          icon="icon-variant"
+          pattern="app-orange"
+        >
+          {state.runtimeState && weather ? (
+            <div className="grid gap-3">
+              <div className="admin-island-weather relative overflow-hidden px-4 py-4">
+                <svg
+                  className="admin-island-weather-sky pointer-events-none absolute inset-0 h-full w-full"
+                  viewBox="0 0 200 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  {weather.tone === "warm" && (
+                    <>
+                      <circle className="admin-island-weather-sun" cx="40" cy="32" r="22" fill="#f7cd67" opacity="0.65" />
+                      <circle className="admin-island-weather-sun" cx="40" cy="32" r="14" fill="#ffe28a" opacity="0.9" />
+                    </>
+                  )}
+                  {weather.tone === "cool" && (
+                    <>
+                      <path
+                        className="admin-island-weather-wave"
+                        d="M10,40 Q40,15 70,40 T140,40 T200,40"
+                        stroke="#8aa9d6"
+                        strokeWidth="2"
+                        fill="none"
+                        opacity="0.55"
+                      />
+                      <path
+                        className="admin-island-weather-wave"
+                        d="M10,60 Q40,38 70,60 T140,60 T200,60"
+                        stroke="#8aa9d6"
+                        strokeWidth="1.5"
+                        fill="none"
+                        opacity="0.4"
+                      />
+                    </>
+                  )}
+                  {weather.tone === "neutral" && (
+                    <>
+                      <ellipse className="admin-island-weather-cloud" cx="50" cy="40" rx="28" ry="10" fill="#d6dee8" opacity="0.7" />
+                      <ellipse className="admin-island-weather-cloud" cx="80" cy="32" rx="22" ry="8" fill="#e6ecf3" opacity="0.85" />
+                    </>
+                  )}
+                </svg>
+                <div className="relative flex items-center gap-3">
+                  <span className="text-3xl leading-none" aria-hidden="true">
+                    {weather.emoji}
+                  </span>
+                  <div>
+                    <div className="text-base font-black text-[var(--ls-ink-strong)]">
+                      {weather.label}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">
+                      精力 {state.runtimeState.energyLevel} / 社交 {state.runtimeState.socialBattery}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <InfoBlock>{state.runtimeState.currentActivity ?? "岛上安静，听听风。"}</InfoBlock>
+            </div>
+          ) : (
+            <TokenHint />
+          )}
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-2">
+        <Panel
+          title="码头"
+          subtitle="对外通道 / 可无 token 读取"
+          icon="icon-chat"
+          pattern="app-pink"
+        >
           <div className="grid gap-3">
             <ChannelRow
               label="Telegram"
@@ -233,32 +451,28 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
           </div>
         </Panel>
 
-        <Panel title="功能开关" subtitle="来自数据库的实时运行配置" icon="icon-diy" pattern="app-teal">
+        <Panel
+          title="岛上设施"
+          subtitle="正在运转的能力 / 高风险能力保持保守"
+          icon="icon-diy"
+          pattern="app-teal"
+        >
           {state.runtime ? (
             <div className="grid gap-2">
-              {Object.entries(state.runtime.features).map(([key, enabled]) => (
-                <ConfigRow
-                  key={key}
-                  label={featureLabels[key] ?? formatKey(key)}
-                  enabled={enabled}
+              <div className="admin-island-row flex items-center justify-between gap-3 px-3 py-2.5">
+                <span className="text-sm font-bold text-[var(--ls-ink)]">功能开关</span>
+                <StatusPill
+                  active={enabledFeatureCount === totalFeatureCount}
+                  label={`${enabledFeatureCount} / ${totalFeatureCount} 已开`}
                 />
-              ))}
-            </div>
-          ) : (
-            <TokenHint />
-          )}
-        </Panel>
-
-        <Panel title="安全边界" subtitle="高风险能力先保持保守" icon="icon-variant" pattern="app-orange">
-          {state.runtime ? (
-            <div className="grid gap-2">
-              {Object.entries(state.runtime.safety).map(([key, enabled]) => (
-                <ConfigRow
-                  key={key}
-                  label={safetyLabels[key] ?? formatKey(key)}
-                  enabled={enabled}
+              </div>
+              <div className="admin-island-row flex items-center justify-between gap-3 px-3 py-2.5">
+                <span className="text-sm font-bold text-[var(--ls-ink)]">安全边界</span>
+                <StatusPill
+                  active={enabledSafetyCount === totalSafetyCount}
+                  label={`${enabledSafetyCount} / ${totalSafetyCount} 已开`}
                 />
-              ))}
+              </div>
             </div>
           ) : (
             <TokenHint />
@@ -266,29 +480,113 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
         </Panel>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="模型提供商" subtitle="只显示是否配置，不显示密钥" icon="icon-helicopter" pattern="app-blue">
-          {state.runtime ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              {state.runtime.providers.map((provider) => (
-                <div
-                  key={provider.name}
-                  className={`admin-island-row px-4 py-3 ${
-                    provider.active ? "border-[var(--ls-mint-light)] bg-[var(--ls-mint-soft)]" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-black text-[var(--ls-ink-strong)]">{provider.label}</div>
-                    <StatusPill
-                      active={providerReady(provider)}
-                      label={provider.active ? "当前" : providerReady(provider) ? "可用" : "缺配置"}
-                    />
+      <section>
+        <Panel
+          title="海"
+          subtitle="关系海洋 + 记忆沙滩"
+          icon="icon-map"
+          pattern="app-blue"
+        >
+          {state.relationships ? (
+            <div className="grid gap-3">
+              <div className="admin-island-row px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">
+                    关系海洋
                   </div>
-                  <div className="mt-2 truncate text-xs font-semibold text-[var(--ls-ink-soft)]">
-                    {provider.model ?? "未设置模型"}
+                  <span className="text-[10px] font-bold text-[var(--ls-ink-faint)]">
+                    共 {state.relationships.relationships.length} 个访客
+                  </span>
+                </div>
+                {state.relationships.relationships.length === 0 ? (
+                  <div className="mt-3 text-sm font-semibold text-[var(--ls-ink-muted)]">
+                    海里还没有人，去 '关系' 看看。
+                  </div>
+                ) : (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {state.relationships.relationships.map((rel) => (
+                      <li key={rel.id}>
+                        <span
+                          className="admin-island-sea-chip"
+                          style={{
+                            background:
+                              rel.affinity < 35
+                                ? "var(--ls-pink-soft)"
+                                : rel.affinity >= 70
+                                  ? "var(--ls-mint-soft)"
+                                  : "var(--ls-panel-soft)",
+                            color:
+                              rel.affinity < 35
+                                ? "var(--ls-pink-text)"
+                                : rel.affinity >= 70
+                                  ? "var(--ls-mint-text)"
+                                  : "var(--ls-ink)",
+                            borderColor:
+                              rel.affinity < 35
+                                ? "var(--ls-pink)"
+                                : rel.affinity >= 70
+                                  ? "var(--ls-mint-light)"
+                                  : "var(--ls-border)",
+                          }}
+                        >
+                          <span className="font-black">
+                            {rel.relationshipLabel}
+                          </span>
+                          <span className="ml-2 text-[10px] font-bold opacity-70">
+                            {rel.person?.label ?? rel.personId.slice(0, 6)}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="admin-island-row flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">
+                    记忆沙滩
+                  </div>
+                  <div className="mt-1 text-sm font-bold text-[var(--ls-ink)]">
+                    今日访客留下 {state.runtimeEvents.length} 次足迹
                   </div>
                 </div>
-              ))}
+                <span className="admin-island-sea-footprint" aria-hidden="true">
+                  🌊
+                </span>
+              </div>
+            </div>
+          ) : (
+            <TokenHint />
+          )}
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <Panel
+          title="罗盘"
+          subtitle="模型提供商 / 只显示是否配置，不显示密钥"
+          icon="icon-helicopter"
+          pattern="app-blue"
+        >
+          {state.runtime ? (
+            <div className="grid gap-3">
+              <div className="admin-island-row flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">
+                    当前指向
+                  </div>
+                  <div className="mt-1 text-base font-black text-[var(--ls-ink-strong)]">
+                    {activeProvider?.label ?? "未选定"}
+                  </div>
+                </div>
+                <StatusPill
+                  active={Boolean(activeProvider && providerReady(activeProvider))}
+                  label={activeProvider?.model ?? "—"}
+                />
+              </div>
+              <InfoBlock>
+                已配置 {configuredProviderCount} / 共 {totalProviderCount} 个模型渠道，剩下要看完整列表请去 '运行配置'。
+              </InfoBlock>
             </div>
           ) : (
             <TokenHint />
@@ -296,24 +594,13 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
         </Panel>
 
         <Panel
-          title="后续接入顺序"
-          subtitle="已经可用的入口继续保留，下一步补齐还缺的管理面"
+          title="岛日志"
+          subtitle="今天岛上发生了什么"
           icon="icon-map"
           pattern="lime-green"
         >
-          <div className="grid gap-3">
-            {[
-              "平台工具：接真实评论读取和互动记录",
-              "工具日志：列表、筛选、详情",
-              "渠道状态：查看连接和平台入口",
-            ].map((item, index) => (
-              <div key={item} className="admin-island-row flex items-center gap-3 px-4 py-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[16px] border-2 border-[var(--ls-yellow)] bg-[var(--ls-yellow-soft)] text-xs font-black text-[var(--ls-ink-strong)]">
-                  {index + 1}
-                </span>
-                <span className="text-sm font-bold leading-6 text-[var(--ls-ink)]">{item}</span>
-              </div>
-            ))}
+          <div className="admin-island-soft-panel px-4 py-5 text-sm font-semibold leading-6 text-[var(--ls-ink-muted)]">
+            这里将记录今天岛上发生的事。先把岛修好，故事以后会自己长出来。
           </div>
         </Panel>
       </section>
@@ -327,15 +614,20 @@ function Panel({
   icon,
   pattern,
   children,
+  span,
 }: {
   title: string;
   subtitle: string;
   icon: IconName;
   pattern: CardColor;
   children: ReactNode;
+  span?: number;
 }) {
   return (
-    <Card className="h-full p-5" pattern={pattern}>
+    <Card
+      className={`h-full p-5 ${span === 2 ? "lg:col-span-2" : ""}`.trim()}
+      pattern={pattern}
+    >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-black text-[var(--ls-ink-strong)]">{title}</h3>
