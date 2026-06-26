@@ -257,6 +257,100 @@ textarea.field-input {
   font-size: 1.7rem;
 }
 
+/* 岛图 — 天气面板背景 */
+.admin-island-weather {
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(210, 232, 255, 0.4));
+  border: 1.5px solid var(--ls-border);
+  min-height: 88px;
+}
+
+.admin-island-weather-sky {
+  z-index: 0;
+}
+
+/* 岛图 — 海区 chip */
+.admin-island-sea-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border-width: 1.5px;
+  border-style: solid;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  transition: transform 0.18s ease;
+}
+
+.admin-island-sea-chip:hover {
+  transform: translateY(-1px);
+}
+
+.admin-island-sea-footprint {
+  font-size: 1.5rem;
+  line-height: 1;
+  display: inline-block;
+  animation: admin-island-wave 3.2s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+@keyframes admin-island-wave {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-3px) rotate(6deg); }
+}
+
+/* 天气 — 太阳脉动 */
+@keyframes admin-island-sun-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.65; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+.admin-island-weather-sun {
+  animation: admin-island-sun-pulse 4s ease-in-out infinite;
+  transform-origin: 40px 32px;
+}
+
+/* 天气 — 海浪漂移 */
+@keyframes admin-island-wave-drift {
+  0% { transform: translateX(-12px); }
+  50% { transform: translateX(12px); }
+  100% { transform: translateX(-12px); }
+}
+
+.admin-island-weather-wave {
+  animation: admin-island-wave-drift 6s ease-in-out infinite;
+}
+
+/* 天气 — 云朵慢飘 */
+@keyframes admin-island-cloud-drift {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(14px); }
+}
+
+.admin-island-weather-cloud {
+  animation: admin-island-cloud-drift 8s ease-in-out infinite alternate;
+}
+
+/* 岛中央 — 每日一句淡入 */
+@keyframes admin-island-quote-fade {
+  0% { opacity: 0; transform: translateY(2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.admin-island-daily-quote {
+  animation: admin-island-quote-fade 0.6s ease-out;
+}
+
+/* 海 chip 入场小弹 */
+@keyframes admin-island-chip-pop {
+  0% { opacity: 0; transform: translateY(4px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.admin-island-sea-chip {
+  animation: admin-island-chip-pop 0.4s ease-out both;
+}
+
 .admin-sidebar-nav {
   scrollbar-color: var(--ls-disabled-text) transparent;
   scrollbar-width: thin;
