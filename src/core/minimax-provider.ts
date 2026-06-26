@@ -2,7 +2,6 @@ import type { ChatMessageProviderMetadata, MiniMaxMessageMetadata } from "../typ
 
 export interface MiniMaxRuntimeOptions {
   thinkingType: "adaptive" | "disabled";
-  reasoningSplit: boolean;
   maxCompletionTokens?: number;
 }
 
@@ -25,7 +24,7 @@ export function buildMiniMaxRequestFields(
 
   return {
     thinking: { type: options.thinkingType },
-    reasoning_split: options.reasoningSplit,
+    reasoning_split: true,
     ...(options.maxCompletionTokens
       ? { max_completion_tokens: options.maxCompletionTokens }
       : {}),

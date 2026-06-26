@@ -13,8 +13,8 @@
 
 ## 总结
 
-- 运行时配置原有 91 个，本轮已删除 `REFLECTION_OWNER_ONLY` 与 `DREAM_AUTO_APPLY`，当前为 89 个。
-- 其中 86 个可以确认接入了业务路径。
+- 运行时配置原有 91 个，已删除 `REFLECTION_OWNER_ONLY`、`DREAM_AUTO_APPLY`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`，当前为 85 个。
+- 绝大多数配置可以确认接入了业务路径。
 - 2 个完全没有业务读取，先保留给 Dream 后续重构：`DREAM_MORNING_BRIEF_ENABLED`、`DREAM_MIN_SIGNAL_SCORE`。
 - 1 个只出现在 admin 状态摘要里，没有真正约束业务，先保留给 Dream 后续重构：`DREAM_MAX_LOOKBACK_DAYS`。
 - `.env` 配置大部分都在用，但有几个需要整理显示语义：`TELEGRAM_MODE`、`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`、旧的 `MODEL_*` fallback。
@@ -30,13 +30,12 @@
 
 | 分组 | 配置项 | 结论 | 主要使用位置 |
 | --- | --- | --- | --- |
-| 模型运行 | `ACTIVE_MODEL_PROVIDER`、`MINIMAX_THINKING_TYPE`、`MINIMAX_REASONING_SPLIT`、`MINIMAX_MAX_COMPLETION_TOKENS` | 保留 | `src/core/model-provider.ts` |
+| 模型运行 | `ACTIVE_MODEL_PROVIDER`、`MINIMAX_THINKING_TYPE`、`MINIMAX_MAX_COMPLETION_TOKENS` | 保留 | `src/core/model-provider.ts` |
 | 聊天限制 | `MAX_MESSAGE_LENGTH` | 保留 | `src/core/safety.ts`、`src/channels/telegram/telegram.bot.ts` |
-| 回复投递 | `REPLY_DELIVERY_MODE`、`REPLY_PROGRESS_DRAFT_ENABLED`、`REPLY_SEGMENTATION_LLM_ENABLED`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` | 保留 | `src/core/chat.service.ts`、`src/core/reply-segmentation.service.ts` |
+| 回复投递 | `REPLY_DELIVERY_MODE`、`REPLY_SEGMENTATION_LLM_ENABLED`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` | 保留 | `src/core/chat.service.ts`、`src/core/reply-segmentation.service.ts` |
 | 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_SEMANTIC_TOP_K`、`MEMORY_FINAL_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` | 保留 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts`、`src/reflection/reflection-proposal.service.ts` |
-| 关系状态 | `RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS` | 保留 | `src/runtime/relationship-state.service.ts` |
 | 工具 | `TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT` | 保留 | `src/core/chat.service.ts`、`src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
-| 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE`、`TOOL_SEND_INTERMEDIATE_MESSAGE_MODE` | 保留 | `src/tools/builtin/*.tool.ts` |
+| 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE` | 保留 | `src/tools/builtin/*.tool.ts` |
 | Reflection | 全部 Reflection 配置 | 保留 | `src/routes/reflection.route.ts`、`src/reflection/*` |
 | Dream | 除下方问题项外的 Dream 配置 | 保留 | `src/dream/*`、`src/routes/dream.route.ts`、`src/app.ts` |
 | 运行态自启动 | `RUNTIME_AUTONOMY_AUTO_RUN`、`RUNTIME_AUTONOMY_CRON`、`RUNTIME_AUTONOMY_TIMEZONE` | 保留 | `src/runtime/runtime-autonomy-scheduler.ts`、`src/app.ts` |
@@ -51,6 +50,20 @@
 | `DREAM_MORNING_BRIEF_ENABLED` | Morning Brief 服务和接口存在，但这个开关没有被读取。接口 `GET /v1/dream/jobs/:jobId/morning-brief` 总是可用。 | 开关未接线。 | 如果 Morning Brief 要一直作为只读报告，删除开关；如果要可关闭，就在路由或 service 加判断。 |
 | `DREAM_MIN_SIGNAL_SCORE` | `computeSignalScore` 会计算并写入 `strength`，但没有用这个配置做过滤。 | 配置名表达“最低分数”，实际不生效。 | 要么在 `filterSignals` 或写入前用 `computeSignalScore(s) >= DREAM_MIN_SIGNAL_SCORE` 过滤，要么删除。 |
 | `DREAM_MAX_LOOKBACK_DAYS` | 只在 admin runtime 摘要里展示，没有限制手动 `lookback_hours` 或 job 的 `from/to`。 | 弱生效，属于“显示有，约束无”。 | 若保留，应在 `dream.route.ts` 或 `dream.service.ts` clamp 最大回看范围；否则删除。 |
+
+## Pending：关系好感度入口
+
+- 关系模块已从“熟悉度、信任度、亲近感、关系张力”四维分数收敛为单一 `affinity`（好感度）。
+- 当前聊天不再靠关键词自动升降关系，也删除了 `RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS` 两个设置项。
+- 未来入口保留在 `relationshipStateService.applyAffinityPatch(...)`：Reflection/Dream 后续如果根据复盘、梦境、证据链判断要调整好感度，应通过这个方法写入，并带上 `source`、`reason`、`delta`/`affinity`、`evidence`，方便 admin 审计、导出和后续训练数据整理。
+- 后续整理 Dream/Reflection 时再设计“什么证据可以影响好感度、一次最多变化多少、是否需要 admin 确认或可回滚”。
+
+## Pending：聊天上下文结构
+
+- 普通聊天当前只从数据库取最近 10 条 `Message` 放进 prompt；这个数字是代码里的固定实现，不是模型天然限制。
+- 因为最终回复会被拆成多条 `assistant` 消息，按 Message 条数取上下文会让一次切分回复占掉多条名额，真实可见轮数会变少。
+- 后续应改成按“对话轮次/turn”构造上下文：用 `replyGroupId` 合并同一次最终回复，过滤或标注 intermediate 消息，并把最近上下文轮数做成可配置项。
+- `summarize_recent_conversation` 目前只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文有重叠。后续要么删除，要么改成明确的“更早历史压缩/回看更多消息”工具，例如回看最近 100 条并产出上下文摘要。
 
 ## `.env` 配置审计
 

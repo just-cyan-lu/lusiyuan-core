@@ -132,7 +132,7 @@ export function selectChatProfile(input: BuildPersonaProjectionInput): string {
 
   if (selected !== DEFAULT_CHAT_PROFILE_ID) return selected;
 
-  if (/关系标签：(?:熟悉稳定|亲近且信任)|亲近感：[7-9]\d|信任度：[7-9]\d/i.test(input.relationshipState ?? "")) {
+  if (/关系标签：(?:熟悉稳定|很熟悉|非常熟悉)|好感度：[7-9]\d/i.test(input.relationshipState ?? "")) {
     return "close_friend";
   }
 

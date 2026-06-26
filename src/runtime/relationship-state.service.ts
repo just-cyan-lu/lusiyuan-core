@@ -1,14 +1,10 @@
-import { Prisma, type RelationshipState, type RelationshipStateEvent } from "@prisma/client";
+import { Prisma, type RelationshipState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { isOwnerExternalId, ownerExternalIds } from "../core/owner-identity.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 export interface RelationshipStatePatch {
   relationshipLabel?: string;
-  familiarity?: number;
-  trust?: number;
-  closeness?: number;
-  tension?: number;
+  affinity?: number;
   interactionStyle?: string | null;
   summary?: string | null;
   recentSignal?: string | null;
@@ -39,6 +35,19 @@ interface ApplyRelationshipPatchInput {
   channel?: string;
 }
 
+interface ApplyRelationshipAffinityInput {
+  relationshipId: string;
+  source: "reflection" | "dream" | "admin" | "manual" | string;
+  reason: string;
+  delta?: number;
+  affinity?: number;
+  userId?: string;
+  conversationId?: string;
+  messageId?: string;
+  channel?: string;
+  evidence?: Prisma.InputJsonValue;
+}
+
 interface ObserveIdentitySignalInput {
   userId: string;
   conversationId: string;
@@ -67,27 +76,9 @@ interface IdentityCandidateMatch {
   targetUserId?: string;
 }
 
-interface RelationshipSignalDelta {
-  familiarity: number;
-  trust: number;
-  closeness: number;
-  tension: number;
-}
-
-const relationshipMutationEventTypes = [
-  "chat_relationship_update",
-  "relationship_review_update",
-  "manual_update",
-  "reset",
-  "identity_merge",
-] as const;
-
 const defaultRelationshipState = {
   relationshipLabel: "刚认识",
-  familiarity: 8,
-  trust: 8,
-  closeness: 5,
-  tension: 0,
+  affinity: 10,
   interactionStyle: "慢热但不冷淡，先保持自然、礼貌和稳定。",
   summary: "还没有形成明确关系，只按当下对话慢慢认识。",
   recentSignal: "等待更多真实互动。",
@@ -136,16 +127,12 @@ function metadataWith(
   };
 }
 
-function relationshipLabelFrom(state: {
-  familiarity: number;
-  trust: number;
-  closeness: number;
-  tension: number;
-}): string {
-  if (state.tension >= 55) return "有张力，需要放慢";
-  if (state.closeness >= 70 && state.trust >= 70) return "亲近且信任";
-  if (state.familiarity >= 65 && state.trust >= 55) return "熟悉稳定";
-  if (state.familiarity >= 35) return "逐渐熟悉";
+export function relationshipLabelFromAffinity(affinity: number): string {
+  const value = clampInt(affinity, 0, 100);
+  if (value >= 85) return "非常熟悉";
+  if (value >= 65) return "很熟悉";
+  if (value >= 40) return "熟悉稳定";
+  if (value >= 20) return "逐渐熟悉";
   return "刚认识";
 }
 
@@ -154,10 +141,7 @@ function snapshotRelationshipState(state: RelationshipState): Prisma.InputJsonOb
     id: state.id,
     personId: state.personId,
     relationshipLabel: state.relationshipLabel,
-    familiarity: state.familiarity,
-    trust: state.trust,
-    closeness: state.closeness,
-    tension: state.tension,
+    affinity: state.affinity,
     interactionStyle: state.interactionStyle,
     summary: state.summary,
     recentSignal: state.recentSignal,
@@ -173,10 +157,13 @@ function normalizePatch(patch: RelationshipStatePatch): Prisma.RelationshipState
   if (patch.relationshipLabel !== undefined) {
     data.relationshipLabel = cleanText(patch.relationshipLabel, 60) ?? "刚认识";
   }
-  if (patch.familiarity !== undefined) data.familiarity = clampInt(patch.familiarity, 0, 100);
-  if (patch.trust !== undefined) data.trust = clampInt(patch.trust, 0, 100);
-  if (patch.closeness !== undefined) data.closeness = clampInt(patch.closeness, 0, 100);
-  if (patch.tension !== undefined) data.tension = clampInt(patch.tension, 0, 100);
+  if (patch.affinity !== undefined) {
+    const affinity = clampInt(patch.affinity, 0, 100);
+    data.affinity = affinity;
+    if (patch.relationshipLabel === undefined) {
+      data.relationshipLabel = relationshipLabelFromAffinity(affinity);
+    }
+  }
   if (patch.interactionStyle !== undefined) {
     data.interactionStyle = cleanText(patch.interactionStyle, 220);
   }
@@ -194,10 +181,7 @@ function normalizePatch(patch: RelationshipStatePatch): Prisma.RelationshipState
 function summarizePatch(patch: RelationshipStatePatch): string {
   const parts = [
     patch.relationshipLabel ? `关系：${patch.relationshipLabel}` : "",
-    patch.familiarity !== undefined ? `熟悉度 ${patch.familiarity}` : "",
-    patch.trust !== undefined ? `信任 ${patch.trust}` : "",
-    patch.closeness !== undefined ? `亲近 ${patch.closeness}` : "",
-    patch.tension !== undefined ? `张力 ${patch.tension}` : "",
+    patch.affinity !== undefined ? `好感度 ${patch.affinity}` : "",
   ].filter(Boolean);
   return parts.length > 0 ? parts.join("；") : "关系状态已更新。";
 }
@@ -205,10 +189,7 @@ function summarizePatch(patch: RelationshipStatePatch): string {
 function patchToJson(patch: RelationshipStatePatch): Prisma.InputJsonObject {
   const json: Record<string, Prisma.InputJsonValue | null> = {};
   if (patch.relationshipLabel !== undefined) json.relationshipLabel = patch.relationshipLabel;
-  if (patch.familiarity !== undefined) json.familiarity = patch.familiarity;
-  if (patch.trust !== undefined) json.trust = patch.trust;
-  if (patch.closeness !== undefined) json.closeness = patch.closeness;
-  if (patch.tension !== undefined) json.tension = patch.tension;
+  if (patch.affinity !== undefined) json.affinity = patch.affinity;
   if (patch.interactionStyle !== undefined) json.interactionStyle = patch.interactionStyle;
   if (patch.summary !== undefined) json.summary = patch.summary;
   if (patch.recentSignal !== undefined) json.recentSignal = patch.recentSignal;
@@ -223,150 +204,6 @@ function patchToJson(patch: RelationshipStatePatch): Prisma.InputJsonObject {
     json.lastInteractionAt = patch.lastInteractionAt?.toISOString() ?? null;
   }
   return json as Prisma.InputJsonObject;
-}
-
-function deltasFromPatch(
-  state: RelationshipState,
-  patch: RelationshipStatePatch
-): RelationshipSignalDelta {
-  return {
-    familiarity: (patch.familiarity ?? state.familiarity) - state.familiarity,
-    trust: (patch.trust ?? state.trust) - state.trust,
-    closeness: (patch.closeness ?? state.closeness) - state.closeness,
-    tension: (patch.tension ?? state.tension) - state.tension,
-  };
-}
-
-function readNumber(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function readSignalDelta(event: RelationshipStateEvent): RelationshipSignalDelta {
-  const patch = readRecord(event.patch);
-  const deltas = readRecord(patch.deltas);
-  return {
-    familiarity: readNumber(deltas.familiarity),
-    trust: readNumber(deltas.trust),
-    closeness: readNumber(deltas.closeness),
-    tension: readNumber(deltas.tension),
-  };
-}
-
-function clampDelta(value: number, maxDown: number, maxUp: number): number {
-  return clampInt(value, -Math.abs(maxDown), Math.abs(maxUp));
-}
-
-function weightedSignalDelta(event: RelationshipStateEvent): RelationshipSignalDelta {
-  const delta = readSignalDelta(event);
-  const weight = event.source?.startsWith("owner_") ? 1.25 : 1;
-  return {
-    familiarity: delta.familiarity * weight,
-    trust: delta.trust * weight,
-    closeness: delta.closeness * weight,
-    tension: delta.tension * weight,
-  };
-}
-
-function classifyRelationshipSignals(events: RelationshipStateEvent[]) {
-  const joined = events.map((event) => event.summary).join("\n");
-  return {
-    positive: (joined.match(/正向反馈|轻松|修复|稳定协作|谢谢|开心/g) ?? []).length,
-    vulnerable: (joined.match(/脆弱|压力|焦虑|难过|陪伴/g) ?? []).length,
-    boundary: (joined.match(/边界|控制|张力|服从|不许/g) ?? []).length,
-    collaboration: (joined.match(/协作|项目|设计|实现|架构/g) ?? []).length,
-  };
-}
-
-function reviewSignalDescription(counts: ReturnType<typeof classifyRelationshipSignals>): {
-  recentSignal: string;
-  interactionStyle: string;
-} {
-  if (counts.boundary >= 2) {
-    return {
-      recentSignal: "最近多次出现边界或控制相关张力，关系需要放慢，不要急着亲近。",
-      interactionStyle: "温和但更有边界，减少迎合，先稳定节奏和清晰表达。",
-    };
-  }
-  if (counts.vulnerable >= 2) {
-    return {
-      recentSignal: "最近多次出现脆弱或压力表达，对方更愿意暴露真实状态。",
-      interactionStyle: "先接住情绪，少讲大道理，回应要稳定、细致、不过度热情。",
-    };
-  }
-  if (counts.collaboration >= 2) {
-    return {
-      recentSignal: "最近多次进入稳定协作，关系里有共同推进事情的默契。",
-      interactionStyle: "偏协作模式，可以直接讨论结构、取舍和下一步，语气自然可靠。",
-    };
-  }
-  if (counts.positive >= 2) {
-    return {
-      recentSignal: "最近多次出现正向反馈，关系氛围更轻松。",
-      interactionStyle: "可以更自然一点，允许轻微玩笑和顺滑接话，但仍保持分寸。",
-    };
-  }
-  return {
-    recentSignal: "最近有连续互动，但信号还不强，关系稳定小幅累积。",
-    interactionStyle: "保持自然、礼貌和稳定，继续观察真实互动。",
-  };
-}
-
-export function deriveRelationshipReviewPatch(
-  state: RelationshipState,
-  events: RelationshipStateEvent[]
-): RelationshipStatePatch {
-  const totals = events.reduce<RelationshipSignalDelta>(
-    (acc, event) => {
-      const delta = weightedSignalDelta(event);
-      return {
-        familiarity: acc.familiarity + delta.familiarity,
-        trust: acc.trust + delta.trust,
-        closeness: acc.closeness + delta.closeness,
-        tension: acc.tension + delta.tension,
-      };
-    },
-    { familiarity: 0, trust: 0, closeness: 0, tension: 0 }
-  );
-  const bounded = {
-    familiarity: clampDelta(totals.familiarity, 4, 8),
-    trust: clampDelta(totals.trust, 8, 8),
-    closeness: clampDelta(totals.closeness, 6, 6),
-    tension: clampDelta(totals.tension, 8, 12),
-  };
-  const next = {
-    familiarity: clampInt(state.familiarity + bounded.familiarity, 0, 100),
-    trust: clampInt(state.trust + bounded.trust, 0, 100),
-    closeness: clampInt(state.closeness + bounded.closeness, 0, 100),
-    tension: clampInt(state.tension + bounded.tension, 0, 100),
-  };
-  const counts = classifyRelationshipSignals(events);
-  const description = reviewSignalDescription(counts);
-  const relationshipLabel = relationshipLabelFrom(next);
-  const newest = events.reduce<Date | null>(
-    (latest, event) => (latest && latest > event.createdAt ? latest : event.createdAt),
-    null
-  );
-
-  return {
-    ...next,
-    relationshipLabel,
-    interactionStyle: description.interactionStyle,
-    recentSignal: description.recentSignal,
-    summary: `最近 ${events.length} 次关系信号复盘后，关系判断为「${relationshipLabel}」。这次复盘不是被单句话触发，而是根据一段连续互动校准。`,
-    statusNote: "由关系复盘根据最近多次聊天信号更新；admin 可以手动修正。",
-    lastInteractionAt: newest,
-    metadata: metadataWith(state.metadata, {
-      lastRelationshipReview: {
-        at: new Date().toISOString(),
-        signalCount: events.length,
-        signalIds: events.map((event) => event.id),
-        deltas: bounded,
-        counts,
-        mode: "review_rules",
-      },
-    }),
-  };
 }
 
 function normalizeIdentityToken(value: string): string {
@@ -534,89 +371,6 @@ function matchIdentityCandidate(
     matchedHints: Array.from(matchedHints),
     matchedTerms: Array.from(matchedTerms),
     targetUserId,
-  };
-}
-
-export function deriveRelationshipStatePatch(
-  state: RelationshipState,
-  input: ObserveRelationshipTurnInput
-): RelationshipStatePatch {
-  const source = `${input.userMessage}\n${input.assistantReply}`;
-  let familiarityDelta = input.isOwner ? 2 : 1;
-  let trustDelta = 0;
-  let closenessDelta = 0;
-  let tensionDelta = -1;
-  let interactionStyle = state.interactionStyle ?? defaultRelationshipState.interactionStyle;
-  let recentSignal = "普通对话继续发生，关系有一点自然累积。";
-
-  if (/谢谢|谢啦|感谢|辛苦|你懂|你真好|喜欢你|开心|哈哈|好玩|太好了/i.test(source)) {
-    trustDelta += 2;
-    closenessDelta += 2;
-    tensionDelta -= 2;
-    interactionStyle = "可以更自然一点，允许轻微玩笑和更顺滑的接话。";
-    recentSignal = "对方释放了正向反馈，关系更轻松。";
-  }
-
-  if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
-    trustDelta += 1;
-    closenessDelta += 1;
-    tensionDelta += 1;
-    interactionStyle = "先接住情绪，少讲道理，保持陪伴感和稳定边界。";
-    recentSignal = "对方暴露了脆弱或压力，需要被认真接住。";
-  }
-
-  if (/人设|运行体|项目|架构|数据库|admin|后台|实现|设计|我们继续|一起/i.test(source)) {
-    familiarityDelta += input.isOwner ? 3 : 2;
-    trustDelta += input.isOwner ? 2 : 1;
-    closenessDelta += 1;
-    interactionStyle = "偏协作模式，可以直接讨论结构、取舍和下一步。";
-    recentSignal = "关系里出现稳定协作感。";
-  }
-
-  if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索|你只能|不许/i.test(source)) {
-    trustDelta -= 3;
-    closenessDelta -= 2;
-    tensionDelta += 8;
-    interactionStyle = "温和但更有边界，不急着亲近，也不迎合控制感。";
-    recentSignal = "对话触发了边界或控制相关张力。";
-  }
-
-  if (/对不起|抱歉|不好意思|我刚才|误会/i.test(source)) {
-    trustDelta += 2;
-    tensionDelta -= 3;
-    recentSignal = "对方有修复关系的信号。";
-  }
-
-  const next = {
-    familiarity: clampInt(state.familiarity + familiarityDelta, 0, 100),
-    trust: clampInt(state.trust + trustDelta, 0, 100),
-    closeness: clampInt(state.closeness + closenessDelta, 0, 100),
-    tension: clampInt(state.tension + tensionDelta, 0, 100),
-  };
-  const relationshipLabel = relationshipLabelFrom(next);
-  const preview = cleanText(input.userMessage, 80) ?? "日常聊天";
-
-  return {
-    ...next,
-    relationshipLabel,
-    interactionStyle,
-    recentSignal,
-    summary: `最近一次互动来自 ${input.channel}：“${preview}”。整体关系判断为「${relationshipLabel}」。`,
-    statusNote: "由聊天后的关系观察直接更新；admin 可以手动修正。",
-    lastInteractionAt: new Date(),
-    metadata: metadataWith(state.metadata, {
-      lastObserver: "relationship_rules",
-      lastChannel: input.channel,
-      lastConversationId: input.conversationId,
-      lastMessageId: input.messageId ?? null,
-      lastDeltas: {
-        familiarity: familiarityDelta,
-        trust: trustDelta,
-        closeness: closenessDelta,
-        tension: tensionDelta,
-      },
-      owner: Boolean(input.isOwner),
-    }),
   };
 }
 
@@ -864,15 +618,10 @@ export const relationshipStateService = {
         const sourceLinkCount = sourceLink.person.identityLinks.length;
 
         if (sourceState && sourceLinkCount <= 1) {
-          const merged = {
-            familiarity: Math.max(target.familiarity, sourceState.familiarity),
-            trust: Math.max(target.trust, sourceState.trust),
-            closeness: Math.max(target.closeness, sourceState.closeness),
-            tension: Math.max(target.tension, sourceState.tension),
-          };
+          const affinity = Math.max(target.affinity, sourceState.affinity);
           const patch: RelationshipStatePatch = {
-            ...merged,
-            relationshipLabel: relationshipLabelFrom(merged),
+            affinity,
+            relationshipLabel: relationshipLabelFromAffinity(affinity),
             summary: [
               target.summary,
               sourceState.summary,
@@ -1047,111 +796,6 @@ export const relationshipStateService = {
     });
   },
 
-  async listUnreviewedRelationshipSignals(relationshipId: string, limit = 50) {
-    const latestMutation = await prisma.relationshipStateEvent.findFirst({
-      where: {
-        relationshipStateId: relationshipId,
-        eventType: { in: Array.from(relationshipMutationEventTypes) },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return prisma.relationshipStateEvent.findMany({
-      where: {
-        relationshipStateId: relationshipId,
-        eventType: "chat_relationship_signal",
-        ...(latestMutation ? { createdAt: { gt: latestMutation.createdAt } } : {}),
-      },
-      orderBy: { createdAt: "asc" },
-      take: clampInt(limit, 1, 100),
-    });
-  },
-
-  async recordChatRelationshipSignal(input: {
-    state: RelationshipState;
-    turn: ObserveRelationshipTurnInput;
-    patch: RelationshipStatePatch;
-  }) {
-    const deltas = deltasFromPatch(input.state, input.patch);
-    const eventPatch: Prisma.InputJsonObject = {
-      proposedPatch: patchToJson(input.patch),
-      deltas: {
-        familiarity: deltas.familiarity,
-        trust: deltas.trust,
-        closeness: deltas.closeness,
-        tension: deltas.tension,
-      },
-      signal: {
-        mode: "review",
-        owner: Boolean(input.turn.isOwner),
-        userMessagePreview: cleanText(input.turn.userMessage, 120) ?? "",
-        assistantReplyPreview: cleanText(input.turn.assistantReply, 120) ?? "",
-      },
-    };
-
-    await prisma.relationshipStateEvent.create({
-      data: {
-        relationshipStateId: input.state.id,
-        personId: input.state.personId,
-        userId: input.turn.userId,
-        eventType: "chat_relationship_signal",
-        source: input.turn.isOwner ? "owner_chat_signal_rules" : "chat_signal_rules",
-        summary: `关系信号：${input.patch.recentSignal ?? summarizePatch(input.patch)}`,
-        patch: eventPatch,
-        before: snapshotRelationshipState(input.state),
-        after: snapshotRelationshipState(input.state),
-        conversationId: input.turn.conversationId,
-        messageId: input.turn.messageId,
-        channel: input.turn.channel,
-      },
-    });
-  },
-
-  async reviewRelationship(input: {
-    relationshipId: string;
-    source?: string;
-    limit?: number;
-  }): Promise<{
-    relationship: RelationshipState;
-    reviewed: boolean;
-    signalCount: number;
-    patch?: RelationshipStatePatch;
-  }> {
-    const state = await prisma.relationshipState.findUniqueOrThrow({
-      where: { id: input.relationshipId },
-    });
-    const signals = await this.listUnreviewedRelationshipSignals(
-      input.relationshipId,
-      input.limit ?? 50
-    );
-
-    if (signals.length === 0) {
-      return { relationship: state, reviewed: false, signalCount: 0 };
-    }
-
-    const patch = deriveRelationshipReviewPatch(state, signals);
-    const relationship = await this.applyPatch({
-      relationshipId: state.id,
-      patch,
-      eventType: "relationship_review_update",
-      source: input.source ?? "relationship_review_rules",
-      summary: summarizePatch(patch),
-    });
-
-    return { relationship, reviewed: true, signalCount: signals.length, patch };
-  },
-
-  async reviewRelationshipIfDue(relationshipId: string) {
-    const minSignals = clampInt(runtimeConfig.RELATIONSHIP_REVIEW_MIN_SIGNALS, 1, 50);
-    const signals = await this.listUnreviewedRelationshipSignals(relationshipId, minSignals);
-    if (signals.length < minSignals) return null;
-    return this.reviewRelationship({
-      relationshipId,
-      source: "relationship_review_rules",
-      limit: 50,
-    });
-  },
-
   async applyPatch(input: ApplyRelationshipPatchInput): Promise<RelationshipState> {
     const before = await prisma.relationshipState.findUniqueOrThrow({
       where: { id: input.relationshipId },
@@ -1183,26 +827,47 @@ export const relationshipStateService = {
     });
   },
 
-  async observeChatTurn(input: ObserveRelationshipTurnInput): Promise<void> {
-    const state = await this.getOrCreate(input.userId);
-    const patch = deriveRelationshipStatePatch(state, input);
-    if (runtimeConfig.RELATIONSHIP_UPDATE_MODE === "review") {
-      await this.recordChatRelationshipSignal({ state, turn: input, patch });
-      await this.reviewRelationshipIfDue(state.id);
-      return;
-    }
+  async applyAffinityPatch(input: ApplyRelationshipAffinityInput): Promise<RelationshipState> {
+    const before = await prisma.relationshipState.findUniqueOrThrow({
+      where: { id: input.relationshipId },
+    });
+    const nextAffinity = input.affinity !== undefined
+      ? boundedNumber(input.affinity, before.affinity)
+      : clampInt(before.affinity + boundedNumber(input.delta ?? 0, 0, -100, 100), 0, 100);
+    const delta = nextAffinity - before.affinity;
+    const patch: RelationshipStatePatch = {
+      affinity: nextAffinity,
+      relationshipLabel: relationshipLabelFromAffinity(nextAffinity),
+      recentSignal: input.reason,
+      statusNote: `由 ${input.source} 调整好感度。`,
+      lastInteractionAt: new Date(),
+      metadata: metadataWith(before.metadata, {
+        lastAffinityPatch: {
+          at: new Date().toISOString(),
+          source: input.source,
+          reason: input.reason,
+          delta,
+          affinity: nextAffinity,
+          evidence: input.evidence ?? null,
+        },
+      }),
+    };
 
-    await this.applyPatch({
-      relationshipId: state.id,
+    return this.applyPatch({
+      relationshipId: input.relationshipId,
       patch,
-      eventType: "chat_relationship_update",
-      source: input.isOwner ? "owner_chat_rules" : "chat_rules",
-      summary: summarizePatch(patch),
+      eventType: "affinity_update",
+      source: input.source,
+      summary: `好感度 ${delta >= 0 ? "+" : ""}${delta}：${input.reason}`,
       userId: input.userId,
       conversationId: input.conversationId,
       messageId: input.messageId,
       channel: input.channel,
     });
+  },
+
+  async observeChatTurn(input: ObserveRelationshipTurnInput): Promise<void> {
+    await this.getOrCreate(input.userId);
   },
 
   async observeIdentitySignals(input: ObserveIdentitySignalInput) {
@@ -1323,10 +988,7 @@ export const relationshipStateService = {
       "# 数据库关系状态",
       "",
       `- 关系标签：${state.relationshipLabel}`,
-      `- 熟悉度：${state.familiarity}/100`,
-      `- 信任度：${state.trust}/100`,
-      `- 亲近感：${state.closeness}/100`,
-      `- 关系张力：${state.tension}/100`,
+      `- 好感度：${state.affinity}/100`,
       `- 互动风格：${state.interactionStyle ?? "自然、礼貌、慢热但不冷淡。"}`,
       `- 关系摘要：${state.summary ?? "还没有形成明确关系。"}`,
       `- 最近信号：${state.recentSignal ?? "暂无。"}`,
@@ -1347,17 +1009,14 @@ export function relationshipPatchFromAdminBody(
   if (Object.prototype.hasOwnProperty.call(body, "relationshipLabel")) {
     patch.relationshipLabel = cleanText(body.relationshipLabel, 60) ?? state.relationshipLabel;
   }
-  if (Object.prototype.hasOwnProperty.call(body, "familiarity")) {
-    patch.familiarity = boundedNumber(body.familiarity, state.familiarity);
-  }
-  if (Object.prototype.hasOwnProperty.call(body, "trust")) {
-    patch.trust = boundedNumber(body.trust, state.trust);
-  }
-  if (Object.prototype.hasOwnProperty.call(body, "closeness")) {
-    patch.closeness = boundedNumber(body.closeness, state.closeness);
-  }
-  if (Object.prototype.hasOwnProperty.call(body, "tension")) {
-    patch.tension = boundedNumber(body.tension, state.tension);
+  if (Object.prototype.hasOwnProperty.call(body, "affinity")) {
+    patch.affinity = boundedNumber(body.affinity, state.affinity);
+    if (
+      !Object.prototype.hasOwnProperty.call(body, "relationshipLabel") ||
+      patch.relationshipLabel === state.relationshipLabel
+    ) {
+      patch.relationshipLabel = relationshipLabelFromAffinity(patch.affinity);
+    }
   }
   if (Object.prototype.hasOwnProperty.call(body, "interactionStyle")) {
     patch.interactionStyle = cleanText(body.interactionStyle, 220);

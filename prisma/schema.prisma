@@ -523,10 +523,7 @@ model RelationshipState {
   id                String    @id @default(cuid())
   personId          String    @unique
   relationshipLabel String    @default("刚认识")
-  familiarity       Int       @default(8)
-  trust             Int       @default(8)
-  closeness         Int       @default(5)
-  tension           Int       @default(0)
+  affinity          Int       @default(10)
   interactionStyle  String?
   summary           String?
   recentSignal      String?

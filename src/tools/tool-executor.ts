@@ -13,6 +13,19 @@ interface ExecuteInput {
   context: ToolExecutionContext;
 }
 
+export async function runWithOptionalTimeout<T>(
+  task: () => Promise<T>,
+  timeoutMs: number
+): Promise<T> {
+  if (timeoutMs === 0) return task();
+  return Promise.race([
+    task(),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Tool timeout")), timeoutMs)
+    ),
+  ]);
+}
+
 export class ToolExecutor {
   async execute(req: ExecuteInput): Promise<ToolExecutionResult> {
     const { toolName, input, context } = req;
@@ -65,12 +78,7 @@ export class ToolExecutor {
 
     try {
       const timeoutMs = runtimeConfig.TOOL_TIMEOUT_MS;
-      output = await Promise.race([
-        tool.handler(input, context),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Tool timeout")), timeoutMs)
-        ),
-      ]);
+      output = await runWithOptionalTimeout(() => tool.handler(input, context), timeoutMs);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       status = "failed";

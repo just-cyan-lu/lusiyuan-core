@@ -71,6 +71,31 @@ test("accepts LLM segmentation only when it preserves the original reply", () =>
   );
 });
 
+test("allows unlimited final reply segments when max count is zero", () => {
+  const reply = [
+    "第一段先安抚一下情绪。",
+    "第二段补充真正要点。",
+    "第三段把风险说清楚。",
+    "第四段给出下一步。",
+    "第五段留一个自然收尾。",
+  ].join("\n\n");
+  const unlimitedOptions: ReplySegmentationOptions = {
+    ...options,
+    minChars: 6,
+    maxChars: 80,
+    maxCount: 0,
+  };
+
+  const segments = splitReplyByRules(reply, unlimitedOptions);
+
+  assert.equal(segments.length, 5);
+  assert.equal(comparable(segments.join("")), comparable(reply));
+  assert.deepEqual(
+    validateLlmSegments(reply, segments, unlimitedOptions),
+    segments
+  );
+});
+
 test("calculates reply delay from readable character count", () => {
   const delayOptions: ReplySegmentationOptions = {
     ...options,

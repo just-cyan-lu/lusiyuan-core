@@ -9,7 +9,7 @@ export function checkInput(message: string): SafetyCheckResult {
   if (!message || message.trim().length === 0) {
     return { ok: false, error: "Message cannot be empty." };
   }
-  if (message.length > runtimeConfig.MAX_MESSAGE_LENGTH) {
+  if (runtimeConfig.MAX_MESSAGE_LENGTH > 0 && message.length > runtimeConfig.MAX_MESSAGE_LENGTH) {
     return {
       ok: false,
       error: `Message too long. Maximum ${runtimeConfig.MAX_MESSAGE_LENGTH} characters allowed.`,

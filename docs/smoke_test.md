@@ -77,9 +77,10 @@ MINIMAX_BASE_URL="https://api.minimax.io/v1"
 MINIMAX_API_KEY="your-api-key"
 MINIMAX_MODEL="MiniMax-M3"
 MINIMAX_THINKING_TYPE="adaptive"
-MINIMAX_REASONING_SPLIT=false
 MINIMAX_MAX_COMPLETION_TOKENS=8192
 ```
+
+`MiniMax-M3` requests always enable `reasoning_split` in code so reasoning content stays separate from the final reply.
 
 Recommended checks:
 
