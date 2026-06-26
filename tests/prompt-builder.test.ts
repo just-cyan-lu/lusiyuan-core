@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Memory, Message } from "@prisma/client";
+import type { Memory } from "@prisma/client";
 import { buildChatPrompt } from "../src/core/prompt-builder.js";
 import { selectChatProfile } from "../src/core/persona-projection.js";
 import type { PersonaContent } from "../src/core/persona-loader.js";
@@ -212,6 +212,3 @@ function budgetedMemory(type: string, text: string): BudgetedMemory {
     } as Memory,
   };
 }
-
-const _messageShapeCheck: Message[] = [];
-void _messageShapeCheck;
