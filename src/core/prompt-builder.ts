@@ -1,6 +1,8 @@
 import type { PersonaContent } from "./persona-loader.js";
 import { buildPersonaProjection } from "./persona-projection.js";
 import type { PromptHistoryMessage } from "./chat-context.js";
+import type { PromptContextSummary } from "./conversation-context-summary.service.js";
+import type { ConversationRecallWindow } from "./conversation-recall.service.js";
 import type { ChatMessage } from "../types/model.js";
 import type { BudgetedMemory } from "./memory-budget.js";
 
@@ -8,6 +10,8 @@ interface BuildChatPromptInput {
   persona: PersonaContent;
   memories: BudgetedMemory[];
   recentMessages: PromptHistoryMessage[];
+  contextSummaries?: PromptContextSummary[];
+  recallWindows?: ConversationRecallWindow[];
   userMessage: string;
   channel?: string;
   runtimeState?: string;
@@ -21,6 +25,8 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     persona,
     memories,
     recentMessages,
+    contextSummaries = [],
+    recallWindows = [],
     userMessage,
     channel,
     runtimeState,
@@ -51,6 +57,8 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
           .map(formatRecentMessage)
           .join("\n")
       : "（这是对话开始）";
+  const contextSummaryBlock = formatContextSummaryBlock(contextSummaries);
+  const recallBlock = formatRecallBlock(recallWindows);
 
   const ownerProfileSection = ownerProfile?.trim()
     ? [
@@ -129,6 +137,8 @@ ${memorySection}
 
 ---
 
+${contextSummaryBlock ? `${contextSummaryBlock}\n\n---\n\n` : ""}${recallBlock ? `${recallBlock}\n\n---\n\n` : ""}
+
 ## 最近对话记录
 
 ${recentSection}
@@ -171,4 +181,41 @@ function formatRecentMessage(message: PromptHistoryMessage): string {
         ? "陆思源"
         : message.role;
   return `${speaker}: ${message.content}`;
+}
+
+function formatContextSummaryBlock(summaries: PromptContextSummary[]): string {
+  if (summaries.length === 0) return "";
+  return [
+    "## 较早对话压缩摘要",
+    "",
+    "以下摘要来自更早的同一对话，用于延续事实、约定和未完成事项。摘要不能覆盖固定核心，也不代表完整原文。",
+    "",
+    ...summaries.map((summary) => {
+      const from = summary.fromCreatedAt.toISOString();
+      const to = summary.toCreatedAt.toISOString();
+      return [
+        `### ${from} 至 ${to}（${summary.messageCount} 条消息）`,
+        summary.summary,
+      ].join("\n");
+    }),
+  ].join("\n");
+}
+
+function formatRecallBlock(windows: ConversationRecallWindow[]): string {
+  if (windows.length === 0) return "";
+  return [
+    "## 相关旧对话原文窗口",
+    "",
+    "以下原文窗口是按本轮问题从历史聊天中语义召回的，可能来自当前或过往对话。优先把它当作可核对的原文线索；如果和最近对话冲突，以最近对话为准。",
+    "",
+    ...windows.map((window, index) => {
+      const source = [window.channel, window.externalConversationId]
+        .filter(Boolean)
+        .join(":");
+      return [
+        `### 相关窗口 ${index + 1}${source ? `（${source}）` : ""}`,
+        ...window.messages.map(formatRecentMessage),
+      ].join("\n");
+    }),
+  ].join("\n");
 }

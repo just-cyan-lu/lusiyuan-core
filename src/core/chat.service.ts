@@ -5,7 +5,10 @@ import { loadOwnerProfile } from "./owner-profile-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
 import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
-import { loadRecentConversationContext } from "./chat-context.js";
+import {
+  loadPromptConversationContext,
+  maintainConversationContext,
+} from "./conversation-context.service.js";
 import { checkInput, sanitizeOutput } from "./safety.js";
 import { toolExecutor } from "../tools/tool-executor.js";
 import { toolRegistry } from "../tools/tool-registry.js";
@@ -28,6 +31,7 @@ import {
 import type { ChatInput, ChatOutput, ChatReplyPart } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 import type { ChatMessage, MessageContentPart } from "../types/model.js";
+import type { Message } from "@prisma/client";
 
 async function storeAndEmitIntermediateMessage(input: {
   chatInput: ChatInput;
@@ -173,7 +177,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     if (part) replySequence++;
   }
 
-  let userMessage: { id: string };
+  let userMessage: Message;
   try {
     userMessage = await prisma.message.create({
       data: {
@@ -190,14 +194,15 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     throw err;
   }
 
-  const [persona, ownerProfile, memories, recentMessages, runtimeState, relationshipState] = await Promise.all([
+  const [persona, ownerProfile, memories, conversationContext, runtimeState, relationshipState] = await Promise.all([
     loadPersona(),
     owner ? loadOwnerProfile() : Promise.resolve(""),
     memoryService.retrieveRelevantMemories(user.id, input.message),
-    loadRecentConversationContext({
+    loadPromptConversationContext({
+      userId: user.id,
       conversationId: conversation.id,
+      query: input.message,
       excludeMessageId: userMessage.id,
-      maxChars: runtimeConfig.CHAT_CONTEXT_MAX_CHARS,
     }),
     runtimeStateService
       .formatForPrompt()
@@ -220,7 +225,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const messages = buildChatPrompt({
     persona,
     memories,
-    recentMessages,
+    recentMessages: conversationContext.recentMessages,
+    contextSummaries: conversationContext.summaries,
+    recallWindows: conversationContext.recallWindows,
     userMessage: input.message,
     channel: input.channel,
     runtimeState,
@@ -435,7 +442,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     delay_ms: replySegmentDelay(index, content, deliveryOptions),
     transcript: true,
   }));
-  const assistantMessages = [];
+  const assistantMessages: Message[] = [];
 
   for (const [index, part] of finalParts.entries()) {
     assistantMessages.push(await prisma.message.create({
@@ -458,6 +465,10 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   }
 
   const assistantMessage = assistantMessages[0];
+  maintainConversationContext({
+    conversationId: conversation.id,
+    messagesToIndex: [userMessage, ...assistantMessages],
+  });
   if (!assistantMessage) {
     throw new Error("Assistant reply was not recorded");
   }

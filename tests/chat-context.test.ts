@@ -52,6 +52,7 @@ test("compacts split final replies and drops intermediate messages", () => {
       { role: "user", content: "懂了" },
     ]
   );
+  assert.deepEqual(compacted[1].sourceMessageIds, ["a1", "a2"]);
 });
 
 test("selects newest messages within the character budget", () => {

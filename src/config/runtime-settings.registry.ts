@@ -17,7 +17,12 @@ export const runtimeSettingDefinitions = {
   MINIMAX_MAX_COMPLETION_TOKENS: { group: "模型运行", label: "MiniMax 最大生成 Token", type: "integer", defaultValue: 0, min: 0, description: "0 表示不额外限制。" },
 
   MAX_MESSAGE_LENGTH: { group: "聊天限制", label: "单条消息最大长度", type: "integer", defaultValue: 4000, min: 0, max: 100000, description: "限制用户单次输入长度；0 表示不限制。" },
-  CHAT_CONTEXT_MAX_CHARS: { group: "聊天上下文", label: "最近上下文最大字符", type: "integer", defaultValue: 200000, min: 1000, max: 1000000, description: "普通聊天从数据库回填最近对话的字符预算；按内容大小截取，不按消息条数。最大可设 1000000。" },
+  CHAT_CONTEXT_MAX_CHARS: { group: "聊天上下文", label: "聊天上下文总字符", type: "integer", defaultValue: 200000, min: 1000, max: 1000000, description: "普通聊天可放入的历史上下文总预算；包含最近原文、旧摘要和召回原文。最大可设 1000000。" },
+  CHAT_CONTEXT_RECENT_MAX_CHARS: { group: "聊天上下文", label: "最近原文热区字符", type: "integer", defaultValue: 24000, min: 1000, max: 1000000, description: "每次聊天直接保留最近原文的字符预算；越大越能延续细节，也越容易带入噪声。" },
+  CHAT_CONTEXT_SUMMARY_MAX_CHARS: { group: "聊天上下文", label: "旧对话摘要字符", type: "integer", defaultValue: 12000, min: 0, max: 200000, description: "较早对话 compact 摘要最多放入多少字符；0 表示不放摘要。" },
+  CHAT_CONTEXT_COMPACT_ENABLED: { group: "聊天上下文", label: "旧对话自动压缩", type: "boolean", defaultValue: true, description: "回复完成后后台把热区之外的旧聊天压缩成可审计摘要，供后续上下文使用。" },
+  CHAT_CONTEXT_RECALL_ENABLED: { group: "聊天上下文", label: "旧原文向量召回", type: "boolean", defaultValue: false, description: "按当前问题从历史消息 embedding 中召回相关原文窗口；需要 Embedding 连接可用。" },
+  CHAT_CONTEXT_RECALL_MAX_CHARS: { group: "聊天上下文", label: "召回原文窗口字符", type: "integer", defaultValue: 12000, min: 0, max: 200000, description: "向量召回的旧对话原文最多放入多少字符；0 表示不放召回窗口。" },
   REPLY_DELIVERY_MODE: { group: "回复投递", label: "回复投递模式", type: "select", defaultValue: "hybrid", options: ["single", "final_blocks", "hybrid"], description: "single=最终一条；final_blocks=只把最终回复自然分条；hybrid=工具即时反应 + 最终回复分条。" },
   REPLY_SEGMENTATION_LLM_ENABLED: { group: "回复投递", label: "LLM 自然分条", type: "boolean", defaultValue: true, description: "只影响 final_blocks/hybrid 的最终回复分条；开启会多一次模型判断，失败时回退到规则分条。" },
   REPLY_SEGMENT_MIN_CHARS: { group: "回复投递", label: "分条最小字符", type: "integer", defaultValue: 36, min: 1, max: 1000, description: "每条气泡尽量不要短于这个长度，避免切得太碎。" },
