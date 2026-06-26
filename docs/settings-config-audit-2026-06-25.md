@@ -63,8 +63,10 @@
 - 第一阶段已从固定最近 10 条 `Message` 改成 `CHAT_CONTEXT_MAX_CHARS` 字符预算：按内容大小回填最近对话，不按消息条数。
 - 第一阶段已把同一次最终分条回复按 `replyGroupId` 合并，过滤 `intermediate` 消息，并排除本轮刚入库的用户消息，避免 prompt 里重复出现当前输入。
 - 当前先使用字符预算，不是精确 token 预算。后续如果接入模型 tokenizer 或 provider token counting，应把预算从“字符近似”升级为“输入 token 预算”。
-- 后续应设计真正的 compact：较早历史不直接整段塞进 prompt，而是压缩成可审计的阶段摘要/事实摘要，并保留来源消息窗口，方便用户追问时回看原文。
-- `summarize_recent_conversation` 目前只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文有重叠。后续要么删除，要么改成明确的“更早历史压缩/原文回看”工具，例如命中旧话题后拉取相关消息窗口并产出上下文摘要。
+- 第二阶段已拆成三层上下文：最近原文热区、较早对话 compact 摘要、按当前问题向量召回的旧原文窗口。
+- compact 摘要写入 `conversation_context_summaries`，保留来源消息范围和消息数，后续可以审计、导出或重新生成。
+- 旧原文召回写入 `message_embeddings`，召回时返回命中消息前后的原文窗口，不只给模型一个模糊摘要。旧消息可用 `npm run context:index` 做 embedding backfill。
+- `summarize_recent_conversation` 目前只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文有重叠。后续要么删除，要么改成明确的“临时原文回看/按范围总结”工具，避免和自动 compact、向量召回重复。
 
 ## `.env` 配置审计
 

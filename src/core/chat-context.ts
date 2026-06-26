@@ -2,11 +2,13 @@ import type { Message, Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 
 export interface PromptHistoryMessage {
+  id?: string;
   role: string;
   content: string;
   isIntermediate?: boolean;
   metadata?: Prisma.JsonValue | null;
   createdAt?: Date;
+  sourceMessageIds?: string[];
 }
 
 const contextBatchSize = 200;
@@ -28,7 +30,7 @@ function replyGroupId(message: Pick<Message, "metadata">): string | undefined {
   return stringValue(metadata.replyGroupId);
 }
 
-function promptLineLength(message: PromptHistoryMessage): number {
+export function promptLineLength(message: PromptHistoryMessage): number {
   return message.content.length + (message.role === "assistant" ? 5 : 4);
 }
 
@@ -40,7 +42,7 @@ function trimContentToBudget(content: string, budget: number): string {
 
 export function compactConversationMessages(
   messages: Array<
-    Pick<Message, "role" | "content" | "isIntermediate" | "metadata" | "createdAt">
+    Pick<Message, "id" | "role" | "content" | "isIntermediate" | "metadata" | "createdAt">
   >
 ): PromptHistoryMessage[] {
   const compacted: PromptHistoryMessage[] = [];
@@ -56,18 +58,28 @@ export function compactConversationMessages(
 
     if (groupId && last?.role === "assistant" && lastGroupId === groupId) {
       last.content = [last.content, message.content].filter(Boolean).join("\n");
+      last.sourceMessageIds = [
+        ...(last.sourceMessageIds ?? []),
+        message.id,
+      ].filter(Boolean);
       continue;
     }
 
     compacted.push({
+      id: message.id,
       role: message.role,
       content: message.content,
       isIntermediate: message.isIntermediate,
       metadata: message.metadata,
       createdAt: message.createdAt,
+      sourceMessageIds: [message.id],
     });
   }
   return compacted.filter((message) => message.content.trim().length > 0);
+}
+
+export function estimatePromptMessagesChars(messages: PromptHistoryMessage[]): number {
+  return messages.reduce((sum, message) => sum + promptLineLength(message), 0);
 }
 
 export function selectMessagesWithinCharBudget(

@@ -40,6 +40,7 @@ model Conversation {
 
   user     User      @relation(fields: [userId], references: [id])
   messages Message[]
+  contextSummaries ConversationContextSummary[]
 
   @@index([userId])
   @@index([channel])
@@ -59,12 +60,37 @@ model Message {
   createdAt         DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
+  embeddings   MessageEmbedding[]
 
   @@unique([conversationId, externalMessageId])
   @@index([conversationId])
   @@index([createdAt])
   @@index([externalMessageId])
   @@map("chat_messages")
+}
+
+/// Compact summaries of older conversation ranges used as chat context.
+model ConversationContextSummary {
+  id             String   @id @default(cuid())
+  conversationId String
+  fromMessageId  String
+  toMessageId    String
+  fromCreatedAt  DateTime
+  toCreatedAt    DateTime
+  messageCount   Int
+  summary        String
+  status         String   @default("active")
+  source         String   @default("auto_compact")
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, toMessageId])
+  @@index([conversationId, status, toCreatedAt])
+  @@index([toCreatedAt])
+  @@map("conversation_context_summaries")
 }
 
 /// Raw inbound events received from external channels.
@@ -588,6 +614,27 @@ model MemoryEmbedding {
   @@unique([memoryId, provider, model, dimensions])
   @@index([memoryId])
   @@map("memory_embeddings")
+}
+
+/// Vector embeddings attached to raw chat messages for old-dialogue recall.
+model MessageEmbedding {
+  id             String                       @id @default(cuid())
+  messageId      String
+  conversationId String
+  provider       String
+  model          String
+  dimensions     Int
+  contentHash    String
+  embedding      Unsupported("vector(1024)")?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, provider, model, dimensions])
+  @@index([messageId])
+  @@index([conversationId])
+  @@map("message_embeddings")
 }
 
 // ── v0.7 Reflection ──────────────────────────────────────────────────────────

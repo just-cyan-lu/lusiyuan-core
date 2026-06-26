@@ -23,6 +23,7 @@ const expectedTables = [
   "channel_events",
   "chat_conversations",
   "chat_messages",
+  "conversation_context_summaries",
   "dream_consolidation_reports",
   "dream_daily_notes",
   "dream_diary_entries",
@@ -34,6 +35,7 @@ const expectedTables = [
   "memories",
   "memory_change_proposals",
   "memory_embeddings",
+  "message_embeddings",
   "reflection_jobs",
   "reflection_reports",
   "reflection_risk_flags",
@@ -207,6 +209,15 @@ async function checkDatabase(): Promise<void> {
       AND indexname = 'memory_embeddings_hnsw_idx'
   `;
   assert(hnsw.length === 1, "memory_embeddings_hnsw_idx is missing");
+
+  const messageHnsw = await prisma.$queryRaw<Array<{ indexname: string }>>`
+    SELECT indexname
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'message_embeddings'
+      AND indexname = 'message_embeddings_hnsw_idx'
+  `;
+  assert(messageHnsw.length === 1, "message_embeddings_hnsw_idx is missing");
 }
 
 async function checkChat(config: SmokeConfig): Promise<void> {

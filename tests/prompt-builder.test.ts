@@ -185,6 +185,47 @@ test("includes owner-written profile as stable current-user context", () => {
   assert.match(systemPrompt as string, /优先级高于模型从零散聊天里推断出的身份印象/);
 });
 
+test("includes compact summaries and recalled raw dialogue windows", () => {
+  const messages = buildChatPrompt({
+    persona,
+    memories: [],
+    recentMessages: [{ role: "user", content: "最近一句" }],
+    contextSummaries: [
+      {
+        id: "summary-1",
+        summary: "1. 关键事实/约定\n用户之前说过喜欢慢一点解释。",
+        fromCreatedAt: new Date("2026-06-20T00:00:00.000Z"),
+        toCreatedAt: new Date("2026-06-21T00:00:00.000Z"),
+        messageCount: 42,
+      },
+    ],
+    recallWindows: [
+      {
+        hitMessageId: "message-1",
+        conversationId: "conversation-1",
+        externalConversationId: "web:old",
+        channel: "web",
+        score: 0.83,
+        messages: [
+          { role: "user", content: "我们之前是不是聊过 prompt cache？" },
+          { role: "assistant", content: "聊过，它主要看稳定前缀。" },
+        ],
+      },
+    ],
+    userMessage: "我们之前说过上下文缓存吗？",
+    channel: "web",
+  });
+
+  const systemPrompt = messages[0].content;
+  assert.equal(typeof systemPrompt, "string");
+  assert.match(systemPrompt as string, /较早对话压缩摘要/);
+  assert.match(systemPrompt as string, /喜欢慢一点解释/);
+  assert.match(systemPrompt as string, /相关旧对话原文窗口/);
+  assert.match(systemPrompt as string, /web:web:old/);
+  assert.match(systemPrompt as string, /它主要看稳定前缀/);
+  assert.match(systemPrompt as string, /最近一句/);
+});
+
 function budgetedMemory(type: string, text: string): BudgetedMemory {
   return {
     finalScore: 1,
