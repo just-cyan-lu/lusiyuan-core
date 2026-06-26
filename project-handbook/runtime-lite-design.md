@@ -83,16 +83,16 @@ LLM 可以提议状态变化，但不能直接改状态。
 
 陆思源面对某个用户时的关系状态。
 
-当前已实现第一版：每个现实身份一份 `RelationshipState`。普通聊天默认先写 `chat_relationship_signal`，不直接改变最终关系；信号积累到阈值或 admin 手动点击复盘后，程序会写入一次 `relationship_review_update`。旧的每轮聊天直接更新模式还保留在配置里，方便测试和回退。
+当前已收敛为单好感度模型：每个现实身份一份 `RelationshipState`，只保留 `affinity` 作为关系强度主分数。普通聊天只确保关系状态存在，不再靠关键词写关系信号或自动升降关系。
 
-admin 仍然可以手动修正、复盘、重置，或审核身份怀疑后把多个渠道账号绑定成同一个现实身份。
+admin 仍然可以手动修正、重置，或审核身份怀疑后把多个渠道账号绑定成同一个现实身份。后续 Reflection/Dream 如果要根据更完整的证据调整好感度，应调用 `relationshipStateService.applyAffinityPatch(...)`，写入 source、reason、delta/affinity 和 evidence。
 
 它和 `RuntimeState` 的区别很重要：
 
 - `RuntimeState`：陆思源整体现在怎么样。
 - `RelationshipState`：陆思源和这个用户之间现在是什么关系。
 
-所以普通聊天不会乱改全局心情；关系也不是一句话一变，而是先沉淀信号，再按一段连续互动慢慢变化。
+所以普通聊天不会乱改全局心情；关系也不是一句话一变，而是等 Reflection/Dream 在更完整的上下文里判断是否需要调整。
 
 可以包含：
 
@@ -172,9 +172,7 @@ LLM 生成回复
 ↓
 对于 RuntimeState：如果是普通聊天，到这里结束，等待复盘或梦境整理
 ↓
-同时写 RelationshipStateEvent：chat_relationship_signal
-↓
-如果关系信号达到阈值，或 admin 手动复盘：更新 RelationshipState，并写 relationship_review_update
+确保当前用户有 RelationshipState，但不自动改好感度
 ↓
 如果是 owner / reflection / dream / autonomy：必要时提议 statePatch
 ↓

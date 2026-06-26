@@ -71,9 +71,9 @@ const toolGuides: Record<
     configKeys: ["MEMORY_RETRIEVAL_ENABLED"],
   },
   summarize_recent_conversation: {
-    purpose: "读取最近消息并调用模型总结对话，提炼关键点、潜在记忆、决策和未解决问题。",
-    usage: "用户要求“总结这段对话”“提炼要点”“看看有什么值得记住”时使用。",
-    trigger: "模型判断需要对当前或指定 conversation 做即时总结时触发。",
+    purpose: "从数据库读取最近消息并调用模型总结，提炼关键点、潜在记忆、决策和未解决问题。",
+    usage: "当前聊天 prompt 默认只带最近 10 条消息；如果用户要求总结更早一点的上下文，这个工具可以临时回看数据库里的最近消息。",
+    trigger: "模型判断当前 prompt 里的上下文不够、需要回看当前或指定 conversation 时触发；普通总结当前可见上下文时其实不需要它。",
     modeKey: "TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE",
     configKeys: [],
   },
@@ -100,13 +100,6 @@ const toolGuides: Record<
       "CHROME_DEVTOOLS_MCP_BROWSER_URL",
       "CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS",
     ],
-  },
-  send_intermediate_message: {
-    purpose: "在最终回复前发送一条中间消息，让工具调用过程更自然，例如“我去查一下”。",
-    usage: "主要给模型内部使用，不需要用户手动调用。没有这个工具时，系统仍可在工具调用前发送 provider 自带文本或 MiniMax fallback 反应；有它时，模型可以主动请求额外中间消息。",
-    trigger: "模型决定先给用户一个短反应再继续调用工具时触发。它不是 MiniMax 专用工具。",
-    modeKey: "TOOL_SEND_INTERMEDIATE_MESSAGE_MODE",
-    configKeys: [],
   },
 };
 

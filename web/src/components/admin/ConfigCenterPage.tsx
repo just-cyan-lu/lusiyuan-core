@@ -75,7 +75,6 @@ const limitLabels: Record<string, string> = {
 
 const minimaxRuntimeSettingKeys = new Set([
   "MINIMAX_THINKING_TYPE",
-  "MINIMAX_REASONING_SPLIT",
   "MINIMAX_MAX_COMPLETION_TOKENS",
 ]);
 

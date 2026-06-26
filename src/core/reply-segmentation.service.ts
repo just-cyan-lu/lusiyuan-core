@@ -26,6 +26,10 @@ interface LlmSegmentationResponse {
 const SENTENCE_END_CHARS = new Set(["。", "！", "？", "!", "?", "…"]);
 const SOFT_BREAK_CHARS = new Set(["，", ",", "；", ";", "：", ":"]);
 
+function hasSegmentCountLimit(maxCount: number): boolean {
+  return maxCount > 0;
+}
+
 export function getReplySegmentationOptions(): ReplySegmentationOptions {
   return {
     mode: runtimeConfig.REPLY_DELIVERY_MODE as ReplyDeliveryMode,
@@ -92,7 +96,7 @@ export async function segmentReply(
 
 export function splitReplyByRules(reply: string, options: ReplySegmentationOptions): string[] {
   const text = reply.trim();
-  if (options.maxCount <= 1 || looksStructured(text)) return [text];
+  if (options.maxCount === 1 || looksStructured(text)) return [text];
   const paragraphSegments = splitParagraphSegments(text, options);
   if (paragraphSegments) return paragraphSegments;
   if (shouldKeepSingle(text, options)) return [text];
@@ -138,7 +142,7 @@ export function validateLlmSegments(
     .map((part) => part.trim())
     .filter(Boolean);
 
-  if (replies.length === 0 || replies.length > options.maxCount) return null;
+  if (replies.length === 0 || (hasSegmentCountLimit(options.maxCount) && replies.length > options.maxCount)) return null;
   if (replies.length !== candidate.length) return null;
 
   const originalComparable = normalizeForComparison(original);
@@ -149,7 +153,7 @@ export function validateLlmSegments(
 }
 
 function shouldKeepSingle(text: string, options: ReplySegmentationOptions): boolean {
-  if (options.maxCount <= 1) return true;
+  if (options.maxCount === 1) return true;
   if (looksStructured(text)) return true;
   if (hasNaturalParagraphBreak(text, options)) return false;
   if (hasNaturalShortLead(text, options)) return false;
@@ -207,13 +211,14 @@ async function splitWithLlm(
         "2. 如果回复不适合分条，返回单元素数组。",
         "3. 不要切开代码块、JSON、表格、编号步骤或必须连续阅读的段落。",
         "4. 每条尽量像真人聊天气泡：短而完整，不要把每个换行都当成一条。",
+        "5. maxMessages 为 null 时不限制条数，但仍然要避免过度切碎。",
         '只输出 JSON：{"messages":["第一条","第二条"]}',
       ].join("\n"),
     },
     {
       role: "user",
       content: JSON.stringify({
-        maxMessages: options.maxCount,
+        maxMessages: hasSegmentCountLimit(options.maxCount) ? options.maxCount : null,
         targetMinChars: options.minChars,
         targetMaxChars: options.maxChars,
         reply,
@@ -313,6 +318,7 @@ function coalesceSmallSegments(segments: string[], options: ReplySegmentationOpt
 }
 
 function clampSegmentCount(segments: string[], maxCount: number): string[] {
+  if (!hasSegmentCountLimit(maxCount)) return segments.length > 0 ? segments : [""];
   if (segments.length <= maxCount) return segments.length > 0 ? segments : [""];
   const head = segments.slice(0, Math.max(1, maxCount - 1));
   const tail = segments.slice(Math.max(1, maxCount - 1)).join("");

@@ -79,7 +79,7 @@ async function emitProgressDraft(input: {
   turnId: string;
   sequence: number;
 }): Promise<ChatReplyPart | null> {
-  if (!runtimeConfig.REPLY_PROGRESS_DRAFT_ENABLED || !input.chatInput.onReplyPart) {
+  if (!input.chatInput.onReplyPart) {
     return null;
   }
 
@@ -94,6 +94,10 @@ async function emitProgressDraft(input: {
 
   await input.chatInput.onReplyPart(part);
   return part;
+}
+
+export function hasRemainingToolRounds(round: number, maxRounds: number): boolean {
+  return maxRounds === 0 || round < maxRounds;
 }
 
 export async function chat(input: ChatInput): Promise<ChatOutput> {
@@ -159,7 +163,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const deliveryOptions = getReplySegmentationOptions();
   const deliverIntermediate = shouldDeliverIntermediateMessages(deliveryOptions.mode);
   async function progress(): Promise<void> {
-    if (!runtimeConfig.REPLY_PROGRESS_DRAFT_ENABLED || !input.onReplyPart) return;
+    if (!input.onReplyPart) return;
     const part = await emitProgressDraft({
       chatInput: input,
       turnId,
@@ -255,8 +259,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     const toolsForLLM = convertToolsForLLM(availableTools);
     const conversationMessages: ChatMessage[] = [...messages];
 
-    // Allow a bounded number of tool rounds to handle multi-step tasks.
-    for (let round = 0; round < runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE; round++) {
+    // Allow multiple tool rounds to handle multi-step tasks. A value of 0 means no configured cap.
+    for (let round = 0; hasRemainingToolRounds(round, runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE); round++) {
       console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
       const response = await modelProvider.chatWithTools(
@@ -370,27 +374,6 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         });
 
         console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
-
-        // Handle send_intermediate_message tool specially
-        if (deliverIntermediate && toolName === "send_intermediate_message" && result.ok && result.output) {
-          const output = result.output as { content: string; delay_ms: number; is_intermediate: boolean };
-
-          try {
-            const part = await storeAndEmitIntermediateMessage({
-              chatInput: input,
-              conversationId: conversation.id,
-              turnId,
-              sequence: replySequence++,
-              content: output.content,
-              delayMs: output.delay_ms,
-              source: "send_intermediate_message",
-            });
-            if (part) replyParts.push(part);
-            console.log(`[chat] sent intermediate message: ${output.content.slice(0, 50)}`);
-          } catch (err) {
-            console.error("[chat] failed to send intermediate message:", err);
-          }
-        }
 
         toolResults.push({
           tool_call_id: toolCall.id,

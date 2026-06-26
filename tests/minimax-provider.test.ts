@@ -22,12 +22,11 @@ test("builds MiniMax-M3 request fields from runtime options", () => {
   assert.deepEqual(
     buildMiniMaxRequestFields("minimax", "MiniMax-M3", {
       thinkingType: "adaptive",
-      reasoningSplit: false,
       maxCompletionTokens: 8192,
     }),
     {
       thinking: { type: "adaptive" },
-      reasoning_split: false,
+      reasoning_split: true,
       max_completion_tokens: 8192,
     }
   );
@@ -36,7 +35,6 @@ test("builds MiniMax-M3 request fields from runtime options", () => {
 test("does not add MiniMax-M3 fields to other providers or older models", () => {
   const options = {
     thinkingType: "adaptive" as const,
-    reasoningSplit: true,
     maxCompletionTokens: 8192,
   };
 

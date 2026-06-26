@@ -1392,17 +1392,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send(detail);
   });
 
-  app.post("/v1/admin/relationships/:relationshipId/review", async (request, reply) => {
-    const { relationshipId } = request.params as { relationshipId: string };
-    await relationshipStateService.reviewRelationship({
-      relationshipId,
-      source: "admin_relationship_review",
-      limit: 50,
-    });
-    const detail = await relationshipStateService.getDetail(relationshipId, 20);
-    return reply.send(detail);
-  });
-
   app.get("/v1/admin/identity-link-proposals", async (request, reply) => {
     const query = request.query as { status?: string; limit?: string };
     const proposals = await relationshipStateService.listIdentityLinkProposals(

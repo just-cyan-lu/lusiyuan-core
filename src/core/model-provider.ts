@@ -77,7 +77,6 @@ function getActiveProviderConfig(): ProviderConfig {
 function getMiniMaxRuntimeOptions(): MiniMaxRuntimeOptions {
   return {
     thinkingType: runtimeConfig.MINIMAX_THINKING_TYPE === "disabled" ? "disabled" : "adaptive",
-    reasoningSplit: runtimeConfig.MINIMAX_REASONING_SPLIT,
     maxCompletionTokens: runtimeConfig.MINIMAX_MAX_COMPLETION_TOKENS || undefined,
   };
 }
@@ -534,7 +533,6 @@ function currentProvider(): ModelProvider {
   const signature = JSON.stringify({
     active: runtimeConfig.ACTIVE_MODEL_PROVIDER,
     thinkingType: runtimeConfig.MINIMAX_THINKING_TYPE,
-    reasoningSplit: runtimeConfig.MINIMAX_REASONING_SPLIT,
     maxCompletionTokens: runtimeConfig.MINIMAX_MAX_COMPLETION_TOKENS,
   });
   if (!cachedProvider || signature !== cachedProviderSignature) {

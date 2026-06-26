@@ -8,7 +8,6 @@ import {
   fetchRelationships,
   linkRelationshipUser,
   rejectIdentityLinkProposal,
-  reviewRelationshipState,
   resetRelationshipState,
   updateRelationshipState,
   type IdentityLinkProposal,
@@ -38,10 +37,7 @@ interface PageState {
 
 interface RelationshipForm {
   relationshipLabel: string;
-  familiarity: number;
-  trust: number;
-  closeness: number;
-  tension: number;
+  affinity: number;
   interactionStyle: string;
   summary: string;
   recentSignal: string;
@@ -119,10 +115,7 @@ function proposalEvidenceText(proposal: IdentityLinkProposal): string {
 function formFromRelationship(relationship: RelationshipState): RelationshipForm {
   return {
     relationshipLabel: relationship.relationshipLabel,
-    familiarity: relationship.familiarity,
-    trust: relationship.trust,
-    closeness: relationship.closeness,
-    tension: relationship.tension,
+    affinity: relationship.affinity,
     interactionStyle: relationship.interactionStyle ?? "",
     summary: relationship.summary ?? "",
     recentSignal: relationship.recentSignal ?? "",
@@ -131,9 +124,7 @@ function formFromRelationship(relationship: RelationshipState): RelationshipForm
 }
 
 function eventTypeLabel(type: string): string {
-  if (type === "chat_relationship_signal") return "关系信号";
-  if (type === "chat_relationship_update") return "聊天更新";
-  if (type === "relationship_review_update") return "关系复盘";
+  if (type === "affinity_update") return "好感度调整";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
   if (type === "identity_merge") return "身份合并";
@@ -143,21 +134,16 @@ function eventTypeLabel(type: string): string {
 
 const relationshipFieldLabels: Record<string, string> = {
   relationshipLabel: "关系标签",
-  familiarity: "熟悉度",
-  trust: "信任度",
-  closeness: "亲近感",
-  tension: "关系张力",
+  affinity: "好感度",
   interactionStyle: "互动风格",
   summary: "关系摘要",
   recentSignal: "最近信号",
   statusNote: "备注",
   lastInteractionAt: "最近互动",
   metadata: "关系细节",
-  deltas: "变化量",
-  counts: "统计",
-  signal: "关系信号",
-  proposedPatch: "LLM 提议",
-  lastRelationshipReview: "最近关系复盘",
+  delta: "变化量",
+  evidence: "证据",
+  lastAffinityPatch: "最近好感度调整",
   reason: "原因",
 };
 
@@ -392,34 +378,6 @@ export function RelationshipStatePage({
     }
   }
 
-  async function reviewSelectedRelationship() {
-    if (!adminToken || !pageState.selected) return;
-    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
-    try {
-      const detail = await reviewRelationshipState({
-        token: adminToken,
-        relationshipId: pageState.selected.id,
-      });
-      setPageState((current) => ({
-        ...current,
-        relationships: current.relationships.map((relationship) =>
-          relationship.id === detail.relationship.id ? detail.relationship : relationship
-        ),
-        selected: detail.relationship,
-        events: detail.events,
-        saving: false,
-        message: "关系复盘已完成。",
-      }));
-      setForm(formFromRelationship(detail.relationship));
-    } catch (error) {
-      setPageState((current) => ({
-        ...current,
-        saving: false,
-        error: friendlyErrorMessage(error),
-      }));
-    }
-  }
-
   async function linkUserToSelectedPerson() {
     if (!adminToken || !pageState.selected || !linkUserId.trim()) return;
     setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
@@ -487,7 +445,7 @@ export function RelationshipStatePage({
         <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Relationship State</div>
         <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">关系状态</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-          请先在顶部输入 Admin Token。这里会显示陆思源和每个现实身份之间的熟悉度、信任度、亲近感和关系张力。
+          请先在顶部输入 Admin Token。这里会显示陆思源和每个现实身份之间的好感度和关系摘要。
         </p>
       </section>
     );
@@ -527,13 +485,6 @@ export function RelationshipStatePage({
                   onClick={() => void saveRelationship()}
                 >
                   保存
-                </Button>
-                <Button
-                  type="default"
-                  disabled={!pageState.selected || pageState.saving}
-                  onClick={() => void reviewSelectedRelationship()}
-                >
-                  复盘
                 </Button>
                 <Button
                   type="default"
@@ -591,13 +542,10 @@ export function RelationshipStatePage({
           </div>
 
           <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
-            <div className="hidden grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_repeat(4,4.5rem)_minmax(8rem,0.75fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
+            <div className="hidden grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_minmax(5rem,0.4fr)_minmax(8rem,0.75fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
               <div>用户</div>
               <div>主要内容</div>
-              <div className="text-center">熟悉</div>
-              <div className="text-center">信任</div>
-              <div className="text-center">亲近</div>
-              <div className="text-center">张力</div>
+              <div className="text-center">好感</div>
               <div>最近更新</div>
               <div />
             </div>
@@ -607,7 +555,7 @@ export function RelationshipStatePage({
                   key={relationship.id}
                   type="button"
                   onClick={() => void selectRelationship(relationship.id)}
-                  className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_repeat(4,4.5rem)_minmax(8rem,0.75fr)_2rem] lg:items-center"
+                  className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_minmax(5rem,0.4fr)_minmax(8rem,0.75fr)_2rem] lg:items-center"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -649,15 +597,8 @@ export function RelationshipStatePage({
                   <div className="min-w-0 text-sm leading-6 text-[var(--ls-ink-strong)]">
                     {relationshipSummaryText(relationship)}
                   </div>
-                  <div className="grid grid-cols-4 gap-2 lg:contents">
-                    <RelationshipScoreCell label="熟悉" value={relationship.familiarity} />
-                    <RelationshipScoreCell label="信任" value={relationship.trust} />
-                    <RelationshipScoreCell label="亲近" value={relationship.closeness} />
-                    <RelationshipScoreCell
-                      label="张力"
-                      value={relationship.tension}
-                      dangerHigh
-                    />
+                  <div className="grid grid-cols-1 gap-2 lg:contents">
+                    <RelationshipScoreCell label="好感" value={relationship.affinity} />
                   </div>
                   <div className="text-xs leading-5 text-[var(--ls-ink-soft)]">
                     {formatDate(relationship.lastInteractionAt ?? relationship.updatedAt)}
@@ -716,25 +657,9 @@ export function RelationshipStatePage({
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <MetricSlider
-                label="熟悉度"
-                value={form.familiarity}
-                onChange={(value) => setForm({ ...form, familiarity: value })}
-              />
-              <MetricSlider
-                label="信任度"
-                value={form.trust}
-                onChange={(value) => setForm({ ...form, trust: value })}
-              />
-              <MetricSlider
-                label="亲近感"
-                value={form.closeness}
-                onChange={(value) => setForm({ ...form, closeness: value })}
-              />
-              <MetricSlider
-                label="关系张力"
-                value={form.tension}
-                dangerHigh
-                onChange={(value) => setForm({ ...form, tension: value })}
+                label="好感度"
+                value={form.affinity}
+                onChange={(value) => setForm({ ...form, affinity: value })}
               />
             </div>
           </section>
@@ -1057,30 +982,24 @@ function RelationshipScoreCell({
   );
 }
 
-/**
- * 顶部摘要数据条：把 N 个 relationship 聚合成 4 个一眼可读的数字，
- * 替代原本空荡荡的标题区。
- */
 function RelationshipSummaryStrip({ relationships }: { relationships: RelationshipState[] }) {
   if (relationships.length === 0) return null;
 
-  const avg = (key: keyof Pick<RelationshipState, "familiarity" | "trust" | "closeness" | "tension">) =>
-    Math.round(
-      relationships.reduce((sum, r) => sum + (r[key] ?? 0), 0) / relationships.length
-    );
-  const tensionAlerts = relationships.filter((r) => r.tension >= 45).length;
+  const avgAffinity = Math.round(
+    relationships.reduce((sum, r) => sum + (r.affinity ?? 0), 0) / relationships.length
+  );
+  const closeRelationships = relationships.filter((r) => r.affinity >= 65).length;
   const distinctLabels = new Set(relationships.map((r) => r.relationshipLabel)).size;
 
   const stats: Array<{ label: string; value: number; tone: "good" | "neutral" | "alert"; suffix?: string }> = [
     { label: "现实身份", value: relationships.length, tone: "neutral", suffix: "个" },
-    { label: "平均熟悉", value: avg("familiarity"), tone: avg("familiarity") >= 45 ? "good" : "neutral" },
-    { label: "平均信任", value: avg("trust"), tone: avg("trust") >= 45 ? "good" : "neutral" },
-    { label: "关系张力告警", value: tensionAlerts, tone: tensionAlerts > 0 ? "alert" : "good", suffix: tensionAlerts > 0 ? "人" : "" },
+    { label: "平均好感", value: avgAffinity, tone: avgAffinity >= 45 ? "good" : "neutral" },
+    { label: "高好感关系", value: closeRelationships, tone: closeRelationships > 0 ? "good" : "neutral", suffix: "人" },
     { label: "关系标签", value: distinctLabels, tone: "neutral", suffix: "种" },
   ];
 
   return (
-    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       {stats.map((s) => {
         const toneClass =
           s.tone === "good"
@@ -1116,7 +1035,6 @@ function RelationshipSummaryStrip({ relationships }: { relationships: Relationsh
  *   - "熟悉/老朋友/老熟" → 薄荷（积极）
  *   - "认识/刚"          → 蓝（中性，开始）
  *   - "陌生/未"          → 灰（冷）
- *   - "冲突/紧张/张力"   → 粉/红（警示）
  *   - 兜底 → 暖橙
  */
 function relationshipLabelTone(label: string): { bg: string; text: string; border: string } {
@@ -1129,9 +1047,6 @@ function relationshipLabelTone(label: string): { bg: string; text: string; borde
   }
   if (/(陌生|未形成|未知|未确认)/.test(s)) {
     return { bg: "var(--ls-panel-soft)", text: "var(--ls-ink-soft)", border: "var(--ls-border)" };
-  }
-  if (/(紧张|冲突|张力|戒备|矛盾|问题)/.test(s)) {
-    return { bg: "var(--ls-pink-soft)", text: "var(--ls-pink-text)", border: "var(--ls-pink-text)" };
   }
   return { bg: "var(--ls-warning-bg)", text: "var(--ls-warning-text-strong)", border: "var(--ls-warning-border)" };
 }

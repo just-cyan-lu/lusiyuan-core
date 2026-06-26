@@ -178,10 +178,7 @@ export interface RelationshipState {
   personId: string;
   person?: PersonIdentity;
   relationshipLabel: string;
-  familiarity: number;
-  trust: number;
-  closeness: number;
-  tension: number;
+  affinity: number;
   interactionStyle: string | null;
   summary: string | null;
   recentSignal: string | null;
@@ -355,10 +352,7 @@ export interface RelationshipUpdateInput {
   token: string;
   relationshipId: string;
   relationshipLabel?: string;
-  familiarity?: number;
-  trust?: number;
-  closeness?: number;
-  tension?: number;
+  affinity?: number;
   interactionStyle?: string | null;
   summary?: string | null;
   recentSignal?: string | null;
@@ -1335,17 +1329,6 @@ export async function resetRelationshipState(input: {
     headers: adminHeaders(input.token),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "重置关系状态失败");
-}
-
-export async function reviewRelationshipState(input: {
-  token: string;
-  relationshipId: string;
-}): Promise<RelationshipDetailResponse> {
-  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/review`, {
-    method: "POST",
-    headers: adminHeaders(input.token),
-  });
-  return parseJsonResponse<RelationshipDetailResponse>(response, "复盘关系状态失败");
 }
 
 export async function fetchConversationPeople(input: {

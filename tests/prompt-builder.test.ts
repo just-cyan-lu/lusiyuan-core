@@ -156,7 +156,7 @@ test("includes database relationship state in the prompt", () => {
     recentMessages: [],
     userMessage: "今天吃什么呀",
     channel: "web",
-    relationshipState: "# 数据库关系状态\n\n- 关系标签：熟悉稳定\n- 信任度：72/100",
+    relationshipState: "# 数据库关系状态\n\n- 关系标签：熟悉稳定\n- 好感度：72/100",
   });
 
   const systemPrompt = messages[0].content;

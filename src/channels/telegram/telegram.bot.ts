@@ -149,7 +149,7 @@ export function createTelegramBot(token: string) {
     const chatCtx = ctx.chat;
     const message = ctx.message;
 
-    if (message.text.length > runtimeConfig.MAX_MESSAGE_LENGTH) {
+    if (runtimeConfig.MAX_MESSAGE_LENGTH > 0 && message.text.length > runtimeConfig.MAX_MESSAGE_LENGTH) {
       await ctx.reply("消息太长了，请缩短一下再发给我。");
       return;
     }
