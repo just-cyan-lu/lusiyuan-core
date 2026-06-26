@@ -5,6 +5,7 @@ import { loadOwnerProfile } from "./owner-profile-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
 import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
+import { loadRecentConversationContext } from "./chat-context.js";
 import { checkInput, sanitizeOutput } from "./safety.js";
 import { toolExecutor } from "../tools/tool-executor.js";
 import { toolRegistry } from "../tools/tool-registry.js";
@@ -193,13 +194,11 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     loadPersona(),
     owner ? loadOwnerProfile() : Promise.resolve(""),
     memoryService.retrieveRelevantMemories(user.id, input.message),
-    prisma.message
-      .findMany({
-        where: { conversationId: conversation.id },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      })
-      .then((msgs) => msgs.reverse()),
+    loadRecentConversationContext({
+      conversationId: conversation.id,
+      excludeMessageId: userMessage.id,
+      maxChars: runtimeConfig.CHAT_CONTEXT_MAX_CHARS,
+    }),
     runtimeStateService
       .formatForPrompt()
       .catch((err) => {

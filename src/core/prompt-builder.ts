@@ -1,13 +1,13 @@
-import type { Message } from "@prisma/client";
 import type { PersonaContent } from "./persona-loader.js";
 import { buildPersonaProjection } from "./persona-projection.js";
+import type { PromptHistoryMessage } from "./chat-context.js";
 import type { ChatMessage } from "../types/model.js";
 import type { BudgetedMemory } from "./memory-budget.js";
 
 interface BuildChatPromptInput {
   persona: PersonaContent;
   memories: BudgetedMemory[];
-  recentMessages: Message[];
+  recentMessages: PromptHistoryMessage[];
   userMessage: string;
   channel?: string;
   runtimeState?: string;
@@ -48,7 +48,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
   const recentSection =
     recentMessages.length > 0
       ? recentMessages
-          .map((m) => `${m.role === "user" ? "用户" : "陆思源"}: ${m.content}`)
+          .map(formatRecentMessage)
           .join("\n")
       : "（这是对话开始）";
 
@@ -161,4 +161,14 @@ ${persona.toolUsage}
     { role: "system", content: systemPrompt },
     { role: "user", content: userMessage },
   ];
+}
+
+function formatRecentMessage(message: PromptHistoryMessage): string {
+  const speaker =
+    message.role === "user"
+      ? "用户"
+      : message.role === "assistant"
+        ? "陆思源"
+        : message.role;
+  return `${speaker}: ${message.content}`;
 }

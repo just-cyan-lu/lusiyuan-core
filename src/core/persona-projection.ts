@@ -1,9 +1,9 @@
-import type { Message } from "@prisma/client";
 import {
   DEFAULT_CHAT_PROFILE_ID,
   type PersonaContent,
   type PersonaSlice,
 } from "./persona-loader.js";
+import type { PromptHistoryMessage } from "./chat-context.js";
 import type { BudgetedMemory } from "./memory-budget.js";
 
 export interface PersonaProjection {
@@ -20,7 +20,7 @@ export interface PersonaProjection {
 interface BuildPersonaProjectionInput {
   persona: PersonaContent;
   memories: BudgetedMemory[];
-  recentMessages: Message[];
+  recentMessages: PromptHistoryMessage[];
   userMessage: string;
   channel?: string;
   runtimeState?: string;
@@ -192,7 +192,7 @@ function buildRuntimeState(
 function buildRelationshipContext(
   relationshipState: string | undefined,
   memories: BudgetedMemory[],
-  recentMessages: Message[]
+  recentMessages: PromptHistoryMessage[]
 ): string {
   const lines: string[] = [];
   const relationshipMemories = memories.filter(
