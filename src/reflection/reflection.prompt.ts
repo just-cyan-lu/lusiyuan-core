@@ -92,5 +92,5 @@ JSON 结构：
 3. 如果旧记忆被新信息覆盖，提出 supersede 建议，不要直接删除。
 4. 关系/相处模式类记忆使用 scope=user 且 type=relationship。
 5. 不确定的内容 confidence 设低，并加入 openQuestions。
-6. 每次最多提出 20 条 proposal。`;
+6. 只提出有明确依据的 proposal，不要为了凑数量而生成。`;
 }

@@ -46,15 +46,7 @@ export const runtimeSettingDefinitions = {
   TOOL_WEB_SEARCH_MODE: { group: "工具访问", label: "web_search", type: "select", defaultValue: "owner_only", options: ["off", "owner_only", "on"], description: "控制模型能否用 Tavily 搜索网页；还需要 TAVILY_ENABLED 和 API Key 可用。" },
   TOOL_READ_PAGE_MODE: { group: "工具访问", label: "read_page", type: "select", defaultValue: "owner_only", options: ["off", "owner_only", "on"], description: "控制模型能否读取指定网页正文；还需要 Jina、Playwright 或 Chrome MCP 至少一个读取器启用。" },
 
-  REFLECTION_ENABLED: { group: "Reflection", label: "Reflection 启用", type: "boolean", defaultValue: true },
-  REFLECTION_DEFAULT_MESSAGE_LIMIT: { group: "Reflection", label: "默认消息数", type: "integer", defaultValue: 80, min: 1, max: 1000 },
-  REFLECTION_MAX_MESSAGE_LIMIT: { group: "Reflection", label: "最大消息数", type: "integer", defaultValue: 200, min: 1, max: 2000 },
-  REFLECTION_MIN_MESSAGES: { group: "Reflection", label: "最少消息数", type: "integer", defaultValue: 10, min: 1, max: 500 },
-  REFLECTION_INCLUDE_MEMORIES: { group: "Reflection", label: "包含已有记忆", type: "boolean", defaultValue: true },
-  REFLECTION_AUTO_APPLY: { group: "Reflection", label: "自动应用提案", type: "boolean", defaultValue: false },
-  REFLECTION_PROPOSAL_MIN_CONFIDENCE: { group: "Reflection", label: "提案最低置信度", type: "number", defaultValue: 0.7, min: 0, max: 1 },
-  REFLECTION_PROPOSAL_MAX_PER_RUN: { group: "Reflection", label: "单次最大提案", type: "integer", defaultValue: 20, min: 1, max: 100 },
-  REFLECTION_ENABLE_GROWTH_LOG: { group: "Reflection", label: "生成成长记录", type: "boolean", defaultValue: true },
+  REFLECTION_ENABLE_GROWTH_LOG: { group: "Reflection", label: "生成成长记录", type: "boolean", defaultValue: true, description: "控制 Reflection 是否生成成长记录提案；记忆提案仍需要人工审核。" },
 
   DREAM_ENABLED: { group: "Dream", label: "Dream 启用", type: "boolean", defaultValue: true },
   DREAM_AUTO_RUN: { group: "Dream", label: "Dream 自动运行", type: "boolean", defaultValue: false },

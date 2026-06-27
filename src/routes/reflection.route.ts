@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { reflectionService } from "../reflection/reflection.service.js";
 import { reflectionProposalService } from "../reflection/reflection-proposal.service.js";
 import { prisma } from "../db/prisma.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { Prisma } from "@prisma/client";
 import type { ReflectionScope } from "../reflection/reflection.types.js";
@@ -89,10 +88,6 @@ export async function reflectionRoute(app: FastifyInstance): Promise<void> {
   // POST /v1/reflection/run — create job and run immediately
   app.post("/v1/reflection/run", async (request, reply) => {
     const body = normalizeReflectionRunBody(request.body as ReflectionRunBody);
-
-    if (!runtimeConfig.REFLECTION_ENABLED) {
-      return reply.status(503).send({ error: "Reflection is disabled" });
-    }
 
     const report = await reflectionService.runManualReflection({
       scope: body.scope,

@@ -120,9 +120,6 @@ class RuntimeSettingsService {
     if (Number(candidate.get("CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS")) > Number(candidate.get("CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS"))) {
       throw new Error("Chrome MCP 最短稳定等待不能大于最长稳定等待");
     }
-    if (Number(candidate.get("REFLECTION_DEFAULT_MESSAGE_LIMIT")) > Number(candidate.get("REFLECTION_MAX_MESSAGE_LIMIT"))) {
-      throw new Error("Reflection 默认消息数不能大于最大消息数");
-    }
     if (Number(candidate.get("REPLY_SEGMENT_MIN_CHARS")) > Number(candidate.get("REPLY_SEGMENT_MAX_CHARS"))) {
       throw new Error("回复分条最小字符不能大于最大字符");
     }

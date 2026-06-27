@@ -50,7 +50,6 @@ interface Finding {
 const featureLabels: Record<string, string> = {
   memoryRetrieval: "记忆检索",
   tools: "工具调用",
-  reflection: "Reflection",
   dream: "Dream",
   dreamAutoRun: "Dream 自动运行",
   webSearch: "Web Search",
@@ -59,7 +58,6 @@ const featureLabels: Record<string, string> = {
 };
 
 const safetyLabels: Record<string, string> = {
-  reflectionAutoApply: "Reflection 自动写入",
   toolsAllowMediumRisk: "允许中风险工具",
   toolsAllowHighRisk: "允许高风险工具",
 };
@@ -67,8 +65,6 @@ const safetyLabels: Record<string, string> = {
 const limitLabels: Record<string, string> = {
   maxMessageLength: "单条消息最大长度",
   toolMaxCallsPerMessage: "单条消息最大工具调用",
-  reflectionDefaultMessageLimit: "Reflection 默认消息数",
-  reflectionMaxMessageLimit: "Reflection 最大消息数",
   dreamDefaultLookbackHours: "Dream 默认回看小时",
   dreamMaxLookbackDays: "Dream 最大回看天数",
 };
@@ -150,14 +146,6 @@ function buildFindings(runtime: RuntimeConfig | null): Finding[] {
       level: "warn",
       title: "高风险工具已放开",
       detail: "开发期可以观察行为，上线前建议重新确认这个开关。",
-    });
-  }
-
-  if (runtime.safety.reflectionAutoApply) {
-    findings.push({
-      level: "warn",
-      title: "Reflection 自动写入已开启",
-      detail: "自动应用提案开启后，需要更仔细地观察记忆质量。",
     });
   }
 

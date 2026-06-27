@@ -28,9 +28,6 @@ export interface PolicyResult {
 }
 
 export function applyReflectionPolicy(raw: RawReflectionOutput): PolicyResult {
-  const minConfidence = runtimeConfig.REFLECTION_PROPOSAL_MIN_CONFIDENCE;
-  const maxProposals = runtimeConfig.REFLECTION_PROPOSAL_MAX_PER_RUN;
-
   const allProposals: RawMemoryProposal[] = [
     ...(raw.newMemoryProposals ?? []).map((p) => ({
       ...p,
@@ -50,22 +47,17 @@ export function applyReflectionPolicy(raw: RawReflectionOutput): PolicyResult {
 
   const allowedProposals = allProposals
     .filter((p) => {
-      if (p.confidence < minConfidence) { filteredCount++; return false; }
       if (isForbiddenContent(p.content)) { filteredCount++; return false; }
       if (p.type === "boundary" && p.riskLevel === "high") { filteredCount++; return false; }
       return true;
-    })
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, maxProposals);
-
-  filteredCount += Math.max(0, allProposals.length - allowedProposals.length - filteredCount);
+    });
 
   const allowedRiskFlags = (raw.riskFlags ?? []).filter(
     (f) => f.type && f.severity && f.description
   );
 
   const allowedGrowthLogs = runtimeConfig.REFLECTION_ENABLE_GROWTH_LOG
-    ? (raw.growthLogProposals ?? []).filter((g) => g.confidence >= minConfidence)
+    ? (raw.growthLogProposals ?? [])
     : [];
 
   return { allowedProposals, allowedRiskFlags, allowedGrowthLogs, filteredCount };

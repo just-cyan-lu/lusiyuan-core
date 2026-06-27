@@ -1141,7 +1141,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       features: {
         memoryRetrieval: runtimeConfig.MEMORY_RETRIEVAL_ENABLED,
         tools: runtimeConfig.TOOLS_ENABLED,
-        reflection: runtimeConfig.REFLECTION_ENABLED,
         dream: runtimeConfig.DREAM_ENABLED,
         dreamAutoRun: runtimeConfig.DREAM_AUTO_RUN,
         runtimeAutonomy: runtimeConfig.RUNTIME_AUTONOMY_AUTO_RUN,
@@ -1151,15 +1150,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         mcp: runtimeConfig.MCP_ENABLED,
       },
       safety: {
-        reflectionAutoApply: runtimeConfig.REFLECTION_AUTO_APPLY,
         toolsAllowMediumRisk: runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK,
         toolsAllowHighRisk: runtimeConfig.TOOLS_ALLOW_HIGH_RISK,
       },
       limits: {
         maxMessageLength: runtimeConfig.MAX_MESSAGE_LENGTH,
         toolMaxCallsPerMessage: runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE,
-        reflectionDefaultMessageLimit: runtimeConfig.REFLECTION_DEFAULT_MESSAGE_LIMIT,
-        reflectionMaxMessageLimit: runtimeConfig.REFLECTION_MAX_MESSAGE_LIMIT,
         dreamDefaultLookbackHours: runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS,
         dreamMaxLookbackDays: runtimeConfig.DREAM_MAX_LOOKBACK_DAYS,
       },
