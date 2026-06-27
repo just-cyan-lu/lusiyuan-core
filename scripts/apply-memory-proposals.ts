@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { reflectionProposalService } from "../src/reflection/reflection-proposal.service.js";
+import { memoryProposalService } from "../src/memory/memory-proposal.service.js";
 import { prisma } from "../src/db/prisma.js";
 import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 
@@ -21,7 +21,7 @@ async function main() {
     console.log(`Applying ${approved.length} approved proposals...`);
     for (const p of approved) {
       try {
-        await reflectionProposalService.applyProposal(p.id, reviewerId);
+        await memoryProposalService.applyProposal(p.id, reviewerId);
         console.log(`  ✓ Applied: ${p.id} (${p.proposalType})`);
       } catch (err) {
         console.error(`  ✗ Failed: ${p.id} —`, err instanceof Error ? err.message : err);
@@ -41,12 +41,12 @@ async function main() {
       console.log(`  ${p.id}  [${p.proposalType}]  conf:${p.confidence.toFixed(2)}  ${p.content.slice(0, 80)}`);
     }
     console.log("\nUsage:");
-    console.log("  pnpm reflection:apply --proposal=<id>   apply one proposal");
-    console.log("  pnpm reflection:apply --approved        apply all approved proposals");
+    console.log("  pnpm memory:apply-proposals --proposal=<id>   apply one proposal");
+    console.log("  pnpm memory:apply-proposals --approved        apply all approved proposals");
     return;
   }
 
-  await reflectionProposalService.applyProposal(proposalId, reviewerId);
+  await memoryProposalService.applyProposal(proposalId, reviewerId);
   console.log(`Applied proposal: ${proposalId}`);
 }
 

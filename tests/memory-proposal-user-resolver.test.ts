@@ -5,7 +5,7 @@ import {
   memoryProposalRequiresUser,
   resolveMemoryProposalUserId,
   type MemoryProposalUserLookup,
-} from "../src/reflection/memory-proposal-user-resolver.js";
+} from "../src/memory/memory-proposal-user-resolver.js";
 
 function lookup(overrides: Partial<MemoryProposalUserLookup> = {}): MemoryProposalUserLookup {
   return {

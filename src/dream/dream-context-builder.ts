@@ -6,7 +6,6 @@ import type {
   DreamSourceMessage,
   DreamSourceMemory,
   DreamSourceToolCall,
-  DreamSourceReflectionReport,
   DreamSourceMemoryProposal,
 } from "./dream.types.js";
 
@@ -21,12 +20,11 @@ export class DreamContextBuilder {
   async build(input: BuildDreamContextInput): Promise<DreamContext> {
     const { from, to, userId, conversationId } = input;
 
-    const [messages, memories, toolCalls, reflectionReports, memoryProposals] =
+    const [messages, memories, toolCalls, memoryProposals] =
       await Promise.all([
         this.fetchMessages(from, to, userId, conversationId),
         this.fetchMemories(from, to, userId),
         this.fetchToolCalls(from, to),
-        this.fetchReflectionReports(from, to),
         this.fetchMemoryProposals(from, to),
       ]);
 
@@ -34,7 +32,6 @@ export class DreamContextBuilder {
       messages: messages.length,
       memories: memories.length,
       toolCalls: toolCalls.length,
-      reflectionReports: reflectionReports.length,
       memoryProposals: memoryProposals.length,
     };
 
@@ -43,7 +40,6 @@ export class DreamContextBuilder {
       messages,
       memories,
       toolCalls,
-      reflectionReports,
       memoryProposals,
       sourceStats,
     };
@@ -136,24 +132,6 @@ export class DreamContextBuilder {
       id: r.id,
       toolName: r.toolName,
       status: r.status,
-      createdAt: r.createdAt,
-    }));
-  }
-
-  private async fetchReflectionReports(
-    from: Date,
-    to: Date
-  ): Promise<DreamSourceReflectionReport[]> {
-    const rows = await prisma.reflectionReport.findMany({
-      where: { createdAt: { gte: from, lte: to } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, summary: true, confidence: true, createdAt: true },
-    });
-
-    return rows.map((r) => ({
-      id: r.id,
-      summary: r.summary,
-      confidence: r.confidence,
       createdAt: r.createdAt,
     }));
   }

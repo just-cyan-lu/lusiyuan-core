@@ -37,12 +37,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
     return Object.keys(range).length > 0 ? range : undefined;
   }
 
-  function metadataString(value: unknown, key: string): string | null {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-    const entry = (value as Record<string, unknown>)[key];
-    return typeof entry === "string" ? entry : null;
-  }
-
   // POST /v1/dream/run — run a daily dream cycle immediately
   app.post("/v1/dream/run", async (request, reply) => {
     const body = request.body as { user_id?: string };
@@ -156,27 +150,21 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
       orderBy: { createdAt: "desc" },
     });
 
-    const reflectionReportIds = Array.from(
-      new Set(
-        reports
-          .map((report) => metadataString(report.metadata, "dreamReflectionReportId"))
-          .filter((id): id is string => Boolean(id))
-      )
-    );
+    const reportIds = reports.map((report) => report.id);
 
     const [proposals, riskFlags, growthLogs] =
-      reflectionReportIds.length > 0
+      reportIds.length > 0
         ? await Promise.all([
             prisma.memoryProposal.findMany({
-              where: { reportId: { in: reflectionReportIds } },
+              where: { reportId: { in: reportIds } },
               orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
             }),
-            prisma.reflectionRiskFlag.findMany({
-              where: { reportId: { in: reflectionReportIds } },
+            prisma.memoryRiskFlag.findMany({
+              where: { reportId: { in: reportIds } },
               orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
             }),
             prisma.growthLogProposal.findMany({
-              where: { reportId: { in: reflectionReportIds } },
+              where: { reportId: { in: reportIds } },
               orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
             }),
           ])

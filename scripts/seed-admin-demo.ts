@@ -4,10 +4,6 @@ import { prisma } from "../src/db/prisma.js";
 const seed = {
   userId: "admin-demo-user",
   conversationId: "admin-demo-conversation",
-  jobId: "admin-demo-reflection-job",
-  reportId: "admin-demo-reflection-report",
-  riskFlagId: "admin-demo-reflection-risk",
-  growthLogId: "admin-demo-growth-log",
   dreamJobId: "admin-demo-dream-job",
   dailyNoteId: "admin-demo-daily-note",
   dreamSignalIds: [
@@ -17,8 +13,6 @@ const seed = {
   ],
   diaryEntryId: "admin-demo-diary-entry",
   consolidationReportId: "admin-demo-dream-report",
-  dreamReflectionJobId: "admin-demo-dream-reflection-job",
-  dreamReflectionReportId: "admin-demo-dream-reflection-report",
   dreamRiskFlagId: "admin-demo-dream-risk",
   dreamGrowthLogId: "admin-demo-dream-growth-log",
   dreamProposalIds: [
@@ -32,17 +26,11 @@ const seed = {
     "admin-demo-message-2",
     "admin-demo-message-3",
   ],
-  proposalIds: [
-    "admin-demo-proposal-create-pending",
-    "admin-demo-proposal-create-approved",
-    "admin-demo-proposal-update-pending",
-    "admin-demo-proposal-rejected",
-  ],
 } as const;
 
 async function cleanupPreviousSeed(): Promise<void> {
   await prisma.memoryProposal.deleteMany({
-    where: { id: { in: [...seed.proposalIds, ...seed.dreamProposalIds] } },
+    where: { id: { in: [...seed.dreamProposalIds] } },
   });
 
   await prisma.dreamConsolidationReport.deleteMany({
@@ -63,14 +51,6 @@ async function cleanupPreviousSeed(): Promise<void> {
 
   await prisma.dreamJob.deleteMany({
     where: { id: seed.dreamJobId },
-  });
-
-  await prisma.reflectionReport.deleteMany({
-    where: { id: { in: [seed.reportId, seed.dreamReflectionReportId] } },
-  });
-
-  await prisma.reflectionJob.deleteMany({
-    where: { id: { in: [seed.jobId, seed.dreamReflectionJobId] } },
   });
 
   await prisma.memory.deleteMany({
@@ -196,151 +176,6 @@ async function main(): Promise<void> {
     },
   });
 
-  const job = await prisma.reflectionJob.create({
-    data: {
-      id: seed.jobId,
-      status: "completed",
-      triggerType: "manual",
-      scope: "conversation",
-      userId: user.id,
-      conversationId: conversation.id,
-      channel: "web",
-      messageLimit: 40,
-      startedAt: new Date(),
-      completedAt: new Date(),
-    },
-  });
-
-  const report = await prisma.reflectionReport.create({
-    data: {
-      id: seed.reportId,
-      jobId: job.id,
-      summary:
-        "Seed demo: 用户正在建设 Admin 平台，当前最需要稳定、清爽的记忆提案审核工作流。",
-      confidence: 0.93,
-      rawOutput: { seed: "admin_demo" },
-      metadata: { seed: "admin_demo" },
-    },
-  });
-
-  await prisma.reflectionRiskFlag.create({
-    data: {
-      id: seed.riskFlagId,
-      reportId: report.id,
-      type: "memory_conflict",
-      severity: "medium",
-      description:
-        "Seed demo: 旧记忆记录了偏深色高对比界面，和用户最新偏好存在冲突。",
-      suggestedAction: "审核 update_memory 提案后，替换旧的界面偏好记忆。",
-      relatedMessageIds: [seed.messageIds[0], seed.messageIds[1]],
-      status: "open",
-    },
-  });
-
-  await prisma.growthLogProposal.create({
-    data: {
-      id: seed.growthLogId,
-      reportId: report.id,
-      title: "Seed demo: Admin 平台推进节奏",
-      content:
-        "用户倾向先把真实业务链路接稳，再逐步扩展复杂管理能力。",
-      tags: ["admin", "workflow"],
-      confidence: 0.86,
-      status: "pending",
-      sourceMessageIds: [seed.messageIds[2]],
-    },
-  });
-
-  await prisma.memoryProposal.createMany({
-    data: [
-      {
-        id: seed.proposalIds[0],
-        reportId: report.id,
-        userId: user.id,
-        conversationId: conversation.id,
-        channel: "web",
-        proposalType: "create_memory",
-        scope: "user",
-        type: "user_preference",
-        content: "Seed demo: 用户偏好浅色、低饱和、明快的控制台界面。",
-        summary: "Admin 平台视觉偏好：浅色、低饱和、明快。",
-        tags: ["admin", "ui", "preference"],
-        entities: ["Admin 平台"],
-        reason: "用户明确提出控制台希望看起来明快，不要高饱和。",
-        confidence: 0.94,
-        riskLevel: "low",
-        status: "pending",
-        sourceMessageIds: [seed.messageIds[0]],
-        metadata: { seed: "admin_demo" },
-      },
-      {
-        id: seed.proposalIds[1],
-        reportId: report.id,
-        userId: user.id,
-        conversationId: conversation.id,
-        channel: "web",
-        proposalType: "create_memory",
-        scope: "user",
-        type: "project_context",
-        content: "Seed demo: Admin 功能开发应先接真实链路，再逐步扩展批量操作。",
-        summary: "Admin 开发节奏：真实链路优先，批量能力后置。",
-        tags: ["admin", "workflow"],
-        entities: ["MemoryProposal"],
-        reason: "用户认可先做记忆提案审核，并强调不要用临时感强的实现。",
-        confidence: 0.88,
-        riskLevel: "low",
-        status: "approved",
-        reviewedBy: "admin_demo_seed",
-        reviewedAt: new Date(),
-        sourceMessageIds: [seed.messageIds[2]],
-        metadata: { seed: "admin_demo" },
-      },
-      {
-        id: seed.proposalIds[2],
-        reportId: report.id,
-        userId: user.id,
-        conversationId: conversation.id,
-        channel: "web",
-        proposalType: "update_memory",
-        targetMemoryId: targetMemory.id,
-        scope: "user",
-        type: "user_preference",
-        content: "Seed demo: 用户偏好浅色、低饱和、层次清楚的控制台界面。",
-        summary: "更新旧界面偏好为浅色低饱和。",
-        tags: ["admin", "ui"],
-        entities: ["Admin 平台"],
-        reason: "用户从蓝+血橙调整为浅色明快风格，旧偏好需要更新。",
-        confidence: 0.91,
-        riskLevel: "medium",
-        status: "pending",
-        sourceMessageIds: [seed.messageIds[0], seed.messageIds[1]],
-        metadata: { seed: "admin_demo" },
-      },
-      {
-        id: seed.proposalIds[3],
-        reportId: report.id,
-        userId: user.id,
-        conversationId: conversation.id,
-        channel: "web",
-        proposalType: "create_memory",
-        scope: "user",
-        type: "other",
-        content: "Seed demo: 这是一条已拒绝的示例提案。",
-        summary: "已拒绝示例。",
-        reason: "用于验证 rejected 筛选和只读状态展示。",
-        confidence: 0.62,
-        riskLevel: "low",
-        status: "rejected",
-        reviewedBy: "admin_demo_seed",
-        reviewedAt: new Date(),
-        metadata: {
-          seed: "admin_demo",
-          rejectReason: "示例提案，不需要写入。",
-        },
-      },
-    ],
-  });
-
   const dreamJob = await prisma.dreamJob.create({
     data: {
       id: seed.dreamJobId,
@@ -367,9 +202,9 @@ async function main(): Promise<void> {
       scope: "daily",
       userId: user.id,
       channel: "web",
-      title: "Seed demo: Admin 平台阶段复盘",
+      title: "Seed demo: Admin 平台阶段整理",
       summary:
-        "用户正在把 Web Chat 扩展成 Admin 平台，当前重点是用真实后台链路管理记忆、复盘和 Dream 产物。",
+        "用户正在把 Web Chat 扩展成 Admin 平台，当前重点是用真实后台链路管理记忆和 Dream 产物。",
       keyPoints: [
         "Admin 壳已经从占位页进入真实业务页面",
         "记忆库和提案审核已接入真实数据",
@@ -454,31 +289,23 @@ async function main(): Promise<void> {
     },
   });
 
-  const dreamReflectionJob = await prisma.reflectionJob.create({
+  const consolidationReport = await prisma.dreamConsolidationReport.create({
     data: {
-      id: seed.dreamReflectionJobId,
-      status: "completed",
-      triggerType: "dream",
-      scope: "daily",
-      userId: user.id,
-      conversationId: conversation.id,
-      channel: "web",
-      startedAt: new Date(Date.now() - 5 * 60_000),
-      completedAt: new Date(Date.now() - 4 * 60_000),
-    },
-  });
-
-  const dreamReflectionReport = await prisma.reflectionReport.create({
-    data: {
-      id: seed.dreamReflectionReportId,
-      jobId: dreamReflectionJob.id,
-      summary: `Seed demo: Dream Cycle ${dreamJob.id} — Deep Sleep`,
-      confidence: 0.88,
+      id: seed.consolidationReportId,
+      jobId: dreamJob.id,
+      summary:
+        "Seed demo: Dream Cycle 识别到 Admin 平台的阶段目标、视觉偏好和一处记忆冲突。",
+      phase: "deep_sleep",
+      candidateCount: 3,
+      promotedCount: 2,
+      rejectedCount: 1,
+      riskCount: 1,
+      generatedProposalIds: [...seed.dreamProposalIds],
       rawOutput: { seed: "admin_demo", source: "dream_deep_sleep" },
       metadata: {
         seed: "admin_demo",
         dreamJobId: dreamJob.id,
-        phase: "deep_sleep",
+        sourceSignalIds: [...seed.dreamSignalIds],
       },
     },
   });
@@ -487,7 +314,7 @@ async function main(): Promise<void> {
     data: [
       {
         id: seed.dreamProposalIds[0],
-        reportId: dreamReflectionReport.id,
+        reportId: consolidationReport.id,
         userId: user.id,
         conversationId: conversation.id,
         channel: "web",
@@ -508,7 +335,7 @@ async function main(): Promise<void> {
       },
       {
         id: seed.dreamProposalIds[1],
-        reportId: dreamReflectionReport.id,
+        reportId: consolidationReport.id,
         userId: user.id,
         conversationId: conversation.id,
         channel: "web",
@@ -531,10 +358,10 @@ async function main(): Promise<void> {
     ],
   });
 
-  await prisma.reflectionRiskFlag.create({
+  await prisma.memoryRiskFlag.create({
     data: {
       id: seed.dreamRiskFlagId,
-      reportId: dreamReflectionReport.id,
+      reportId: consolidationReport.id,
       type: "memory_conflict",
       severity: "medium",
       description:
@@ -548,7 +375,7 @@ async function main(): Promise<void> {
   await prisma.growthLogProposal.create({
     data: {
       id: seed.dreamGrowthLogId,
-      reportId: dreamReflectionReport.id,
+      reportId: consolidationReport.id,
       title: "Seed demo: Dream 识别到控制台建设节奏",
       content:
         "Dream Deep Sleep 将多个信号整合为一个阶段判断：先让 Admin 真实可用，再扩展高级管理能力。",
@@ -559,31 +386,9 @@ async function main(): Promise<void> {
     },
   });
 
-  await prisma.dreamConsolidationReport.create({
-    data: {
-      id: seed.consolidationReportId,
-      jobId: dreamJob.id,
-      summary:
-        "Seed demo: Dream Cycle 识别到 Admin 平台的阶段目标、视觉偏好和一处记忆冲突。",
-      phase: "deep_sleep",
-      candidateCount: 3,
-      promotedCount: 2,
-      rejectedCount: 1,
-      riskCount: 1,
-      generatedProposalIds: [...seed.dreamProposalIds],
-      rawOutput: { seed: "admin_demo" },
-      metadata: {
-        seed: "admin_demo",
-        dreamReflectionReportId: dreamReflectionReport.id,
-      },
-    },
-  });
-
   console.log("Seeded Admin demo data:");
   console.log(`- user: ${user.externalId}`);
   console.log(`- conversation: ${conversation.externalConversationId}`);
-  console.log(`- report: ${report.id}`);
-  console.log(`- proposals: ${seed.proposalIds.length}`);
   console.log(`- dream job: ${dreamJob.id}`);
   console.log(`- dream signals: ${seed.dreamSignalIds.length}`);
   console.log(`- dream proposals: ${seed.dreamProposalIds.length}`);

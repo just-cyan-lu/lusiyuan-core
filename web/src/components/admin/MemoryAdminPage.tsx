@@ -24,7 +24,7 @@ const tabs: Array<{
   {
     value: "proposals",
     label: "提案审核",
-    description: "批准 Reflection / Dream 生成的记忆变更",
+    description: "批准 Dream 生成的记忆变更",
     icon: "icon-diy",
   },
 ];

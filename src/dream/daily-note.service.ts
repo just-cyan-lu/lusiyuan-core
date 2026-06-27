@@ -67,14 +67,6 @@ export class DailyNoteService {
       lines.push("");
     }
 
-    if (context.reflectionReports.length > 0) {
-      lines.push(`## 最近复盘报告（${context.reflectionReports.length} 份）`);
-      for (const r of context.reflectionReports) {
-        lines.push(`- ${r.summary.slice(0, 200)}`);
-      }
-      lines.push("");
-    }
-
     if (context.memoryProposals.length > 0) {
       lines.push(`## 最近记忆提案（${context.memoryProposals.length} 条）`);
       for (const p of context.memoryProposals.slice(0, 10)) {

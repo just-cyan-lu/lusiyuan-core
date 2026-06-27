@@ -332,7 +332,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
         <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Memory Review</div>
         <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">记忆提案审核</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-          这里会读取 Reflection / Dream 生成的 MemoryProposal。请先在顶部输入 Admin Token，
+          这里会读取 Dream 生成的 MemoryProposal。请先在顶部输入 Admin Token，
           页面只会把 token 保存在浏览器本地。
         </p>
       </section>

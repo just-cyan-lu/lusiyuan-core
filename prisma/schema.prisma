@@ -406,14 +406,11 @@ model RuntimeState {
   moodLabel          String   @default("平稳")
   moodScore          Int      @default(10)
   energyLevel        Int      @default(62)
-  stressLevel        Int      @default(24)
-  socialBattery      Int      @default(58)
   currentGoal        String?
   currentFocus       String?
   currentActivity    String?
   recentEventSummary String?
   statusNote         String?
-  autoUpdateEnabled  Boolean  @default(true)
   updateMode         String   @default("balanced")
   updateStrategy     String   @default("rules")
   metadata           Json?
@@ -461,8 +458,6 @@ model RuntimeEvent {
   topic          String?
   moodSignal     String?
   energySignal   String?
-  stressSignal   String?
-  socialSignal   String?
   stateImpact    Json?
   payload        Json?
   userId         String?
@@ -637,52 +632,7 @@ model MessageEmbedding {
   @@map("message_embeddings")
 }
 
-// ── v0.7 Reflection ──────────────────────────────────────────────────────────
-
-/// Reflection task that reviews messages and memories.
-model ReflectionJob {
-  id             String    @id @default(cuid())
-  status         String    @default("pending")
-  triggerType    String
-  scope          String
-  userId         String?
-  conversationId String?
-  channel        String?
-  messageFrom    DateTime?
-  messageTo      DateTime?
-  messageLimit   Int?
-  error          String?
-  createdAt      DateTime  @default(now())
-  startedAt      DateTime?
-  completedAt    DateTime?
-
-  report ReflectionReport?
-
-  @@index([status])
-  @@index([triggerType])
-  @@index([conversationId])
-  @@index([createdAt])
-  @@map("reflection_jobs")
-}
-
-/// Summary report produced by a reflection task.
-model ReflectionReport {
-  id         String   @id @default(cuid())
-  jobId      String   @unique
-  summary    String
-  confidence Float    @default(0.8)
-  rawOutput  Json?
-  metadata   Json?
-  createdAt  DateTime @default(now())
-
-  job        ReflectionJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  proposals  MemoryProposal[]
-  riskFlags  ReflectionRiskFlag[]
-  growthLogs GrowthLogProposal[]
-
-  @@index([createdAt])
-  @@map("reflection_reports")
-}
+// ── Dream learning outputs ───────────────────────────────────────────────────
 
 /// Proposed memory changes waiting for review or application.
 model MemoryProposal {
@@ -711,7 +661,7 @@ model MemoryProposal {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report DreamConsolidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@index([userId])
@@ -724,8 +674,8 @@ model MemoryProposal {
   @@map("memory_change_proposals")
 }
 
-/// Risk items detected by a reflection or dream consolidation.
-model ReflectionRiskFlag {
+/// Risk items detected by dream consolidation.
+model MemoryRiskFlag {
   id                String   @id @default(cuid())
   reportId          String
   type              String
@@ -737,16 +687,16 @@ model ReflectionRiskFlag {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report DreamConsolidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@index([type])
   @@index([severity])
   @@index([status])
-  @@map("reflection_risk_flags")
+  @@map("memory_risk_flags")
 }
 
-/// Proposed growth-log style entries generated from reflection.
+/// Proposed growth-log style entries generated from dream consolidation.
 model GrowthLogProposal {
   id               String   @id @default(cuid())
   reportId         String
@@ -760,7 +710,7 @@ model GrowthLogProposal {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  report ReflectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report DreamConsolidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@index([status])
@@ -826,7 +776,7 @@ model DailyNote {
   @@map("dream_daily_notes")
 }
 
-/// Signal extracted from messages, memories, tools, or reflection reports.
+/// Signal extracted from messages, memories, tools, or dream context.
 model DreamSignal {
   id            String   @id @default(cuid())
   jobId         String?
@@ -895,6 +845,9 @@ model DreamConsolidationReport {
   createdAt            DateTime @default(now())
 
   job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  proposals  MemoryProposal[]
+  riskFlags  MemoryRiskFlag[]
+  growthLogs GrowthLogProposal[]
 
   @@index([phase])
   @@index([createdAt])

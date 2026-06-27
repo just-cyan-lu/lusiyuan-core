@@ -37,7 +37,7 @@ interface ApplyRelationshipPatchInput {
 
 interface ApplyRelationshipAffinityInput {
   relationshipId: string;
-  source: "reflection" | "dream" | "admin" | "manual" | string;
+  source: "dream" | "admin" | "manual" | string;
   reason: string;
   delta?: number;
   affinity?: number;

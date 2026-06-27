@@ -48,7 +48,7 @@ function readRollback(metadata: Prisma.JsonValue | null): Prisma.JsonObject | nu
     : null;
 }
 
-export class ReflectionProposalService {
+export class MemoryProposalService {
   async listProposals(opts: {
     status?: string;
     reportId?: string;
@@ -185,7 +185,7 @@ export class ReflectionProposalService {
 
 // ── Apply logic (inline to avoid circular import) ─────────────────────────────
 
-class ReflectionApplyServiceImpl {
+class MemoryProposalApplyServiceImpl {
   async apply(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
     switch (proposal.proposalType) {
       case "create_memory":
@@ -212,7 +212,7 @@ class ReflectionApplyServiceImpl {
         importance: Math.round(proposal.confidence * 10),
         confidence: proposal.confidence,
         status: "active",
-        source: "reflection_global",
+        source: "memory_proposal_global",
         tags: proposal.tags ?? undefined,
         entities: proposal.entities ?? undefined,
         channel: proposal.channel ?? null,
@@ -227,7 +227,7 @@ class ReflectionApplyServiceImpl {
 
     if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
-        console.warn("Reflection global embedding failed:", err)
+        console.warn("Memory proposal global embedding failed:", err)
       );
     }
 
@@ -300,7 +300,7 @@ class ReflectionApplyServiceImpl {
         importance: Math.round(proposal.confidence * 10),
         confidence: proposal.confidence,
         status: "active",
-        source: "reflection",
+        source: "memory_proposal",
         tags: proposal.tags ?? undefined,
         entities: proposal.entities ?? undefined,
         channel: proposal.channel ?? null,
@@ -315,7 +315,7 @@ class ReflectionApplyServiceImpl {
 
     if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
-        console.warn("Reflection embedding failed:", err)
+        console.warn("Memory proposal embedding failed:", err)
       );
     }
 
@@ -357,7 +357,7 @@ class ReflectionApplyServiceImpl {
 
     if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
       memoryService.generateAndStoreEmbedding(memory).catch((err) =>
-        console.warn("Reflection embedding update failed:", err)
+        console.warn("Memory proposal embedding update failed:", err)
       );
     }
 
@@ -404,7 +404,7 @@ class ReflectionApplyServiceImpl {
           importance: Math.round(proposal.confidence * 10),
           confidence: proposal.confidence,
           status: "active",
-          source: "reflection",
+          source: "memory_proposal",
           tags: proposal.tags ?? undefined,
           entities: proposal.entities ?? undefined,
           channel: proposal.channel ?? null,
@@ -419,7 +419,7 @@ class ReflectionApplyServiceImpl {
       newMemoryId = newMemory.id;
       if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
         memoryService.generateAndStoreEmbedding(newMemory).catch((err) =>
-          console.warn("Reflection supersede embedding failed:", err)
+          console.warn("Memory proposal supersede embedding failed:", err)
         );
       }
     }
@@ -560,7 +560,7 @@ class ReflectionApplyServiceImpl {
         return sourceMessage?.conversation.userId ?? null;
       },
       findReportJobScope: async (reportId) => {
-        const report = await prisma.reflectionReport.findUnique({
+        const report = await prisma.dreamConsolidationReport.findUnique({
           where: { id: reportId },
           select: {
             job: {
@@ -600,5 +600,5 @@ class ReflectionApplyServiceImpl {
   }
 }
 
-const applyService = new ReflectionApplyServiceImpl();
-export const reflectionProposalService = new ReflectionProposalService();
+const applyService = new MemoryProposalApplyServiceImpl();
+export const memoryProposalService = new MemoryProposalService();

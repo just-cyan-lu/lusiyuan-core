@@ -60,14 +60,11 @@ export interface RuntimeState {
   moodLabel: string;
   moodScore: number;
   energyLevel: number;
-  stressLevel: number;
-  socialBattery: number;
   currentGoal: string | null;
   currentFocus: string | null;
   currentActivity: string | null;
   recentEventSummary: string | null;
   statusNote: string | null;
-  autoUpdateEnabled: boolean;
   updateMode: string;
   updateStrategy: string;
   metadata: unknown;
@@ -101,8 +98,6 @@ export interface RuntimeEvent {
   topic: string | null;
   moodSignal: string | null;
   energySignal: string | null;
-  stressSignal: string | null;
-  socialSignal: string | null;
   stateImpact: unknown;
   payload: unknown;
   userId: string | null;
@@ -365,14 +360,11 @@ export interface RuntimeStateUpdateInput {
   moodLabel?: string;
   moodScore?: number;
   energyLevel?: number;
-  stressLevel?: number;
-  socialBattery?: number;
   currentGoal?: string | null;
   currentFocus?: string | null;
   currentActivity?: string | null;
   recentEventSummary?: string | null;
   statusNote?: string | null;
-  autoUpdateEnabled?: boolean;
   updateMode?: string;
   updateStrategy?: string;
   summary?: string;
@@ -868,22 +860,7 @@ export interface MemoryProposal {
   updatedAt: string;
 }
 
-export interface ReflectionRunResult {
-  reportId: string;
-  summary: string;
-}
-
-export interface ReflectionReport {
-  id: string;
-  jobId: string;
-  summary: string;
-  confidence: number;
-  rawOutput: unknown;
-  metadata: unknown;
-  createdAt: string;
-}
-
-export interface ReflectionRiskFlag {
+export interface MemoryRiskFlag {
   id: string;
   reportId: string;
   type: string;
@@ -908,13 +885,6 @@ export interface GrowthLogProposal {
   appliedMemoryId: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface ReflectionReportDetail {
-  report: ReflectionReport;
-  proposals: MemoryProposal[];
-  riskFlags: ReflectionRiskFlag[];
-  growthLogs: GrowthLogProposal[];
 }
 
 export interface DreamRunResult {
@@ -1033,7 +1003,7 @@ export interface DreamConsolidationReport {
 export interface DreamDeepSleepDetail {
   reports: DreamConsolidationReport[];
   proposals: MemoryProposal[];
-  riskFlags: ReflectionRiskFlag[];
+  riskFlags: MemoryRiskFlag[];
   growthLogs: GrowthLogProposal[];
 }
 
@@ -2047,7 +2017,7 @@ export async function fetchMemoryProposals(input: {
   if (input.limit) params.set("limit", String(input.limit));
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/proposals?${params.toString()}`,
+    `${API_BASE_URL}/v1/memory/proposals?${params.toString()}`,
     { headers: adminHeaders(input.token) }
   );
   const data = await parseJsonResponse<{ proposals: MemoryProposal[] }>(
@@ -2063,7 +2033,7 @@ export async function approveMemoryProposal(input: {
   reviewerId?: string;
 }): Promise<MemoryProposal> {
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/approve`,
+    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/approve`,
     {
       method: "POST",
       headers: {
@@ -2087,7 +2057,7 @@ export async function rejectMemoryProposal(input: {
   reviewerId?: string;
 }): Promise<MemoryProposal> {
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/reject`,
+    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/reject`,
     {
       method: "POST",
       headers: {
@@ -2113,7 +2083,7 @@ export async function applyMemoryProposal(input: {
   reviewerId?: string;
 }): Promise<MemoryProposal> {
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/apply`,
+    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/apply`,
     {
       method: "POST",
       headers: {
@@ -2136,7 +2106,7 @@ export async function applyMemoryProposalGlobally(input: {
   reviewerId?: string;
 }): Promise<MemoryProposal> {
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/apply-global`,
+    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/apply-global`,
     {
       method: "POST",
       headers: {
@@ -2159,7 +2129,7 @@ export async function revokeMemoryProposal(input: {
   reviewerId?: string;
 }): Promise<MemoryProposal> {
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/proposals/${encodeURIComponent(input.proposalId)}/revoke`,
+    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/revoke`,
     {
       method: "POST",
       headers: {
@@ -2176,79 +2146,13 @@ export async function revokeMemoryProposal(input: {
   return data.proposal;
 }
 
-export async function runReflection(input: {
-  token: string;
-  scope: string;
-  userId?: string;
-  conversationId?: string;
-  messageLimit?: number;
-}): Promise<ReflectionRunResult> {
-  const response = await fetch(`${API_BASE_URL}/v1/reflection/run`, {
-    method: "POST",
-    headers: {
-      ...adminHeaders(input.token),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      scope: input.scope,
-      user_id: input.userId,
-      conversation_id: input.conversationId,
-      message_limit: input.messageLimit,
-    }),
-  });
-  const data = await parseJsonResponse<{ report_id: string; summary: string }>(
-    response,
-    "运行 Reflection 失败"
-  );
-  return {
-    reportId: data.report_id,
-    summary: data.summary,
-  };
-}
-
-export async function fetchReflectionReports(input: {
-  token: string;
-  from?: string;
-  to?: string;
-  limit?: number;
-}): Promise<ReflectionReport[]> {
-  const params = new URLSearchParams();
-  if (input.from) params.set("from", input.from);
-  if (input.to) params.set("to", input.to);
-  if (input.limit) params.set("limit", String(input.limit));
-
-  const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/reports?${params.toString()}`,
-    { headers: adminHeaders(input.token) }
-  );
-  const data = await parseJsonResponse<{ reports: ReflectionReport[] }>(
-    response,
-    "无法读取 Reflection 报告"
-  );
-  return data.reports ?? [];
-}
-
-export async function fetchReflectionReportDetail(input: {
-  token: string;
-  reportId: string;
-}): Promise<ReflectionReportDetail> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/reports/${encodeURIComponent(input.reportId)}`,
-    { headers: adminHeaders(input.token) }
-  );
-  return parseJsonResponse<ReflectionReportDetail>(
-    response,
-    "无法读取 Reflection 报告详情"
-  );
-}
-
-export async function fetchReflectionRisks(input: {
+export async function fetchMemoryRisks(input: {
   token: string;
   status?: string;
   from?: string;
   to?: string;
   limit?: number;
-}): Promise<ReflectionRiskFlag[]> {
+}): Promise<MemoryRiskFlag[]> {
   const params = new URLSearchParams();
   if (input.status && input.status !== "all") params.set("status", input.status);
   if (input.from) params.set("from", input.from);
@@ -2256,12 +2160,12 @@ export async function fetchReflectionRisks(input: {
   if (input.limit) params.set("limit", String(input.limit));
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/reflection/risks?${params.toString()}`,
+    `${API_BASE_URL}/v1/memory/risks?${params.toString()}`,
     { headers: adminHeaders(input.token) }
   );
-  const data = await parseJsonResponse<{ risks: ReflectionRiskFlag[] }>(
+  const data = await parseJsonResponse<{ risks: MemoryRiskFlag[] }>(
     response,
-    "无法读取 Reflection 风险项"
+    "无法读取记忆风险项"
   );
   return data.risks ?? [];
 }

@@ -54,10 +54,8 @@ function islandSlogan(state: DashboardState): string {
 }
 
 function weatherFromState(state: RuntimeState): { label: string; emoji: string; tone: "warm" | "cool" | "neutral" } {
-  if (state.stressLevel >= 70) return { label: "有风浪", emoji: "🌊", tone: "cool" };
   if (state.energyLevel >= 70) return { label: "阳光明媚", emoji: "☀️", tone: "warm" };
   if (state.energyLevel < 30) return { label: "薄雾", emoji: "🌫️", tone: "cool" };
-  if (state.socialBattery >= 60) return { label: "微风和煦", emoji: "🌤️", tone: "warm" };
   return { label: "晴间多云", emoji: "⛅", tone: "neutral" };
 }
 
@@ -297,7 +295,10 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 </div>
               </div>
               <ConfigRow label="精力" enabled={state.runtimeState.energyLevel >= 45} />
-              <ConfigRow label="受控自动" enabled={state.runtimeState.autoUpdateEnabled} />
+              <ConfigRow
+                label="自动校准"
+                enabled={Boolean(state.runtime?.features.runtimeStateAutoUpdate)}
+              />
               <InfoBlock>
                 更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则校准"}
               </InfoBlock>
@@ -417,7 +418,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                       {weather.label}
                     </div>
                     <div className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">
-                      精力 {state.runtimeState.energyLevel} / 社交 {state.runtimeState.socialBattery}
+                      精力 {state.runtimeState.energyLevel}
                     </div>
                   </div>
                 </div>

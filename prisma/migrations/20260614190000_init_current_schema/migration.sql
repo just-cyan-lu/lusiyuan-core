@@ -110,14 +110,11 @@ CREATE TABLE "runtime_states" (
     "moodLabel" TEXT NOT NULL DEFAULT '平稳',
     "moodScore" INTEGER NOT NULL DEFAULT 10,
     "energyLevel" INTEGER NOT NULL DEFAULT 62,
-    "stressLevel" INTEGER NOT NULL DEFAULT 24,
-    "socialBattery" INTEGER NOT NULL DEFAULT 58,
     "currentGoal" TEXT,
     "currentFocus" TEXT,
     "currentActivity" TEXT,
     "recentEventSummary" TEXT,
     "statusNote" TEXT,
-    "autoUpdateEnabled" BOOLEAN NOT NULL DEFAULT true,
     "updateMode" TEXT NOT NULL DEFAULT 'balanced',
     "updateStrategy" TEXT NOT NULL DEFAULT 'rules',
     "metadata" JSONB,
@@ -156,8 +153,6 @@ CREATE TABLE "runtime_events" (
     "topic" TEXT,
     "moodSignal" TEXT,
     "energySignal" TEXT,
-    "stressSignal" TEXT,
-    "socialSignal" TEXT,
     "stateImpact" JSONB,
     "payload" JSONB,
     "userId" TEXT,
@@ -266,39 +261,6 @@ CREATE TABLE "memory_embeddings" (
 );
 
 -- CreateTable
-CREATE TABLE "reflection_jobs" (
-    "id" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'pending',
-    "triggerType" TEXT NOT NULL,
-    "scope" TEXT NOT NULL,
-    "userId" TEXT,
-    "conversationId" TEXT,
-    "channel" TEXT,
-    "messageFrom" TIMESTAMP(3),
-    "messageTo" TIMESTAMP(3),
-    "messageLimit" INTEGER,
-    "error" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "startedAt" TIMESTAMP(3),
-    "completedAt" TIMESTAMP(3),
-
-    CONSTRAINT "reflection_jobs_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "reflection_reports" (
-    "id" TEXT NOT NULL,
-    "jobId" TEXT NOT NULL,
-    "summary" TEXT NOT NULL,
-    "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.8,
-    "rawOutput" JSONB,
-    "metadata" JSONB,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "reflection_reports_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "memory_change_proposals" (
     "id" TEXT NOT NULL,
     "reportId" TEXT NOT NULL,
@@ -329,7 +291,7 @@ CREATE TABLE "memory_change_proposals" (
 );
 
 -- CreateTable
-CREATE TABLE "reflection_risk_flags" (
+CREATE TABLE "memory_risk_flags" (
     "id" TEXT NOT NULL,
     "reportId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -341,7 +303,7 @@ CREATE TABLE "reflection_risk_flags" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "reflection_risk_flags_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "memory_risk_flags_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -643,25 +605,6 @@ CREATE INDEX "memory_embeddings_memoryId_idx" ON "memory_embeddings"("memoryId")
 -- CreateIndex
 CREATE UNIQUE INDEX "memory_embeddings_memoryId_provider_model_dimensions_key" ON "memory_embeddings"("memoryId", "provider", "model", "dimensions");
 
--- CreateIndex
-CREATE INDEX "reflection_jobs_status_idx" ON "reflection_jobs"("status");
-
--- CreateIndex
-CREATE INDEX "reflection_jobs_triggerType_idx" ON "reflection_jobs"("triggerType");
-
--- CreateIndex
-CREATE INDEX "reflection_jobs_conversationId_idx" ON "reflection_jobs"("conversationId");
-
--- CreateIndex
-CREATE INDEX "reflection_jobs_createdAt_idx" ON "reflection_jobs"("createdAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "reflection_reports_jobId_key" ON "reflection_reports"("jobId");
-
--- CreateIndex
-CREATE INDEX "reflection_reports_createdAt_idx" ON "reflection_reports"("createdAt");
-
--- CreateIndex
 CREATE INDEX "memory_change_proposals_reportId_idx" ON "memory_change_proposals"("reportId");
 
 -- CreateIndex
@@ -686,16 +629,16 @@ CREATE INDEX "memory_change_proposals_riskLevel_idx" ON "memory_change_proposals
 CREATE INDEX "memory_change_proposals_confidence_idx" ON "memory_change_proposals"("confidence");
 
 -- CreateIndex
-CREATE INDEX "reflection_risk_flags_reportId_idx" ON "reflection_risk_flags"("reportId");
+CREATE INDEX "memory_risk_flags_reportId_idx" ON "memory_risk_flags"("reportId");
 
 -- CreateIndex
-CREATE INDEX "reflection_risk_flags_type_idx" ON "reflection_risk_flags"("type");
+CREATE INDEX "memory_risk_flags_type_idx" ON "memory_risk_flags"("type");
 
 -- CreateIndex
-CREATE INDEX "reflection_risk_flags_severity_idx" ON "reflection_risk_flags"("severity");
+CREATE INDEX "memory_risk_flags_severity_idx" ON "memory_risk_flags"("severity");
 
 -- CreateIndex
-CREATE INDEX "reflection_risk_flags_status_idx" ON "reflection_risk_flags"("status");
+CREATE INDEX "memory_risk_flags_status_idx" ON "memory_risk_flags"("status");
 
 -- CreateIndex
 CREATE INDEX "growth_log_proposals_reportId_idx" ON "growth_log_proposals"("reportId");
@@ -818,16 +761,13 @@ ALTER TABLE "relationship_state_events" ADD CONSTRAINT "relationship_state_event
 ALTER TABLE "memory_embeddings" ADD CONSTRAINT "memory_embeddings_memoryId_fkey" FOREIGN KEY ("memoryId") REFERENCES "memories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "reflection_reports" ADD CONSTRAINT "reflection_reports_jobId_fkey" FOREIGN KEY ("jobId") REFERENCES "reflection_jobs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "memory_change_proposals" ADD CONSTRAINT "memory_change_proposals_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "dream_consolidation_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "memory_change_proposals" ADD CONSTRAINT "memory_change_proposals_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "reflection_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "memory_risk_flags" ADD CONSTRAINT "memory_risk_flags_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "dream_consolidation_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "reflection_risk_flags" ADD CONSTRAINT "reflection_risk_flags_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "reflection_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "growth_log_proposals" ADD CONSTRAINT "growth_log_proposals_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "reflection_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "growth_log_proposals" ADD CONSTRAINT "growth_log_proposals_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "dream_consolidation_reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "dream_daily_notes" ADD CONSTRAINT "dream_daily_notes_jobId_fkey" FOREIGN KEY ("jobId") REFERENCES "dream_jobs"("id") ON DELETE SET NULL ON UPDATE CASCADE;

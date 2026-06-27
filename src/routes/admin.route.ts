@@ -178,12 +178,6 @@ function runtimeStatePatchFromBody(body: Record<string, unknown>): RuntimeStateP
   if (hasOwn(body, "energyLevel")) {
     patch.energyLevel = boundedNumber(body.energyLevel, 62, 0, 100);
   }
-  if (hasOwn(body, "stressLevel")) {
-    patch.stressLevel = boundedNumber(body.stressLevel, 24, 0, 100);
-  }
-  if (hasOwn(body, "socialBattery")) {
-    patch.socialBattery = boundedNumber(body.socialBattery, 58, 0, 100);
-  }
   if (hasOwn(body, "currentGoal")) patch.currentGoal = cleanNullableString(body.currentGoal) ?? null;
   if (hasOwn(body, "currentFocus")) patch.currentFocus = cleanNullableString(body.currentFocus) ?? null;
   if (hasOwn(body, "currentActivity")) {
@@ -193,10 +187,6 @@ function runtimeStatePatchFromBody(body: Record<string, unknown>): RuntimeStateP
     patch.recentEventSummary = cleanNullableString(body.recentEventSummary) ?? null;
   }
   if (hasOwn(body, "statusNote")) patch.statusNote = cleanNullableString(body.statusNote) ?? null;
-  if (hasOwn(body, "autoUpdateEnabled")) {
-    patch.autoUpdateEnabled =
-      body.autoUpdateEnabled === true || body.autoUpdateEnabled === "true";
-  }
   if (hasOwn(body, "updateMode")) patch.updateMode = cleanString(body.updateMode);
   if (hasOwn(body, "updateStrategy")) {
     patch.updateStrategy = cleanString(body.updateStrategy);
@@ -422,10 +412,8 @@ const databaseDataTables = [
   "identity_links",
   "person_identities",
   "memory_change_proposals",
-  "reflection_risk_flags",
+  "memory_risk_flags",
   "growth_log_proposals",
-  "reflection_reports",
-  "reflection_jobs",
   "dream_daily_notes",
   "dream_signals",
   "dream_diary_entries",
@@ -1142,6 +1130,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         memoryRetrieval: runtimeConfig.MEMORY_RETRIEVAL_ENABLED,
         tools: runtimeConfig.TOOLS_ENABLED,
         dream: runtimeConfig.DREAM_ENABLED,
+        runtimeStateAutoUpdate: runtimeConfig.RUNTIME_STATE_AUTO_UPDATE_ENABLED,
         runtimeAutonomy: runtimeConfig.RUNTIME_AUTONOMY_AUTO_RUN,
         webSearch: runtimeConfig.TAVILY_ENABLED,
         pageReader: runtimeConfig.JINA_ENABLED || runtimeConfig.PLAYWRIGHT_ENABLED ||

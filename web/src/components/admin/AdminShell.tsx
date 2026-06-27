@@ -11,7 +11,6 @@ export type AdminSection =
   | "skills"
   | "learning"
   | "memory"
-  | "reflection"
   | "dream"
   | "platforms"
   | "tools"
@@ -100,17 +99,8 @@ const navItems: Array<{
     accentClass: "bg-[var(--ls-pink)] text-white",
   },
   {
-    section: "reflection",
-    index: "08",
-    label: "复盘",
-    description: "Reflection",
-    icon: "icon-camera",
-    color: "warm-peach-pink",
-    accentClass: "bg-[var(--ls-section-warm-peach)] text-white",
-  },
-  {
     section: "dream",
-    index: "09",
+    index: "08",
     label: "梦境",
     description: "Dream Cycle",
     icon: "icon-helicopter",
@@ -119,7 +109,7 @@ const navItems: Array<{
   },
   {
     section: "skills",
-    index: "10",
+    index: "09",
     label: "Skills",
     description: "能力开关",
     icon: "icon-diy",
@@ -128,7 +118,7 @@ const navItems: Array<{
   },
   {
     section: "platforms",
-    index: "11",
+    index: "10",
     label: "平台",
     description: "外部平台工作台",
     icon: "icon-shopping",
@@ -137,7 +127,7 @@ const navItems: Array<{
   },
   {
     section: "tools",
-    index: "12",
+    index: "11",
     label: "工具",
     description: "调用与日志",
     icon: "icon-variant",
@@ -146,7 +136,7 @@ const navItems: Array<{
   },
   {
     section: "settings",
-    index: "13",
+    index: "12",
     label: "配置",
     description: "实时设置 / 连接",
     icon: "icon-diy",
@@ -158,7 +148,7 @@ const navItems: Array<{
 const navGroups: Array<{ label: string; items: AdminSection[] }> = [
   { label: "核心状态", items: ["overview", "runtime", "relationships"] },
   { label: "记忆与表达", items: ["memory", "conversations", "learning", "chat"] },
-  { label: "自动循环", items: ["reflection", "dream"] },
+  { label: "自动循环", items: ["dream"] },
   { label: "通道与能力", items: ["skills", "platforms", "tools"] },
   { label: "系统", items: ["settings"] },
 ];

@@ -9,7 +9,7 @@ import { chatRoute } from "./routes/chat.route.js";
 import { channelsRoute } from "./routes/channels.route.js";
 import { weixinRoute } from "./channels/weixin/weixin.route.js";
 import { toolsRoute } from "./routes/tools.route.js";
-import { reflectionRoute } from "./routes/reflection.route.js";
+import { memoryProposalsRoute } from "./routes/memory-proposals.route.js";
 import { dreamRoute } from "./routes/dream.route.js";
 import { adminRoute } from "./routes/admin.route.js";
 import { webSearchRoute } from "./routes/web-search.route.js";
@@ -57,7 +57,7 @@ export function buildApp() {
   void app.register(channelsRoute);
   void app.register(weixinRoute);
   void app.register(toolsRoute);
-  void app.register(reflectionRoute);
+  void app.register(memoryProposalsRoute);
   void app.register(dreamRoute);
   void app.register(adminRoute);
   void app.register(webSearchRoute);
@@ -87,7 +87,7 @@ export function buildApp() {
     "DREAM_ENABLED", "DREAM_CRON",
   ]);
   const autonomyKeys = new Set<RuntimeSettingKey>([
-    "RUNTIME_AUTONOMY_AUTO_RUN", "RUNTIME_AUTONOMY_CRON", "RUNTIME_AUTONOMY_TIMEZONE",
+    "RUNTIME_AUTONOMY_AUTO_RUN", "RUNTIME_AUTONOMY_CRON",
   ]);
   const mcpKeys = new Set<RuntimeSettingKey>([
     "MCP_ENABLED", "CHROME_DEVTOOLS_MCP_ENABLED", "CHROME_DEVTOOLS_MCP_CONNECTION_MODE",
