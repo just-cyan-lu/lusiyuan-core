@@ -6,16 +6,16 @@ import type {
   ReflectionMessage,
   ReflectionMemory,
 } from "./reflection.types.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
+
+const defaultReflectionMessageLimit = 80;
+const hardMaxReflectionMessageLimit = 2000;
+const reflectionMemoryLimit = 30;
 
 export async function buildReflectionContext(
   input: BuildReflectionContextInput
 ): Promise<ReflectionContext> {
   const { scope, userId, conversationId, messageLimit, from, to } = input;
-  const limit = Math.min(
-    messageLimit ?? runtimeConfig.REFLECTION_DEFAULT_MESSAGE_LIMIT,
-    runtimeConfig.REFLECTION_MAX_MESSAGE_LIMIT
-  );
+  const limit = normalizeMessageLimit(messageLimit);
 
   // ── Messages ──────────────────────────────────────────────────────────────
   const messageWhere: Record<string, unknown> = {};
@@ -76,7 +76,7 @@ export async function buildReflectionContext(
   const rawMemories = await prisma.memory.findMany({
     where: memoryWhere,
     orderBy: [{ importance: "desc" }, { updatedAt: "desc" }],
-    take: runtimeConfig.REFLECTION_INCLUDE_MEMORIES ? 30 : 0,
+    take: reflectionMemoryLimit,
     select: {
       id: true,
       type: true,
@@ -95,4 +95,14 @@ export async function buildReflectionContext(
   const boundariesSummary = persona.boundaries.slice(0, 400);
 
   return { messages, existingMemories, coreIdentitySummary, boundariesSummary };
+}
+
+function normalizeMessageLimit(messageLimit: number | undefined): number {
+  if (typeof messageLimit !== "number" || !Number.isFinite(messageLimit)) {
+    return defaultReflectionMessageLimit;
+  }
+  return Math.min(
+    Math.max(Math.floor(messageLimit), 1),
+    hardMaxReflectionMessageLimit
+  );
 }

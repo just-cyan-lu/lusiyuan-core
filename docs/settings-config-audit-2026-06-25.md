@@ -13,7 +13,7 @@
 
 ## 总结
 
-- 运行时配置原有 91 个，已删除 `REFLECTION_OWNER_ONLY`、`DREAM_AUTO_APPLY`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`，当前为 85 个。
+- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，已删除 `REFLECTION_OWNER_ONLY`、`DREAM_AUTO_APPLY`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`，当前为 82 个。
 - 绝大多数配置可以确认接入了业务路径。
 - 2 个完全没有业务读取，先保留给 Dream 后续重构：`DREAM_MORNING_BRIEF_ENABLED`、`DREAM_MIN_SIGNAL_SCORE`。
 - 1 个只出现在 admin 状态摘要里，没有真正约束业务，先保留给 Dream 后续重构：`DREAM_MAX_LOOKBACK_DAYS`。
@@ -36,7 +36,7 @@
 | 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_SEMANTIC_TOP_K`、`MEMORY_FINAL_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` | 保留 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts`、`src/reflection/reflection-proposal.service.ts` |
 | 工具 | `TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT` | 保留 | `src/core/chat.service.ts`、`src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
 | 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE` | 保留 | `src/tools/builtin/*.tool.ts` |
-| Reflection | 全部 Reflection 配置 | 保留 | `src/routes/reflection.route.ts`、`src/reflection/*` |
+| Reflection | `REFLECTION_ENABLE_GROWTH_LOG` | 保留 | `src/reflection/reflection-policy.ts` |
 | Dream | 除下方问题项外的 Dream 配置 | 保留 | `src/dream/*`、`src/routes/dream.route.ts`、`src/app.ts` |
 | 运行态自启动 | `RUNTIME_AUTONOMY_AUTO_RUN`、`RUNTIME_AUTONOMY_CRON`、`RUNTIME_AUTONOMY_TIMEZONE` | 保留 | `src/runtime/runtime-autonomy-scheduler.ts`、`src/app.ts` |
 | 网页能力 | `TAVILY_ENABLED`、`TAVILY_MAX_RESULTS`、`TAVILY_SEARCH_DEPTH`、`JINA_ENABLED`、`PLAYWRIGHT_ENABLED`、`PLAYWRIGHT_MAX_PAGE_TEXT_CHARS`、`PLAYWRIGHT_SCREENSHOT_ENABLED` | 保留 | `src/web-search/*`、`src/page-reader/*`、`src/tools/builtin/read-page.tool.ts`、`src/platforms/xiaohongshu/xiaohongshu-url-import.service.ts` |
@@ -89,7 +89,8 @@
 
 - `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` 仍在 `src/utils/env.ts` 和 `src/core/model-provider.ts` 里作为旧单 provider fallback，但没有出现在 settings 页面。开发期如果已经迁到多 provider 结构，可以考虑后续直接删除这组 legacy fallback。
 - `WEB_ORIGIN` 目前像是“安全配置”，但全局 CORS 仍允许任意 origin。这个最好单独修，不然配置页会给人一种已经限制来源的错觉。
-- `REFLECTION_AUTO_APPLY` 真的会用于 proposal service；已删除没有真实应用路径的 `DREAM_AUTO_APPLY`。
+- Reflection 设置已收敛，只保留 `REFLECTION_ENABLE_GROWTH_LOG`。手动运行的消息数量以请求参数为准，代码保留硬上限防误传；提案仍走人工审核，不再用配置页阈值提前丢弃低置信度或超量提案。
+- Reflection 目前仍会带入当前用户的高重要度/最近长期记忆，后续应改成基于本次复盘消息的语义相关记忆检索，避免带错记忆或漏掉真正相关记忆。
 
 ## 建议清理顺序
 

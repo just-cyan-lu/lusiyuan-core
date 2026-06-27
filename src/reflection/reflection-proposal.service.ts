@@ -141,9 +141,6 @@ export class ReflectionProposalService {
     if (proposal.status !== "approved") {
       throw new Error(`Proposal must be approved before applying (current: ${proposal.status})`);
     }
-    if (proposal.riskLevel === "high" && !runtimeConfig.REFLECTION_AUTO_APPLY) {
-      throw new Error("High-risk proposals cannot be applied without REFLECTION_AUTO_APPLY=true");
-    }
     return applyService.apply(proposal, reviewerId);
   }
 
@@ -153,9 +150,6 @@ export class ReflectionProposalService {
     });
     if (proposal.status !== "approved") {
       throw new Error(`Proposal must be approved before applying globally (current: ${proposal.status})`);
-    }
-    if (proposal.riskLevel === "high" && !runtimeConfig.REFLECTION_AUTO_APPLY) {
-      throw new Error("High-risk proposals cannot be applied without REFLECTION_AUTO_APPLY=true");
     }
     return applyService.applyGlobal(proposal, reviewerId);
   }

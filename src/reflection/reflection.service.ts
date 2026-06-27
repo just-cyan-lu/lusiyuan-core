@@ -1,5 +1,4 @@
 import { prisma } from "../db/prisma.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { buildReflectionContext } from "./reflection-context-builder.js";
 import { runReflectionAnalysis } from "./reflection-report-formatter.js";
 import { applyReflectionPolicy } from "./reflection-policy.js";
@@ -51,20 +50,6 @@ export class ReflectionService {
         from: job.messageFrom ?? undefined,
         to: job.messageTo ?? undefined,
       });
-
-      if (context.messages.length < runtimeConfig.REFLECTION_MIN_MESSAGES) {
-        await prisma.reflectionJob.update({
-          where: { id: jobId },
-          data: { status: "completed", completedAt: new Date() },
-        });
-        return prisma.reflectionReport.create({
-          data: {
-            jobId,
-            summary: `消息数量不足（${context.messages.length} < ${runtimeConfig.REFLECTION_MIN_MESSAGES}），跳过复盘。`,
-            confidence: 1.0,
-          },
-        });
-      }
 
       const raw = await runReflectionAnalysis(context);
       const { allowedProposals, allowedRiskFlags, allowedGrowthLogs } =

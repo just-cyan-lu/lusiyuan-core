@@ -80,25 +80,18 @@ ReflectionProposalService.applyProposal() → 写入 Memory 表
 
 提案在写入 DB 前经过以下过滤：
 
-1. **置信度阈值**：低于 `REFLECTION_PROPOSAL_MIN_CONFIDENCE`（默认 0.7）的提案直接丢弃
-2. **违禁内容检测**：包含"装真人"、"假装真人"、"编造身份"等关键词的提案自动拦截
-3. **高风险边界提案**：`scope=boundary` 且 `riskLevel=high` 的提案默认拦截
-4. **数量上限**：每次运行最多保留 `REFLECTION_PROPOSAL_MAX_PER_RUN`（默认 20）条，按置信度排序
+1. **违禁内容检测**：包含"装真人"、"假装真人"、"编造身份"等关键词的提案自动拦截
+2. **高风险边界提案**：`scope=boundary` 且 `riskLevel=high` 的提案默认拦截
+3. **成长记录开关**：`REFLECTION_ENABLE_GROWTH_LOG=false` 时不生成成长记录提案
+
+低置信度和数量过多不再由运行时配置提前丢弃，交给 admin 审核界面判断。
 
 ---
 
-## 环境变量
+## 运行时配置
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `REFLECTION_ENABLED` | `true` | 是否启用反思代理 |
-| `REFLECTION_DEFAULT_MESSAGE_LIMIT` | `80` | 默认读取消息数 |
-| `REFLECTION_MAX_MESSAGE_LIMIT` | `200` | 最大读取消息数 |
-| `REFLECTION_MIN_MESSAGES` | `10` | 少于此数则跳过分析 |
-| `REFLECTION_INCLUDE_MEMORIES` | `true` | 分析时是否带入现有记忆 |
-| `REFLECTION_AUTO_APPLY` | `false` | 是否允许自动写入（建议保持关闭） |
-| `REFLECTION_PROPOSAL_MIN_CONFIDENCE` | `0.7` | 提案最低置信度 |
-| `REFLECTION_PROPOSAL_MAX_PER_RUN` | `20` | 每次最多生成提案数 |
 | `REFLECTION_ENABLE_GROWTH_LOG` | `true` | 是否生成成长日志提案 |
 
 ---
