@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Switch } from "animal-island-ui";
+import { Button } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchRuntimeStateEventSources,
@@ -15,7 +15,6 @@ import {
 import { RuntimeEventDetail } from "./RuntimeEventDetail";
 import { StateChangeDetail } from "./StateChangeDetail";
 import { RuntimeStateSourceMaterials } from "./RuntimeStateSourceMaterials";
-import { StatusPill } from "./StatusPill";
 
 interface RuntimeStatePageProps {
   adminToken: string;
@@ -38,14 +37,11 @@ interface RuntimeFormState {
   moodLabel: string;
   moodScore: number;
   energyLevel: number;
-  stressLevel: number;
-  socialBattery: number;
   currentGoal: string;
   currentFocus: string;
   currentActivity: string;
   recentEventSummary: string;
   statusNote: string;
-  autoUpdateEnabled: boolean;
   updateMode: string;
   updateStrategy: string;
 }
@@ -65,14 +61,11 @@ const runtimeFieldLabels: Record<string, string> = {
   moodLabel: "心情",
   moodScore: "心情指数",
   energyLevel: "精力",
-  stressLevel: "压力",
-  socialBattery: "社交电量",
   currentGoal: "当前目标",
   currentFocus: "最近关注",
   currentActivity: "正在做",
   recentEventSummary: "最近事件",
   statusNote: "状态备注",
-  autoUpdateEnabled: "自动校准",
   updateMode: "更新模式",
   updateStrategy: "更新策略",
   metadata: "内在详情",
@@ -108,14 +101,11 @@ function formFromState(state: RuntimeState): RuntimeFormState {
     moodLabel: state.moodLabel,
     moodScore: state.moodScore,
     energyLevel: state.energyLevel,
-    stressLevel: state.stressLevel,
-    socialBattery: state.socialBattery,
     currentGoal: state.currentGoal ?? "",
     currentFocus: state.currentFocus ?? "",
     currentActivity: state.currentActivity ?? "",
     recentEventSummary: state.recentEventSummary ?? "",
     statusNote: state.statusNote ?? "",
-    autoUpdateEnabled: state.autoUpdateEnabled,
     updateMode: state.updateMode,
     updateStrategy: state.updateStrategy || "rules",
   };
@@ -152,7 +142,7 @@ function eventTypeLabel(type: string): string {
   if (type === "owner_chat_state_rules") return "Owner 对话校准";
   if (type === "owner_chat_state_llm") return "Owner LLM 校准";
   if (type === "owner_chat_state_failed") return "Owner 校准失败";
-  if (type === "reflection_state_update") return "复盘更新";
+  if (type === "reflection_state_update") return "整理更新";
   if (type === "dream_state_update") return "梦境更新";
   if (type === "autonomy_state_update") return "自启动更新";
   if (type === "manual_update") return "手动调整";
@@ -162,7 +152,7 @@ function eventTypeLabel(type: string): string {
 
 function runtimeEventTypeLabel(type: string): string {
   if (type === "chat_turn") return "聊天事件";
-  if (type === "reflection_report") return "复盘事件";
+  if (type === "reflection_report") return "整理事件";
   if (type === "dream_cycle") return "梦境事件";
   if (type === "autonomy_tick") return "自启动检查";
   return type;
@@ -474,7 +464,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
             <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-              数据库里的当前状态。普通聊天只记录事件；长期状态由 owner 对话、复盘、梦境、自启动和手动校准更新。
+              数据库里的当前状态。普通聊天只记录事件；长期状态由 owner 对话、梦境、自启动和手动校准更新。
             </p>
           </div>
 
@@ -529,17 +519,11 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                     {moodTone(runtime.moodScore)} · 更新于 {formatDate(runtime.updatedAt)}
                   </div>
                 </div>
-                <StatusPill
-                  active={runtime.autoUpdateEnabled}
-                  label={runtime.autoUpdateEnabled ? "受控自动" : "手动模式"}
-                />
               </div>
 
               <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <MetricBar label="心情指数" value={runtime.moodScore} min={-100} max={100} />
                 <MetricBar label="精力" value={runtime.energyLevel} min={0} max={100} />
-                <MetricBar label="压力" value={runtime.stressLevel} min={0} max={100} dangerHigh />
-                <MetricBar label="社交电量" value={runtime.socialBattery} min={0} max={100} />
               </div>
             </div>
 
@@ -587,7 +571,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
               <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">内在详情</h3>
               <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                LLM 提议校验、复盘和梦境会填充这些细节；普通聊天只留下事件材料。
+                LLM 提议校验和梦境会填充这些细节；普通聊天只留下事件材料。
               </p>
               <div className="mt-4 grid gap-3">
                 <InfoBlock label="内在天气" value={metadataText(runtimeMetadata, "innerWeather")} />
@@ -640,7 +624,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               </div>
 
               <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                规则校准更稳定省资源；LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、复盘、梦境或自启动。普通聊天不会直接改这里。
+                规则校准更稳定省资源；LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、梦境或自启动。普通聊天不会直接改这里。
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -658,30 +642,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                   max={100}
                   onChange={(value) => setForm({ ...form, energyLevel: value })}
                 />
-                <SliderField
-                  label="压力"
-                  value={form.stressLevel}
-                  min={0}
-                  max={100}
-                  onChange={(value) => setForm({ ...form, stressLevel: value })}
-                />
-                <SliderField
-                  label="社交电量"
-                  value={form.socialBattery}
-                  min={0}
-                  max={100}
-                  onChange={(value) => setForm({ ...form, socialBattery: value })}
-                />
               </div>
-
-              <label className="mt-4 flex items-center gap-3 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm text-[var(--ls-ink-strong)]">
-                <Switch
-                  checked={form.autoUpdateEnabled}
-                  onChange={(checked: boolean) => setForm({ ...form, autoUpdateEnabled: checked })}
-                  aria-label="允许受控入口自动校准长期状态"
-                />
-                允许受控入口自动校准长期状态
-              </label>
 
               <div className="mt-4 grid gap-4">
                 <TextAreaField

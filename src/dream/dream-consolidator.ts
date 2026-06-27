@@ -4,7 +4,7 @@ import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
 import { DEEP_CONSOLIDATION_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { filterProposals } from "./dream-policy.js";
-import type { MemoryProposalOwnership } from "../reflection/memory-proposal-ownership.js";
+import type { MemoryProposalOwnership } from "../memory/memory-proposal-ownership.js";
 import type {
   RawConsolidationOutput,
   RawConsolidationProposal,
@@ -17,15 +17,16 @@ import type {
   DreamDiaryEntry,
   MemoryProposal,
   GrowthLogProposal,
-  ReflectionRiskFlag,
+  MemoryRiskFlag,
   DreamConsolidationReport,
+  Prisma,
 } from "@prisma/client";
 
 export interface DreamConsolidationResult {
   report: DreamConsolidationReport;
   memoryProposals: MemoryProposal[];
   growthLogProposals: GrowthLogProposal[];
-  riskFlags: ReflectionRiskFlag[];
+  riskFlags: MemoryRiskFlag[];
 }
 
 export class DreamConsolidator {
@@ -34,10 +35,9 @@ export class DreamConsolidator {
     dailyNote: DailyNote;
     diaryEntry?: DreamDiaryEntry | null;
     jobId?: string;
-    dreamReflectionReportId: string;
     ownership?: MemoryProposalOwnership;
   }): Promise<DreamConsolidationResult> {
-    const { signals, dailyNote, jobId, dreamReflectionReportId, ownership } = input;
+    const { signals, dailyNote, diaryEntry, jobId, ownership } = input;
 
     const userContent = this.buildUserContent(signals, dailyNote);
 
@@ -57,13 +57,28 @@ export class DreamConsolidator {
       : [];
 
     const filteredProposals = filterProposals(rawProposals);
+    const summary = `Deep Sleep 完成。生成 ${filteredProposals.length} 条记忆提案，${rawGrowthLogs.length} 条成长日志，${rawRiskFlags.length} 个风险标记。`;
+    const report = await this.createReport({
+      jobId,
+      summary,
+      candidateCount: signals.length,
+      promotedCount: filteredProposals.length,
+      rejectedCount: rawProposals.length - filteredProposals.length,
+      riskCount: rawRiskFlags.length,
+      rawOutput: raw as unknown as Prisma.InputJsonValue,
+      metadata: {
+        dailyNoteId: dailyNote.id,
+        diaryEntryId: diaryEntry?.id ?? null,
+        sourceSignalIds: signals.map((signal) => signal.id),
+      },
+    });
 
     // Write memory proposals
     const memoryProposals: MemoryProposal[] = [];
     for (const p of filteredProposals) {
       const mp = await prisma.memoryProposal.create({
         data: {
-          reportId: dreamReflectionReportId,
+          reportId: report.id,
           userId: ownership?.userId ?? null,
           conversationId: ownership?.conversationId ?? null,
           channel: ownership?.channel ?? null,
@@ -90,7 +105,7 @@ export class DreamConsolidator {
     for (const g of rawGrowthLogs) {
       const glp = await prisma.growthLogProposal.create({
         data: {
-          reportId: dreamReflectionReportId,
+          reportId: report.id,
           title: g.title,
           content: g.content,
           tags: g.tags ?? [],
@@ -103,11 +118,11 @@ export class DreamConsolidator {
     }
 
     // Write risk flags
-    const riskFlags: ReflectionRiskFlag[] = [];
+    const riskFlags: MemoryRiskFlag[] = [];
     for (const rf of rawRiskFlags) {
-      const flag = await prisma.reflectionRiskFlag.create({
+      const flag = await prisma.memoryRiskFlag.create({
         data: {
-          reportId: dreamReflectionReportId,
+          reportId: report.id,
           type: rf.type,
           severity: rf.severity,
           description: rf.description,
@@ -120,43 +135,41 @@ export class DreamConsolidator {
     }
 
     const proposalIds = memoryProposals.map((p) => p.id);
-    const report = await this.createReport(
-      jobId,
-      `Deep Sleep 完成。生成 ${memoryProposals.length} 条记忆提案，${growthLogProposals.length} 条成长日志，${riskFlags.length} 个风险标记。`,
-      signals.length,
-      memoryProposals.length,
-      rawProposals.length - filteredProposals.length,
-      riskFlags.length,
-      proposalIds,
-      dreamReflectionReportId
-    );
+    const finalReport = await prisma.dreamConsolidationReport.update({
+      where: { id: report.id },
+      data: {
+        summary: `Deep Sleep 完成。生成 ${memoryProposals.length} 条记忆提案，${growthLogProposals.length} 条成长日志，${riskFlags.length} 个风险标记。`,
+        promotedCount: memoryProposals.length,
+        riskCount: riskFlags.length,
+        generatedProposalIds: proposalIds,
+      },
+    });
 
-    return { report, memoryProposals, growthLogProposals, riskFlags };
+    return { report: finalReport, memoryProposals, growthLogProposals, riskFlags };
   }
 
-  private async createReport(
-    jobId: string | undefined,
-    summary: string,
-    candidateCount: number,
-    promotedCount: number,
-    rejectedCount: number,
-    riskCount: number,
-    proposalIds: string[],
-    dreamReflectionReportId: string
-  ): Promise<DreamConsolidationReport> {
+  private async createReport(input: {
+    jobId: string | undefined;
+    summary: string;
+    candidateCount: number;
+    promotedCount: number;
+    rejectedCount: number;
+    riskCount: number;
+    rawOutput: Prisma.InputJsonValue;
+    metadata: Prisma.InputJsonValue;
+  }): Promise<DreamConsolidationReport> {
     return prisma.dreamConsolidationReport.create({
       data: {
-        jobId: jobId ?? null,
-        summary,
+        jobId: input.jobId ?? null,
+        summary: input.summary,
         phase: "deep_sleep",
-        candidateCount,
-        promotedCount,
-        rejectedCount,
-        riskCount,
-        generatedProposalIds: proposalIds,
-        metadata: {
-          dreamReflectionReportId,
-        },
+        candidateCount: input.candidateCount,
+        promotedCount: input.promotedCount,
+        rejectedCount: input.rejectedCount,
+        riskCount: input.riskCount,
+        generatedProposalIds: [],
+        rawOutput: input.rawOutput,
+        metadata: input.metadata,
       },
     });
   }

@@ -533,7 +533,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     if (clearConfirmText.trim() !== "清空数据库" || !clearPassword.trim()) return;
     if (
       !window.confirm(
-        "确定要清空数据库里的全部业务数据吗？聊天、记忆、运行态、关系状态、Dream/Reflection 记录都会被删除。"
+        "确定要清空数据库里的全部业务数据吗？聊天、记忆、运行态、关系状态、Dream 记录都会被删除。"
       )
     ) {
       return;
@@ -642,7 +642,7 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
             <div className="max-w-3xl">
               <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">清空数据库业务数据</h4>
               <p className="mt-2 text-sm leading-6 text-[var(--ls-warning-text)]">
-                会删除聊天、用户、记忆、运行态、关系状态、Dream/Reflection 产物、工具日志和页面快照。不会删除运行配置、Skill 配置、配置变更记录、`.env`、persona 或 migration。
+                会删除聊天、用户、记忆、运行态、关系状态、Dream 产物、工具日志和页面快照。不会删除运行配置、Skill 配置、配置变更记录、`.env`、persona 或 migration。
               </p>
             </div>
             <Button

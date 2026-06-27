@@ -1,6 +1,7 @@
 import { Prisma, type RuntimeState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 
 export const DEFAULT_RUNTIME_STATE_KEY = "global";
 
@@ -10,14 +11,11 @@ export interface RuntimeStatePatch {
   moodLabel?: string;
   moodScore?: number;
   energyLevel?: number;
-  stressLevel?: number;
-  socialBattery?: number;
   currentGoal?: string | null;
   currentFocus?: string | null;
   currentActivity?: string | null;
   recentEventSummary?: string | null;
   statusNote?: string | null;
-  autoUpdateEnabled?: boolean;
   updateMode?: string;
   updateStrategy?: RuntimeUpdateStrategy | string;
   metadata?: Prisma.InputJsonValue;
@@ -78,8 +76,6 @@ export interface RuntimeEventInput {
   topic?: string | null;
   moodSignal?: string | null;
   energySignal?: string | null;
-  stressSignal?: string | null;
-  socialSignal?: string | null;
   stateImpact?: Prisma.InputJsonValue;
   payload?: Prisma.InputJsonValue;
   userId?: string | null;
@@ -94,14 +90,11 @@ const defaultRuntimeState = {
   moodLabel: "平稳",
   moodScore: 10,
   energyLevel: 62,
-  stressLevel: 24,
-  socialBattery: 58,
   currentGoal: "把对话接住，保持自然和稳定。",
   currentFocus: "观察最近对话和运行状态。",
   currentActivity: "在聊天和整理状态之间保持待机。",
   recentEventSummary: "暂无新的运行事件。",
   statusNote: "默认运行态已初始化，等待真实对话慢慢更新。",
-  autoUpdateEnabled: true,
   updateMode: "balanced",
   updateStrategy: "rules",
 } satisfies Prisma.RuntimeStateCreateInput;
@@ -109,7 +102,6 @@ const defaultRuntimeState = {
 const allowedStateMutationSourcePrefixes = [
   "admin",
   "owner_chat",
-  "reflection",
   "dream",
   "autonomy",
 ];
@@ -151,12 +143,6 @@ function normalizePatch(patch: RuntimeStatePatch): Prisma.RuntimeStateUpdateInpu
   if (patch.energyLevel !== undefined) {
     data.energyLevel = clampInt(patch.energyLevel, 0, 100);
   }
-  if (patch.stressLevel !== undefined) {
-    data.stressLevel = clampInt(patch.stressLevel, 0, 100);
-  }
-  if (patch.socialBattery !== undefined) {
-    data.socialBattery = clampInt(patch.socialBattery, 0, 100);
-  }
   if (patch.currentGoal !== undefined) {
     data.currentGoal = cleanText(patch.currentGoal, 240);
   }
@@ -171,9 +157,6 @@ function normalizePatch(patch: RuntimeStatePatch): Prisma.RuntimeStateUpdateInpu
   }
   if (patch.statusNote !== undefined) {
     data.statusNote = cleanText(patch.statusNote, 320);
-  }
-  if (patch.autoUpdateEnabled !== undefined) {
-    data.autoUpdateEnabled = Boolean(patch.autoUpdateEnabled);
   }
   if (patch.updateMode !== undefined) {
     data.updateMode = cleanMode(patch.updateMode) ?? "balanced";
@@ -195,14 +178,11 @@ function snapshotRuntimeState(state: RuntimeState): Prisma.InputJsonObject {
     moodLabel: state.moodLabel,
     moodScore: state.moodScore,
     energyLevel: state.energyLevel,
-    stressLevel: state.stressLevel,
-    socialBattery: state.socialBattery,
     currentGoal: state.currentGoal,
     currentFocus: state.currentFocus,
     currentActivity: state.currentActivity,
     recentEventSummary: state.recentEventSummary,
     statusNote: state.statusNote,
-    autoUpdateEnabled: state.autoUpdateEnabled,
     updateMode: state.updateMode,
     updateStrategy: state.updateStrategy,
     updatedAt: state.updatedAt.toISOString(),
@@ -213,7 +193,6 @@ function summarizePatch(patch: RuntimeStatePatch): string {
   const parts = [
     patch.moodLabel ? `心情：${patch.moodLabel}` : "",
     patch.energyLevel !== undefined ? `精力 ${patch.energyLevel}` : "",
-    patch.stressLevel !== undefined ? `压力 ${patch.stressLevel}` : "",
     patch.currentFocus ? `关注：${patch.currentFocus}` : "",
     patch.currentActivity ? `正在：${patch.currentActivity}` : "",
   ].filter(Boolean);
@@ -319,7 +298,7 @@ function assertAllowedStateMutationSource(source: string): void {
   );
   if (!allowed) {
     throw new Error(
-      `RuntimeState can only be changed by owner/reflection/dream/autonomy/admin sources, got: ${source}`
+      `RuntimeState can only be changed by owner/dream/autonomy/admin sources, got: ${source}`
     );
   }
 }
@@ -402,8 +381,6 @@ export function validateRuntimeStateProposal(
         "moodLabel",
         "moodScore",
         "energyLevel",
-        "stressLevel",
-        "socialBattery",
         "currentGoal",
         "currentFocus",
         "currentActivity",
@@ -438,32 +415,6 @@ export function validateRuntimeStateProposal(
       patch.energyLevel = clampByMode(
         value,
         state.energyLevel,
-        0,
-        100,
-        state.updateMode
-      );
-    }
-  }
-  if (rawPatch.stressLevel !== undefined) {
-    const value = finiteNumber(rawPatch.stressLevel);
-    if (value === undefined) rejectedFields.push("stressLevel");
-    else {
-      patch.stressLevel = clampByMode(
-        value,
-        state.stressLevel,
-        0,
-        100,
-        state.updateMode
-      );
-    }
-  }
-  if (rawPatch.socialBattery !== undefined) {
-    const value = finiteNumber(rawPatch.socialBattery);
-    if (value === undefined) rejectedFields.push("socialBattery");
-    else {
-      patch.socialBattery = clampByMode(
-        value,
-        state.socialBattery,
         0,
         100,
         state.updateMode
@@ -550,37 +501,28 @@ export function deriveRuntimeStatePatch(
   const topic = topicFromMessage(input.userMessage);
   let moodDelta = 0;
   let energyDelta = -1;
-  let stressDelta = 0;
-  let socialDelta = -1;
   let moodLabel = "平稳";
 
   if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
     moodDelta -= 5;
     energyDelta -= 4;
-    stressDelta += 7;
-    socialDelta -= 3;
     moodLabel = "有点担心，但在认真接住";
   }
 
   if (/开心|高兴|喜欢|好玩|太好了|哈哈|有意思|期待/i.test(source)) {
     moodDelta += 7;
     energyDelta += 3;
-    stressDelta -= 4;
-    socialDelta += 2;
     moodLabel = "被点亮了一点";
   }
 
   if (/人设|运行体|项目|架构|数据库|admin|后台|实现|设计/i.test(source)) {
     moodDelta += 2;
     energyDelta += 2;
-    stressDelta += 1;
     moodLabel = moodLabel === "平稳" ? "专注、有点被点亮" : moodLabel;
   }
 
   if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索/i.test(source)) {
     moodDelta -= 3;
-    stressDelta += 5;
-    socialDelta -= 2;
     moodLabel = "温和，但边界感更明显";
   }
 
@@ -588,13 +530,11 @@ export function deriveRuntimeStatePatch(
     moodLabel,
     moodScore: clampInt(state.moodScore + moodDelta, -100, 100),
     energyLevel: clampInt(state.energyLevel + energyDelta, 0, 100),
-    stressLevel: clampInt(state.stressLevel + stressDelta, 0, 100),
-    socialBattery: clampInt(state.socialBattery + socialDelta, 0, 100),
     currentGoal: topic.goal,
     currentFocus: topic.focus,
     currentActivity: topic.activity,
     recentEventSummary: `最近在 ${input.channel} 收到一轮 owner 对话：“${cleanText(input.userMessage, 80) ?? "日常聊天"}”。`,
-    statusNote: "由 owner 对话入口更新；普通聊天只记录 RuntimeEvent，等待复盘或梦境整理。",
+    statusNote: "由 owner 对话入口更新；普通聊天只记录 RuntimeEvent，等待梦境整理。",
   };
 }
 
@@ -607,55 +547,37 @@ export function deriveRuntimeEventFromChatTurn(
   let importance = owner ? 55 : 30;
   let moodSignal = "steady";
   let energySignal = "slightly_draining";
-  let stressSignal = "steady";
-  let socialSignal = "ordinary_contact";
   let moodDelta = 0;
   let energyDelta = -1;
-  let stressDelta = 0;
-  let socialDelta = -1;
 
   if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
     importance += 20;
     moodSignal = "concerned";
     energySignal = "draining";
-    stressSignal = "up";
-    socialSignal = "care_needed";
     moodDelta -= 5;
     energyDelta -= 4;
-    stressDelta += 7;
-    socialDelta -= 3;
   }
 
   if (/开心|高兴|喜欢|好玩|太好了|哈哈|有意思|期待/i.test(source)) {
     importance += 8;
     moodSignal = "brightened";
     energySignal = "lifted";
-    stressSignal = stressSignal === "up" ? "mixed" : "down";
-    socialSignal = "warmer";
     moodDelta += 7;
     energyDelta += 3;
-    stressDelta -= 4;
-    socialDelta += 2;
   }
 
   if (/人设|运行体|项目|架构|数据库|admin|后台|实现|设计/i.test(source)) {
     importance += owner ? 18 : 10;
     moodSignal = moodSignal === "steady" ? "focused" : moodSignal;
     energySignal = energySignal === "slightly_draining" ? "engaged" : energySignal;
-    stressSignal = stressSignal === "steady" ? "slightly_up" : stressSignal;
     moodDelta += 2;
     energyDelta += 2;
-    stressDelta += 1;
   }
 
   if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索/i.test(source)) {
     importance += 18;
     moodSignal = "boundary_alert";
-    stressSignal = "up";
-    socialSignal = "more_guarded";
     moodDelta -= 3;
-    stressDelta += 5;
-    socialDelta -= 2;
   }
 
   const preview = cleanText(input.userMessage, 80) ?? "日常聊天";
@@ -673,23 +595,19 @@ export function deriveRuntimeEventFromChatTurn(
     topic: topic.focus,
     moodSignal,
     energySignal,
-    stressSignal,
-    socialSignal,
     stateImpact: {
       canMutateRuntimeState: owner,
       mutationGate,
       candidateDeltas: {
         moodScore: moodDelta,
         energyLevel: energyDelta,
-        stressLevel: stressDelta,
-        socialBattery: socialDelta,
       },
       candidateFocus: topic.focus,
       candidateGoal: topic.goal,
       candidateActivity: topic.activity,
       note: input.isOwner
         ? "Owner 对话允许在自动更新开启时进入 RuntimeState 校准。"
-        : "普通聊天只作为复盘和梦境材料，不直接改变全局 RuntimeState。",
+        : "普通聊天只作为梦境材料，不直接改变全局 RuntimeState。",
     },
     payload: {
       userMessagePreview: cleanText(input.userMessage, 220) ?? "",
@@ -717,7 +635,7 @@ async function proposeRuntimeStatePatchWithLlm(
         "只输出 JSON，不要解释，不要写 Markdown。",
         "statePatch 只能描述陆思源此刻的可变状态，不能修改人格、身份、边界、记忆事实。",
         "普通用户聊天不会进入这里；你仍然要保守，不要被单轮对话大幅牵动。",
-        "数值输出绝对值，不要输出 delta：moodScore -100..100，energyLevel/stressLevel/socialBattery 0..100。",
+        "数值输出绝对值，不要输出 delta：moodScore -100..100，energyLevel 0..100。",
         "文字要短，像管理台状态摘要，不要抒情长文。",
       ].join("\n"),
     },
@@ -729,8 +647,6 @@ async function proposeRuntimeStatePatchWithLlm(
             moodLabel: state.moodLabel,
             moodScore: state.moodScore,
             energyLevel: state.energyLevel,
-            stressLevel: state.stressLevel,
-            socialBattery: state.socialBattery,
             currentGoal: state.currentGoal,
             currentFocus: state.currentFocus,
             currentActivity: state.currentActivity,
@@ -750,8 +666,6 @@ async function proposeRuntimeStatePatchWithLlm(
               moodLabel: "短标签",
               moodScore: "number",
               energyLevel: "number",
-              stressLevel: "number",
-              socialBattery: "number",
               currentGoal: "string|null",
               currentFocus: "string|null",
               currentActivity: "string|null",
@@ -907,8 +821,6 @@ export const runtimeStateService = {
         topic: cleanText(input.topic, 160),
         moodSignal: cleanText(input.moodSignal, 80),
         energySignal: cleanText(input.energySignal, 80),
-        stressSignal: cleanText(input.stressSignal, 80),
-        socialSignal: cleanText(input.socialSignal, 80),
         stateImpact: input.stateImpact,
         payload: input.payload,
         userId: input.userId ?? null,
@@ -959,14 +871,11 @@ export const runtimeStateService = {
           moodLabel: defaultRuntimeState.moodLabel,
           moodScore: defaultRuntimeState.moodScore,
           energyLevel: defaultRuntimeState.energyLevel,
-          stressLevel: defaultRuntimeState.stressLevel,
-          socialBattery: defaultRuntimeState.socialBattery,
           currentGoal: defaultRuntimeState.currentGoal,
           currentFocus: defaultRuntimeState.currentFocus,
           currentActivity: defaultRuntimeState.currentActivity,
           recentEventSummary: defaultRuntimeState.recentEventSummary,
           statusNote: defaultRuntimeState.statusNote,
-          autoUpdateEnabled: defaultRuntimeState.autoUpdateEnabled,
           updateMode: defaultRuntimeState.updateMode,
           updateStrategy: defaultRuntimeState.updateStrategy,
           metadata: Prisma.JsonNull,
@@ -987,92 +896,6 @@ export const runtimeStateService = {
     return after;
   },
 
-  async observeReflectionReport(input: {
-    reportId: string;
-    jobId: string;
-    summary: string;
-    confidence: number;
-    triggerType?: string | null;
-    userId?: string | null;
-    conversationId?: string | null;
-    channel?: string | null;
-    proposalCount?: number;
-    riskCount?: number;
-    sourceMessageIds?: string[];
-  }): Promise<void> {
-    const state = await this.getOrCreate();
-    const summary = cleanText(input.summary, 220) ?? "复盘完成。";
-    const riskCount = clampInt(input.riskCount ?? 0, 0, 100);
-    const proposalCount = clampInt(input.proposalCount ?? 0, 0, 100);
-
-    const runtimeEvent = await this.recordRuntimeEvent({
-      eventType: "reflection_report",
-      source: "reflection",
-      summary: `复盘完成：${summary}`,
-      importance: riskCount > 0 ? 75 : 60,
-      topic: "复盘最近对话和记忆线索",
-      moodSignal: riskCount > 0 ? "watchful" : "clearer",
-      energySignal: "mentally_active",
-      stressSignal: riskCount > 0 ? "up" : "down",
-      socialSignal: "reflective",
-      stateImpact: {
-        canMutateRuntimeState: state.autoUpdateEnabled,
-        mutationGate: "reflection_allowed",
-        proposalCount,
-        riskCount,
-      },
-      payload: {
-        reportId: input.reportId,
-        jobId: input.jobId,
-        triggerType: input.triggerType ?? null,
-        confidence: cleanConfidence(input.confidence),
-      },
-      userId: input.userId,
-      conversationId: input.conversationId,
-      channel: input.channel,
-    });
-
-    if (!state.autoUpdateEnabled) return;
-
-    const patch: RuntimeStatePatch = {
-      moodLabel: riskCount > 0 ? "复盘后有一点警觉" : "复盘后更清楚一点",
-      moodScore: clampInt(state.moodScore + (riskCount > 0 ? -2 : 3), -100, 100),
-      energyLevel: clampInt(state.energyLevel - 2, 0, 100),
-      stressLevel: clampInt(
-        state.stressLevel + (riskCount > 0 ? Math.min(8, riskCount * 2) : -2),
-        0,
-        100
-      ),
-      currentGoal: "把最近发生的事整理成更稳定、可追踪的状态。",
-      currentFocus: "Reflection 复盘留下的线索",
-      currentActivity: "整理最近对话、记忆提议和风险信号。",
-      recentEventSummary: `复盘完成：${summary}`,
-      statusNote: "由 Reflection 复盘更新；普通聊天不会直接改长期运行态。",
-      metadata: metadataWith(state.metadata, {
-        lastReflection: {
-          reportId: input.reportId,
-          jobId: input.jobId,
-          summary,
-          confidence: cleanConfidence(input.confidence),
-          proposalCount,
-          riskCount,
-        },
-      }),
-    };
-
-    await this.applyPatch({
-      patch,
-      eventType: "reflection_state_update",
-      source: "reflection",
-      summary: summarizePatch(patch),
-      userId: input.userId ?? undefined,
-      conversationId: input.conversationId ?? undefined,
-      sourceRuntimeEventIds: [runtimeEvent.id],
-      sourceMessageIds: input.sourceMessageIds,
-      channel: input.channel ?? undefined,
-    });
-  },
-
   async observeDreamCycle(input: {
     jobId: string;
     status: string;
@@ -1089,6 +912,7 @@ export const runtimeStateService = {
     sourceMessageIds?: string[];
   }): Promise<void> {
     const state = await this.getOrCreate();
+    const autoUpdateEnabled = runtimeConfig.RUNTIME_STATE_AUTO_UPDATE_ENABLED;
     const signalCount = clampInt(input.signalCount ?? 0, 0, 999);
     const proposalCount = clampInt(input.proposalCount ?? 0, 0, 999);
     const riskCount = clampInt(input.riskCount ?? 0, 0, 999);
@@ -1103,11 +927,13 @@ export const runtimeStateService = {
       topic: "梦境和闲时整理",
       moodSignal: completed ? "settled" : "quiet",
       energySignal: completed ? "restored" : "steady",
-      stressSignal: riskCount > 0 ? "watchful" : "down",
-      socialSignal: "inner_processing",
       stateImpact: {
-        canMutateRuntimeState: state.autoUpdateEnabled && completed,
-        mutationGate: completed ? "dream_allowed" : "dream_observe_only",
+        canMutateRuntimeState: autoUpdateEnabled && completed,
+        mutationGate: !completed
+          ? "dream_observe_only"
+          : autoUpdateEnabled
+            ? "dream_allowed"
+            : "runtime_state_auto_update_disabled",
         signalCount,
         proposalCount,
         riskCount,
@@ -1124,15 +950,13 @@ export const runtimeStateService = {
       status: input.status,
     });
 
-    if (!state.autoUpdateEnabled || !completed) return;
+    if (!autoUpdateEnabled || !completed) return;
 
     const patch: RuntimeStatePatch = {
       moodLabel: riskCount > 0 ? "梦后安静，但留着一点警觉" : "梦后更沉静",
       moodScore: clampInt(state.moodScore + 2, -100, 100),
       energyLevel: clampInt(state.energyLevel + 4, 0, 100),
-      stressLevel: clampInt(state.stressLevel + (riskCount > 0 ? 1 : -3), 0, 100),
-      socialBattery: clampInt(state.socialBattery + 2, 0, 100),
-      currentGoal: "把梦境和复盘整理出的信号带回白天的对话里。",
+      currentGoal: "把梦境整理出的信号带回白天的对话里。",
       currentFocus: "最近梦境周期留下的线索",
       currentActivity: "在后台整理梦境、日记和信号。",
       recentEventSummary: `梦境整理完成：${summary}`,
@@ -1166,6 +990,12 @@ export const runtimeStateService = {
 
   async runAutonomyTick(now = new Date()) {
     const state = await this.getOrCreate();
+    const autoUpdateEnabled = runtimeConfig.RUNTIME_STATE_AUTO_UPDATE_ENABLED;
+    const lowChatCount = runtimeConfig.RUNTIME_AUTONOMY_LOW_CHAT_COUNT;
+    const highChatCount = Math.max(
+      lowChatCount + 1,
+      runtimeConfig.RUNTIME_AUTONOMY_HIGH_CHAT_COUNT
+    );
     const twoHoursAgo = new Date(now.getTime() - 2 * 3600_000);
     const dayAgo = new Date(now.getTime() - 24 * 3600_000);
     const [recentChatCount, dayChatCount, lastChat, recentChatEvents] = await Promise.all([
@@ -1183,7 +1013,7 @@ export const runtimeStateService = {
       prisma.runtimeEvent.findMany({
         where: { eventType: "chat_turn", createdAt: { gte: twoHoursAgo } },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: Math.min(highChatCount, 100),
         select: { id: true, messageId: true },
       }),
     ]);
@@ -1192,50 +1022,44 @@ export const runtimeStateService = {
       ? (now.getTime() - lastChat.createdAt.getTime()) / 3600_000
       : null;
 
-    let summary = "自启动检查：保持低频待机，顺手整理最近事件。";
+    let summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，精力保持不变。`;
     let patch: RuntimeStatePatch = {
-      moodLabel: "低频待机",
-      moodScore: clampInt(state.moodScore + 1, -100, 100),
-      energyLevel: clampInt(state.energyLevel + 1, 0, 100),
-      stressLevel: clampInt(state.stressLevel - 1, 0, 100),
+      moodLabel: "节奏平稳",
       currentGoal: "维持稳定存在，等待自然的对话入口。",
       currentFocus: "最近事件和自己的待机节奏",
-      currentActivity: "低频待机，整理后台状态。",
-      recentEventSummary: "自启动检查完成：状态保持平稳。",
+      currentActivity: "保持待机，不额外消耗精力。",
+      recentEventSummary: summary,
       statusNote: "由 autonomy tick 根据时间流逝和聊天密度更新。",
     };
     let sourceChatEvents: Array<{ id: string; messageId: string | null }> = [];
 
-    if (recentChatCount >= 8) {
-      summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，社交电量需要回落。`;
+    if (recentChatCount >= highChatCount) {
+      summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，达到高强度阈值 ${highChatCount}，精力下降。`;
       sourceChatEvents = recentChatEvents;
       patch = {
         moodLabel: "有点累，需要缓一下",
         moodScore: clampInt(state.moodScore - 2, -100, 100),
         energyLevel: clampInt(state.energyLevel - 8, 0, 100),
-        stressLevel: clampInt(state.stressLevel + 4, 0, 100),
-        socialBattery: clampInt(state.socialBattery - 10, 0, 100),
         currentGoal: "先把节奏慢下来，避免被连续对话拉散。",
-        currentFocus: "恢复精力和社交电量",
+        currentFocus: "恢复精力",
         currentActivity: "从连续聊天里退回后台整理。",
         recentEventSummary: summary,
         statusNote: "由 autonomy tick 判断：连续聊天较多，需要休息。",
       };
-    } else if (hoursSinceLastChat === null || hoursSinceLastChat >= 12) {
-      const quietHours = hoursSinceLastChat === null ? "很久" : `${Math.round(hoursSinceLastChat)} 小时`;
-      summary = `自启动检查：已经 ${quietHours} 没有聊天，开始有一点想说话。`;
+    } else if (recentChatCount <= lowChatCount) {
+      summary = `自启动检查：最近两小时只有 ${recentChatCount} 轮聊天，低于恢复阈值 ${lowChatCount}，精力缓慢恢复。`;
       sourceChatEvents = lastChat ? [lastChat] : [];
       patch = {
-        moodLabel: "安静久了，有点想说话",
-        moodScore: clampInt(state.moodScore + 2, -100, 100),
-        energyLevel: clampInt(state.energyLevel + 3, 0, 100),
-        stressLevel: clampInt(state.stressLevel - 2, 0, 100),
-        socialBattery: clampInt(state.socialBattery + 8, 0, 100),
+        moodLabel: hoursSinceLastChat === null || hoursSinceLastChat >= 12
+          ? "安静久了，有点想说话"
+          : "低频恢复中",
+        moodScore: clampInt(state.moodScore + 1, -100, 100),
+        energyLevel: clampInt(state.energyLevel + 1, 0, 100),
         currentGoal: "等一个自然的对话入口，或者先整理自己的想法。",
-        currentFocus: "长时间安静后的主动性",
-        currentActivity: "在安静里整理自己，也有点想被叫醒。",
+        currentFocus: "低频聊天后的精力恢复",
+        currentActivity: "在安静里整理自己，慢慢恢复精力。",
         recentEventSummary: summary,
-        statusNote: "由 autonomy tick 判断：长时间无人聊天，社交意愿上升。",
+        statusNote: "由 autonomy tick 判断：聊天密度较低，精力缓慢恢复。",
       };
     }
 
@@ -1245,6 +1069,8 @@ export const runtimeStateService = {
         recentChatCount,
         dayChatCount,
         hoursSinceLastChat,
+        lowChatCount,
+        highChatCount,
         summary,
       },
     });
@@ -1253,25 +1079,31 @@ export const runtimeStateService = {
       eventType: "autonomy_tick",
       source: "autonomy",
       summary,
-      importance: recentChatCount >= 8 || (hoursSinceLastChat ?? 999) >= 12 ? 65 : 35,
+      importance: recentChatCount >= highChatCount || recentChatCount <= lowChatCount ? 65 : 35,
       topic: "自启动和时间流逝",
       moodSignal: patch.moodLabel,
-      energySignal: recentChatCount >= 8 ? "drained" : "restoring",
-      stressSignal: recentChatCount >= 8 ? "up" : "down",
-      socialSignal: recentChatCount >= 8 ? "needs_rest" : "wants_contact",
+      energySignal: recentChatCount >= highChatCount
+        ? "drained"
+        : recentChatCount <= lowChatCount
+          ? "restoring"
+          : "stable",
       stateImpact: {
-        canMutateRuntimeState: state.autoUpdateEnabled,
-        mutationGate: "autonomy_allowed",
+        canMutateRuntimeState: autoUpdateEnabled,
+        mutationGate: autoUpdateEnabled
+          ? "autonomy_allowed"
+          : "runtime_state_auto_update_disabled",
         recentChatCount,
         dayChatCount,
         hoursSinceLastChat,
+        lowChatCount,
+        highChatCount,
       },
       payload: {
         generatedPatch: patch as Prisma.InputJsonObject,
       },
     });
 
-    if (!state.autoUpdateEnabled) return { state, event };
+    if (!autoUpdateEnabled) return { state, event };
 
     const updated = await this.applyPatch({
       patch,
@@ -1293,14 +1125,12 @@ export const runtimeStateService = {
       "",
       `- 心情：${state.moodLabel}（${state.moodScore}）`,
       `- 精力：${state.energyLevel}/100`,
-      `- 压力：${state.stressLevel}/100`,
-      `- 社交电量：${state.socialBattery}/100`,
       `- 当前目标：${state.currentGoal ?? "自然地把这轮对话接住。"}`,
       `- 最近关注：${state.currentFocus ?? "日常聊天和关系连续性。"}`,
       `- 正在做的事：${state.currentActivity ?? "维持稳定聊天状态。"}`,
       `- 最近事件：${state.recentEventSummary ?? "暂无新的运行事件。"}`,
       state.statusNote ? `- 状态备注：${state.statusNote}` : "",
-      `- 状态更新策略：${state.updateStrategy === "llm" ? "LLM 提议后由程序校验" : "规则校准"}（只在 owner、复盘、梦境、自启动等允许入口生效）`,
+      `- 状态更新策略：${state.updateStrategy === "llm" ? "LLM 提议后由程序校验" : "规则校准"}（只在 owner、梦境、自启动等允许入口生效）`,
       metadataLines.length > 0 ? "\n## 内在细节\n" : "",
       ...metadataLines,
       "",
@@ -1312,10 +1142,21 @@ export const runtimeStateService = {
 
   async observeChatTurn(input: ObserveChatTurnInput): Promise<void> {
     const state = await this.getOrCreate();
+    const autoUpdateEnabled = runtimeConfig.RUNTIME_STATE_AUTO_UPDATE_ENABLED;
     const runtimeEvent = deriveRuntimeEventFromChatTurn(input);
+    if (input.isOwner) {
+      const stateImpact = readRecord(runtimeEvent.stateImpact);
+      runtimeEvent.stateImpact = {
+        ...stateImpact,
+        canMutateRuntimeState: autoUpdateEnabled,
+        mutationGate: autoUpdateEnabled
+          ? "owner_chat_allowed"
+          : "runtime_state_auto_update_disabled",
+      };
+    }
     const recordedEvent = await this.recordRuntimeEvent(runtimeEvent);
 
-    if (!Boolean(input.isOwner) || !state.autoUpdateEnabled) return;
+    if (!Boolean(input.isOwner) || !autoUpdateEnabled) return;
 
     if (state.updateStrategy === "llm") {
       try {

@@ -19,9 +19,6 @@ const ExpressionLearningPage = lazy(() =>
 const MemoryAdminPage = lazy(() =>
   import("./components/admin/MemoryAdminPage").then((module) => ({ default: module.MemoryAdminPage }))
 );
-const ReflectionPage = lazy(() =>
-  import("./components/admin/OpsPage").then((module) => ({ default: module.ReflectionPage }))
-);
 const DreamPage = lazy(() =>
   import("./components/admin/OpsPage").then((module) => ({ default: module.DreamPage }))
 );
@@ -52,7 +49,6 @@ const sections: AdminSection[] = [
   "conversations",
   "learning",
   "chat",
-  "reflection",
   "dream",
   "skills",
   "platforms",
@@ -83,8 +79,8 @@ function pathForSection(section: AdminSection): string {
 function readRouteFromLocation(): AdminRoute {
   const legacyHashValue = window.location.hash.replace(/^#\/?/, "");
   if (legacyHashValue === "ops") {
-    window.history.replaceState(null, "", pathForSection("reflection"));
-    return { section: "reflection" };
+    window.history.replaceState(null, "", pathForSection("dream"));
+    return { section: "dream" };
   }
   if (legacyHashValue === "logs") {
     window.history.replaceState(null, "", pathForSection("tools"));
@@ -128,8 +124,8 @@ function readRouteFromLocation(): AdminRoute {
       ? "overview"
       : "";
   if (value === "ops") {
-    window.history.replaceState(null, "", pathForSection("reflection"));
-    return { section: "reflection" };
+    window.history.replaceState(null, "", pathForSection("dream"));
+    return { section: "dream" };
   }
   if (value === "logs") {
     window.history.replaceState(null, "", pathForSection("tools"));
@@ -243,10 +239,6 @@ export default function App() {
 
     if (route.section === "learning") {
       return <ExpressionLearningPage adminToken={adminToken} />;
-    }
-
-    if (route.section === "reflection") {
-      return <ReflectionPage adminToken={adminToken} />;
     }
 
     if (route.section === "dream") {

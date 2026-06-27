@@ -1,7 +1,7 @@
 // dream.types.ts — v0.75 Dream Cycle type definitions
 
 export type DreamJobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
-export type DreamTriggerType = "manual" | "scheduled" | "conversation_threshold" | "after_reflection";
+export type DreamTriggerType = "manual" | "scheduled" | "conversation_threshold";
 export type DreamScope = "daily" | "conversation" | "user" | "project" | "global";
 
 export type DreamSignalType =
@@ -45,13 +45,6 @@ export interface DreamSourceToolCall {
   createdAt: Date;
 }
 
-export interface DreamSourceReflectionReport {
-  id: string;
-  summary: string;
-  confidence: number;
-  createdAt: Date;
-}
-
 export interface DreamSourceMemoryProposal {
   id: string;
   proposalType: string;
@@ -66,7 +59,6 @@ export interface DreamContext {
   messages: DreamSourceMessage[];
   memories: DreamSourceMemory[];
   toolCalls: DreamSourceToolCall[];
-  reflectionReports: DreamSourceReflectionReport[];
   memoryProposals: DreamSourceMemoryProposal[];
   // reserved for v0.8+
   assetReviews?: unknown[];

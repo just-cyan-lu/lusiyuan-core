@@ -107,7 +107,7 @@ export function StateChangeDetail({
           </div>
         ) : (
           <div className="mt-3 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--ls-ink-soft)]">
-            这条记录没有改动核心状态字段。它更像一次信号、观察或失败记录，会作为以后复盘的材料。
+            这条记录没有改动核心状态字段。它更像一次信号、观察或失败记录，会作为以后梦境整理的材料。
           </div>
         )}
       </section>
@@ -177,7 +177,7 @@ function patchFieldLabel(key: string): string {
     counts: "统计",
     signal: "信号",
     proposedPatch: "LLM 提议",
-    lastRelationshipReview: "最近关系复盘",
+    lastRelationshipReview: "最近关系整理",
     stateImpact: "状态影响",
     metadataPatch: "内在详情补丁",
     reason: "原因",

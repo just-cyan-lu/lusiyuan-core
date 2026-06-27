@@ -33,13 +33,6 @@ function validateValue(key: RuntimeSettingKey, value: unknown): SettingValue {
   if ((key === "DREAM_CRON" || key === "RUNTIME_AUTONOMY_CRON") && !cron.validate(value)) {
     throw new Error(`${key} is not a valid cron expression`);
   }
-  if (key === "RUNTIME_AUTONOMY_TIMEZONE") {
-    try {
-      new Intl.DateTimeFormat("en", { timeZone: value }).format();
-    } catch {
-      throw new Error(`${key} is not a valid time zone`);
-    }
-  }
   if (key === "CHROME_DEVTOOLS_MCP_BROWSER_URL") {
     const url = new URL(value);
     if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
@@ -127,6 +120,9 @@ class RuntimeSettingsService {
     }
     if (Number(candidate.get("REPLY_HUMAN_DELAY_MIN_MS")) > Number(candidate.get("REPLY_HUMAN_DELAY_MAX_MS"))) {
       throw new Error("回复分条最短停顿不能大于最长停顿");
+    }
+    if (Number(candidate.get("RUNTIME_AUTONOMY_LOW_CHAT_COUNT")) >= Number(candidate.get("RUNTIME_AUTONOMY_HIGH_CHAT_COUNT"))) {
+      throw new Error("自启动低聊天阈值必须小于高聊天阈值");
     }
 
     if (changes.length === 0) {

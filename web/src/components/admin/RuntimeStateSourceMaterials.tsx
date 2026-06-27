@@ -125,8 +125,6 @@ function RuntimeEventSourceCard({
       <div className="mt-3 flex flex-wrap gap-2">
         <SourceSignal label="心情" value={event.moodSignal} />
         <SourceSignal label="精力" value={event.energySignal} />
-        <SourceSignal label="压力" value={event.stressSignal} />
-        <SourceSignal label="社交" value={event.socialSignal} />
       </div>
       <div className="mt-3 grid gap-2">
         <RawJsonDetails title="stateImpact" value={event.stateImpact} />

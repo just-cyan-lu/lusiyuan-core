@@ -36,9 +36,7 @@ const expectedTables = [
   "memory_change_proposals",
   "memory_embeddings",
   "message_embeddings",
-  "reflection_jobs",
-  "reflection_reports",
-  "reflection_risk_flags",
+  "memory_risk_flags",
   "tool_call_logs",
 ];
 
@@ -154,9 +152,8 @@ async function checkAdminEndpoints(config: SmokeConfig): Promise<void> {
   const endpoints: Array<[string, (body: JsonValue | undefined) => void]> = [
     ["/v1/tools", (body) => assert(Array.isArray(asRecord(body).tools), "tools should be an array")],
     ["/v1/tool-logs?limit=1", (body) => assert(Array.isArray(asRecord(body).logs), "logs should be an array")],
-    ["/v1/reflection/reports?limit=1", (body) => assert(Array.isArray(asRecord(body).reports), "reports should be an array")],
-    ["/v1/reflection/proposals?limit=1", (body) => assert(Array.isArray(asRecord(body).proposals), "proposals should be an array")],
-    ["/v1/reflection/risks?limit=1", (body) => assert(Array.isArray(asRecord(body).risks), "risks should be an array")],
+    ["/v1/memory/proposals?limit=1", (body) => assert(Array.isArray(asRecord(body).proposals), "proposals should be an array")],
+    ["/v1/memory/risks?limit=1", (body) => assert(Array.isArray(asRecord(body).risks), "risks should be an array")],
     ["/v1/dream/daily-notes?limit=1", (body) => assert(Array.isArray(body), "daily notes should be an array")],
     ["/v1/dream/signals?limit=1", (body) => assert(Array.isArray(body), "signals should be an array")],
     ["/v1/dream/diary?limit=1", (body) => assert(Array.isArray(body), "diary entries should be an array")],

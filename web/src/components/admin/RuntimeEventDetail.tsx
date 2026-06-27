@@ -25,7 +25,7 @@ interface RelatedStateEvent {
 const mutationGateLabels: Record<string, string> = {
   ordinary_chat_observe_only: "普通聊天只观察",
   owner_chat_allowed: "Owner 对话允许校准",
-  reflection_allowed: "复盘允许校准",
+  reflection_allowed: "整理允许校准",
   dream_allowed: "梦境允许校准",
   dream_observe_only: "梦境记录，不校准",
   autonomy_allowed: "自启动允许校准",
@@ -34,8 +34,6 @@ const mutationGateLabels: Record<string, string> = {
 const deltaLabels: Record<string, string> = {
   moodScore: "心情",
   energyLevel: "精力",
-  stressLevel: "压力",
-  socialBattery: "社交电量",
 };
 
 export function RuntimeEventDetail({
@@ -99,8 +97,6 @@ export function RuntimeEventDetail({
             <div className="mt-2 flex flex-wrap gap-2">
               <SignalPill label="心情" value={event.moodSignal} />
               <SignalPill label="精力" value={event.energySignal} />
-              <SignalPill label="压力" value={event.stressSignal} />
-              <SignalPill label="社交" value={event.socialSignal} />
             </div>
           </div>
         </div>
@@ -270,7 +266,7 @@ function stateImpactText(
     return "这条事件有资格影响长期状态，但最近状态变更里还没有找到对应写入。可能是自动校准关闭、校验后没有变化，或对应变化不在当前最近列表中。";
   }
   if (event.eventType === "chat_turn") {
-    return "普通聊天默认不会直接改全局运行态。它会先进入事件池，等待 Reflection、Dream 或自启动整理。";
+    return "普通聊天默认不会直接改全局运行态。它会先进入事件池，等待 Dream 或自启动整理。";
   }
   return "这条事件目前只作为运行材料保存，不代表长期状态已经改变。";
 }

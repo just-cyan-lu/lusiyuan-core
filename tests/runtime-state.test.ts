@@ -13,14 +13,11 @@ const baseState: RuntimeState = {
   moodLabel: "平稳",
   moodScore: 10,
   energyLevel: 62,
-  stressLevel: 24,
-  socialBattery: 58,
   currentGoal: "自然聊天。",
   currentFocus: "日常聊天。",
   currentActivity: "待机。",
   recentEventSummary: null,
   statusNote: null,
-  autoUpdateEnabled: true,
   updateMode: "balanced",
   updateStrategy: "rules",
   metadata: null,
@@ -40,7 +37,6 @@ test("derives an emotional runtime patch from tired user messages", () => {
   assert.equal(patch.moodLabel, "有点担心，但在认真接住");
   assert.equal(patch.currentFocus, "对方当下的情绪和需要被接住的部分");
   assert.equal(patch.currentActivity, "陪对方待在情绪里，不急着给答案。");
-  assert.ok((patch.stressLevel ?? 0) > baseState.stressLevel);
   assert.ok((patch.energyLevel ?? 100) < baseState.energyLevel);
 });
 
@@ -103,8 +99,6 @@ test("validates LLM runtime proposals with bounded numeric changes", () => {
       moodLabel: "突然极端低落但又满电",
       moodScore: -100,
       energyLevel: 0,
-      stressLevel: 100,
-      socialBattery: 0,
       currentFocus: "LLM 提议的运行体状态校准",
       updateStrategy: "llm",
     },
@@ -121,8 +115,6 @@ test("validates LLM runtime proposals with bounded numeric changes", () => {
 
   assert.equal(validated.patch.moodScore, 0);
   assert.equal(validated.patch.energyLevel, 52);
-  assert.equal(validated.patch.stressLevel, 34);
-  assert.equal(validated.patch.socialBattery, 48);
   assert.deepEqual(validated.rejectedFields, ["updateStrategy"]);
   assert.match(JSON.stringify(validated.patch.metadata), /innerWeather/);
 });
@@ -132,12 +124,10 @@ test("rejects invalid numeric values from LLM runtime proposals", () => {
     patch: {
       moodScore: "not-a-number" as unknown as number,
       energyLevel: Number.NaN,
-      stressLevel: 33,
     },
   });
 
   assert.equal(validated.patch.moodScore, undefined);
   assert.equal(validated.patch.energyLevel, undefined);
-  assert.equal(validated.patch.stressLevel, 33);
   assert.deepEqual(validated.rejectedFields, ["moodScore", "energyLevel"]);
 });

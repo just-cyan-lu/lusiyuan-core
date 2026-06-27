@@ -9,7 +9,7 @@ import { dreamSignalExtractor } from "./dream-signal-extractor.js";
 import { dreamDiaryWriter } from "./dream-diary-writer.js";
 import { dreamConsolidator } from "./dream-consolidator.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
-import type { MemoryProposalOwnership } from "../reflection/memory-proposal-ownership.js";
+import type { MemoryProposalOwnership } from "../memory/memory-proposal-ownership.js";
 import type {
   CreateDreamJobInput,
   RunDailyDreamInput,
@@ -152,33 +152,6 @@ export class DreamService {
       // ── Phase 5: Deep Sleep — Consolidation ──────────────────────────────
       await this.setPhase(jobId, "deep_sleep");
 
-      // Create a synthetic ReflectionJob + ReflectionReport so MemoryProposal
-      // FK constraints are satisfied (they require a reportId).
-      const syntheticJob = await prisma.reflectionJob.create({
-        data: {
-          status: "completed",
-          triggerType: "dream",
-          scope: "daily",
-          userId: userId ?? null,
-          conversationId: conversationId ?? null,
-          channel: channel ?? null,
-          startedAt: new Date(),
-          completedAt: new Date(),
-        },
-      });
-      const syntheticReport = await prisma.reflectionReport.create({
-        data: {
-          jobId: syntheticJob.id,
-          summary: `Dream Cycle ${jobId} — Deep Sleep`,
-          confidence: 0.8,
-          rawOutput: {},
-          metadata: {
-            dreamJobId: jobId,
-            phase: "deep_sleep",
-          },
-        },
-      });
-
       const ownership = await this.resolveProposalOwnership({
         userId,
         conversationId,
@@ -190,7 +163,6 @@ export class DreamService {
         dailyNote,
         diaryEntry,
         jobId,
-        dreamReflectionReportId: syntheticReport.id,
         ownership,
       });
 

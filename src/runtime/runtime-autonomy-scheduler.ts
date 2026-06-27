@@ -35,14 +35,11 @@ export function startRuntimeAutonomyScheduler(logger?: {
         logger?.error("[RuntimeAutonomy] Failed to run autonomy tick", err);
       }
     },
-    {
-      scheduled: true,
-      timezone: runtimeConfig.RUNTIME_AUTONOMY_TIMEZONE,
-    }
+    { scheduled: true }
   );
 
   logger?.info(
-    `[RuntimeAutonomy] Scheduler started: ${runtimeConfig.RUNTIME_AUTONOMY_CRON} (${runtimeConfig.RUNTIME_AUTONOMY_TIMEZONE})`
+    `[RuntimeAutonomy] Scheduler started: ${runtimeConfig.RUNTIME_AUTONOMY_CRON} (server local time)`
   );
 }
 
