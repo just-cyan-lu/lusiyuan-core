@@ -2269,7 +2269,6 @@ export async function fetchReflectionRisks(input: {
 export async function runDream(input: {
   token: string;
   userId?: string;
-  lookbackHours?: number;
 }): Promise<DreamRunResult> {
   const response = await fetch(`${API_BASE_URL}/v1/dream/run`, {
     method: "POST",
@@ -2279,7 +2278,6 @@ export async function runDream(input: {
     },
     body: JSON.stringify({
       user_id: input.userId,
-      lookback_hours: input.lookbackHours,
     }),
   });
   const data = await parseJsonResponse<{

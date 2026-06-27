@@ -901,7 +901,7 @@ model DreamConsolidationReport {
   @@map("dream_consolidation_reports")
 }
 
-/// Short-lived lock that prevents overlapping dream jobs.
+/// Runtime lock that prevents overlapping dream jobs.
 model DreamLock {
   id        String   @id @default(cuid())
   lockKey   String   @unique

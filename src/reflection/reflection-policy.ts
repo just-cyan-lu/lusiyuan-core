@@ -1,4 +1,3 @@
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type {
   RawMemoryProposal,
   RawRiskFlag,
@@ -56,9 +55,7 @@ export function applyReflectionPolicy(raw: RawReflectionOutput): PolicyResult {
     (f) => f.type && f.severity && f.description
   );
 
-  const allowedGrowthLogs = runtimeConfig.REFLECTION_ENABLE_GROWTH_LOG
-    ? (raw.growthLogProposals ?? [])
-    : [];
+  const allowedGrowthLogs = raw.growthLogProposals ?? [];
 
   return { allowedProposals, allowedRiskFlags, allowedGrowthLogs, filteredCount };
 }

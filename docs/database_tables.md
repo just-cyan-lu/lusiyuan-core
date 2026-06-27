@@ -28,6 +28,6 @@ be appended as separate migrations instead of rewriting history.
 | `DreamSignal` | `dream_signals` | Signal extracted from messages, memories, tools, or drafts. |
 | `DreamDiaryEntry` | `dream_diary_entries` | Inner-diary style entry generated from dream signals. |
 | `DreamConsolidationReport` | `dream_consolidation_reports` | Report for dream-cycle consolidation and generated proposals. |
-| `DreamLock` | `dream_locks` | Short-lived lock that prevents overlapping dream jobs. |
+| `DreamLock` | `dream_locks` | Runtime lock that prevents overlapping dream jobs. |
 | `ExternalPageSnapshot` | `external_page_snapshots` | Snapshot of an external page read by Jina, Playwright, or CDP. |
 | `ExternalInboxItem` | `external_inbox_items` | Inbound item synced from an external social or content platform. |

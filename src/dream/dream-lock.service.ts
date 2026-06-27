@@ -1,23 +1,17 @@
 // dream-lock.service.ts — distributed lock to prevent concurrent DreamJobs
 
 import { prisma } from "../db/prisma.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
+
+const NON_EXPIRING_LOCK_TIME = new Date("9999-12-31T23:59:59.999Z");
 
 export class DreamLockService {
   /**
    * Try to acquire a lock. Returns true if acquired, false if already locked.
    */
   async acquire(lockKey: string, owner?: string): Promise<boolean> {
-    // Clean up expired locks first
-    await this.cleanup();
-
-    const expiresAt = new Date(
-      Date.now() + runtimeConfig.DREAM_LOCK_TTL_MINUTES * 60 * 1000
-    );
-
     try {
       await prisma.dreamLock.create({
-        data: { lockKey, owner, expiresAt },
+        data: { lockKey, owner, expiresAt: NON_EXPIRING_LOCK_TIME },
       });
       return true;
     } catch {
@@ -31,15 +25,8 @@ export class DreamLockService {
   }
 
   async isLocked(lockKey: string): Promise<boolean> {
-    await this.cleanup();
     const lock = await prisma.dreamLock.findUnique({ where: { lockKey } });
     return lock !== null;
-  }
-
-  private async cleanup(): Promise<void> {
-    await prisma.dreamLock.deleteMany({
-      where: { expiresAt: { lt: new Date() } },
-    });
   }
 }
 

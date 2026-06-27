@@ -82,17 +82,14 @@ ReflectionProposalService.applyProposal() → 写入 Memory 表
 
 1. **违禁内容检测**：包含"装真人"、"假装真人"、"编造身份"等关键词的提案自动拦截
 2. **高风险边界提案**：`scope=boundary` 且 `riskLevel=high` 的提案默认拦截
-3. **成长记录开关**：`REFLECTION_ENABLE_GROWTH_LOG=false` 时不生成成长记录提案
 
-低置信度和数量过多不再由运行时配置提前丢弃，交给 admin 审核界面判断。
+低置信度、数量过多和成长记录是否采纳，都不再由运行时配置提前丢弃，交给 admin 审核界面判断。
 
 ---
 
 ## 运行时配置
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `REFLECTION_ENABLE_GROWTH_LOG` | `true` | 是否生成成长日志提案 |
+Reflection 不再提供运行时配置；手动请求参数决定复盘范围，生成结果统一进入待审核队列。
 
 ---
 

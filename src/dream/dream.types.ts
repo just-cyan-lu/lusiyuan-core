@@ -175,7 +175,6 @@ export interface CreateDreamJobInput {
 
 export interface RunDailyDreamInput {
   triggerType?: DreamTriggerType;
-  lookbackHours?: number;
   userId?: string;
 }
 

@@ -220,7 +220,6 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
   const [reflectionConversationId, setReflectionConversationId] = useState("");
   const [reflectionMessageLimit, setReflectionMessageLimit] = useState("80");
   const [dreamUserId, setDreamUserId] = useState("");
-  const [dreamLookbackHours, setDreamLookbackHours] = useState("24");
   const [signalFilter, setSignalFilter] = useState("all");
   const [historyDatePreset, setHistoryDatePreset] =
     useState<HistoryDatePreset>("all");
@@ -599,8 +598,13 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
       const result = await runDream({
         token: adminToken,
         userId: dreamUserId.trim() || undefined,
-        lookbackHours: parseOptionalNumber(dreamLookbackHours),
       });
+      if (result.status === "running") {
+        setActivePane("dream");
+        setActionMessage("已有 Dream 正在运行，本次跳过；下一次运行会从上一次成功位置继续整理。");
+        await loadDream();
+        return;
+      }
       setSelectedDreamJobId(result.jobId);
       setMorningBrief(null);
       setBriefError(null);
@@ -756,10 +760,8 @@ export function OpsPage({ adminToken, mode }: OpsPageProps) {
         {fixedPane !== "reflection" && (
           <DreamRunCard
             dreamUserId={dreamUserId}
-            dreamLookbackHours={dreamLookbackHours}
             runningDream={runningDream}
             onUserIdChange={setDreamUserId}
-            onLookbackHoursChange={setDreamLookbackHours}
             onRun={() => void runDreamNow()}
           />
         )}
@@ -950,17 +952,13 @@ function ReflectionRunCard({
 
 function DreamRunCard({
   dreamUserId,
-  dreamLookbackHours,
   runningDream,
   onUserIdChange,
-  onLookbackHoursChange,
   onRun,
 }: {
   dreamUserId: string;
-  dreamLookbackHours: string;
   runningDream: boolean;
   onUserIdChange: (value: string) => void;
-  onLookbackHoursChange: (value: string) => void;
   onRun: () => void;
 }) {
   return (
@@ -979,15 +977,6 @@ function DreamRunCard({
             onChange={(event) => onUserIdChange(event.target.value)}
             placeholder="不填则运行全局 daily"
             aria-label="User ID（可选）"
-          />
-        </Field>
-        <Field label="回看小时数">
-          <AdminInput
-            value={dreamLookbackHours}
-            onChange={(event) => onLookbackHoursChange(event.target.value)}
-            type="number"
-            min={1}
-            aria-label="回看小时数"
           />
         </Field>
       </div>

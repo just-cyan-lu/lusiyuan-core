@@ -49,7 +49,7 @@ Morning Brief（醒来摘要）
 | `DreamSignal` | REM Sleep 提取的信号 |
 | `DreamDiaryEntry` | 梦境日记（owner_only） |
 | `DreamConsolidationReport` | Deep Sleep 的汇总报告 |
-| `DreamLock` | 防止并发运行的分布式锁 |
+| `DreamLock` | 防止并发运行的锁；已有 Dream 正在运行时跳过本次触发 |
 
 ---
 
@@ -82,8 +82,6 @@ Dream Cycle 绝对不会：
 
 Dream Policy 会过滤：
 - 装真人内容（`containsPretendHumanContent`）
-- 隐私数据（手机号、邮箱等，`redactPrivateData`）
-- 低置信度信号（`< DREAM_MIN_CONFIDENCE`）
 
 ---
 
@@ -107,7 +105,6 @@ Dream Policy 会过滤：
 
 ```bash
 pnpm dream:run                        # 运行今日 Dream Cycle
-pnpm dream:run --hours=48             # 指定回溯时间
 pnpm dream:inspect --latest           # 查看最新 Job 结果
 pnpm dream:diary --limit=5            # 查看最近 5 篇日记
 pnpm dream:cleanup-locks              # 清理过期锁
@@ -119,12 +116,7 @@ pnpm dream:cleanup-locks              # 清理过期锁
 
 ```env
 DREAM_ENABLED=true          # 总开关
-DREAM_AUTO_RUN=false        # 定时自动运行（默认关闭）
-DREAM_CRON="30 3 * * *"     # 自动运行时间（每天 03:30）
-DREAM_MIN_SIGNAL_SCORE=0.72 # 信号提升门槛
-DREAM_MIN_CONFIDENCE=0.70   # 最低置信度
-DREAM_MIN_EVIDENCE_COUNT=2  # 最少证据数
-DREAM_DIARY_VISIBILITY="owner_only"  # 日记可见性
+DREAM_CRON="30 3 * * *"     # 自动运行时间，按服务器本地时间解释
 ```
 
 ---
@@ -135,7 +127,7 @@ DREAM_DIARY_VISIBILITY="owner_only"  # 日记可见性
 src/dream/
 ├── dream.types.ts              # 所有类型定义
 ├── dream-prompts.ts            # 四个阶段的 system prompt
-├── dream-policy.ts             # 内容过滤、隐私脱敏、评分
+├── dream-policy.ts             # 内容过滤、评分
 ├── dream-lock.service.ts       # 分布式锁（防并发）
 ├── dream-context-builder.ts    # Intake：收集系统事件
 ├── daily-note.service.ts       # Light Sleep：生成 DailyNote
@@ -152,6 +144,6 @@ src/dream/
 
 | 项目 | 状态 | 说明 |
 |------|------|------|
-| `dream-scheduler.ts`（定时自动运行） | ⏭ 跳过 | `DREAM_AUTO_RUN=false` 默认关闭，cron 调度器未实现，需要时再加 |
+| 首次 Dream 大范围初始化 | ⏭ 待整理 | 当前首次没有成功记录时会从最早时间开始，后续可在 admin 任务页做明确初始化入口 |
 | 审核 UI（图形界面） | ⏭ 跳过 | 属于前端仓库（lusiyuan-web）的工作，目前审核只能通过 HTTP API 或 CLI |
 | Dream Proposal 专属 CLI | ⏭ 跳过 | Dream 生成的 MemoryProposal 复用 Reflection 的审核流（`pnpm reflection:apply`），不单独做 |

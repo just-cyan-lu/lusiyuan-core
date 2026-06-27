@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 import { applyReflectionPolicy } from "../src/reflection/reflection-policy.js";
 import type { RawMemoryProposal, RawReflectionOutput } from "../src/reflection/reflection.types.js";
 
@@ -63,20 +62,7 @@ test("reflection policy still filters forbidden and high-risk boundary proposals
   assert.equal(result.filteredCount, 2);
 });
 
-test("reflection growth log generation remains configurable", () => {
-  runtimeSettingsService.withTemporaryValues(
-    { REFLECTION_ENABLE_GROWTH_LOG: false },
-    () => {
-      const result = applyReflectionPolicy(rawReflectionOutput());
-      assert.equal(result.allowedGrowthLogs.length, 0);
-    }
-  );
-
-  runtimeSettingsService.withTemporaryValues(
-    { REFLECTION_ENABLE_GROWTH_LOG: true },
-    () => {
-      const result = applyReflectionPolicy(rawReflectionOutput());
-      assert.equal(result.allowedGrowthLogs.length, 1);
-    }
-  );
+test("reflection policy keeps growth logs for admin review", () => {
+  const result = applyReflectionPolicy(rawReflectionOutput());
+  assert.equal(result.allowedGrowthLogs.length, 1);
 });
