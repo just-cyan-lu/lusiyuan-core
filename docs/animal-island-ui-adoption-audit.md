@@ -169,7 +169,7 @@
   - 转换：`onChange(event)` 字符串反转 → `onChange(next: boolean)` 直接透传 boolean（`onCommit` 内部仍把 boolean 序列化为 "true"/"false" 写 DB）
 - **验收**：
   - ✅ `grep -nE 'admin-switch-button|<button[^>]*role="switch"' web/src/components/admin/ -r` 命中 0
-  - ✅ 浏览器 `/admin/settings` 展开"Dream 27 项"看到 11 个 Switch，点击 `DREAM_AUTO_RUN` toggle → toast "已即时应用 1 项运行配置" + 最近配置变更出现 `DREAM_AUTO_RUN: true → false` + 底部"Dream 自动运行"联动更新
+  - ✅ 浏览器 `/admin/settings` 展开 Dream 分组看到运行时开关，保存配置后出现 toast "已即时应用 1 项运行配置" + 最近配置变更联动更新
   - ✅ `tsc -b --force` 0 error / `pnpm build` 0 error
 - **保留**：`ToggleGrid`（line 1182-1214，多 key 状态网格）按 audit "不替换" 表保留 —— 用 `StatusPill` 是因为 Switch 是单 boolean 组件，不适合 grid 网格里多 key 并列显示
 

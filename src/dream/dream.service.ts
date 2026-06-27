@@ -17,6 +17,13 @@ import type {
 } from "./dream.types.js";
 
 const LOCK_KEY = "dream:daily";
+export const INITIAL_DREAM_FROM_TIME = new Date(0);
+
+export function resolveContinuousDreamFromTime(
+  previous: { toTime: Date | null } | null | undefined
+): Date {
+  return previous?.toTime ?? INITIAL_DREAM_FROM_TIME;
+}
 
 export class DreamService {
   async createJob(input: CreateDreamJobInput) {
@@ -35,20 +42,38 @@ export class DreamService {
   }
 
   async runJob(jobId: string): Promise<DreamRunResult> {
+    const acquired = await dreamLockService.acquire(LOCK_KEY, "dream-service");
+    if (!acquired) return this.currentRunningDreamResult();
+
     const job = await prisma.dreamJob.findUnique({ where: { id: jobId } });
-    if (!job) throw new Error(`DreamJob not found: ${jobId}`);
+    try {
+      if (!job) throw new Error(`DreamJob not found: ${jobId}`);
 
-    const from = job.fromTime ?? new Date(Date.now() - runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS * 3600_000);
-    const to = job.toTime ?? new Date();
+      const to = job.toTime ?? new Date();
+      const from = job.fromTime ?? (await this.resolveContinuousFromTime({
+        userId: job.userId ?? undefined,
+        before: to,
+        excludeJobId: jobId,
+      }));
 
-    return this.executeJob(
-      jobId,
-      from,
-      to,
-      job.userId ?? undefined,
-      job.conversationId ?? undefined,
-      job.channel ?? undefined
-    );
+      if (!job.fromTime || !job.toTime) {
+        await prisma.dreamJob.update({
+          where: { id: jobId },
+          data: { fromTime: from, toTime: to },
+        });
+      }
+
+      return await this.executeJob(
+        jobId,
+        from,
+        to,
+        job.userId ?? undefined,
+        job.conversationId ?? undefined,
+        job.channel ?? undefined
+      );
+    } finally {
+      await dreamLockService.release(LOCK_KEY);
+    }
   }
 
   async runDailyDream(input: RunDailyDreamInput = {}): Promise<DreamRunResult> {
@@ -56,15 +81,14 @@ export class DreamService {
       throw new Error("Dream Cycle is disabled in Admin runtime settings");
     }
 
-    const lockKey = input.userId ? `dream:user:${input.userId}` : LOCK_KEY;
-    const acquired = await dreamLockService.acquire(lockKey, "dream-service");
-    if (!acquired) {
-      throw new Error("Dream Cycle is already running. Try again later.");
-    }
+    const acquired = await dreamLockService.acquire(LOCK_KEY, "dream-service");
+    if (!acquired) return this.currentRunningDreamResult();
 
-    const lookbackHours = input.lookbackHours ?? runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS;
     const to = new Date();
-    const from = new Date(to.getTime() - lookbackHours * 3600_000);
+    const from = await this.resolveContinuousFromTime({
+      userId: input.userId,
+      before: to,
+    });
 
     const job = await this.createJob({
       triggerType: input.triggerType ?? "manual",
@@ -76,11 +100,11 @@ export class DreamService {
 
     try {
       const result = await this.executeJob(job.id, from, to, input.userId);
-      await dreamLockService.release(lockKey);
       return result;
     } catch (err) {
-      await dreamLockService.release(lockKey);
       throw err;
+    } finally {
+      await dreamLockService.release(LOCK_KEY);
     }
   }
 
@@ -108,42 +132,9 @@ export class DreamService {
         conversationId,
       });
 
-      const totalEvents = Object.values(context.sourceStats).reduce((a, b) => a + b, 0);
-      if (totalEvents < runtimeConfig.DREAM_MIN_SOURCE_EVENTS) {
-        await prisma.dreamJob.update({
-          where: { id: jobId },
-          data: {
-            status: "completed",
-            completedAt: new Date(),
-            phase: "skipped",
-            metadata: { reason: "not_enough_events", totalEvents },
-          },
-        });
-        await runtimeStateService
-          .observeDreamCycle({
-            jobId,
-            status: "completed",
-            phase: "skipped",
-            summary: `材料不足，跳过梦境整理（${totalEvents} < ${runtimeConfig.DREAM_MIN_SOURCE_EVENTS}）。`,
-            signalCount: 0,
-            proposalCount: 0,
-            riskCount: 0,
-            userId,
-            conversationId,
-            channel,
-            sourceMessageIds: context.messages.map((message) => message.id),
-          })
-          .catch((err) =>
-            console.warn("[dream] runtime event update failed:", err)
-          );
-        return { jobId, status: "completed", signalCount: 0, proposalCount: 0, riskCount: 0 };
-      }
-
       // ── Phase 2: Light Sleep — DailyNote ─────────────────────────────────
       await this.setPhase(jobId, "light_sleep");
-      const dailyNote = runtimeConfig.DREAM_LIGHT_ENABLED
-        ? await dailyNoteService.generateDailyNote(context, jobId)
-        : null;
+      const dailyNote = await dailyNoteService.generateDailyNote(context, jobId);
 
       if (!dailyNote) {
         await this.completeJob(jobId, "light_sleep_skipped");
@@ -152,15 +143,11 @@ export class DreamService {
 
       // ── Phase 3: REM Sleep — DreamSignals ────────────────────────────────
       await this.setPhase(jobId, "rem_sleep");
-      const signals = runtimeConfig.DREAM_REM_ENABLED
-        ? await dreamSignalExtractor.extractSignals({ context, dailyNote, jobId })
-        : [];
+      const signals = await dreamSignalExtractor.extractSignals({ context, dailyNote, jobId });
 
       // ── Phase 4: Dream Diary ──────────────────────────────────────────────
       await this.setPhase(jobId, "dream_diary");
-      const diaryEntry = runtimeConfig.DREAM_DIARY_ENABLED
-        ? await dreamDiaryWriter.writeDiary({ dailyNote, signals, jobId })
-        : null;
+      const diaryEntry = await dreamDiaryWriter.writeDiary({ dailyNote, signals, jobId });
 
       // ── Phase 5: Deep Sleep — Consolidation ──────────────────────────────
       await this.setPhase(jobId, "deep_sleep");
@@ -198,16 +185,14 @@ export class DreamService {
         channel,
       });
 
-      const consolidation = runtimeConfig.DREAM_DEEP_ENABLED
-        ? await dreamConsolidator.consolidate({
-            signals,
-            dailyNote,
-            diaryEntry,
-            jobId,
-            dreamReflectionReportId: syntheticReport.id,
-            ownership,
-          })
-        : null;
+      const consolidation = await dreamConsolidator.consolidate({
+        signals,
+        dailyNote,
+        diaryEntry,
+        jobId,
+        dreamReflectionReportId: syntheticReport.id,
+        ownership,
+      });
 
       // ── Complete ──────────────────────────────────────────────────────────
       await this.completeJob(jobId, "completed");
@@ -260,6 +245,41 @@ export class DreamService {
       where: { id: jobId },
       data: { status: "completed", completedAt: new Date(), phase },
     });
+  }
+
+  private async resolveContinuousFromTime(input: {
+    userId?: string;
+    before: Date;
+    excludeJobId?: string;
+  }): Promise<Date> {
+    const previous = await prisma.dreamJob.findFirst({
+      where: {
+        status: "completed",
+        phase: "completed",
+        scope: "daily",
+        userId: input.userId ?? null,
+        toTime: { not: null, lt: input.before },
+        ...(input.excludeJobId ? { id: { not: input.excludeJobId } } : {}),
+      },
+      orderBy: { toTime: "desc" },
+      select: { toTime: true },
+    });
+    return resolveContinuousDreamFromTime(previous);
+  }
+
+  private async currentRunningDreamResult(): Promise<DreamRunResult> {
+    const running = await prisma.dreamJob.findFirst({
+      where: { status: "running" },
+      orderBy: [{ startedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true },
+    });
+    return {
+      jobId: running?.id ?? "dream:running",
+      status: "running",
+      signalCount: 0,
+      proposalCount: 0,
+      riskCount: 0,
+    };
   }
 
   private async resolveProposalOwnership(input: {

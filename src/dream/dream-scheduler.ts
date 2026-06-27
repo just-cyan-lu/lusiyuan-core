@@ -1,4 +1,4 @@
-// dream-scheduler.ts — Auto-run Dream Cycle on cron schedule
+// dream-scheduler.ts — Dream Cycle cron schedule
 
 import cron from "node-cron";
 import { dreamService } from "./dream.service.js";
@@ -7,8 +7,9 @@ import { runtimeConfig } from "../config/runtime-settings.service.js";
 let scheduledTask: cron.ScheduledTask | null = null;
 
 /**
- * Start the Dream Cycle cron scheduler if DREAM_AUTO_RUN is enabled.
- * Uses DREAM_CRON expression (default: "30 3 * * *" = 3:30 AM daily).
+ * Start the Dream Cycle cron scheduler if DREAM_ENABLED is true.
+ * Uses DREAM_CRON expression (default: "30 3 * * *" = 3:30 AM daily)
+ * in the server's local timezone.
  */
 export function startDreamScheduler(logger?: { info: (msg: string) => void; error: (msg: string, err: unknown) => void }): void {
   stopDreamScheduler();
@@ -17,13 +18,7 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
     return;
   }
 
-  if (!runtimeConfig.DREAM_AUTO_RUN) {
-    logger?.info("[DreamScheduler] Auto-run is disabled (DREAM_AUTO_RUN=false)");
-    return;
-  }
-
   const cronExpression = runtimeConfig.DREAM_CRON;
-  const timezone = runtimeConfig.DREAM_TIMEZONE;
 
   // Validate cron expression
   if (!cron.validate(cronExpression)) {
@@ -31,7 +26,7 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
     return;
   }
 
-  logger?.info(`[DreamScheduler] Starting auto-run scheduler: ${cronExpression} (${timezone})`);
+  logger?.info(`[DreamScheduler] Starting auto-run scheduler: ${cronExpression} (server local time)`);
 
   scheduledTask = cron.schedule(
     cronExpression,
@@ -40,17 +35,17 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
       try {
         const result = await dreamService.runDailyDream({
           triggerType: "scheduled",
-          lookbackHours: runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS,
         });
-        logger?.info(`[DreamScheduler] Completed: job=${result.jobId}, status=${result.status}, signals=${result.signalCount}, proposals=${result.proposalCount}`);
+        if (result.status === "running") {
+          logger?.info(`[DreamScheduler] Skipped: Dream job ${result.jobId} is still running`);
+        } else {
+          logger?.info(`[DreamScheduler] Completed: job=${result.jobId}, status=${result.status}, signals=${result.signalCount}, proposals=${result.proposalCount}`);
+        }
       } catch (err) {
         logger?.error("[DreamScheduler] Failed to run scheduled Dream Cycle", err);
       }
     },
-    {
-      scheduled: true,
-      timezone,
-    }
+    { scheduled: true }
   );
 
   logger?.info("[DreamScheduler] Scheduler started successfully");

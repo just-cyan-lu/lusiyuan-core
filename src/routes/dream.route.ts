@@ -45,13 +45,7 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
 
   // POST /v1/dream/run — run a daily dream cycle immediately
   app.post("/v1/dream/run", async (request, reply) => {
-    const body = request.body as {
-      user_id?: string;
-      scope?: string;
-      from?: string;
-      to?: string;
-      lookback_hours?: number;
-    };
+    const body = request.body as { user_id?: string };
 
     if (!runtimeConfig.DREAM_ENABLED) {
       return reply.status(503).send({ error: "Dream Cycle is disabled" });
@@ -59,7 +53,6 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
 
     const result = await dreamService.runDailyDream({
       triggerType: "manual",
-      lookbackHours: body.lookback_hours,
       userId: body.user_id,
     });
 

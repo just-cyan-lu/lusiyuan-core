@@ -1142,7 +1142,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         memoryRetrieval: runtimeConfig.MEMORY_RETRIEVAL_ENABLED,
         tools: runtimeConfig.TOOLS_ENABLED,
         dream: runtimeConfig.DREAM_ENABLED,
-        dreamAutoRun: runtimeConfig.DREAM_AUTO_RUN,
         runtimeAutonomy: runtimeConfig.RUNTIME_AUTONOMY_AUTO_RUN,
         webSearch: runtimeConfig.TAVILY_ENABLED,
         pageReader: runtimeConfig.JINA_ENABLED || runtimeConfig.PLAYWRIGHT_ENABLED ||
@@ -1156,8 +1155,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       limits: {
         maxMessageLength: runtimeConfig.MAX_MESSAGE_LENGTH,
         toolMaxCallsPerMessage: runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE,
-        dreamDefaultLookbackHours: runtimeConfig.DREAM_DEFAULT_LOOKBACK_HOURS,
-        dreamMaxLookbackDays: runtimeConfig.DREAM_MAX_LOOKBACK_DAYS,
       },
     });
   });

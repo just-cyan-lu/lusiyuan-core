@@ -6,20 +6,15 @@ import { dreamService } from "../src/dream/dream.service.js";
 import { runtimeSettingsService } from "../src/config/runtime-settings.service.js";
 
 const args = process.argv.slice(2);
-const daily = args.includes("--daily");
-const fromArg = args.find((a) => a.startsWith("--from="))?.split("=")[1];
-const toArg = args.find((a) => a.startsWith("--to="))?.split("=")[1];
-const hoursArg = args.find((a) => a.startsWith("--hours="))?.split("=")[1];
+const userId = args.find((a) => a.startsWith("--user-id="))?.split("=")[1];
 
 async function main() {
   await runtimeSettingsService.initialize();
   console.log("Starting Dream Cycle...");
 
-  const lookbackHours = hoursArg ? parseInt(hoursArg, 10) : undefined;
-
   const result = await dreamService.runDailyDream({
     triggerType: "manual",
-    lookbackHours,
+    userId,
   });
 
   console.log("\n✓ Dream Cycle completed");

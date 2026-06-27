@@ -13,10 +13,9 @@
 
 ## 总结
 
-- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，已删除 `REFLECTION_OWNER_ONLY`、`DREAM_AUTO_APPLY`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`，当前为 82 个。
+- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 57 个。
 - 绝大多数配置可以确认接入了业务路径。
-- 2 个完全没有业务读取，先保留给 Dream 后续重构：`DREAM_MORNING_BRIEF_ENABLED`、`DREAM_MIN_SIGNAL_SCORE`。
-- 1 个只出现在 admin 状态摘要里，没有真正约束业务，先保留给 Dream 后续重构：`DREAM_MAX_LOOKBACK_DAYS`。
+- Dream 已从“固定回看小时 + 抽样上限 + 多个阈值”收敛为“上一次成功 Dream 到本次 Dream 的连续区间”，避免自动整理漏消息。
 - `.env` 配置大部分都在用，但有几个需要整理显示语义：`TELEGRAM_MODE`、`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`、旧的 `MODEL_*` fallback。
 
 ## 运行时配置入口
@@ -36,20 +35,27 @@
 | 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_SEMANTIC_TOP_K`、`MEMORY_FINAL_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` | 保留 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts`、`src/reflection/reflection-proposal.service.ts` |
 | 工具 | `TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT` | 保留 | `src/core/chat.service.ts`、`src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
 | 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE` | 保留 | `src/tools/builtin/*.tool.ts` |
-| Reflection | `REFLECTION_ENABLE_GROWTH_LOG` | 保留 | `src/reflection/reflection-policy.ts` |
-| Dream | 除下方问题项外的 Dream 配置 | 保留 | `src/dream/*`、`src/routes/dream.route.ts`、`src/app.ts` |
+| Reflection | 无运行时配置 | 删除细分开关，固定生成待审核材料 | `src/reflection/*` |
+| Dream | `DREAM_ENABLED`、`DREAM_CRON` | 保留 | `src/dream/*`、`src/routes/dream.route.ts`、`src/app.ts` |
 | 运行态自启动 | `RUNTIME_AUTONOMY_AUTO_RUN`、`RUNTIME_AUTONOMY_CRON`、`RUNTIME_AUTONOMY_TIMEZONE` | 保留 | `src/runtime/runtime-autonomy-scheduler.ts`、`src/app.ts` |
 | 网页能力 | `TAVILY_ENABLED`、`TAVILY_MAX_RESULTS`、`TAVILY_SEARCH_DEPTH`、`JINA_ENABLED`、`PLAYWRIGHT_ENABLED`、`PLAYWRIGHT_MAX_PAGE_TEXT_CHARS`、`PLAYWRIGHT_SCREENSHOT_ENABLED` | 保留 | `src/web-search/*`、`src/page-reader/*`、`src/tools/builtin/read-page.tool.ts`、`src/platforms/xiaohongshu/xiaohongshu-url-import.service.ts` |
 | Chrome MCP | `MCP_ENABLED`、`CHROME_DEVTOOLS_MCP_ENABLED`、`CHROME_DEVTOOLS_MCP_CONNECTION_MODE`、`CHROME_DEVTOOLS_MCP_BROWSER_URL`、`CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS`、`CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS`、`CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS`、`CHROME_DEVTOOLS_MCP_MAX_COMMENTS` | 保留 | `src/mcp/chrome-devtools-mcp.service.ts`、`src/tools/builtin/read-page.tool.ts`、`src/app.ts`、小红书导入服务 |
 | 渠道 | `TELEGRAM_ENABLED`、`TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS`、`TELEGRAM_FILE_DOWNLOAD_RETRIES`、`TELEGRAM_MAX_IMAGE_FILE_BYTES`、`WEIXIN_ENABLED` | 保留 | `src/channels/telegram/*`、`src/channels/weixin/weixin.route.ts`、`src/app.ts` |
 
-## 需要清理或接线的运行时配置
+## 本轮已清理的 Dream 运行时配置
 
-| 配置项 | 当前状态 | 判断 | 建议 |
-| --- | --- | --- | --- |
-| `DREAM_MORNING_BRIEF_ENABLED` | Morning Brief 服务和接口存在，但这个开关没有被读取。接口 `GET /v1/dream/jobs/:jobId/morning-brief` 总是可用。 | 开关未接线。 | 如果 Morning Brief 要一直作为只读报告，删除开关；如果要可关闭，就在路由或 service 加判断。 |
-| `DREAM_MIN_SIGNAL_SCORE` | `computeSignalScore` 会计算并写入 `strength`，但没有用这个配置做过滤。 | 配置名表达“最低分数”，实际不生效。 | 要么在 `filterSignals` 或写入前用 `computeSignalScore(s) >= DREAM_MIN_SIGNAL_SCORE` 过滤，要么删除。 |
-| `DREAM_MAX_LOOKBACK_DAYS` | 只在 admin runtime 摘要里展示，没有限制手动 `lookback_hours` 或 job 的 `from/to`。 | 弱生效，属于“显示有，约束无”。 | 若保留，应在 `dream.route.ts` 或 `dream.service.ts` clamp 最大回看范围；否则删除。 |
+Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_HOURS`、`DREAM_MAX_LOOKBACK_DAYS`、`DREAM_MIN_SOURCE_EVENTS`、`DREAM_MAX_MESSAGES`、`DREAM_MAX_TOOL_CALLS`、`DREAM_MAX_REFLECTION_REPORTS`、`DREAM_MAX_MEMORY_PROPOSALS`、`DREAM_MORNING_BRIEF_ENABLED`、`DREAM_MIN_SIGNAL_SCORE`、`DREAM_MIN_CONFIDENCE`、`DREAM_MIN_EVIDENCE_COUNT`、`DREAM_MAX_PROPOSALS_PER_RUN`、`DREAM_DIARY_MAX_CHARS`、`DREAM_DIARY_VISIBILITY`、`DREAM_REDACT_PRIVATE_DATA`、`DREAM_LIGHT_ENABLED`、`DREAM_REM_ENABLED`、`DREAM_DEEP_ENABLED`、`DREAM_DIARY_ENABLED`、`DREAM_ALLOW_MEMORY_PROPOSALS`、`DREAM_ALLOW_GROWTH_LOG_PROPOSALS`、`DREAM_LOCK_TTL_MINUTES`。
+
+新的判断：
+
+- `DREAM_TIMEZONE`：删除，`DREAM_CRON` 使用服务器本地时间。
+- 回看窗口与各来源抽样上限：删除，Dream 自动/手动运行时使用上一次成功 Dream 的 `toTime` 到本次运行时间，区间内来源完整读取。
+- 信号阈值、提案数量和日记长度限制：删除，不在写库前因为配置阈值提前丢弃训练材料。
+- `DREAM_MORNING_BRIEF_ENABLED`：删除未接线开关，Morning Brief 保留为 Job 的只读摘要接口。
+- `DREAM_DIARY_VISIBILITY`：删除，当前无 admin 账号/权限层，日记固定写入 `internal` 标记。
+- `DREAM_REDACT_PRIVATE_DATA`：删除，Dream 产物只在 admin 查看，且后续训练/导出更需要保留完整原始材料。
+- Dream 阶段和提案类型开关：删除，`DREAM_ENABLED=true` 时固定完整运行 Daily Note、Dream Signal、Dream Diary、Deep Sleep，并生成待审核提案。
+- `DREAM_LOCK_TTL_MINUTES`：删除配置项；Dream 使用不可过期运行锁防并发，拿不到锁时本次运行返回 `running` 并跳过，等待下次 cron 继续。
 
 ## Pending：关系好感度入口
 
@@ -89,15 +95,14 @@
 
 - `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` 仍在 `src/utils/env.ts` 和 `src/core/model-provider.ts` 里作为旧单 provider fallback，但没有出现在 settings 页面。开发期如果已经迁到多 provider 结构，可以考虑后续直接删除这组 legacy fallback。
 - `WEB_ORIGIN` 目前像是“安全配置”，但全局 CORS 仍允许任意 origin。这个最好单独修，不然配置页会给人一种已经限制来源的错觉。
-- Reflection 设置已收敛，只保留 `REFLECTION_ENABLE_GROWTH_LOG`。手动运行的消息数量以请求参数为准，代码保留硬上限防误传；提案仍走人工审核，不再用配置页阈值提前丢弃低置信度或超量提案。
+- Reflection 不再有运行时配置。手动运行的消息数量以请求参数为准，代码保留硬上限防误传；提案和成长记录仍走人工审核，不再用配置页阈值或开关提前丢弃。
 - Reflection 目前仍会带入当前用户的高重要度/最近长期记忆，后续应改成基于本次复盘消息的语义相关记忆检索，避免带错记忆或漏掉真正相关记忆。
 
 ## 建议清理顺序
 
-1. 后续 Dream 重构时重新处理 `DREAM_MORNING_BRIEF_ENABLED`、`DREAM_MIN_SIGNAL_SCORE`、`DREAM_MAX_LOOKBACK_DAYS`。
-2. 整理 `.env` 页面语义：`TELEGRAM_MODE`、`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`。
-3. 决定是否删除 legacy `MODEL_*` fallback。
-4. 最后再做前端分组文案优化，把“立即生效”和“需要重启”更明显地区分开。
+1. 整理 `.env` 页面语义：`TELEGRAM_MODE`、`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`。
+2. 决定是否删除 legacy `MODEL_*` fallback。
+3. 最后再做前端分组文案优化，把“立即生效”和“需要重启”更明显地区分开。
 
 ## 审计命令
 

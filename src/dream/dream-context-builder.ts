@@ -1,8 +1,6 @@
 // dream-context-builder.ts — collect recent system events for Dream Cycle
 
 import { prisma } from "../db/prisma.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
-import { redactPrivateData } from "./dream-policy.js";
 import type {
   DreamContext,
   DreamSourceMessage,
@@ -85,14 +83,13 @@ export class DreamContextBuilder {
     const rows = await prisma.message.findMany({
       where,
       orderBy: { createdAt: "asc" },
-      take: runtimeConfig.DREAM_MAX_MESSAGES,
       select: { id: true, role: true, content: true, createdAt: true },
     });
 
     return rows.map((r) => ({
       id: r.id,
       role: r.role,
-      content: redactPrivateData(r.content),
+      content: r.content,
       createdAt: r.createdAt,
     }));
   }
@@ -116,14 +113,13 @@ export class DreamContextBuilder {
     const rows = await prisma.memory.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      take: 50,
       select: { id: true, type: true, content: true, importance: true, createdAt: true },
     });
 
     return rows.map((r) => ({
       id: r.id,
       type: r.type,
-      content: redactPrivateData(r.content),
+      content: r.content,
       importance: r.importance,
       createdAt: r.createdAt,
     }));
@@ -133,7 +129,6 @@ export class DreamContextBuilder {
     const rows = await prisma.toolCallLog.findMany({
       where: { createdAt: { gte: from, lte: to } },
       orderBy: { createdAt: "desc" },
-      take: runtimeConfig.DREAM_MAX_TOOL_CALLS,
       select: { id: true, toolName: true, status: true, createdAt: true },
     });
 
@@ -152,7 +147,6 @@ export class DreamContextBuilder {
     const rows = await prisma.reflectionReport.findMany({
       where: { createdAt: { gte: from, lte: to } },
       orderBy: { createdAt: "desc" },
-      take: runtimeConfig.DREAM_MAX_REFLECTION_REPORTS,
       select: { id: true, summary: true, confidence: true, createdAt: true },
     });
 
@@ -171,7 +165,6 @@ export class DreamContextBuilder {
     const rows = await prisma.memoryProposal.findMany({
       where: { createdAt: { gte: from, lte: to } },
       orderBy: { createdAt: "desc" },
-      take: runtimeConfig.DREAM_MAX_MEMORY_PROPOSALS,
       select: {
         id: true,
         proposalType: true,
@@ -185,7 +178,7 @@ export class DreamContextBuilder {
     return rows.map((r) => ({
       id: r.id,
       proposalType: r.proposalType,
-      content: redactPrivateData(r.content),
+      content: r.content,
       confidence: r.confidence,
       status: r.status,
       createdAt: r.createdAt,

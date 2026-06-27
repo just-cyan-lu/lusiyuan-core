@@ -51,7 +51,6 @@ const featureLabels: Record<string, string> = {
   memoryRetrieval: "记忆检索",
   tools: "工具调用",
   dream: "Dream",
-  dreamAutoRun: "Dream 自动运行",
   webSearch: "Web Search",
   pageReader: "页面读取",
   mcp: "MCP",
@@ -65,8 +64,6 @@ const safetyLabels: Record<string, string> = {
 const limitLabels: Record<string, string> = {
   maxMessageLength: "单条消息最大长度",
   toolMaxCallsPerMessage: "单条消息最大工具调用",
-  dreamDefaultLookbackHours: "Dream 默认回看小时",
-  dreamMaxLookbackDays: "Dream 最大回看天数",
 };
 
 const minimaxRuntimeSettingKeys = new Set([

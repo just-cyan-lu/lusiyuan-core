@@ -84,7 +84,7 @@ export function buildApp() {
   startRuntimeAutonomyScheduler(app.log);
 
   const dreamKeys = new Set<RuntimeSettingKey>([
-    "DREAM_ENABLED", "DREAM_AUTO_RUN", "DREAM_CRON", "DREAM_TIMEZONE",
+    "DREAM_ENABLED", "DREAM_CRON",
   ]);
   const autonomyKeys = new Set<RuntimeSettingKey>([
     "RUNTIME_AUTONOMY_AUTO_RUN", "RUNTIME_AUTONOMY_CRON", "RUNTIME_AUTONOMY_TIMEZONE",

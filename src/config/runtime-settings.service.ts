@@ -5,6 +5,7 @@ import {
   isRuntimeSettingKey,
   runtimeSettingDefinitions,
   type RuntimeSettingKey,
+  type RuntimeSettingType,
   type RuntimeSettingValues,
 } from "./runtime-settings.registry.js";
 
@@ -13,25 +14,26 @@ type ChangeListener = (keys: RuntimeSettingKey[]) => void | Promise<void>;
 
 function validateValue(key: RuntimeSettingKey, value: unknown): SettingValue {
   const definition = runtimeSettingDefinitions[key];
-  if (definition.type === "boolean") {
+  const definitionType = definition.type as RuntimeSettingType;
+  if (definitionType === "boolean") {
     if (typeof value !== "boolean") throw new Error(`${key} must be boolean`);
     return value;
   }
-  if (definition.type === "integer" || definition.type === "number") {
+  if (definitionType === "integer" || definitionType === "number") {
     if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${key} must be a number`);
-    if (definition.type === "integer" && !Number.isInteger(value)) throw new Error(`${key} must be an integer`);
+    if (definitionType === "integer" && !Number.isInteger(value)) throw new Error(`${key} must be an integer`);
     if ("min" in definition && definition.min !== undefined && value < definition.min) throw new Error(`${key} must be at least ${definition.min}`);
     if ("max" in definition && definition.max !== undefined && value > definition.max) throw new Error(`${key} must be at most ${definition.max}`);
     return value;
   }
   if (typeof value !== "string") throw new Error(`${key} must be a string`);
-  if (definition.type === "select" && "options" in definition && definition.options && !definition.options.includes(value as never)) {
+  if (definitionType === "select" && "options" in definition && definition.options && !definition.options.includes(value as never)) {
     throw new Error(`${key} must be one of: ${definition.options.join(", ")}`);
   }
   if ((key === "DREAM_CRON" || key === "RUNTIME_AUTONOMY_CRON") && !cron.validate(value)) {
     throw new Error(`${key} is not a valid cron expression`);
   }
-  if (key === "DREAM_TIMEZONE" || key === "RUNTIME_AUTONOMY_TIMEZONE") {
+  if (key === "RUNTIME_AUTONOMY_TIMEZONE") {
     try {
       new Intl.DateTimeFormat("en", { timeZone: value }).format();
     } catch {
