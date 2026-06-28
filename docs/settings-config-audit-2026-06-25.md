@@ -16,7 +16,7 @@
 - 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，新增 `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT`；已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`RUNTIME_AUTONOMY_TIMEZONE`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 56 个。
 - 绝大多数配置可以确认接入了业务路径。
 - Dream 已从“固定回看小时 + 抽样上限 + 多个阈值”收敛为“上一次成功 Dream 到本次 Dream 的连续区间”，避免自动整理漏消息。
-- `.env` 配置大部分都在用，但有几个需要整理显示语义：`TELEGRAM_MODE`、`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`、旧的 `MODEL_*` fallback。
+- `.env` 配置大部分都在用，但有几个需要整理显示语义：`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`、旧的 `MODEL_*` fallback。
 
 ## 运行时配置入口
 
@@ -40,7 +40,7 @@
 | 运行态 | `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_AUTO_RUN`、`RUNTIME_AUTONOMY_CRON`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT` | 保留；自动校准总开关从 RuntimeState 字段迁到 system_settings，时区改用服务器本地时间；自启动聊天密度阈值可配置 | `src/runtime/runtime-state.service.ts`、`src/runtime/runtime-autonomy-scheduler.ts`、`src/app.ts` |
 | 网页能力 | `TAVILY_ENABLED`、`TAVILY_MAX_RESULTS`、`TAVILY_SEARCH_DEPTH`、`JINA_ENABLED`、`PLAYWRIGHT_ENABLED` | 保留；`PLAYWRIGHT_MAX_PAGE_TEXT_CHARS`、`PLAYWRIGHT_SCREENSHOT_ENABLED` 已删除，网页读取不再强制截断；Playwright 或 Chrome MCP 被选中时可返回截图，Jina 不支持截图 | `src/web-search/*`、`src/page-reader/*`、`src/tools/builtin/read-page.tool.ts`、`src/platforms/xiaohongshu/xiaohongshu-url-import.service.ts` |
 | Chrome MCP | `MCP_ENABLED`、`CHROME_DEVTOOLS_MCP_ENABLED`、`CHROME_DEVTOOLS_MCP_CONNECTION_MODE`、`CHROME_DEVTOOLS_MCP_BROWSER_URL`、`CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS`、`CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS`、`CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS` | 保留；`CHROME_DEVTOOLS_MCP_MAX_COMMENTS` 已删除，小红书导入使用代码内固定上限 | `src/mcp/chrome-devtools-mcp.service.ts`、`src/tools/builtin/read-page.tool.ts`、`src/app.ts`、小红书导入服务 |
-| 渠道 | `TELEGRAM_ENABLED`、`TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS`、`TELEGRAM_FILE_DOWNLOAD_RETRIES`、`TELEGRAM_MAX_IMAGE_FILE_BYTES`、`WEIXIN_ENABLED` | 保留 | `src/channels/telegram/*`、`src/channels/weixin/weixin.route.ts`、`src/app.ts` |
+| 渠道 | `TELEGRAM_ENABLED`、`TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS`、`TELEGRAM_FILE_DOWNLOAD_RETRIES`、`TELEGRAM_MAX_IMAGE_FILE_MB`、`WEIXIN_ENABLED` | 保留；Telegram 图片上限从字节改为 MB，支持小数 | `src/channels/telegram/*`、`src/channels/weixin/weixin.route.ts`、`src/app.ts` |
 
 ## 本轮已清理的 Dream 运行时配置
 
@@ -82,7 +82,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 | --- | --- | --- | --- |
 | `OPENAI_*`、`ANTHROPIC_*`、`GLM_*`、`QWEN_*`、`DEEPSEEK_*`、`MINIMAX_*`、`KIMI_*`、`SILICONFLOW_*` | 在用 | `src/core/model-provider.ts` | 保留。它们和 `ACTIVE_MODEL_PROVIDER` 配套。 |
 | `TELEGRAM_BOT_TOKEN` | 在用 | `src/channels/telegram/telegram-runtime.ts` | 保留。 |
-| `TELEGRAM_MODE` | 只用于状态展示；页面选项只有 `polling`，代码也只实际支持 polling。 | `src/routes/channels.route.ts` | 可以保留为只读展示，也可以先从可编辑配置中移除，等 webhook 真实现再加回来。 |
+| `TELEGRAM_MODE` | 只用于状态展示；页面选项只有 `polling`，代码也只实际支持 polling。 | `src/routes/channels.route.ts` | 已在页面说明“目前只支持 polling；webhook 还没有真实接线”。 |
 | `TELEGRAM_PROXY` | 在用 | `src/channels/telegram/telegram.bot.ts` | 保留。注意 `EXTERNAL_HTTP_PROXY` 默认也会 fallback 到它。 |
 | `WEIXIN_BRIDGE_SECRET` | 在用 | `src/channels/weixin/weixin.route.ts` | 保留。 |
 | `WEB_ORIGIN` | 部分在用。SSE chat route 写了 `Access-Control-Allow-Origin`，但全局 CORS 仍是 `origin: true`。 | `src/routes/chat.route.ts`、`src/app.ts` | 要么改全局 CORS 真正使用它，要么在页面文案里说明它只影响部分 SSE 响应。 |
@@ -100,7 +100,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 
 ## 建议清理顺序
 
-1. 整理 `.env` 页面语义：`TELEGRAM_MODE`、`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`。
+1. 整理 `.env` 页面语义：`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`。
 2. 决定是否删除 legacy `MODEL_*` fallback。
 3. 最后再做前端分组文案优化，把“立即生效”和“需要重启”更明显地区分开。
 

@@ -37,7 +37,7 @@ pnpm telegram:dev
 |---------|------|--------|
 | `TELEGRAM_ENABLED` | 是否启动 Telegram bot | `false` |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token | 必填（如果启用） |
-| `TELEGRAM_MODE` | 运行模式（polling/webhook） | `polling` |
+| `TELEGRAM_MODE` | 运行模式；目前只支持 polling | `polling` |
 | `TELEGRAM_PROXY` | 代理地址（如需要） | 空 |
 
 ### 迁移指南
