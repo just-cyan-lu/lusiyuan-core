@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { readFile, unlink } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { StdioMcpClient, mcpText, type McpToolResult } from "./mcp-client.js";
@@ -20,6 +24,7 @@ const allowedTools = new Set([
   "new_page",
   "wait_for",
   "take_snapshot",
+  "take_screenshot",
   "evaluate_script",
 ]);
 
@@ -145,7 +150,7 @@ class ChromeDevtoolsMcpService {
     }
   }
 
-  async callReadOnlyTool(name: string, args: Record<string, unknown> = {}) {
+  private async callAllowedTool(name: string, args: Record<string, unknown> = {}) {
     if (!this.configured()) {
       throw routeError("Chrome DevTools MCP 未启用，请在配置中开启 MCP 和 Chrome DevTools MCP。", 503);
     }
@@ -156,7 +161,7 @@ class ChromeDevtoolsMcpService {
   }
 
   async listPages(): Promise<ChromeMcpPage[]> {
-    return pagesFromResult(await this.callReadOnlyTool("list_pages"));
+    return pagesFromResult(await this.callAllowedTool("list_pages"));
   }
 
   async ensurePage(url: string, options: EnsurePageOptions = {}): Promise<{ page: ChromeMcpPage; reused: boolean }> {
@@ -168,7 +173,7 @@ class ChromeDevtoolsMcpService {
     });
 
     if (existing) {
-      await this.callReadOnlyTool("select_page", { pageId: existing.id, bringToFront: false });
+      await this.callAllowedTool("select_page", { pageId: existing.id, bringToFront: false });
       await this.settle(options.settleMs);
       return { page: existing, reused: true };
     }
@@ -181,7 +186,7 @@ class ChromeDevtoolsMcpService {
     }
 
     this.lastNewPageAt = Date.now();
-    const result = await this.callReadOnlyTool("new_page", {
+    const result = await this.callAllowedTool("new_page", {
       url,
       background: false,
       timeout: 30000,
@@ -211,29 +216,51 @@ class ChromeDevtoolsMcpService {
   }
 
   async evaluate<T>(functionDeclaration: string): Promise<T> {
-    const result = await this.callReadOnlyTool("evaluate_script", {
+    const result = await this.callAllowedTool("evaluate_script", {
       function: functionDeclaration,
     });
     return parseJsonCodeBlock<T>(mcpText(result));
   }
 
-  async read(url: string, waitMs?: number) {
+  private async takeScreenshotBase64(): Promise<string> {
+    const filePath = join(tmpdir(), `lusiyuan-chrome-mcp-${Date.now()}-${randomUUID()}.png`);
+    await this.callAllowedTool("take_screenshot", {
+      format: "png",
+      fullPage: false,
+      filePath,
+    });
+    try {
+      return (await readFile(filePath)).toString("base64");
+    } finally {
+      void unlink(filePath).catch(() => undefined);
+    }
+  }
+
+  async read(url: string, waitMs?: number, screenshot = false) {
     return this.runExclusive(async () => {
       const { reused } = await this.ensurePage(url, { settleMs: waitMs });
       const result = await this.evaluate<{ url: string; title: string; content: string }>(`() => ({
         url: location.href,
         title: document.title,
-        content: (document.body?.innerText ?? "").slice(0, ${Math.max(runtimeConfig.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS, 1000)})
+        content: document.body?.innerText ?? ""
       })`);
+      const screenshotBase64 = screenshot ? await this.takeScreenshotBase64() : undefined;
       await prisma.externalPageSnapshot.create({
         data: {
           id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           url: result.url,
           tool: "chrome-devtools-mcp",
           content: result.content,
+          screenshotPath: screenshotBase64 ? "base64" : null,
         },
       });
-      return { ...result, tool: "chrome-devtools-mcp" as const, reusedPage: reused, pageLeftOpen: true };
+      return {
+        ...result,
+        tool: "chrome-devtools-mcp" as const,
+        screenshotBase64,
+        reusedPage: reused,
+        pageLeftOpen: true,
+      };
     });
   }
 

@@ -22,7 +22,7 @@ export async function pageReaderRoute(app: FastifyInstance): Promise<void> {
     }
 
     if (body.tool === "chrome-devtools-mcp") {
-      const result = await chromeDevtoolsMcpService.read(body.url, body.wait_ms);
+      const result = await chromeDevtoolsMcpService.read(body.url, body.wait_ms, body.screenshot);
       return reply.send(result);
     }
 

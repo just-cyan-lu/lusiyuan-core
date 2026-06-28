@@ -1,5 +1,4 @@
 import { env } from "../utils/env.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type { PageContent } from "./page-reader.types.js";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
@@ -28,7 +27,5 @@ export async function jinaRead(url: string): Promise<PageContent> {
   }
 
   const content = await res.text();
-  const truncated = content.slice(0, runtimeConfig.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS);
-
-  return { url, content: truncated, tool: "jina" };
+  return { url, content, tool: "jina" };
 }

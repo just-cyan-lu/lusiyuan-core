@@ -1,4 +1,3 @@
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 import type { PageContent } from "./page-reader.types.js";
 
 export async function playwrightRead(
@@ -14,15 +13,14 @@ export async function playwrightRead(
 
     const title = await page.title();
     const content = await page.evaluate(() => document.body.innerText);
-    const truncated = content.slice(0, runtimeConfig.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS);
 
     let screenshotBase64: string | undefined;
-    if (screenshot && runtimeConfig.PLAYWRIGHT_SCREENSHOT_ENABLED) {
+    if (screenshot) {
       const buffer = await page.screenshot({ fullPage: false });
       screenshotBase64 = buffer.toString("base64");
     }
 
-    return { url, title, content: truncated, tool: "playwright", screenshotBase64 };
+    return { url, title, content, tool: "playwright", screenshotBase64 };
   } finally {
     await browser.close();
   }
