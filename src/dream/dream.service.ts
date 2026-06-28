@@ -9,6 +9,10 @@ import { dreamSignalExtractor } from "./dream-signal-extractor.js";
 import { dreamDiaryWriter } from "./dream-diary-writer.js";
 import { dreamConsolidator } from "./dream-consolidator.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
+import {
+  isTaskCancellationError,
+  throwIfTaskCancelled,
+} from "../runtime/running-task-registry.js";
 import type { MemoryProposalOwnership } from "../memory/memory-proposal-ownership.js";
 import type {
   CreateDreamJobInput,
@@ -41,7 +45,7 @@ export class DreamService {
     });
   }
 
-  async runJob(jobId: string): Promise<DreamRunResult> {
+  async runJob(jobId: string, options: { signal?: AbortSignal } = {}): Promise<DreamRunResult> {
     const acquired = await dreamLockService.acquire(LOCK_KEY, "dream-service");
     if (!acquired) return this.currentRunningDreamResult();
 
@@ -69,7 +73,8 @@ export class DreamService {
         to,
         job.userId ?? undefined,
         job.conversationId ?? undefined,
-        job.channel ?? undefined
+        job.channel ?? undefined,
+        options.signal
       );
     } finally {
       await dreamLockService.release(LOCK_KEY);
@@ -99,7 +104,7 @@ export class DreamService {
     });
 
     try {
-      const result = await this.executeJob(job.id, from, to, input.userId);
+      const result = await this.executeJob(job.id, from, to, input.userId, undefined, undefined, input.signal);
       return result;
     } catch (err) {
       throw err;
@@ -114,7 +119,8 @@ export class DreamService {
     to: Date,
     userId?: string,
     conversationId?: string,
-    channel?: string
+    channel?: string,
+    signal?: AbortSignal
   ): Promise<DreamRunResult> {
     // Mark running
     await prisma.dreamJob.update({
@@ -123,6 +129,7 @@ export class DreamService {
     });
 
     try {
+      throwIfTaskCancelled(signal);
       // ── Phase 1: Intake ──────────────────────────────────────────────────
       await this.setPhase(jobId, "intake");
       const context = await dreamContextBuilder.build({
@@ -131,10 +138,12 @@ export class DreamService {
         userId,
         conversationId,
       });
+      throwIfTaskCancelled(signal);
 
       // ── Phase 2: Light Sleep — DailyNote ─────────────────────────────────
       await this.setPhase(jobId, "light_sleep");
-      const dailyNote = await dailyNoteService.generateDailyNote(context, jobId);
+      const dailyNote = await dailyNoteService.generateDailyNote(context, jobId, { signal });
+      throwIfTaskCancelled(signal);
 
       if (!dailyNote) {
         await this.completeJob(jobId, "light_sleep_skipped");
@@ -143,11 +152,13 @@ export class DreamService {
 
       // ── Phase 3: REM Sleep — DreamSignals ────────────────────────────────
       await this.setPhase(jobId, "rem_sleep");
-      const signals = await dreamSignalExtractor.extractSignals({ context, dailyNote, jobId });
+      const signals = await dreamSignalExtractor.extractSignals({ context, dailyNote, jobId, signal });
+      throwIfTaskCancelled(signal);
 
       // ── Phase 4: Dream Diary ──────────────────────────────────────────────
       await this.setPhase(jobId, "dream_diary");
-      const diaryEntry = await dreamDiaryWriter.writeDiary({ dailyNote, signals, jobId });
+      const diaryEntry = await dreamDiaryWriter.writeDiary({ dailyNote, signals, jobId, signal });
+      throwIfTaskCancelled(signal);
 
       // ── Phase 5: Deep Sleep — Consolidation ──────────────────────────────
       await this.setPhase(jobId, "deep_sleep");
@@ -164,7 +175,9 @@ export class DreamService {
         diaryEntry,
         jobId,
         ownership,
+        signal,
       });
+      throwIfTaskCancelled(signal);
 
       // ── Complete ──────────────────────────────────────────────────────────
       await this.completeJob(jobId, "completed");
@@ -199,6 +212,19 @@ export class DreamService {
         riskCount: consolidation?.riskFlags.length ?? 0,
       };
     } catch (err) {
+      if (isTaskCancellationError(err, signal)) {
+        await prisma.dreamJob.update({
+          where: { id: jobId },
+          data: { status: "cancelled", completedAt: new Date(), error: "Task cancelled" },
+        });
+        return {
+          jobId,
+          status: "cancelled",
+          signalCount: 0,
+          proposalCount: 0,
+          riskCount: 0,
+        };
+      }
       const message = err instanceof Error ? err.message : String(err);
       await prisma.dreamJob.update({
         where: { id: jobId },

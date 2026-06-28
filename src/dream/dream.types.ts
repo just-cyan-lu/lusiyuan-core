@@ -168,6 +168,7 @@ export interface CreateDreamJobInput {
 export interface RunDailyDreamInput {
   triggerType?: DreamTriggerType;
   userId?: string;
+  signal?: AbortSignal;
 }
 
 export interface DreamRunResult {

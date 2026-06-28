@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { chat } from "../../core/chat.service.js";
+import { runChatTask } from "../../core/chat.service.js";
+import { isTaskCancellationError } from "../../runtime/running-task-registry.js";
 import { env } from "../../utils/env.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import type { WeixinIncomingBody } from "./weixin.types.js";
@@ -34,7 +35,7 @@ export async function weixinRoute(app: FastifyInstance): Promise<void> {
       const body = request.body as WeixinIncomingBody;
 
       try {
-        const result = await chat({
+        const result = await runChatTask({
           user_id: `weixin:${body.external_user_id}`,
           channel: "weixin",
           conversation_id: `weixin:${body.external_conversation_id}`,
@@ -55,6 +56,9 @@ export async function weixinRoute(app: FastifyInstance): Promise<void> {
           turn_id: result.turn_id,
         });
       } catch (err) {
+        if (isTaskCancellationError(err)) {
+          return reply.send({ reply: "", cancelled: true });
+        }
         const message = err instanceof Error ? err.message : "Internal error";
         return reply.status(400).send({ error: message });
       }

@@ -4,7 +4,7 @@ import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const JINA_BASE = "https://r.jina.ai";
 
-export async function jinaRead(url: string): Promise<PageContent> {
+export async function jinaRead(url: string, signal?: AbortSignal): Promise<PageContent> {
   const headers: Record<string, string> = {
     Accept: "text/markdown",
   };
@@ -20,6 +20,7 @@ export async function jinaRead(url: string): Promise<PageContent> {
   const res = await undiciFetch(`${JINA_BASE}/${url}`, {
     headers,
     dispatcher,
+    signal,
   });
 
   if (!res.ok) {

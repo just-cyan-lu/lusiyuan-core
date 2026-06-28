@@ -2,7 +2,8 @@ import { Bot, type Context } from "grammy";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { env } from "../../utils/env.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
-import { chat } from "../../core/chat.service.js";
+import { runChatTask } from "../../core/chat.service.js";
+import { isTaskCancellationError } from "../../runtime/running-task-registry.js";
 import { memoryService } from "../../core/memory.service.js";
 import { imageService } from "../../media/image.service.js";
 import { prisma } from "../../db/prisma.js";
@@ -163,7 +164,7 @@ export function createTelegramBot(token: string) {
     }
 
     try {
-      const result = await chat({
+      const result = await runChatTask({
         user_id: `telegram:${from?.id ?? chatCtx.id}`,
         channel: "telegram",
         conversation_id: getConversationId(chatCtx.id),
@@ -182,6 +183,7 @@ export function createTelegramBot(token: string) {
 
       await sendFinalReplies(ctx, result);
     } catch (err) {
+      if (isTaskCancellationError(err)) return;
       console.error("Telegram message handling failed:", err);
       await ctx.reply("出了点小问题，稍后再试试？");
     }
@@ -204,7 +206,7 @@ export function createTelegramBot(token: string) {
 
       const caption = message.caption ?? "（用户发送了一张图片）";
 
-      const result = await chat({
+      const result = await runChatTask({
         user_id: `telegram:${from?.id ?? chatCtx.id}`,
         channel: "telegram",
         conversation_id: getConversationId(chatCtx.id),
@@ -223,6 +225,7 @@ export function createTelegramBot(token: string) {
 
       await sendFinalReplies(ctx, result);
     } catch (err) {
+      if (isTaskCancellationError(err)) return;
       console.error("Telegram photo handling failed:", err);
       const text = err instanceof TelegramImageTooLargeError
         ? "这张图片太大了，请压缩到 10MB 以内再发我。"
@@ -254,7 +257,7 @@ export function createTelegramBot(token: string) {
       );
       const caption = message.caption ?? "（用户发送了一张图片文件）";
 
-      const result = await chat({
+      const result = await runChatTask({
         user_id: `telegram:${from?.id ?? chatCtx.id}`,
         channel: "telegram",
         conversation_id: getConversationId(chatCtx.id),
@@ -273,6 +276,7 @@ export function createTelegramBot(token: string) {
 
       await sendFinalReplies(ctx, result);
     } catch (err) {
+      if (isTaskCancellationError(err)) return;
       console.error("Telegram document image handling failed:", err);
       const text = err instanceof TelegramImageTooLargeError
         ? "这张图片文件太大了，请压缩到 10MB 以内再发我。"

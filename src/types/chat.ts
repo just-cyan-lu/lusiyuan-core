@@ -17,6 +17,8 @@ export interface ChatInput {
   conversation_id: string;
   message: string;
   images?: MessageContentPart[];  // Optional array of image content parts
+  task_id?: string;
+  signal?: AbortSignal;
 
   external_message_id?: string;
   display_name?: string;

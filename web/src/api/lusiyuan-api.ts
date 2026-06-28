@@ -53,6 +53,29 @@ export interface RuntimeConfig {
   safety: Record<string, boolean>;
 }
 
+export interface RunningTask {
+  id: string;
+  kind: "chat" | "dream";
+  label: string;
+  status: "running" | "cancelling";
+  source: string | null;
+  channel: string | null;
+  userId: string | null;
+  conversationId: string | null;
+  startedAt: string;
+  cancelRequestedAt: string | null;
+  cancelReason: string | null;
+  ageMs: number;
+}
+
+export interface RunningTasksResponse {
+  tasks: RunningTask[];
+}
+
+export interface RunningTaskResponse {
+  task: RunningTask | null;
+}
+
 export interface RuntimeState {
   id: string;
   key: string;
@@ -1050,10 +1073,11 @@ function parseSseEvent(rawEvent: string): ChatStreamEvent | null {
   if (!eventName || dataLines.length === 0) return null;
 
   const data = JSON.parse(dataLines.join("\n")) as unknown;
-  if (eventName === "ready") return { type: "ready", data: data as { ok: boolean } };
+  if (eventName === "ready") return { type: "ready", data: data as { ok: boolean; task_id?: string } };
   if (eventName === "progress") return { type: "progress", data: data as ChatReplyPart };
   if (eventName === "message") return { type: "message", data: data as ChatReplyPart };
   if (eventName === "done") return { type: "done", data: data as ChatResponse };
+  if (eventName === "cancelled") return { type: "cancelled", data: data as { task_id?: string; reason?: string } };
   if (eventName === "error") return { type: "error", data: data as { error: string } };
   return null;
 }
@@ -1108,6 +1132,46 @@ export async function streamChatMessage(
   }
 
   if (streamError) throw new Error(streamError);
+}
+
+export async function cancelChatTask(input: {
+  taskId: string;
+  userId: string;
+  conversationId: string;
+}): Promise<RunningTaskResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/chat/tasks/${encodeURIComponent(input.taskId)}/cancel`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: input.userId,
+        conversation_id: input.conversationId,
+      }),
+    }
+  );
+  return parseJsonResponse<RunningTaskResponse>(response, "无法停止当前回复");
+}
+
+export async function fetchRunningTasks(token: string): Promise<RunningTasksResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/running-tasks`, {
+    headers: adminHeaders(token),
+  });
+  return parseJsonResponse<RunningTasksResponse>(response, "无法读取运行中任务");
+}
+
+export async function cancelRunningTask(input: {
+  token: string;
+  taskId: string;
+}): Promise<RunningTaskResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/running-tasks/${encodeURIComponent(input.taskId)}/cancel`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<RunningTaskResponse>(response, "无法停止运行中任务");
 }
 
 export async function fetchHealthStatus(): Promise<HealthStatus> {

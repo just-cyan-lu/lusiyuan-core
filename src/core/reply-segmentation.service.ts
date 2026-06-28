@@ -1,6 +1,6 @@
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { modelProvider } from "./model-provider.js";
-import type { ChatMessage } from "../types/model.js";
+import type { ChatMessage, ModelCallOptions } from "../types/model.js";
 
 export type ReplyDeliveryMode = "single" | "final_blocks" | "hybrid";
 
@@ -71,7 +71,8 @@ export function replySegmentDelay(
 
 export async function segmentReply(
   reply: string,
-  options = getReplySegmentationOptions()
+  options = getReplySegmentationOptions(),
+  callOptions?: ModelCallOptions
 ): Promise<ReplySegmentationResult> {
   const text = reply.trim();
   if (!text) return { replies: [""], source: "single" };
@@ -80,7 +81,8 @@ export async function segmentReply(
   }
 
   if (options.llmEnabled && !looksStructured(text)) {
-    const llmReplies = await splitWithLlm(text, options).catch((error) => {
+    const llmReplies = await splitWithLlm(text, options, callOptions).catch((error) => {
+      if (callOptions?.signal?.aborted) throw error;
       console.warn("[reply-segmentation] LLM split failed:", error);
       return null;
     });
@@ -202,7 +204,8 @@ function looksStructured(text: string): boolean {
 
 async function splitWithLlm(
   reply: string,
-  options: ReplySegmentationOptions
+  options: ReplySegmentationOptions,
+  callOptions?: ModelCallOptions
 ): Promise<string[] | null> {
   const messages: ChatMessage[] = [
     {
@@ -229,7 +232,7 @@ async function splitWithLlm(
     },
   ];
 
-  const response = await modelProvider.chatJson<LlmSegmentationResponse>(messages);
+  const response = await modelProvider.chatJson<LlmSegmentationResponse>(messages, callOptions);
   return validateLlmSegments(reply, response.messages, options);
 }
 

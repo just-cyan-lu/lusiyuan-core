@@ -1,5 +1,9 @@
 import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
+import {
+  isTaskCancellationError,
+  throwIfTaskCancelled,
+} from "../runtime/running-task-registry.js";
 import { toolRegistry } from "./tool-registry.js";
 import { actionPolicy } from "./policy/action-policy.js";
 import type {
@@ -11,12 +15,17 @@ interface ExecuteInput {
   toolName: string;
   input: unknown;
   context: ToolExecutionContext;
+  signal?: AbortSignal;
 }
 
 export class ToolExecutor {
   async execute(req: ExecuteInput): Promise<ToolExecutionResult> {
-    const { toolName, input, context } = req;
+    const { toolName, input } = req;
+    const signal = req.signal ?? req.context.signal;
+    const context = { ...req.context, signal };
     const start = Date.now();
+
+    throwIfTaskCancelled(signal);
 
     console.log(`[tool-executor] execute called: ${toolName}`);
 
@@ -63,8 +72,11 @@ export class ToolExecutor {
     console.log(`[tool] executing ${toolName}`, JSON.stringify(input).slice(0, 200));
 
     try {
+      throwIfTaskCancelled(signal);
       output = await tool.handler(input, context);
+      throwIfTaskCancelled(signal);
     } catch (err) {
+      if (isTaskCancellationError(err, signal)) throw err;
       error = err instanceof Error ? err.message : String(err);
       status = "failed";
     }

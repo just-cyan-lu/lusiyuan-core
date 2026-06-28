@@ -10,4 +10,5 @@ export interface ReadPageOptions {
   url: string;
   screenshot?: boolean;
   preferTool?: "jina" | "playwright";
+  signal?: AbortSignal;
 }

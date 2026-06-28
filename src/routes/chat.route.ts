@@ -1,9 +1,15 @@
 import type { FastifyInstance } from "fastify";
-import { chat } from "../core/chat.service.js";
+import { chat, runChatTask } from "../core/chat.service.js";
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { env } from "../utils/env.js";
+import {
+  isTaskCancellationError,
+  runningTaskRegistry,
+  TaskCancelledError,
+  throwIfTaskCancelled,
+} from "../runtime/running-task-registry.js";
 import type { ChatOutput, ChatReplyPart } from "../types/chat.js";
 import type { MemoryType } from "../types/memory.js";
 
@@ -29,8 +35,23 @@ const addMemoryBodySchema = {
   },
 } as const;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, Math.max(0, ms));
+    const onAbort = () => {
+      clearTimeout(timeout);
+      cleanup();
+      reject(signal?.reason instanceof Error ? signal.reason : new TaskCancelledError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  }).finally(() => {
+    throwIfTaskCancelled(signal);
+  });
 }
 
 function publicChatOutput(output: ChatOutput) {
@@ -72,9 +93,12 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
       };
 
       try {
-        const output = await chat(input);
+        const output = await runChatTask(input);
         return reply.send(output);
       } catch (err) {
+        if (isTaskCancellationError(err)) {
+          return reply.status(499).send({ error: "Task cancelled" });
+        }
         const message = err instanceof Error ? err.message : "Internal error";
         return reply.status(400).send({ error: message });
       }
@@ -93,16 +117,34 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         display_name?: string;
       };
 
+      try {
+        assertWebChatConversationId(input.conversation_id);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Invalid conversation_id";
+        return reply.status(400).send({ error: message });
+      }
+
+      const handle = runningTaskRegistry.start({
+        kind: "chat",
+        label: "web chat",
+        source: "web",
+        channel: "web",
+        userId: input.user_id,
+        conversationId: input.conversation_id,
+      });
+
       reply.hijack();
       const response = reply.raw;
       let closed = false;
+      let finished = false;
 
-      request.raw.on("aborted", () => {
+      const cancelOnClose = () => {
         closed = true;
-      });
-      response.on("close", () => {
-        closed = true;
-      });
+        if (!finished) handle.cancel("client disconnected");
+      };
+
+      request.raw.on("aborted", cancelOnClose);
+      response.on("close", cancelOnClose);
 
       response.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
@@ -112,7 +154,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         "Access-Control-Allow-Origin": env.WEB_ORIGIN,
         Vary: "Origin",
       });
-      response.write(ssePayload("ready", { ok: true }));
+      response.write(ssePayload("ready", { ok: true, task_id: handle.id }));
 
       const writeEvent = (event: string, data: unknown) => {
         if (closed || response.destroyed) return;
@@ -120,17 +162,20 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
       };
 
       const sendPart = async (part: ChatReplyPart) => {
+        throwIfTaskCancelled(handle.signal);
         if (part.kind !== "progress" && part.delay_ms > 0) {
-          await sleep(part.delay_ms);
+          await sleep(part.delay_ms, handle.signal);
         }
+        throwIfTaskCancelled(handle.signal);
         writeEvent(part.kind === "progress" ? "progress" : "message", part);
       };
 
       try {
-        assertWebChatConversationId(input.conversation_id);
         const output = await chat({
           ...input,
           channel: "web",
+          task_id: handle.id,
+          signal: handle.signal,
           onReplyPart: sendPart,
         });
 
@@ -142,13 +187,46 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
 
         writeEvent("done", publicChatOutput(output));
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Internal error";
-        writeEvent("error", { error: message });
+        if (isTaskCancellationError(err, handle.signal)) {
+          writeEvent("cancelled", {
+            task_id: handle.id,
+            reason: handle.task().cancelReason ?? "cancelled",
+          });
+        } else {
+          const message = err instanceof Error ? err.message : "Internal error";
+          writeEvent("error", { error: message });
+        }
       } finally {
+        finished = true;
+        request.raw.off("aborted", cancelOnClose);
+        response.off("close", cancelOnClose);
+        handle.finish();
         if (!closed && !response.destroyed) response.end();
       }
     }
   );
+
+  app.post("/v1/chat/tasks/:taskId/cancel", async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const body = (request.body ?? {}) as {
+      user_id?: string;
+      conversation_id?: string;
+    };
+    const task = runningTaskRegistry.get(taskId);
+
+    if (!task || task.kind !== "chat" || task.channel !== "web") {
+      return reply.status(404).send({ error: "Web chat task not found" });
+    }
+    if (body.user_id && body.user_id !== task.userId) {
+      return reply.status(403).send({ error: "Task user mismatch" });
+    }
+    if (body.conversation_id && body.conversation_id !== task.conversationId) {
+      return reply.status(403).send({ error: "Task conversation mismatch" });
+    }
+
+    const cancelled = runningTaskRegistry.cancel(taskId, "web chat stopped");
+    return reply.send({ task: cancelled });
+  });
 
   app.get("/v1/users/:userId/memories", async (request, reply) => {
     requireAdminAuth(request);

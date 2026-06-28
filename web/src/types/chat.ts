@@ -42,8 +42,9 @@ export interface ChatReplyPart {
 }
 
 export type ChatStreamEvent =
-  | { type: "ready"; data: { ok: boolean } }
+  | { type: "ready"; data: { ok: boolean; task_id?: string } }
   | { type: "progress"; data: ChatReplyPart }
   | { type: "message"; data: ChatReplyPart }
   | { type: "done"; data: ChatResponse }
+  | { type: "cancelled"; data: { task_id?: string; reason?: string } }
   | { type: "error"; data: { error: string } };

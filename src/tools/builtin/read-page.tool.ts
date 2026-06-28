@@ -1,6 +1,7 @@
 import { pageReaderService } from "../../page-reader/page-reader.service.js";
 import { chromeDevtoolsMcpService } from "../../mcp/chrome-devtools-mcp.service.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
+import { throwIfTaskCancelled } from "../../runtime/running-task-registry.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
@@ -139,9 +140,11 @@ async function handler(
   input: ReadPageInput,
   context: ToolExecutionContext
 ): Promise<ReadPageOutput> {
+  throwIfTaskCancelled(context.signal);
   const backend = selectReadPageBackend(input, context);
   if (backend === "chrome-devtools-mcp") {
-    const result = await chromeDevtoolsMcpService.read(input.url, input.wait_ms, input.screenshot);
+    const result = await chromeDevtoolsMcpService.read(input.url, input.wait_ms, input.screenshot, context.signal);
+    throwIfTaskCancelled(context.signal);
     return {
       url: result.url,
       title: result.title,
@@ -155,8 +158,10 @@ async function handler(
     url: input.url,
     screenshot: input.screenshot,
     preferTool: backend,
+    signal: context.signal,
   });
 
+  throwIfTaskCancelled(context.signal);
   return {
     url: result.url,
     title: result.title,

@@ -13,6 +13,7 @@ import {
 import type {
   ChatMessage,
   ChatMessageProviderMetadata,
+  ModelCallOptions,
   ModelProvider,
   ToolDefinitionForLLM,
   MessageContent,
@@ -230,20 +231,20 @@ class OpenAICompatibleProvider implements ModelProvider {
     } as OpenAICompatibleRequest;
   }
 
-  async chat(messages: ChatMessage[]): Promise<string> {
+  async chat(messages: ChatMessage[], options?: ModelCallOptions): Promise<string> {
     const response = await this.client.chat.completions.create(this.buildRequest({
       messages: this.convertMessages(messages),
-    }));
+    }), options?.signal ? { signal: options.signal } : undefined);
     const raw = response.choices[0]?.message?.content ?? "";
     console.log("[chat raw]\n" + raw + "\n[/chat raw]");
     return stripThinkTags(raw);
   }
 
-  async chatJson<T>(messages: ChatMessage[]): Promise<T> {
+  async chatJson<T>(messages: ChatMessage[], options?: ModelCallOptions): Promise<T> {
     const response = await this.client.chat.completions.create(this.buildRequest({
       messages: this.convertMessages(messages),
       ...(this.isMiniMax ? {} : { response_format: { type: "json_object" as const } }),
-    }));
+    }), options?.signal ? { signal: options.signal } : undefined);
     const raw = response.choices[0]?.message?.content ?? "{}";
     const cleaned = stripThinkTags(raw);
     // Extract JSON object/array if model wrapped it in prose
@@ -259,7 +260,8 @@ class OpenAICompatibleProvider implements ModelProvider {
 
   async chatWithTools(
     messages: ChatMessage[],
-    tools: ToolDefinitionForLLM[]
+    tools: ToolDefinitionForLLM[],
+    options?: ModelCallOptions
   ): Promise<{
     content: string | null;
     rawContent?: string | null;
@@ -274,7 +276,7 @@ class OpenAICompatibleProvider implements ModelProvider {
     const response = await this.client.chat.completions.create(this.buildRequest({
       messages: this.convertMessages(messages),
       tools: tools as OpenAI.Chat.Completions.ChatCompletionTool[],
-    }));
+    }), options?.signal ? { signal: options.signal } : undefined);
 
     const message = response.choices[0]?.message;
     if (!message) {
@@ -422,27 +424,27 @@ class AnthropicProvider implements ModelProvider {
     return { system, msgs };
   }
 
-  async chat(messages: ChatMessage[]): Promise<string> {
+  async chat(messages: ChatMessage[], options?: ModelCallOptions): Promise<string> {
     const { system, msgs } = this.convertMessages(messages);
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
       system,
       messages: msgs,
-    });
+    }, options?.signal ? { signal: options.signal } : undefined);
     const raw = response.content.filter((b) => b.type === "text").map((b) => (b as Anthropic.Messages.TextBlock).text).join("");
     console.log("[chat raw]\n" + raw + "\n[/chat raw]");
     return stripThinkTags(raw);
   }
 
-  async chatJson<T>(messages: ChatMessage[]): Promise<T> {
+  async chatJson<T>(messages: ChatMessage[], options?: ModelCallOptions): Promise<T> {
     const { system, msgs } = this.convertMessages(messages);
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
       system,
       messages: msgs,
-    });
+    }, options?.signal ? { signal: options.signal } : undefined);
     const raw = response.content.filter((b) => b.type === "text").map((b) => (b as Anthropic.Messages.TextBlock).text).join("");
     const cleaned = stripThinkTags(raw);
     const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
@@ -457,7 +459,8 @@ class AnthropicProvider implements ModelProvider {
 
   async chatWithTools(
     messages: ChatMessage[],
-    tools: ToolDefinitionForLLM[]
+    tools: ToolDefinitionForLLM[],
+    options?: ModelCallOptions
   ): Promise<{
     content: string | null;
     tool_calls?: Array<{
@@ -480,7 +483,7 @@ class AnthropicProvider implements ModelProvider {
       system,
       messages: msgs,
       tools: anthropicTools,
-    });
+    }, options?.signal ? { signal: options.signal } : undefined);
 
     const textBlocks = response.content.filter((b) => b.type === "text");
     const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
@@ -546,13 +549,13 @@ export const modelProvider: ModelProvider = {
   get capabilities() {
     return currentProvider().capabilities;
   },
-  chat(messages) {
-    return currentProvider().chat(messages);
+  chat(messages, options) {
+    return currentProvider().chat(messages, options);
   },
-  chatJson<T>(messages: ChatMessage[]) {
-    return currentProvider().chatJson<T>(messages);
+  chatJson<T>(messages: ChatMessage[], options?: ModelCallOptions) {
+    return currentProvider().chatJson<T>(messages, options);
   },
-  chatWithTools(messages, tools) {
-    return currentProvider().chatWithTools(messages, tools);
+  chatWithTools(messages, tools, options) {
+    return currentProvider().chatWithTools(messages, tools, options);
   },
 };
