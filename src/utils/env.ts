@@ -19,11 +19,6 @@ export const env = {
   WEBCHAT_OWNER_USER_ID: process.env.WEBCHAT_OWNER_USER_ID ?? "web:owner",
   WEBCHAT_CODEX_USER_ID: process.env.WEBCHAT_CODEX_USER_ID ?? "web:codex",
 
-  // Legacy single-provider connection.
-  MODEL_BASE_URL: process.env.MODEL_BASE_URL ?? "",
-  MODEL_API_KEY: process.env.MODEL_API_KEY ?? "",
-  MODEL_NAME: process.env.MODEL_NAME ?? "",
-
   // Model connection profiles. The active profile is selected by live settings.
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? "",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
@@ -69,7 +64,7 @@ export const env = {
     process.env.EXTERNAL_HTTP_PROXY ?? process.env.TELEGRAM_PROXY ?? "",
 
   // Search/reader credentials. Enable switches and limits are live settings.
-  TAVILY_API_KEYS: (process.env.TAVILY_API_KEYS ?? process.env.TAVILY_API_KEY ?? "")
+  TAVILY_API_KEYS: (process.env.TAVILY_API_KEYS ?? "")
     .split(",")
     .map((key) => key.trim())
     .filter(Boolean),

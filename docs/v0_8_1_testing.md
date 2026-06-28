@@ -80,7 +80,7 @@ curl "http://localhost:64100/v1/external-inbox?user_id=telegram:123456"
 在 `.env` 里添加：
 ```env
 TAVILY_ENABLED=true
-TAVILY_API_KEY="你的Tavily API key"
+TAVILY_API_KEYS="你的Tavily API key"
 ```
 
 重启服务：`pnpm dev`
@@ -335,5 +335,5 @@ npx playwright install chromium
 
 检查：
 - `.env` 里 `TAVILY_ENABLED=true`
-- `TAVILY_API_KEY` 填了有效的 key
+- `TAVILY_API_KEYS` 填了有效的 key
 - 免费额度没用完（1000 次/月）

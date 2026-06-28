@@ -140,8 +140,7 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
   { key: "EMBEDDING_API_KEY", group: "Embedding 连接", label: "Embedding API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
   { key: "EMBEDDING_MODEL", group: "Embedding 连接", label: "Embedding Model", type: "string" },
   { key: "EMBEDDING_DIMENSIONS", group: "Embedding 连接", label: "Embedding Dimensions", type: "integer", min: 1 },
-  { key: "TAVILY_API_KEY", group: "网页连接", label: "Tavily API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
-  { key: "TAVILY_API_KEYS", group: "网页连接", label: "Tavily API Keys", type: "secret", description: "多个 key 用英文逗号分隔。" },
+  { key: "TAVILY_API_KEYS", group: "网页连接", label: "Tavily API Keys", type: "secret", description: "多个 key 用英文逗号分隔；秘密保存在 .env，留空表示不修改。" },
   { key: "JINA_API_KEY", group: "网页连接", label: "Jina API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
   { key: "EXTERNAL_HTTP_PROXY", group: "网络连接", label: "External HTTP Proxy", type: "string", description: "通用外部 HTTP 代理，例如 http://127.0.0.1:7890；影响 Tavily、Jina 和 Telegram 文件下载，不影响模型 API、Playwright 或 Chrome MCP。" },
 ];
