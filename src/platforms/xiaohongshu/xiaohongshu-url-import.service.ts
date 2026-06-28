@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 import { modelProvider } from "../../core/model-provider.js";
 import { prisma } from "../../db/prisma.js";
 import { chromeDevtoolsMcpService } from "../../mcp/chrome-devtools-mcp.service.js";
-import { runtimeConfig } from "../../config/runtime-settings.service.js";
 import {
   normalizeXiaohongshuPostType,
   syncXiaohongshuAccountMirror,
   type SyncCommentInput,
   type SyncCommentThreadInput,
 } from "./xiaohongshu-account.service.js";
+
+const XIAOHONGSHU_COMMENT_IMPORT_LIMIT = 300;
 
 interface RawDomComment {
   externalId?: string;
@@ -145,7 +146,7 @@ function normalizeDomComment(
 export function normalizeImportedCommentThreads(
   value: unknown,
   postExternalId: string,
-  limit = runtimeConfig.CHROME_DEVTOOLS_MCP_MAX_COMMENTS
+  limit = XIAOHONGSHU_COMMENT_IMPORT_LIMIT
 ): SyncCommentThreadInput[] {
   if (!Array.isArray(value)) return [];
   const maxComments = Math.min(Math.max(limit, 1), 300);
@@ -223,8 +224,7 @@ async function expandLoadedReplyGroups(): Promise<number> {
 }
 
 async function inspectCurrentPage(): Promise<RawPageInspection> {
-  const maxComments = Math.min(Math.max(runtimeConfig.CHROME_DEVTOOLS_MCP_MAX_COMMENTS, 1), 300);
-  const maxBodyChars = Math.min(Math.max(runtimeConfig.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS, 2000), 50000);
+  const maxComments = XIAOHONGSHU_COMMENT_IMPORT_LIMIT;
   return chromeDevtoolsMcpService.evaluate<RawPageInspection>(String.raw`() => {
     const normalize = (value) => (value ?? "").replace(/\s+/g, " ").trim();
     const text = (selector) => normalize(document.querySelector(selector)?.textContent);
@@ -282,7 +282,7 @@ async function inspectCurrentPage(): Promise<RawPageInspection> {
       metaDescription: document.querySelector("meta[name='description']")?.content
         ?? document.querySelector("meta[property='og:description']")?.content
         ?? "",
-      bodyText: (document.body?.innerText ?? "").slice(0, ${maxBodyChars}),
+      bodyText: document.body?.innerText ?? "",
       contentCandidates: textsFrom(["#detail-desc", ".note-text", ".desc", "[class*='content']"], 12),
       authorCandidates: textsFrom([".author-container", ".username", "[class*='author'] [class*='name']"], 10),
       postAuthorName: text("#noteContainer .author-container .username") || text("#noteContainer .author-container .name"),
@@ -357,7 +357,7 @@ export async function importXiaohongshuUrl(value: string) {
         id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         url: inspection.url,
         tool: "chrome-devtools-mcp",
-        content: inspection.bodyText.slice(0, runtimeConfig.PLAYWRIGHT_MAX_PAGE_TEXT_CHARS),
+        content: inspection.bodyText,
       },
     });
 

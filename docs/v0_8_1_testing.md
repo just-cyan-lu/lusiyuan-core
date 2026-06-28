@@ -169,7 +169,6 @@ curl -X POST http://localhost:64100/v1/read-page \
 在 `.env` 里添加：
 ```env
 PLAYWRIGHT_ENABLED=true
-PLAYWRIGHT_SCREENSHOT_ENABLED=true
 ```
 
 重启服务。

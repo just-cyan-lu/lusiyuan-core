@@ -10,9 +10,7 @@ class PageReaderService {
 
     let result: PageContent;
 
-    const usePlaywright =
-      preferTool === "playwright" ||
-      (screenshot && runtimeConfig.PLAYWRIGHT_SCREENSHOT_ENABLED);
+    const usePlaywright = preferTool === "playwright";
 
     if (usePlaywright) {
       if (!runtimeConfig.PLAYWRIGHT_ENABLED) {
@@ -20,6 +18,9 @@ class PageReaderService {
       }
       result = await playwrightRead(url, screenshot);
     } else {
+      if (screenshot) {
+        throw new Error("Jina Reader 不支持截图，请使用 Playwright 或 Chrome DevTools MCP。");
+      }
       if (!runtimeConfig.JINA_ENABLED) {
         throw new Error("Jina Reader is disabled");
       }

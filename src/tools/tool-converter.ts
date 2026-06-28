@@ -46,10 +46,10 @@ function inferParametersSchema(toolName: string): {
             type: "string",
             enum: ["jina", "playwright", "chrome-devtools-mcp"],
             description:
-              "使用的工具：\n" +
-              "- jina（默认）：快速，适合公开网页\n" +
-              "- playwright：本地浏览器，支持 JS 渲染\n" +
-              "- chrome-devtools-mcp：只读连接用户已登录的 Chrome，适合需要登录的页面；不会自动关闭页面",
+              "可选读取工具；不确定时可以不传，由系统自动选择：\n" +
+              "- jina：公开文档、文章、博客、新闻等静态内容\n" +
+              "- playwright：公开但依赖 JS 渲染的页面；被选中时可同时截图\n" +
+              "- chrome-devtools-mcp：仅 Owner 可用；需要登录态的真实 Chrome 页面，被选中时可同时截图，不会自动关闭页面",
           },
           wait_ms: {
             type: "number",
@@ -58,7 +58,7 @@ function inferParametersSchema(toolName: string): {
           },
           screenshot: {
             type: "boolean",
-            description: "是否截图（仅 playwright 支持）",
+            description: "是否让当前选中的浏览器读取器同时返回截图；Jina 不支持截图。",
           },
         },
         required: ["url"],
