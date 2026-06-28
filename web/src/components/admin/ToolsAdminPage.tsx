@@ -44,13 +44,7 @@ const datePresetOptions: Array<{ value: DatePreset; label: string }> = [
 ];
 
 const policyConfigKeys = [
-  "TOOLS_ENABLED",
-  "TOOLS_AUTO_EXECUTE_LOW_RISK",
-  "TOOLS_ALLOW_MEDIUM_RISK",
-  "TOOLS_ALLOW_HIGH_RISK",
-  "TOOL_MAX_CALLS_PER_MESSAGE",
-  "TOOL_TIMEOUT_MS",
-  "TOOL_LOG_INPUT_OUTPUT",
+  "TOOL_CALL_LOG_ENABLED",
 ];
 
 const toolGuides: Record<
@@ -66,23 +60,16 @@ const toolGuides: Record<
   search_memories: {
     purpose: "按语义检索当前用户相关的长期记忆，返回记忆 id、类型、摘要、重要度等。",
     usage: "用户问“我之前说过什么”“我的偏好是什么”“之前那个决策是什么”时会用到。",
-    trigger: "模型判断当前回复需要额外查长期记忆时触发；受全局工具层和记忆检索开关影响。",
+    trigger: "模型判断当前回复需要额外查长期记忆时触发；受这个工具自己的访问模式和记忆检索开关影响。",
     modeKey: "TOOL_SEARCH_MEMORIES_MODE",
     configKeys: ["MEMORY_RETRIEVAL_ENABLED"],
-  },
-  summarize_recent_conversation: {
-    purpose: "从数据库读取最近消息并调用模型总结，提炼关键点、潜在记忆、决策和未解决问题。",
-    usage: "当前聊天 prompt 默认只带最近 10 条消息；如果用户要求总结更早一点的上下文，这个工具可以临时回看数据库里的最近消息。",
-    trigger: "模型判断当前 prompt 里的上下文不够、需要回看当前或指定 conversation 时触发；普通总结当前可见上下文时其实不需要它。",
-    modeKey: "TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE",
-    configKeys: [],
   },
   web_search: {
     purpose: "通过 Tavily 搜索公网信息，返回答案摘要和搜索结果列表。",
     usage: "用户问最新信息、新闻、外部资料、技术文档时使用；只读搜索，不会执行外部动作。",
     trigger: "模型判断本地知识不足或问题明显需要联网时触发；可通过访问模式限制为 owner only。",
     modeKey: "TOOL_WEB_SEARCH_MODE",
-    configKeys: ["TAVILY_ENABLED", "TAVILY_MAX_RESULTS", "TAVILY_SEARCH_DEPTH"],
+    configKeys: ["TAVILY_ENABLED", "TAVILY_MAX_RESULTS"],
   },
   read_page: {
     purpose: "读取指定 URL 的正文内容，可用 Jina、Playwright 或连接已登录 Chrome 的 Chrome DevTools MCP。",
@@ -674,69 +661,19 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
       </section>
 
       {state.policy && (
-        <SectionPanel title="工具策略" subtitle="开关即时写入；数字参数手动保存">
+        <SectionPanel title="工具日志" subtitle="工具本身固定可用，访问范围在具体工具上配置">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PolicyConfigItem
-              label="工具层"
-              field={settingFieldMap.get("TOOLS_ENABLED")}
-              value={configValues.TOOLS_ENABLED}
-              runtimeText={state.policy.enabled ? "运行中：on" : "运行中：off"}
-              disabled={state.saving}
-              onChange={handlePolicyConfigChange}
-            />
-            <PolicyConfigItem
-              label="低风险自动执行"
-              field={settingFieldMap.get("TOOLS_AUTO_EXECUTE_LOW_RISK")}
-              value={configValues.TOOLS_AUTO_EXECUTE_LOW_RISK}
-              runtimeText={state.policy.autoExecuteLowRisk ? "运行中：on" : "运行中：off"}
-              disabled={state.saving}
-              onChange={handlePolicyConfigChange}
-            />
-            <PolicyConfigItem
-              label="中风险工具"
-              field={settingFieldMap.get("TOOLS_ALLOW_MEDIUM_RISK")}
-              value={configValues.TOOLS_ALLOW_MEDIUM_RISK}
-              runtimeText={state.policy.allowMediumRisk ? "运行中：on" : "运行中：off"}
-              disabled={state.saving}
-              onChange={handlePolicyConfigChange}
-            />
-            <PolicyConfigItem
-              label="高风险工具"
-              field={settingFieldMap.get("TOOLS_ALLOW_HIGH_RISK")}
-              value={configValues.TOOLS_ALLOW_HIGH_RISK}
-              runtimeText={state.policy.allowHighRisk ? "运行中：on" : "运行中：off"}
-              disabled={state.saving}
-              onChange={handlePolicyConfigChange}
-            />
-            <PolicyConfigItem
-              label="单消息上限"
-              field={settingFieldMap.get("TOOL_MAX_CALLS_PER_MESSAGE")}
-              value={configValues.TOOL_MAX_CALLS_PER_MESSAGE}
-              runtimeText={`运行中：${state.policy.maxCallsPerMessage} 次`}
-              disabled={state.saving}
-              onChange={handlePolicyConfigChange}
-              unit="次"
-            />
-            <PolicyConfigItem
-              label="执行超时"
-              field={settingFieldMap.get("TOOL_TIMEOUT_MS")}
-              value={configValues.TOOL_TIMEOUT_MS}
-              runtimeText={`运行中：${formatDuration(state.policy.timeoutMs)}`}
-              disabled={state.saving}
-              onChange={handlePolicyConfigChange}
-              unit="ms"
-            />
-            <PolicyConfigItem
-              label="入参出参日志"
-              field={settingFieldMap.get("TOOL_LOG_INPUT_OUTPUT")}
-              value={configValues.TOOL_LOG_INPUT_OUTPUT}
-              runtimeText={state.policy.logInputOutput ? "运行中：on" : "运行中：off"}
+              label="工具调用轨迹"
+              field={settingFieldMap.get("TOOL_CALL_LOG_ENABLED")}
+              value={configValues.TOOL_CALL_LOG_ENABLED}
+              runtimeText={state.policy.callLogEnabled ? "运行中：on" : "运行中：off"}
               disabled={state.saving}
               onChange={handlePolicyConfigChange}
             />
           </div>
           <div className="mt-4 rounded-lg border border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-info-text)]">
-            开关点击后会立即写入数据库；数字参数修改后点击“保存工具参数”，页面提示成功时新的工具权限和限制已经生效。
+            开关点击后会立即写入数据库；工具调用轨迹只记录是否调用、状态和耗时，不保存工具入参和出参。
           </div>
         </SectionPanel>
       )}
@@ -1022,6 +959,9 @@ function PolicyConfigItem({
         {runtimeText}
         {field ? ` · ${field.key}` : ""}
       </div>
+      {field?.description && (
+        <p className="mt-2 text-xs leading-5 text-[var(--ls-ink-soft)]">{field.description}</p>
+      )}
     </div>
   );
 }
@@ -1136,7 +1076,7 @@ function ToolCard({
             />
           ) : (
             <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-xs leading-5 text-[var(--ls-ink-soft)]">
-              这个工具没有独立 env 配置，主要受全局 TOOLS_ENABLED、风险策略和代码注册状态控制。
+              这个工具没有独立参数配置，主要受自己的访问模式、前置能力开关和代码注册状态控制。
             </div>
           )}
         </div>
@@ -1466,8 +1406,9 @@ function LogDetail({ log }: { log: ToolCallLog }) {
         </div>
       )}
 
-      <JsonBlock title="Input" value={log.input} />
-      <JsonBlock title="Output" value={log.output} />
+      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-xs leading-5 text-[var(--ls-ink-soft)]">
+        工具日志只记录调用轨迹，不保存工具入参和出参。
+      </div>
     </div>
   );
 }
@@ -1478,19 +1419,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <div className="text-[var(--ls-ink-soft)]">{label}</div>
       <div className="min-w-0 break-all font-mono text-xs text-[var(--ls-ink-strong)]" title={value}>{value}</div>
     </div>
-  );
-}
-
-function JsonBlock({ title, value }: { title: string; value: unknown }) {
-  return (
-    <details open className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)]">
-      <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-[var(--ls-ink-strong)]">
-        {title}
-      </summary>
-      <pre className="max-h-80 overflow-auto border-t border-[var(--ls-border)] p-3 text-xs leading-5 text-[var(--ls-ink-strong)]">
-        {stringifyJson(value)}
-      </pre>
-    </details>
   );
 }
 

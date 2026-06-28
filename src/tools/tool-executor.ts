@@ -13,19 +13,6 @@ interface ExecuteInput {
   context: ToolExecutionContext;
 }
 
-export async function runWithOptionalTimeout<T>(
-  task: () => Promise<T>,
-  timeoutMs: number
-): Promise<T> {
-  if (timeoutMs === 0) return task();
-  return Promise.race([
-    task(),
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Tool timeout")), timeoutMs)
-    ),
-  ]);
-}
-
 export class ToolExecutor {
   async execute(req: ExecuteInput): Promise<ToolExecutionResult> {
     const { toolName, input, context } = req;
@@ -56,7 +43,6 @@ export class ToolExecutor {
         riskLevel: tool.riskLevel,
         status: "blocked",
         context,
-        input,
         blocked: true,
         blockReason: decision.reason,
         durationMs: Date.now() - start,
@@ -77,8 +63,7 @@ export class ToolExecutor {
     console.log(`[tool] executing ${toolName}`, JSON.stringify(input).slice(0, 200));
 
     try {
-      const timeoutMs = runtimeConfig.TOOL_TIMEOUT_MS;
-      output = await runWithOptionalTimeout(() => tool.handler(input, context), timeoutMs);
+      output = await tool.handler(input, context);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       status = "failed";
@@ -93,8 +78,6 @@ export class ToolExecutor {
       riskLevel: tool.riskLevel,
       status,
       context,
-      input: runtimeConfig.TOOL_LOG_INPUT_OUTPUT ? input : null,
-      output: runtimeConfig.TOOL_LOG_INPUT_OUTPUT ? output : null,
       error,
       blocked: false,
       durationMs,
@@ -111,13 +94,13 @@ export class ToolExecutor {
     riskLevel: string;
     status: string;
     context: ToolExecutionContext;
-    input?: unknown;
-    output?: unknown;
     error?: string;
     blocked: boolean;
     blockReason?: string;
     durationMs: number;
   }): Promise<void> {
+    if (!runtimeConfig.TOOL_CALL_LOG_ENABLED) return;
+
     prisma.toolCallLog
       .create({
         data: {
@@ -128,8 +111,6 @@ export class ToolExecutor {
           conversationId: params.context.conversationId,
           messageId: params.context.messageId,
           channel: params.context.channel,
-          input: params.input ? (params.input as object) : undefined,
-          output: params.output ? (params.output as object) : undefined,
           error: params.error,
           blocked: params.blocked,
           blockReason: params.blockReason,

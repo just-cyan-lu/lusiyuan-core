@@ -3,7 +3,6 @@ import { Button, Switch, Tooltip } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
-  API_BASE_URL,
   clearDatabaseData,
   fetchEditableEnvConfig,
   fetchRuntimeSettings,
@@ -47,25 +46,6 @@ interface Finding {
   detail: string;
 }
 
-const featureLabels: Record<string, string> = {
-  memoryRetrieval: "记忆检索",
-  tools: "工具调用",
-  dream: "Dream",
-  webSearch: "Web Search",
-  pageReader: "页面读取",
-  mcp: "MCP",
-};
-
-const safetyLabels: Record<string, string> = {
-  toolsAllowMediumRisk: "允许中风险工具",
-  toolsAllowHighRisk: "允许高风险工具",
-};
-
-const limitLabels: Record<string, string> = {
-  maxMessageLength: "单条消息最大长度",
-  toolMaxCallsPerMessage: "单条消息最大工具调用",
-};
-
 const minimaxRuntimeSettingKeys = new Set([
   "MINIMAX_THINKING_TYPE",
   "MINIMAX_MAX_COMPLETION_TOKENS",
@@ -80,12 +60,6 @@ function friendlyErrorMessage(error: unknown): string {
     return "Admin Token 不正确或未配置。";
   }
   return message || "配置读取失败";
-}
-
-function formatKey(key: string): string {
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (char) => char.toUpperCase());
 }
 
 function providerReady(provider: RuntimeProvider): boolean {
@@ -135,14 +109,6 @@ function buildFindings(runtime: RuntimeConfig | null): Finding[] {
       level: "danger",
       title: "没有可用模型渠道",
       detail: "至少需要一个 provider 同时具备 base URL、API key 和 model。",
-    });
-  }
-
-  if (runtime.safety.toolsAllowHighRisk) {
-    findings.push({
-      level: "warn",
-      title: "高风险工具已放开",
-      detail: "开发期可以观察行为，上线前建议重新确认这个开关。",
     });
   }
 
@@ -411,6 +377,13 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     [runtime]
   );
   const findings = useMemo(() => buildFindings(runtime), [runtime]);
+  const missingChannelCredentialCount = useMemo(() => {
+    if (!runtime) return 0;
+    let count = 0;
+    if (runtime.channels.telegram.enabled && !runtime.channels.telegram.tokenConfigured) count += 1;
+    if (runtime.channels.weixin.enabled && !runtime.channels.weixin.secretConfigured) count += 1;
+    return count;
+  }, [runtime]);
 
   async function saveConfig() {
     if (!adminToken || !envConfig) return;
@@ -636,6 +609,141 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         )}
       </section>
 
+      <section className="grid gap-5 lg:grid-cols-3">
+        <SummaryCard
+          label="当前模型渠道"
+          value={activeProvider?.label ?? runtime?.activeModelProvider ?? "读取中"}
+          active={Boolean(activeProvider && providerReady(activeProvider))}
+        />
+        <SummaryCard
+          label="可用 Provider"
+          value={`${readyProviderCount} / ${runtime?.providers.length ?? 0}`}
+          active={readyProviderCount > 0}
+        />
+        <SummaryCard
+          label="渠道凭证"
+          value={
+            runtime
+              ? missingChannelCredentialCount === 0
+                ? "凭证正常"
+                : `缺 ${missingChannelCredentialCount} 项`
+              : "读取中"
+          }
+          active={Boolean(runtime && missingChannelCredentialCount === 0)}
+        />
+      </section>
+
+      <details className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)]">
+        <summary className="cursor-pointer px-5 py-4">
+          <span className="inline-flex min-w-0 flex-col align-middle">
+            <span className="font-semibold text-[var(--ls-ink-strong)]">详细运行状态</span>
+            <span className="mt-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
+              模型、渠道和配置检查的只读诊断信息。
+            </span>
+          </span>
+        </summary>
+        <div className="space-y-5 border-t border-[var(--ls-border)] p-5">
+          <SectionPanel bg="muted" title="模型提供商" subtitle="只读状态，不展示密钥原文">
+            {runtime ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {runtime.providers.map((provider) => (
+                  <ProviderCard key={provider.name} provider={provider} />
+                ))}
+              </div>
+            ) : (
+              <LoadingHint loading={state.loading} />
+            )}
+          </SectionPanel>
+
+          <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+            <SectionPanel bg="muted" title="配置检查" subtitle="上线前值得看一眼的小雷达">
+              {runtime ? (
+                <div className="grid gap-3">
+                  {findings.map((finding) => (
+                    <FindingCard key={`${finding.level}-${finding.title}`} finding={finding} />
+                  ))}
+                </div>
+              ) : (
+                <LoadingHint loading={state.loading} />
+              )}
+            </SectionPanel>
+
+            <SectionPanel bg="muted" title="渠道状态" subtitle="外部入口是否启用与关键凭证状态">
+              {runtime ? (
+                <div className="grid gap-3">
+                  <ChannelCard
+                    title="Telegram"
+                    enabled={runtime.channels.telegram.enabled}
+                    rows={[
+                      ["Mode", runtime.channels.telegram.mode ?? "未启用"],
+                      ["Bot Token", configuredLabel(runtime.channels.telegram.tokenConfigured)],
+                      ["Proxy", configuredLabel(runtime.channels.telegram.proxyConfigured)],
+                    ]}
+                  />
+                  <ChannelCard
+                    title="Weixin"
+                    enabled={runtime.channels.weixin.enabled}
+                    rows={[
+                      ["Mode", runtime.channels.weixin.mode ?? "未启用"],
+                      ["Bridge Secret", configuredLabel(runtime.channels.weixin.secretConfigured)],
+                    ]}
+                  />
+                </div>
+              ) : (
+                <LoadingHint loading={state.loading} />
+              )}
+            </SectionPanel>
+          </section>
+        </div>
+      </details>
+
+      <SectionPanel bg="muted" title="运行配置" subtitle="保存在数据库；开关和下拉即时生效，不需要重启">
+        {runtimeSettings ? (
+          <RuntimeSettingsEditor
+            groups={runtimeGroups}
+            values={runtimeValues}
+            disabled={state.savingRuntime}
+            onChange={(key, value) =>
+              setRuntimeValues((current) => ({ ...current, [key]: value }))
+            }
+            onCommit={(field, value) => void saveRuntimeSettingValue(field, value)}
+          />
+        ) : (
+          <LoadingHint loading={state.loading} />
+        )}
+      </SectionPanel>
+
+      <SectionPanel
+        bg="muted"
+        title="连接与启动配置"
+        subtitle={
+          envConfig ? (
+            <Tooltip
+              title={envConfig.envPath}
+              variant="island"
+              placement="bottom"
+            >
+              <span>{`${envConfig.envPath} · 密钥或连接地址修改后需要重启`}</span>
+            </Tooltip>
+          ) : (
+            "读取连接配置"
+          )
+        }
+      >
+        {envConfig ? (
+          <EnvConfigEditor
+            groups={editableGroups}
+            values={formValues}
+            disabled={state.saving}
+            onChange={(key, value) =>
+              setFormValues((current) => ({ ...current, [key]: value }))
+            }
+          />
+        ) : (
+          <LoadingHint loading={state.loading} />
+        )}
+      </SectionPanel>
+
       <SectionPanel bg="muted" title="危险操作" subtitle="仅用于开发期清理测试数据">
         <div className="rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -696,22 +804,6 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
         </div>
       </SectionPanel>
 
-      <SectionPanel bg="muted" title="运行配置" subtitle="保存在数据库；开关和下拉即时生效，不需要重启">
-        {runtimeSettings ? (
-          <RuntimeSettingsEditor
-            groups={runtimeGroups}
-            values={runtimeValues}
-            disabled={state.savingRuntime}
-            onChange={(key, value) =>
-              setRuntimeValues((current) => ({ ...current, [key]: value }))
-            }
-            onCommit={(field, value) => void saveRuntimeSettingValue(field, value)}
-          />
-        ) : (
-          <LoadingHint loading={state.loading} />
-        )}
-      </SectionPanel>
-
       <SectionPanel bg="muted" title="最近配置变更" subtitle="记录运行配置何时从什么值改成什么值">
         {state.settingEvents.length > 0 ? (
           <div className="divide-y divide-[var(--ls-border)] rounded-lg border border-[var(--ls-border)] bg-white">
@@ -732,155 +824,6 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-[var(--ls-border)] bg-white px-4 py-5 text-sm text-[var(--ls-ink-soft)]">还没有运行配置变更。</div>
-        )}
-      </SectionPanel>
-
-      <SectionPanel
-        bg="muted"
-        title="连接与启动配置"
-        subtitle={
-          envConfig ? (
-            <Tooltip
-              title={envConfig.envPath}
-              variant="island"
-              placement="bottom"
-            >
-              <span>{`${envConfig.envPath} · 密钥或连接地址修改后需要重启`}</span>
-            </Tooltip>
-          ) : (
-            "读取连接配置"
-          )
-        }
-      >
-        {envConfig ? (
-          <EnvConfigEditor
-            groups={editableGroups}
-            values={formValues}
-            disabled={state.saving}
-            onChange={(key, value) =>
-              setFormValues((current) => ({ ...current, [key]: value }))
-            }
-          />
-        ) : (
-          <LoadingHint loading={state.loading} />
-        )}
-      </SectionPanel>
-
-      <section className="grid gap-5 xl:grid-cols-4">
-        <SummaryCard
-          label="API Base"
-          value={API_BASE_URL}
-          active={true}
-        />
-        <SummaryCard
-          label="当前模型渠道"
-          value={activeProvider?.label ?? runtime?.activeModelProvider ?? "读取中"}
-          active={Boolean(activeProvider && providerReady(activeProvider))}
-        />
-        <SummaryCard
-          label="可用 Provider"
-          value={`${readyProviderCount} / ${runtime?.providers.length ?? 0}`}
-          active={readyProviderCount > 0}
-        />
-        <SummaryCard
-          label="配置来源"
-          value="数据库 + .env"
-          active={Boolean(runtime)}
-        />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <SectionPanel bg="muted" title="模型提供商" subtitle="只读状态，不展示密钥原文">
-          {runtime ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              {runtime.providers.map((provider) => (
-                <ProviderCard key={provider.name} provider={provider} />
-              ))}
-            </div>
-          ) : (
-            <LoadingHint loading={state.loading} />
-          )}
-        </SectionPanel>
-
-        <SectionPanel bg="muted" title="配置检查" subtitle="上线前值得看一眼的小雷达">
-          {runtime ? (
-            <div className="grid gap-3">
-              {findings.map((finding) => (
-                <FindingCard key={`${finding.level}-${finding.title}`} finding={finding} />
-              ))}
-            </div>
-          ) : (
-            <LoadingHint loading={state.loading} />
-          )}
-        </SectionPanel>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-3">
-        <SectionPanel bg="muted" title="渠道状态" subtitle="外部入口是否启用与关键凭证状态">
-          {runtime ? (
-            <div className="grid gap-3">
-              <ChannelCard
-                title="Telegram"
-                enabled={runtime.channels.telegram.enabled}
-                rows={[
-                  ["Mode", runtime.channels.telegram.mode ?? "未启用"],
-                  ["Bot Token", configuredLabel(runtime.channels.telegram.tokenConfigured)],
-                  ["Proxy", configuredLabel(runtime.channels.telegram.proxyConfigured)],
-                ]}
-              />
-              <ChannelCard
-                title="Weixin"
-                enabled={runtime.channels.weixin.enabled}
-                rows={[
-                  ["Mode", runtime.channels.weixin.mode ?? "未启用"],
-                  ["Bridge Secret", configuredLabel(runtime.channels.weixin.secretConfigured)],
-                ]}
-              />
-            </div>
-          ) : (
-            <LoadingHint loading={state.loading} />
-          )}
-        </SectionPanel>
-
-        <SectionPanel bg="muted" title="功能开关" subtitle="来自数据库的实时运行配置">
-          {runtime ? (
-            <ToggleGrid values={runtime.features} labels={featureLabels} />
-          ) : (
-            <LoadingHint loading={state.loading} />
-          )}
-        </SectionPanel>
-
-        <SectionPanel bg="muted" title="安全策略" subtitle="自动写入和工具风险边界">
-          {runtime ? (
-            <ToggleGrid values={runtime.safety} labels={safetyLabels} />
-          ) : (
-            <LoadingHint loading={state.loading} />
-          )}
-        </SectionPanel>
-      </section>
-
-      <SectionPanel bg="muted" title="限制参数" subtitle="当前已生效的数据库运行配置">
-        {runtime ? (
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {Object.entries(runtime.limits).map(([key, value]) => (
-              <div
-                key={key}
-                className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3"
-              >
-                <div className="text-xs text-[var(--ls-ink-soft)]">
-                  {limitLabels[key] ?? formatKey(key)}
-                </div>
-                <div className="mt-2 text-lg font-semibold text-[var(--ls-ink-strong)]">
-                  {value}
-                </div>
-                <div className="mt-1 truncate font-mono text-[11px] text-[var(--ls-ink-soft)]" title={key}>
-                  {key}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <LoadingHint loading={state.loading} />
         )}
       </SectionPanel>
     </div>
@@ -1175,28 +1118,6 @@ function ChannelCard({
         ))}
       </div>
     </article>
-  );
-}
-
-function ToggleGrid({
-  values,
-  labels,
-}: {
-  values: Record<string, boolean>;
-  labels: Record<string, string>;
-}) {
-  return (
-    <div className="grid gap-2">
-      {Object.entries(values).map(([key, enabled]) => (
-        <div
-          key={key}
-          className="flex items-center justify-between gap-3 rounded-lg border border-[var(--ls-border)] bg-white px-3 py-2.5"
-        >
-          <span className="text-sm text-[var(--ls-ink-strong)]">{labels[key] ?? formatKey(key)}</span>
-          <StatusPill active={enabled} />
-        </div>
-      ))}
-    </div>
   );
 }
 

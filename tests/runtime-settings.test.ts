@@ -2,9 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { runtimeSettingDefinitions } from "../src/config/runtime-settings.registry.js";
 import { runtimeConfig, runtimeSettingsService } from "../src/config/runtime-settings.service.js";
-import { hasRemainingToolRounds } from "../src/core/chat.service.js";
 import { checkInput } from "../src/core/safety.js";
-import { runWithOptionalTimeout } from "../src/tools/tool-executor.js";
 import { toolRegistry } from "../src/tools/tool-registry.js";
 import "../src/init.js";
 
@@ -23,25 +21,19 @@ test("runtime settings registry never contains bootstrap secrets", () => {
 });
 
 test("temporary runtime values are visible immediately and restored", () => {
-  const original = runtimeConfig.TOOL_TIMEOUT_MS;
-  runtimeSettingsService.withTemporaryValues({ TOOL_TIMEOUT_MS: original + 1 }, () => {
-    assert.equal(runtimeConfig.TOOL_TIMEOUT_MS, original + 1);
+  const original = runtimeConfig.MEMORY_FINAL_TOP_K;
+  runtimeSettingsService.withTemporaryValues({ MEMORY_FINAL_TOP_K: original + 1 }, () => {
+    assert.equal(runtimeConfig.MEMORY_FINAL_TOP_K, original + 1);
   });
-  assert.equal(runtimeConfig.TOOL_TIMEOUT_MS, original);
+  assert.equal(runtimeConfig.MEMORY_FINAL_TOP_K, original);
 });
 
-test("message length limit can be disabled with zero", () => {
-  runtimeSettingsService.withTemporaryValues(
-    { MAX_MESSAGE_LENGTH: 0 },
-    () => assert.equal(checkInput("x".repeat(100_001)).ok, true)
-  );
-  runtimeSettingsService.withTemporaryValues(
-    { MAX_MESSAGE_LENGTH: 3 },
-    () => assert.deepEqual(checkInput("xxxx"), {
-      ok: false,
-      error: "Message too long. Maximum 3 characters allowed.",
-    })
-  );
+test("input safety rejects empty messages only", () => {
+  assert.deepEqual(checkInput("   "), {
+    ok: false,
+    error: "Message cannot be empty.",
+  });
+  assert.equal(checkInput("x".repeat(100_001)).ok, true);
 });
 
 test("registered tool access resolves from current runtime settings", () => {
@@ -52,27 +44,5 @@ test("registered tool access resolves from current runtime settings", () => {
   runtimeSettingsService.withTemporaryValues(
     { TOOL_SEARCH_MEMORIES_MODE: "on", MEMORY_RETRIEVAL_ENABLED: true },
     () => assert.equal(toolRegistry.get("search_memories")?.enabled, true)
-  );
-});
-
-test("tool call round limit can be disabled with zero", () => {
-  assert.equal(hasRemainingToolRounds(0, 3), true);
-  assert.equal(hasRemainingToolRounds(2, 3), true);
-  assert.equal(hasRemainingToolRounds(3, 3), false);
-  assert.equal(hasRemainingToolRounds(99, 0), true);
-});
-
-test("tool timeout can be disabled with zero", async () => {
-  const output = await runWithOptionalTimeout(async () => "ok", 0);
-  assert.equal(output, "ok");
-  await assert.rejects(
-    runWithOptionalTimeout(
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        return "late";
-      },
-      1
-    ),
-    /Tool timeout/
   );
 });
