@@ -51,7 +51,6 @@ export interface RuntimeConfig {
   };
   features: Record<string, boolean>;
   safety: Record<string, boolean>;
-  limits: Record<string, number>;
 }
 
 export interface RuntimeState {
@@ -449,13 +448,7 @@ export interface ClearDatabaseResponse {
 }
 
 export interface ToolPolicy {
-  enabled: boolean;
-  autoExecuteLowRisk: boolean;
-  allowMediumRisk: boolean;
-  allowHighRisk: boolean;
-  maxCallsPerMessage: number;
-  timeoutMs: number;
-  logInputOutput: boolean;
+  callLogEnabled: boolean;
 }
 
 export interface RegisteredTool {

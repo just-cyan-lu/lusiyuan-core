@@ -101,10 +101,6 @@ async function emitProgressDraft(input: {
   return part;
 }
 
-export function hasRemainingToolRounds(round: number, maxRounds: number): boolean {
-  return maxRounds === 0 || round < maxRounds;
-}
-
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   const safety = checkInput(input.message);
   if (!safety.ok) {
@@ -218,7 +214,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       }),
   ]);
 
-  const availableTools = runtimeConfig.TOOLS_ENABLED ? toolRegistry.listEnabled() : [];
+  const availableTools = toolRegistry.listEnabled();
 
   console.log(`[chat] availableTools count: ${availableTools.length}`);
 
@@ -248,10 +244,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   // Tool execution with function calling
   let reply = "";
 
-  console.log("[chat] TOOLS_ENABLED:", runtimeConfig.TOOLS_ENABLED);
   await progress();
 
-  if (runtimeConfig.TOOLS_ENABLED && availableTools.length > 0) {
+  if (availableTools.length > 0) {
     const toolContext: ToolExecutionContext = {
       userId: user.id,
       channel: input.channel,
@@ -265,8 +260,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     const toolsForLLM = convertToolsForLLM(availableTools);
     const conversationMessages: ChatMessage[] = [...messages];
 
-    // Allow multiple tool rounds to handle multi-step tasks. A value of 0 means no configured cap.
-    for (let round = 0; hasRemainingToolRounds(round, runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE); round++) {
+    // Allow multiple tool rounds to handle multi-step tasks until the model stops requesting tools.
+    for (let round = 0; ; round++) {
       console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
       const response = await modelProvider.chatWithTools(
@@ -425,7 +420,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       reply = sanitizeOutput(finalResponse);
     }
   } else {
-    // No tools enabled, just get a direct response
+    // No tool is available for this context, so use a direct response.
     const draftReply = await modelProvider.chat(messages);
     reply = sanitizeOutput(draftReply);
   }

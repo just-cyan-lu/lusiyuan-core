@@ -1128,7 +1128,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       },
       features: {
         memoryRetrieval: runtimeConfig.MEMORY_RETRIEVAL_ENABLED,
-        tools: runtimeConfig.TOOLS_ENABLED,
+        tools: true,
         dream: runtimeConfig.DREAM_ENABLED,
         runtimeStateAutoUpdate: runtimeConfig.RUNTIME_STATE_AUTO_UPDATE_ENABLED,
         runtimeAutonomy: runtimeConfig.RUNTIME_AUTONOMY_AUTO_RUN,
@@ -1137,14 +1137,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
           (runtimeConfig.MCP_ENABLED && runtimeConfig.CHROME_DEVTOOLS_MCP_ENABLED),
         mcp: runtimeConfig.MCP_ENABLED,
       },
-      safety: {
-        toolsAllowMediumRisk: runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK,
-        toolsAllowHighRisk: runtimeConfig.TOOLS_ALLOW_HIGH_RISK,
-      },
-      limits: {
-        maxMessageLength: runtimeConfig.MAX_MESSAGE_LENGTH,
-        toolMaxCallsPerMessage: runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE,
-      },
+      safety: {},
     });
   });
 

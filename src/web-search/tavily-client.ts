@@ -24,11 +24,11 @@ interface TavilyResponse {
   results: TavilyResult[];
 }
 
-async function doSearch(apiKey: string, query: string) {
+async function doSearch(apiKey: string, query: string, searchDepth: "basic" | "advanced") {
   const body: TavilySearchRequest = {
     query,
     api_key: apiKey,
-    search_depth: runtimeConfig.TAVILY_SEARCH_DEPTH as "basic" | "advanced",
+    search_depth: searchDepth,
     max_results: runtimeConfig.TAVILY_MAX_RESULTS,
     include_answer: true,
   };
@@ -45,7 +45,10 @@ async function doSearch(apiKey: string, query: string) {
   });
 }
 
-export async function tavilySearch(query: string): Promise<SearchResponse> {
+export async function tavilySearch(
+  query: string,
+  options: { searchDepth?: "basic" | "advanced" } = {}
+): Promise<SearchResponse> {
   const keys = env.TAVILY_API_KEYS;
   if (keys.length === 0) throw new Error("No Tavily API keys configured");
 
@@ -54,8 +57,10 @@ export async function tavilySearch(query: string): Promise<SearchResponse> {
 
   let lastError: Error | undefined;
 
+  const searchDepth = options.searchDepth ?? "basic";
+
   for (const key of shuffled) {
-    const res = await doSearch(key, query);
+    const res = await doSearch(key, query, searchDepth);
 
     if (res.ok) {
       const data = (await res.json()) as TavilyResponse;

@@ -25,22 +25,9 @@ function cleanDate(value: unknown): Date | undefined {
 
 function effectiveToolState(tool: {
   enabled: boolean;
-  riskLevel: string;
 }): { effectiveEnabled: boolean; disabledReason: string | null } {
   if (!tool.enabled) {
     return { effectiveEnabled: false, disabledReason: "Tool is disabled" };
-  }
-  if (!runtimeConfig.TOOLS_ENABLED) {
-    return { effectiveEnabled: false, disabledReason: "Tool layer is disabled" };
-  }
-  if (tool.riskLevel === "medium" && !runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK) {
-    return { effectiveEnabled: false, disabledReason: "Medium risk tools are disabled" };
-  }
-  if (tool.riskLevel === "high" && !runtimeConfig.TOOLS_ALLOW_HIGH_RISK) {
-    return { effectiveEnabled: false, disabledReason: "High risk tools are disabled" };
-  }
-  if (tool.riskLevel === "low" && !runtimeConfig.TOOLS_AUTO_EXECUTE_LOW_RISK) {
-    return { effectiveEnabled: false, disabledReason: "Low risk auto execution is disabled" };
   }
   return { effectiveEnabled: true, disabledReason: null };
 }
@@ -64,13 +51,7 @@ export async function toolsRoute(app: FastifyInstance): Promise<void> {
     return reply.send({
       tools,
       policy: {
-        enabled: runtimeConfig.TOOLS_ENABLED,
-        autoExecuteLowRisk: runtimeConfig.TOOLS_AUTO_EXECUTE_LOW_RISK,
-        allowMediumRisk: runtimeConfig.TOOLS_ALLOW_MEDIUM_RISK,
-        allowHighRisk: runtimeConfig.TOOLS_ALLOW_HIGH_RISK,
-        maxCallsPerMessage: runtimeConfig.TOOL_MAX_CALLS_PER_MESSAGE,
-        timeoutMs: runtimeConfig.TOOL_TIMEOUT_MS,
-        logInputOutput: runtimeConfig.TOOL_LOG_INPUT_OUTPUT,
+        callLogEnabled: runtimeConfig.TOOL_CALL_LOG_ENABLED,
       },
     });
   });

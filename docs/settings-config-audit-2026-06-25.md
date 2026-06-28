@@ -9,11 +9,11 @@
 - 运行时配置：来自 `src/config/runtime-settings.registry.ts`，写入数据库，通常保存后立即生效。
 - `.env` 连接配置：来自 `src/routes/admin.route.ts` 的 `editableEnvConfig`，写入 `.env`，通常需要重启进程才生效。
 
-审计范围是“是否仍然被代码读取、是否有必要继续出现在配置页、用在哪里”。本次只做审计记录，不改配置逻辑。
+审计范围是“是否仍然被代码读取、是否有必要继续出现在配置页、用在哪里”。确认没必要的配置会同步清理；暂时不做的方向记录到 Pending。
 
 ## 总结
 
-- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，新增 `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT`；已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`RUNTIME_AUTONOMY_TIMEZONE`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 56 个。
+- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，新增 `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT`、`TOOL_CALL_LOG_ENABLED`；已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`RUNTIME_AUTONOMY_TIMEZONE`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`、`MAX_MESSAGE_LENGTH`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT`、`TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`TAVILY_SEARCH_DEPTH`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 44 个。
 - 绝大多数配置可以确认接入了业务路径。
 - Dream 已从“固定回看小时 + 抽样上限 + 多个阈值”收敛为“上一次成功 Dream 到本次 Dream 的连续区间”，避免自动整理漏消息。
 - `.env` 配置大部分都在用，但有几个需要整理显示语义：`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`、旧的 `MODEL_*` fallback。
@@ -30,15 +30,14 @@
 | 分组 | 配置项 | 结论 | 主要使用位置 |
 | --- | --- | --- | --- |
 | 模型运行 | `ACTIVE_MODEL_PROVIDER`、`MINIMAX_THINKING_TYPE`、`MINIMAX_MAX_COMPLETION_TOKENS` | 保留 | `src/core/model-provider.ts` |
-| 聊天限制 | `MAX_MESSAGE_LENGTH` | 保留 | `src/core/safety.ts`、`src/channels/telegram/telegram.bot.ts` |
-| 回复投递 | `REPLY_DELIVERY_MODE`、`REPLY_SEGMENTATION_LLM_ENABLED`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` | 保留 | `src/core/chat.service.ts`、`src/core/reply-segmentation.service.ts` |
+| 回复投递 | `REPLY_DELIVERY_MODE`、`REPLY_SEGMENTATION_LLM_ENABLED`、`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` | 保留；`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT` 已改为代码默认值 | `src/core/chat.service.ts`、`src/core/reply-segmentation.service.ts` |
 | 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_SEMANTIC_TOP_K`、`MEMORY_FINAL_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` | 保留 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts`、`src/memory/memory-proposal.service.ts` |
-| 工具 | `TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT` | 保留 | `src/core/chat.service.ts`、`src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
-| 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE` | 保留 | `src/tools/builtin/*.tool.ts` |
+| 工具 | `TOOL_CALL_LOG_ENABLED` | 保留；工具层固定开启，访问范围只在具体工具上配置；全局/风险开关已删除 | `src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
+| 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE` | 保留；`summarize_recent_conversation` 工具和 `TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE` 已删除 | `src/tools/builtin/*.tool.ts` |
 | Reflection | 无运行时配置 | 手动 Reflection 已删除；记忆提案审核由 Dream 产物和记忆页面承接 | `src/dream/*`、`src/routes/memory-proposals.route.ts` |
 | Dream | `DREAM_ENABLED`、`DREAM_CRON` | 保留 | `src/dream/*`、`src/routes/dream.route.ts`、`src/app.ts` |
 | 运行态 | `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_AUTO_RUN`、`RUNTIME_AUTONOMY_CRON`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT` | 保留；自动校准总开关从 RuntimeState 字段迁到 system_settings，时区改用服务器本地时间；自启动聊天密度阈值可配置 | `src/runtime/runtime-state.service.ts`、`src/runtime/runtime-autonomy-scheduler.ts`、`src/app.ts` |
-| 网页能力 | `TAVILY_ENABLED`、`TAVILY_MAX_RESULTS`、`TAVILY_SEARCH_DEPTH`、`JINA_ENABLED`、`PLAYWRIGHT_ENABLED` | 保留；`PLAYWRIGHT_MAX_PAGE_TEXT_CHARS`、`PLAYWRIGHT_SCREENSHOT_ENABLED` 已删除，网页读取不再强制截断；Playwright 或 Chrome MCP 被选中时可返回截图，Jina 不支持截图 | `src/web-search/*`、`src/page-reader/*`、`src/tools/builtin/read-page.tool.ts`、`src/platforms/xiaohongshu/xiaohongshu-url-import.service.ts` |
+| 网页能力 | `TAVILY_ENABLED`、`TAVILY_MAX_RESULTS`、`JINA_ENABLED`、`PLAYWRIGHT_ENABLED` | 保留；`TAVILY_SEARCH_DEPTH` 改为 `web_search` 工具参数，由模型按本次搜索意图选择 basic/advanced；`PLAYWRIGHT_MAX_PAGE_TEXT_CHARS`、`PLAYWRIGHT_SCREENSHOT_ENABLED` 已删除，网页读取不再强制截断；Playwright 或 Chrome MCP 被选中时可返回截图，Jina 不支持截图 | `src/web-search/*`、`src/page-reader/*`、`src/tools/builtin/read-page.tool.ts`、`src/platforms/xiaohongshu/xiaohongshu-url-import.service.ts` |
 | Chrome MCP | `MCP_ENABLED`、`CHROME_DEVTOOLS_MCP_ENABLED`、`CHROME_DEVTOOLS_MCP_CONNECTION_MODE`、`CHROME_DEVTOOLS_MCP_BROWSER_URL`、`CHROME_DEVTOOLS_MCP_MIN_OPEN_INTERVAL_MS`、`CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS`、`CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS` | 保留；`CHROME_DEVTOOLS_MCP_MAX_COMMENTS` 已删除，小红书导入使用代码内固定上限 | `src/mcp/chrome-devtools-mcp.service.ts`、`src/tools/builtin/read-page.tool.ts`、`src/app.ts`、小红书导入服务 |
 | 渠道 | `TELEGRAM_ENABLED`、`TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS`、`TELEGRAM_FILE_DOWNLOAD_RETRIES`、`TELEGRAM_MAX_IMAGE_FILE_MB`、`WEIXIN_ENABLED` | 保留；Telegram 图片上限从字节改为 MB，支持小数 | `src/channels/telegram/*`、`src/channels/weixin/weixin.route.ts`、`src/app.ts` |
 
@@ -72,7 +71,26 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - 第二阶段已拆成三层上下文：最近原文热区、较早对话 compact 摘要、按当前问题向量召回的旧原文窗口。
 - compact 摘要写入 `conversation_context_summaries`，保留来源消息范围和消息数，后续可以审计、导出或重新生成。
 - 旧原文召回写入 `message_embeddings`，召回时返回命中消息前后的原文窗口，不只给模型一个模糊摘要。旧消息可用 `npm run context:index` 做 embedding backfill。
-- `summarize_recent_conversation` 目前只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文有重叠。后续要么删除，要么改成明确的“临时原文回看/按范围总结”工具，避免和自动 compact、向量召回重复。
+- `summarize_recent_conversation` 工具已删除；过去它只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文、compact 摘要、向量召回原文窗口都有重叠。
+
+## Pending：工具配置瘦身与手动停止
+
+- `MAX_MESSAGE_LENGTH` 已删除，普通聊天只保留空消息检查；长输入应交给上下文预算、模型能力和渠道侧能力处理。
+- 工具全局开关和风险开关已删除：工具层固定开启，具体是否可用只看工具自己的访问模式、ownerOnly、前置能力开关和代码注册状态。
+- `TOOL_LOG_INPUT_OUTPUT` 已替换为 `TOOL_CALL_LOG_ENABLED`。开启后 `tool_call_logs` 每次工具调用只写一条轨迹日志：工具名、状态、耗时、用户/会话、错误或阻断原因；不保存工具入参和出参，避免把网页全文、搜索结果或敏感上下文写进日志。关闭后不写 `tool_call_logs`。它更适合排查工具行为、还原 agent 轨迹；不适合作为陆思源表达学习的核心数据。
+- `TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS` 已删除。关于“手动停止当前对话/任务”，这是正确方向，比 `TOOL_TIMEOUT_MS` / `TOOL_MAX_CALLS_PER_MESSAGE` 更符合 Owner 自己判断是否该停的使用方式。要做的话建议这样设计：
+- WebChat 里，发送消息后如果 LLM 正在执行，原发送按钮切换成“停止”按钮；点击后取消本轮正在进行的 chat turn，并让前端进入可重新输入状态。
+- 后端维护运行中任务 registry：每个 chat turn、Dream job、网页读取/浏览器任务都注册一个 `taskId`、来源渠道、用户、conversationId、开始时间、状态和 `AbortController`。
+- 提供统一停止接口，例如 `POST /v1/admin/running-tasks/:taskId/cancel`，Owner 可停止任意渠道/用户的运行中任务；WebChat 自己也可以用当前 turnId 调同一套取消能力。
+- 模型请求、工具执行、Playwright/Chrome MCP/Jina 读取、Dream 长循环都逐步接收 `AbortSignal`。不是所有第三方调用都一定能立刻中断，但外层应停止后续步骤，并把结果标记为 `cancelled`。
+- Admin 后续可以加“运行中任务”面板，用来停止 Telegram、微信、WebChat 或后台 Dream 里的长任务。
+
+## Pending：下一批设置页精简候选
+
+- 回复投递细项：`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` 更像体验调参，后续可考虑固定默认；`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT` 已删除。
+- 网页能力细项：`TAVILY_MAX_RESULTS`、Chrome MCP 的 settle/open interval 等更像内部调优参数；常用配置只需要保留 Jina/Playwright/Chrome MCP 是否启用和访问权限。`TAVILY_SEARCH_DEPTH` 已删除，改由模型在 `web_search.searchDepth` 参数里按本次搜索选择。
+- `MCP_ENABLED` 与 `CHROME_DEVTOOLS_MCP_ENABLED` 当前有重叠。如果后续只有 Chrome DevTools MCP 一个 MCP 能力，可以删除总开关，只保留 Chrome DevTools MCP 开关。
+- Telegram 下载重试/超时：`TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS`、`TELEGRAM_FILE_DOWNLOAD_RETRIES` 平时很少手动调，可以改为代码默认；页面只保留 Telegram 启用和图片大小上限。
 
 ## `.env` 配置审计
 

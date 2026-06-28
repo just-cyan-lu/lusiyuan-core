@@ -189,12 +189,6 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
   const totalFeatureCount = state.runtime
     ? Object.keys(state.runtime.features).length
     : 0;
-  const enabledSafetyCount = state.runtime
-    ? Object.values(state.runtime.safety).filter(Boolean).length
-    : 0;
-  const totalSafetyCount = state.runtime
-    ? Object.keys(state.runtime.safety).length
-    : 0;
   const configuredProviderCount = state.runtime
     ? state.runtime.providers.filter(providerReady).length
     : 0;
@@ -454,7 +448,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
 
         <Panel
           title="岛上设施"
-          subtitle="正在运转的能力 / 高风险能力保持保守"
+          subtitle="正在运转的能力"
           icon="icon-diy"
           pattern="app-teal"
         >
@@ -465,13 +459,6 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 <StatusPill
                   active={enabledFeatureCount === totalFeatureCount}
                   label={`${enabledFeatureCount} / ${totalFeatureCount} 已开`}
-                />
-              </div>
-              <div className="admin-island-row flex items-center justify-between gap-3 px-3 py-2.5">
-                <span className="text-sm font-bold text-[var(--ls-ink)]">安全边界</span>
-                <StatusPill
-                  active={enabledSafetyCount === totalSafetyCount}
-                  label={`${enabledSafetyCount} / ${totalSafetyCount} 已开`}
                 />
               </div>
             </div>

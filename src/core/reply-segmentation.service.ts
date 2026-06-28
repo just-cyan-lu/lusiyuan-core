@@ -25,6 +25,9 @@ interface LlmSegmentationResponse {
 
 const SENTENCE_END_CHARS = new Set(["。", "！", "？", "!", "?", "…"]);
 const SOFT_BREAK_CHARS = new Set(["，", ",", "；", ";", "：", ":"]);
+const DEFAULT_SEGMENT_MIN_CHARS = 36;
+const DEFAULT_SEGMENT_MAX_CHARS = 180;
+const DEFAULT_SEGMENT_MAX_COUNT = 4;
 
 function hasSegmentCountLimit(maxCount: number): boolean {
   return maxCount > 0;
@@ -34,9 +37,9 @@ export function getReplySegmentationOptions(): ReplySegmentationOptions {
   return {
     mode: runtimeConfig.REPLY_DELIVERY_MODE as ReplyDeliveryMode,
     llmEnabled: runtimeConfig.REPLY_SEGMENTATION_LLM_ENABLED,
-    minChars: runtimeConfig.REPLY_SEGMENT_MIN_CHARS,
-    maxChars: runtimeConfig.REPLY_SEGMENT_MAX_CHARS,
-    maxCount: runtimeConfig.REPLY_SEGMENT_MAX_COUNT,
+    minChars: DEFAULT_SEGMENT_MIN_CHARS,
+    maxChars: DEFAULT_SEGMENT_MAX_CHARS,
+    maxCount: DEFAULT_SEGMENT_MAX_COUNT,
     delayMinMs: runtimeConfig.REPLY_HUMAN_DELAY_MIN_MS,
     delayMaxMs: runtimeConfig.REPLY_HUMAN_DELAY_MAX_MS,
   };

@@ -88,7 +88,7 @@ Recommended checks:
 | --- | --- | --- |
 | Text | `用一句话介绍你自己` | Normal reply, no visible `<think>` text. |
 | Image | Send a Telegram image. | M3 receives image input and replies about it. |
-| Tool planning | Ask a question that should use tools, with `TOOLS_ENABLED=true`. | Tool logs show calls; user sees only natural text. |
+| Tool planning | Ask a question that should use an enabled tool. | Tool logs show calls; user sees only natural text. |
 | Long answer | Ask for a structured multi-step answer. | Not truncated at normal lengths. |
 
 If tool calls fail with MiniMax, inspect logs for the raw assistant message. The
