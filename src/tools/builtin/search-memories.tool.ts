@@ -1,5 +1,6 @@
 import { memoryService } from "../../core/memory.service.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
+import { throwIfTaskCancelled } from "../../runtime/running-task-registry.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
@@ -24,10 +25,12 @@ async function handler(
   context: ToolExecutionContext
 ): Promise<SearchMemoriesOutput> {
   const query = input.query.slice(0, 500);
+  throwIfTaskCancelled(context.signal);
   const budgeted = await memoryService.retrieveRelevantMemories(
     context.userId,
     query
   );
+  throwIfTaskCancelled(context.signal);
 
   return {
     memories: budgeted.slice(0, input.limit ?? 8).map((b) => ({

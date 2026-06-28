@@ -3,6 +3,7 @@
 import cron from "node-cron";
 import { dreamService } from "./dream.service.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
+import { runningTaskRegistry } from "../runtime/running-task-registry.js";
 
 let scheduledTask: cron.ScheduledTask | null = null;
 
@@ -32,9 +33,15 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
     cronExpression,
     async () => {
       logger?.info("[DreamScheduler] Running scheduled Dream Cycle...");
+      const task = runningTaskRegistry.start({
+        kind: "dream",
+        label: "Scheduled Dream Cycle",
+        source: "scheduler",
+      });
       try {
         const result = await dreamService.runDailyDream({
           triggerType: "scheduled",
+          signal: task.signal,
         });
         if (result.status === "running") {
           logger?.info(`[DreamScheduler] Skipped: Dream job ${result.jobId} is still running`);
@@ -43,6 +50,8 @@ export function startDreamScheduler(logger?: { info: (msg: string) => void; erro
         }
       } catch (err) {
         logger?.error("[DreamScheduler] Failed to run scheduled Dream Cycle", err);
+      } finally {
+        task.finish();
       }
     },
     { scheduled: true }

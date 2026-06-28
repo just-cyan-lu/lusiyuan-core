@@ -12,6 +12,7 @@ import {
   runtimeStateService,
   type RuntimeStatePatch,
 } from "../runtime/runtime-state.service.js";
+import { runningTaskRegistry } from "../runtime/running-task-registry.js";
 import {
   relationshipPatchFromAdminBody,
   relationshipStateService,
@@ -1040,6 +1041,17 @@ function shouldRegenerateEmbedding(data: Prisma.MemoryUpdateInput): boolean {
 export async function adminRoute(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", async (request) => {
     requireAdminAuth(request);
+  });
+
+  app.get("/v1/admin/running-tasks", async (_request, reply) => {
+    return reply.send({ tasks: runningTaskRegistry.list() });
+  });
+
+  app.post("/v1/admin/running-tasks/:taskId/cancel", async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const task = runningTaskRegistry.cancel(taskId, "admin stopped task");
+    if (!task) return reply.status(404).send({ error: "Running task not found" });
+    return reply.send({ task });
   });
 
   app.get("/v1/admin/runtime", async (_request, reply) => {

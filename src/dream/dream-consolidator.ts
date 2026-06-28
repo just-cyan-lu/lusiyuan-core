@@ -36,15 +36,19 @@ export class DreamConsolidator {
     diaryEntry?: DreamDiaryEntry | null;
     jobId?: string;
     ownership?: MemoryProposalOwnership;
+    signal?: AbortSignal;
   }): Promise<DreamConsolidationResult> {
-    const { signals, dailyNote, diaryEntry, jobId, ownership } = input;
+    const { signals, dailyNote, diaryEntry, jobId, ownership, signal } = input;
 
     const userContent = this.buildUserContent(signals, dailyNote);
 
-    const raw = await modelProvider.chatJson<RawConsolidationOutput>([
-      { role: "system", content: DEEP_CONSOLIDATION_SYSTEM_PROMPT },
-      { role: "user", content: userContent },
-    ]);
+    const raw = await modelProvider.chatJson<RawConsolidationOutput>(
+      [
+        { role: "system", content: DEEP_CONSOLIDATION_SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+      { signal }
+    );
 
     const rawProposals: RawConsolidationProposal[] = Array.isArray(raw.memoryProposals)
       ? raw.memoryProposals

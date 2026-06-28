@@ -21,10 +21,10 @@ interface WebSearchOutput {
 
 async function handler(
   input: WebSearchInput,
-  _context: ToolExecutionContext
+  context: ToolExecutionContext
 ): Promise<WebSearchOutput> {
   const searchDepth = input.searchDepth === "advanced" ? "advanced" : "basic";
-  return webSearchService.search(input.query, { searchDepth });
+  return webSearchService.search(input.query, { searchDepth, signal: context.signal });
 }
 
 export const webSearchTool: ToolDefinition<WebSearchInput, WebSearchOutput> = {

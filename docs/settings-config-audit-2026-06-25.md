@@ -73,17 +73,16 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - 旧原文召回写入 `message_embeddings`，召回时返回命中消息前后的原文窗口，不只给模型一个模糊摘要。旧消息可用 `npm run context:index` 做 embedding backfill。
 - `summarize_recent_conversation` 工具已删除；过去它只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文、compact 摘要、向量召回原文窗口都有重叠。
 
-## Pending：工具配置瘦身与手动停止
+## 工具配置瘦身与手动停止
 
 - `MAX_MESSAGE_LENGTH` 已删除，普通聊天只保留空消息检查；长输入应交给上下文预算、模型能力和渠道侧能力处理。
 - 工具全局开关和风险开关已删除：工具层固定开启，具体是否可用只看工具自己的访问模式、ownerOnly、前置能力开关和代码注册状态。
 - `TOOL_LOG_INPUT_OUTPUT` 已替换为 `TOOL_CALL_LOG_ENABLED`。开启后 `tool_call_logs` 每次工具调用只写一条轨迹日志：工具名、状态、耗时、用户/会话、错误或阻断原因；不保存工具入参和出参，避免把网页全文、搜索结果或敏感上下文写进日志。关闭后不写 `tool_call_logs`。它更适合排查工具行为、还原 agent 轨迹；不适合作为陆思源表达学习的核心数据。
-- `TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS` 已删除。关于“手动停止当前对话/任务”，这是正确方向，比 `TOOL_TIMEOUT_MS` / `TOOL_MAX_CALLS_PER_MESSAGE` 更符合 Owner 自己判断是否该停的使用方式。要做的话建议这样设计：
-- WebChat 里，发送消息后如果 LLM 正在执行，原发送按钮切换成“停止”按钮；点击后取消本轮正在进行的 chat turn，并让前端进入可重新输入状态。
-- 后端维护运行中任务 registry：每个 chat turn、Dream job、网页读取/浏览器任务都注册一个 `taskId`、来源渠道、用户、conversationId、开始时间、状态和 `AbortController`。
-- 提供统一停止接口，例如 `POST /v1/admin/running-tasks/:taskId/cancel`，Owner 可停止任意渠道/用户的运行中任务；WebChat 自己也可以用当前 turnId 调同一套取消能力。
-- 模型请求、工具执行、Playwright/Chrome MCP/Jina 读取、Dream 长循环都逐步接收 `AbortSignal`。不是所有第三方调用都一定能立刻中断，但外层应停止后续步骤，并把结果标记为 `cancelled`。
-- Admin 后续可以加“运行中任务”面板，用来停止 Telegram、微信、WebChat 或后台 Dream 里的长任务。
+- `TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS` 已删除。手动停止当前对话/任务第一版已完成：WebChat 发送后按钮切换为“停止”，点击后取消本轮 web chat turn，并让前端回到可输入状态。
+- 后端已新增内存运行中任务 registry：chat turn、Dream job 会注册 `taskId`、来源渠道、用户、conversationId、开始时间、状态和 `AbortController`。
+- 已提供统一停止接口：`POST /v1/admin/running-tasks/:taskId/cancel` 可停止任意渠道/用户的运行中任务；WebChat 自己使用 `POST /v1/chat/tasks/:taskId/cancel` 停当前 web 任务。
+- 模型请求、工具执行、Tavily/Jina fetch、Playwright 读取、Chrome MCP 阶段检查、Dream 长循环都已接收或检查 `AbortSignal`。不是所有第三方调用都一定能立刻中断，但外层会停止后续步骤，并把 Dream job 标记为 `cancelled`。
+- Admin 运维页已新增“运行中任务”面板，用来停止 Telegram、微信、WebChat 或后台 Dream 里的长任务。
 
 ## Pending：下一批设置页精简候选
 

@@ -9,14 +9,18 @@ import type { DailyNote } from "@prisma/client";
 export class DailyNoteService {
   async generateDailyNote(
     context: DreamContext,
-    jobId?: string
+    jobId?: string,
+    options: { signal?: AbortSignal } = {}
   ): Promise<DailyNote> {
     const userContent = this.buildUserContent(context);
 
-    const raw = await modelProvider.chatJson<DailyNoteContent>([
-      { role: "system", content: DAILY_NOTE_SYSTEM_PROMPT },
-      { role: "user", content: userContent },
-    ]);
+    const raw = await modelProvider.chatJson<DailyNoteContent>(
+      [
+        { role: "system", content: DAILY_NOTE_SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+      { signal: options.signal }
+    );
 
     const content: DailyNoteContent = {
       summary: raw.summary ?? "（无摘要）",

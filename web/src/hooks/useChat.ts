@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { streamChatMessage, fetchConversationMessages } from "../api/lusiyuan-api";
+import {
+  cancelChatTask,
+  streamChatMessage,
+  fetchConversationMessages,
+} from "../api/lusiyuan-api";
 import type { ChatMessage, ChatReplyPart } from "../types/chat";
 import type { WebIdentity } from "../utils/storage";
 
@@ -7,6 +11,8 @@ export function useChat(identity: WebIdentity) {
   const { userId, conversationId, displayName } = identity;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
@@ -50,9 +56,12 @@ export function useChat(identity: WebIdentity) {
 
     setMessages((prev) => [...prev, userMsg]);
     setIsSending(true);
+    setIsStopping(false);
+    setCurrentTaskId(null);
     setError(null);
 
     let receivedAssistantMessage = false;
+    let stopped = false;
 
     function appendAssistantMessage(part: ChatReplyPart) {
       if (!part.content.trim()) return;
@@ -67,25 +76,60 @@ export function useChat(identity: WebIdentity) {
     }
 
     try {
-      await streamChatMessage({
-        user_id: userId,
-        channel: "web",
-        conversation_id: conversationId,
-        message: content,
-        display_name: displayName,
-      }, (event) => {
-        if (event.type === "message") appendAssistantMessage(event.data);
-      });
+      await streamChatMessage(
+        {
+          user_id: userId,
+          channel: "web",
+          conversation_id: conversationId,
+          message: content,
+          display_name: displayName,
+        },
+        (event) => {
+          if (event.type === "ready" && event.data.task_id) {
+            setCurrentTaskId(event.data.task_id);
+          }
+          if (event.type === "message") appendAssistantMessage(event.data);
+          if (event.type === "cancelled") stopped = true;
+        }
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "发送失败，请稍后重试");
-      if (!receivedAssistantMessage) {
+      if (!receivedAssistantMessage && !stopped) {
         // Remove the optimistic user message on failure before any assistant response appears.
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       }
     } finally {
       setIsSending(false);
+      setIsStopping(false);
+      setCurrentTaskId(null);
     }
   }
 
-  return { messages, isSending, isLoadingHistory, error, sendMessage };
+  async function stopMessage() {
+    if (!currentTaskId || isStopping) return;
+    setIsStopping(true);
+    setError(null);
+
+    try {
+      await cancelChatTask({
+        taskId: currentTaskId,
+        userId,
+        conversationId,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "停止失败，请稍后重试");
+      setIsStopping(false);
+    }
+  }
+
+  return {
+    messages,
+    isSending,
+    isStopping,
+    canStop: Boolean(currentTaskId) && isSending && !isStopping,
+    isLoadingHistory,
+    error,
+    sendMessage,
+    stopMessage,
+  };
 }

@@ -8,13 +8,16 @@ import {
   fetchDreamJobs,
   fetchDreamMorningBrief,
   fetchDreamSignals,
+  fetchRunningTasks,
   runDream,
+  cancelRunningTask,
   type DreamDailyNote,
   type DreamDeepSleepDetail,
   type DreamDiaryEntry,
   type DreamJob,
   type DreamMorningBrief,
   type DreamSignal,
+  type RunningTask,
 } from "../../api/lusiyuan-api";
 import { StatusPill } from "./StatusPill";
 
@@ -72,6 +75,16 @@ function formatDate(value: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatDuration(ms: number | null | undefined): string {
+  if (typeof ms !== "number" || !Number.isFinite(ms)) return "刚刚";
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
 }
 
 function localDateKey(date: Date): string {
@@ -210,6 +223,9 @@ export function DreamPage({ adminToken }: OpsPageProps) {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [runningDream, setRunningDream] = useState(false);
+  const [runningTasks, setRunningTasks] = useState<RunningTask[]>([]);
+  const [runningTasksLoading, setRunningTasksLoading] = useState(false);
+  const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
 
   const selectedDreamJob = useMemo(
     () => dreamJobs.find((job) => job.id === selectedDreamJobId) ?? dreamJobs[0] ?? null,
@@ -277,6 +293,36 @@ export function DreamPage({ adminToken }: OpsPageProps) {
       setPageError(friendlyErrorMessage(error));
     } finally {
       setDreamLoading(false);
+    }
+  }
+
+  async function loadRunningTasks() {
+    if (!adminToken) return;
+    setRunningTasksLoading(true);
+    try {
+      const data = await fetchRunningTasks(adminToken);
+      setRunningTasks(data.tasks);
+    } catch (error) {
+      setRunningTasks([]);
+      setActionError(friendlyErrorMessage(error));
+    } finally {
+      setRunningTasksLoading(false);
+    }
+  }
+
+  async function stopRunningTask(taskId: string) {
+    if (!adminToken) return;
+    setStoppingTaskId(taskId);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      await cancelRunningTask({ token: adminToken, taskId });
+      setActionMessage("已请求停止运行中任务，任务会在当前可中断点退出。");
+      await loadRunningTasks();
+    } catch (error) {
+      setActionError(friendlyErrorMessage(error));
+    } finally {
+      setStoppingTaskId(null);
     }
   }
 
@@ -360,6 +406,11 @@ export function DreamPage({ adminToken }: OpsPageProps) {
   }, [adminToken, historyRange.from, historyRange.to, signalFilter]);
 
   useEffect(() => {
+    void loadRunningTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadSelectedDeepSleep() {
@@ -406,6 +457,13 @@ export function DreamPage({ adminToken }: OpsPageProps) {
       if (result.status === "running") {
         setActionMessage("已有 Dream 正在运行，本次跳过；下一次运行会从上一次成功位置继续整理。");
         await loadDream();
+        await loadRunningTasks();
+        return;
+      }
+      if (result.status === "cancelled") {
+        setActionMessage("Dream 已停止；下一次运行会继续整理尚未覆盖的消息区间。");
+        await loadDream();
+        await loadRunningTasks();
         return;
       }
       setSelectedDreamJobId(result.jobId);
@@ -421,6 +479,7 @@ export function DreamPage({ adminToken }: OpsPageProps) {
       );
       await loadDream();
       await loadDeepSleep(result.jobId);
+      await loadRunningTasks();
     } catch (error) {
       setActionError(friendlyErrorMessage(error));
     } finally {
@@ -537,6 +596,13 @@ export function DreamPage({ adminToken }: OpsPageProps) {
           onUserIdChange={setDreamUserId}
           onRun={() => void runDreamNow()}
         />
+        <RunningTasksCard
+          tasks={runningTasks}
+          loading={runningTasksLoading}
+          stoppingTaskId={stoppingTaskId}
+          onRefresh={() => void loadRunningTasks()}
+          onStop={(taskId) => void stopRunningTask(taskId)}
+        />
       </section>
 
       <section className="rounded-lg border border-[var(--ls-border)] bg-white p-4 shadow-[var(--ls-shadow)] md:p-5">
@@ -646,6 +712,86 @@ function DreamRunCard({
         </Field>
       </div>
     </RunCard>
+  );
+}
+
+function RunningTasksCard({
+  tasks,
+  loading,
+  stoppingTaskId,
+  onRefresh,
+  onStop,
+}: {
+  tasks: RunningTask[];
+  loading: boolean;
+  stoppingTaskId: string | null;
+  onRefresh: () => void;
+  onStop: (taskId: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Running Tasks</div>
+          <h3 className="mt-2 text-xl font-semibold text-[var(--ls-ink-strong)]">运行中任务</h3>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--ls-ink-soft)]">
+            展示当前正在生成回复或运行 Dream 的任务。停止后，任务会在最近的可中断点退出。
+          </p>
+        </div>
+        <Button type="default" loading={loading} onClick={onRefresh}>
+          刷新任务
+        </Button>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {tasks.length === 0 ? (
+          <QueuePlaceholder text={loading ? "正在读取运行中任务..." : "当前没有运行中任务。"} />
+        ) : (
+          tasks.map((task) => (
+            <div
+              key={task.id}
+              className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill active={task.status === "running"} label={task.status} />
+                    <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">
+                      {task.label}
+                    </span>
+                    <span className="text-xs text-[var(--ls-ink-soft)]">
+                      {task.kind} · {task.source ?? "unknown"} · {formatDuration(task.ageMs)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--ls-ink-soft)]">
+                    <span title={task.id}>Task {shortId(task.id)}</span>
+                    <span>Channel {task.channel ?? "无"}</span>
+                    <span title={task.userId ?? undefined}>User {shortId(task.userId)}</span>
+                    <span title={task.conversationId ?? undefined}>
+                      Conversation {shortId(task.conversationId)}
+                    </span>
+                    <span>Started {formatDate(task.startedAt)}</span>
+                  </div>
+                  {task.cancelReason && (
+                    <div className="mt-2 text-xs text-[var(--ls-warning-text)]">
+                      停止原因：{task.cancelReason}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  type="default"
+                  loading={stoppingTaskId === task.id}
+                  disabled={task.status === "cancelling"}
+                  onClick={() => onStop(task.id)}
+                >
+                  {task.status === "cancelling" ? "停止中" : "停止"}
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -9,6 +9,7 @@ export interface ToolExecutionContext {
   messageId?: string;
   isOwner: boolean;
   requestId?: string;
+  signal?: AbortSignal;
 }
 
 export interface ToolParametersSchema {

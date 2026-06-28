@@ -14,9 +14,14 @@ import { toolExecutor } from "../tools/tool-executor.js";
 import { toolRegistry } from "../tools/tool-registry.js";
 import { convertToolsForLLM } from "../tools/tool-converter.js";
 import { isOwner } from "../tools/policy/owner-check.js";
-import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
+import {
+  isTaskCancellationError,
+  runningTaskRegistry,
+  TaskCancelledError,
+  throwIfTaskCancelled,
+} from "../runtime/running-task-registry.js";
 import {
   buildDuplicatedChatOutput,
   buildExternalMessageLookup,
@@ -101,7 +106,35 @@ async function emitProgressDraft(input: {
   return part;
 }
 
+export async function runChatTask(input: ChatInput): Promise<ChatOutput> {
+  const handle = runningTaskRegistry.start({
+    kind: "chat",
+    label: `${input.channel} chat`,
+    source: input.channel,
+    channel: input.channel,
+    userId: input.user_id,
+    conversationId: input.conversation_id,
+  });
+
+  try {
+    return await chat({
+      ...input,
+      task_id: handle.id,
+      signal: handle.signal,
+    });
+  } catch (err) {
+    if (isTaskCancellationError(err, handle.signal)) {
+      throw new TaskCancelledError("Chat task cancelled");
+    }
+    throw err;
+  } finally {
+    handle.finish();
+  }
+}
+
 export async function chat(input: ChatInput): Promise<ChatOutput> {
+  const signal = input.signal;
+  const checkCancelled = () => throwIfTaskCancelled(signal);
   const safety = checkInput(input.message);
   if (!safety.ok) {
     throw new Error(safety.error);
@@ -158,7 +191,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   }
 
   const owner = isOwner(input.user_id);
-  const turnId = randomUUID();
+  const turnId = input.task_id ?? randomUUID();
   let replySequence = 0;
   const replyParts: ChatReplyPart[] = [];
   const deliveryOptions = getReplySegmentationOptions();
@@ -190,6 +223,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     throw err;
   }
 
+  checkCancelled();
+
   const [persona, ownerProfile, memories, conversationContext, runtimeState, relationshipState] = await Promise.all([
     loadPersona(),
     owner ? loadOwnerProfile() : Promise.resolve(""),
@@ -213,6 +248,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         return undefined;
       }),
   ]);
+  checkCancelled();
 
   const availableTools = toolRegistry.listEnabled();
 
@@ -244,7 +280,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   // Tool execution with function calling
   let reply = "";
 
+  checkCancelled();
   await progress();
+  checkCancelled();
 
   if (availableTools.length > 0) {
     const toolContext: ToolExecutionContext = {
@@ -253,6 +291,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       conversationId: conversation.id,
       messageId: userMessage.id,
       isOwner: owner, // use externalId (e.g. "telegram:1848918705"), not internal DB id
+      signal,
     };
 
     console.log(`[chat] externalId: ${input.user_id}, isOwner: ${toolContext.isOwner}`);
@@ -262,12 +301,15 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
     // Allow multiple tool rounds to handle multi-step tasks until the model stops requesting tools.
     for (let round = 0; ; round++) {
+      checkCancelled();
       console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
       const response = await modelProvider.chatWithTools(
         conversationMessages,
-        toolsForLLM
+        toolsForLLM,
+        { signal }
       );
+      checkCancelled();
 
       // If LLM returned text (no tool calls), we're done
       if (!response.tool_calls || response.tool_calls.length === 0) {
@@ -279,6 +321,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       // LLM wants to call tools
       console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
       await progress();
+      checkCancelled();
 
       // If LLM returned text alongside tool calls, send it as an intermediate message.
       // This is the primary multi-message mechanism: the LLM naturally writes its
@@ -298,6 +341,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
           });
           if (part) replyParts.push(part);
         } catch (err) {
+          if (isTaskCancellationError(err, signal)) throw err;
           console.error("[chat] failed to send intermediate message:", err);
         }
       }
@@ -320,7 +364,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         ];
 
         try {
-          const reactionResponse = await modelProvider.chat(reactionPrompt);
+          const reactionResponse = await modelProvider.chat(reactionPrompt, { signal });
+          checkCancelled();
           const reaction = reactionResponse.trim();
 
           if (reaction.length > 0 && reaction.length < 100) {
@@ -338,10 +383,12 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
               });
               if (part) replyParts.push(part);
             } catch (err) {
+              if (isTaskCancellationError(err, signal)) throw err;
               console.error("[chat] failed to send immediate reaction:", err);
             }
           }
         } catch (err) {
+          if (isTaskCancellationError(err, signal)) throw err;
           console.warn("[chat] failed to get immediate reaction:", err);
           // Continue with tool execution even if reaction fails
         }
@@ -359,6 +406,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       console.log(`[chat] executing ${response.tool_calls.length} tool calls`);
       const toolResults: Array<{ tool_call_id: string; result: Awaited<ReturnType<typeof toolExecutor.execute>> }> = [];
       for (const toolCall of response.tool_calls) {
+        checkCancelled();
         const toolName = toolCall.function.name;
         console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
         let toolInput: unknown;
@@ -372,7 +420,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
           toolName,
           input: toolInput,
           context: toolContext,
+          signal,
         });
+        checkCancelled();
 
         console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
 
@@ -382,6 +432,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         });
       }
       await progress();
+      checkCancelled();
 
       // Add tool results to conversation
       for (const { tool_call_id, result } of toolResults) {
@@ -415,18 +466,24 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
     // If we exhausted rounds without getting a text response, ask LLM one more time without tools
     if (!reply) {
+      checkCancelled();
       console.log("[chat] exhausted tool rounds, final call without tools");
-      const finalResponse = await modelProvider.chat(conversationMessages);
+      const finalResponse = await modelProvider.chat(conversationMessages, { signal });
+      checkCancelled();
       reply = sanitizeOutput(finalResponse);
     }
   } else {
     // No tool is available for this context, so use a direct response.
-    const draftReply = await modelProvider.chat(messages);
+    checkCancelled();
+    const draftReply = await modelProvider.chat(messages, { signal });
+    checkCancelled();
     reply = sanitizeOutput(draftReply);
   }
 
   await progress();
-  const segmentation = await segmentReply(reply, deliveryOptions);
+  checkCancelled();
+  const segmentation = await segmentReply(reply, deliveryOptions, { signal });
+  checkCancelled();
   const finalReplies = segmentation.replies.length > 0 ? segmentation.replies : [reply];
   const replyGroupId = randomUUID();
   const finalParts: ChatReplyPart[] = finalReplies.map((content, index) => ({
@@ -440,6 +497,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const assistantMessages: Message[] = [];
 
   for (const [index, part] of finalParts.entries()) {
+    checkCancelled();
     assistantMessages.push(await prisma.message.create({
       data: {
         conversationId: conversation.id,

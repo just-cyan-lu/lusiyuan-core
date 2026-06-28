@@ -6,6 +6,7 @@ import { morningBriefService } from "../dream/morning-brief.service.js";
 import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
+import { runningTaskRegistry } from "../runtime/running-task-registry.js";
 import { Prisma } from "@prisma/client";
 
 export async function dreamRoute(app: FastifyInstance): Promise<void> {
@@ -45,10 +46,18 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
       return reply.status(503).send({ error: "Dream Cycle is disabled" });
     }
 
+    const task = runningTaskRegistry.start({
+      kind: "dream",
+      label: "Dream Cycle",
+      source: "admin",
+      userId: body.user_id ?? null,
+    });
+
     const result = await dreamService.runDailyDream({
       triggerType: "manual",
       userId: body.user_id,
-    });
+      signal: task.signal,
+    }).finally(() => task.finish());
 
     return reply.send({
       job_id: result.jobId,
@@ -121,7 +130,14 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
     const { jobId } = request.params as { jobId: string };
     const body = request.body as { user_id?: string };
 
-    const result = await dreamService.runJob(jobId);
+    const task = runningTaskRegistry.start({
+      kind: "dream",
+      label: `Dream job ${jobId}`,
+      source: "admin",
+    });
+
+    const result = await dreamService.runJob(jobId, { signal: task.signal })
+      .finally(() => task.finish());
     return reply.send(result);
   });
 

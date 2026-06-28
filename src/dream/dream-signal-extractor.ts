@@ -12,15 +12,19 @@ export class DreamSignalExtractor {
     context: DreamContext;
     dailyNote: DailyNote;
     jobId?: string;
+    signal?: AbortSignal;
   }): Promise<DreamSignal[]> {
-    const { context, dailyNote, jobId } = input;
+    const { context, dailyNote, jobId, signal } = input;
 
     const userContent = this.buildUserContent(context, dailyNote);
 
-    const raw = await modelProvider.chatJson<RawDreamSignal[]>([
-      { role: "system", content: DREAM_SIGNAL_SYSTEM_PROMPT },
-      { role: "user", content: userContent },
-    ]);
+    const raw = await modelProvider.chatJson<RawDreamSignal[]>(
+      [
+        { role: "system", content: DREAM_SIGNAL_SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+      { signal }
+    );
 
     const rawSignals = Array.isArray(raw) ? raw : [];
     const filtered = filterSignals(rawSignals);

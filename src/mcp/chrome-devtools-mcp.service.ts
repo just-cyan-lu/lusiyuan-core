@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
+import { throwIfTaskCancelled } from "../runtime/running-task-registry.js";
 import { StdioMcpClient, mcpText, type McpToolResult } from "./mcp-client.js";
 
 export interface ChromeMcpPage {
@@ -16,6 +17,7 @@ export interface ChromeMcpPage {
 interface EnsurePageOptions {
   aliases?: string[];
   settleMs?: number;
+  signal?: AbortSignal;
 }
 
 const allowedTools = new Set([
@@ -174,7 +176,7 @@ class ChromeDevtoolsMcpService {
 
     if (existing) {
       await this.callAllowedTool("select_page", { pageId: existing.id, bringToFront: false });
-      await this.settle(options.settleMs);
+      await this.settle(options.settleMs, options.signal);
       return { page: existing, reused: true };
     }
 
@@ -191,7 +193,7 @@ class ChromeDevtoolsMcpService {
       background: false,
       timeout: 30000,
     });
-    await this.settle(options.settleMs);
+    await this.settle(options.settleMs, options.signal);
     const pages = pagesFromResult(result);
     const selected = pages.find((page) => page.selected) ?? pages.find((page) => normalizeUrl(page.url) === normalizeUrl(url));
     if (!selected) {
@@ -236,15 +238,19 @@ class ChromeDevtoolsMcpService {
     }
   }
 
-  async read(url: string, waitMs?: number, screenshot = false) {
+  async read(url: string, waitMs?: number, screenshot = false, signal?: AbortSignal) {
     return this.runExclusive(async () => {
-      const { reused } = await this.ensurePage(url, { settleMs: waitMs });
+      throwIfTaskCancelled(signal);
+      const { reused } = await this.ensurePage(url, { settleMs: waitMs, signal });
+      throwIfTaskCancelled(signal);
       const result = await this.evaluate<{ url: string; title: string; content: string }>(`() => ({
         url: location.href,
         title: document.title,
         content: document.body?.innerText ?? ""
       })`);
+      throwIfTaskCancelled(signal);
       const screenshotBase64 = screenshot ? await this.takeScreenshotBase64() : undefined;
+      throwIfTaskCancelled(signal);
       await prisma.externalPageSnapshot.create({
         data: {
           id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -271,11 +277,26 @@ class ChromeDevtoolsMcpService {
     await client?.disconnect();
   }
 
-  private async settle(requested?: number): Promise<void> {
+  private async settle(requested?: number, signal?: AbortSignal): Promise<void> {
     const waitMs = requested === undefined
       ? randomBetween(runtimeConfig.CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS, runtimeConfig.CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS)
       : Math.min(Math.max(requested, 300), 5000);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    throwIfTaskCancelled(signal);
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => signal?.removeEventListener("abort", onAbort);
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, waitMs);
+      const onAbort = () => {
+        clearTimeout(timeout);
+        cleanup();
+        reject(signal?.reason instanceof Error ? signal.reason : new Error("Task cancelled"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+    });
+    throwIfTaskCancelled(signal);
   }
 }
 

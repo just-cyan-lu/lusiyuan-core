@@ -76,13 +76,18 @@ export interface ProviderCapabilities {
   requestsToolReactionFallback: boolean;
 }
 
+export interface ModelCallOptions {
+  signal?: AbortSignal;
+}
+
 export interface ModelProvider {
   capabilities: ProviderCapabilities;
-  chat(messages: ChatMessage[]): Promise<string>;
-  chatJson<T>(messages: ChatMessage[]): Promise<T>;
+  chat(messages: ChatMessage[], options?: ModelCallOptions): Promise<string>;
+  chatJson<T>(messages: ChatMessage[], options?: ModelCallOptions): Promise<T>;
   chatWithTools(
     messages: ChatMessage[],
-    tools: ToolDefinitionForLLM[]
+    tools: ToolDefinitionForLLM[],
+    options?: ModelCallOptions
   ): Promise<{
     content: string | null;
     rawContent?: string | null;

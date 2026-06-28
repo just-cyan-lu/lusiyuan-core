@@ -12,15 +12,19 @@ export class DreamDiaryWriter {
     dailyNote: DailyNote;
     signals: DreamSignal[];
     jobId?: string;
+    signal?: AbortSignal;
   }): Promise<DreamDiaryEntry | null> {
-    const { dailyNote, signals, jobId } = input;
+    const { dailyNote, signals, jobId, signal } = input;
     const persona = await loadPersona();
     const userContent = this.buildUserContent(dailyNote, signals, persona);
 
-    const raw = await modelProvider.chatJson<RawDreamDiaryEntry>([
-      { role: "system", content: DREAM_DIARY_SYSTEM_PROMPT },
-      { role: "user", content: userContent },
-    ]);
+    const raw = await modelProvider.chatJson<RawDreamDiaryEntry>(
+      [
+        { role: "system", content: DREAM_DIARY_SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+      { signal }
+    );
 
     const title = raw.title ?? null;
     let content = raw.content ?? "";

@@ -77,7 +77,16 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
   const [conversations, setConversations] = useState<WebChatConversationSummary[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [selectorError, setSelectorError] = useState<string | null>(null);
-  const { messages, isSending, isLoadingHistory, error, sendMessage } = useChat(identity);
+  const {
+    messages,
+    isSending,
+    isStopping,
+    canStop,
+    isLoadingHistory,
+    error,
+    sendMessage,
+    stopMessage,
+  } = useChat(identity);
 
   const selectedConversation = useMemo(
     () =>
@@ -267,7 +276,11 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
       )}
       <ChatInput
         onSend={sendMessage}
-        disabled={isSending || !canUseCurrentConversation}
+        onStop={stopMessage}
+        disabled={!canUseCurrentConversation}
+        isSending={isSending}
+        isStopping={isStopping}
+        canStop={canStop}
       />
     </div>
   );
