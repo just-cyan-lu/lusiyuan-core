@@ -61,10 +61,6 @@ function getActiveProviderConfig(): ProviderConfig {
 
   const config = configMap[active];
   if (!config) {
-    // Fallback to legacy single-provider config
-    if (env.MODEL_BASE_URL && env.MODEL_API_KEY && env.MODEL_NAME) {
-      return { type: "openai-compatible", baseURL: env.MODEL_BASE_URL, apiKey: env.MODEL_API_KEY, model: env.MODEL_NAME };
-    }
     throw new Error(`Unknown ACTIVE_MODEL_PROVIDER: ${active}. Supported: ${Object.keys(configMap).join(", ")}`);
   }
 

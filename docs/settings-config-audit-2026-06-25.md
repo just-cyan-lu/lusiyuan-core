@@ -16,7 +16,7 @@
 - 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，新增 `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT`、`TOOL_CALL_LOG_ENABLED`；已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`RUNTIME_AUTONOMY_TIMEZONE`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`、`MAX_MESSAGE_LENGTH`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT`、`TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`TAVILY_SEARCH_DEPTH`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 44 个。
 - 绝大多数配置可以确认接入了业务路径。
 - Dream 已从“固定回看小时 + 抽样上限 + 多个阈值”收敛为“上一次成功 Dream 到本次 Dream 的连续区间”，避免自动整理漏消息。
-- `.env` 配置大部分都在用，但有几个需要整理显示语义：`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`、旧的 `MODEL_*` fallback。
+- `.env` 配置大部分都在用；`TAVILY_API_KEYS` 已统一为唯一 Tavily key 配置，旧的 `MODEL_*` fallback 已删除。`WEB_ORIGIN` 仍需要等上线前决定是否接入全局 CORS。
 
 ## 运行时配置入口
 
@@ -104,22 +104,21 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 | `WEIXIN_BRIDGE_SECRET` | 在用 | `src/channels/weixin/weixin.route.ts` | 保留。 |
 | `WEB_ORIGIN` | 部分在用。SSE chat route 写了 `Access-Control-Allow-Origin`，但全局 CORS 仍是 `origin: true`。 | `src/routes/chat.route.ts`、`src/app.ts` | 要么改全局 CORS 真正使用它，要么在页面文案里说明它只影响部分 SSE 响应。 |
 | `EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`、`EMBEDDING_DIMENSIONS` | 在用 | `src/embeddings/siliconflow-embedding-provider.ts` | 保留。它们会影响记忆、表达学习等 embedding 能力。 |
-| `TAVILY_API_KEY`、`TAVILY_API_KEYS` | 都能生效，但最终会合并成 `env.TAVILY_API_KEYS`。 | `src/utils/env.ts`、`src/web-search/tavily-client.ts` | 页面上建议主推 `TAVILY_API_KEYS`，把单数 key 标成“兼容旧单 key”或移除单数入口。 |
+| `TAVILY_API_KEYS` | 在用 | `src/utils/env.ts`、`src/web-search/tavily-client.ts` | 已统一为唯一 Tavily key 配置；多个 key 用英文逗号分隔，不再读取单数 `TAVILY_API_KEY`。 |
 | `JINA_API_KEY` | 在用 | `src/page-reader/jina-reader.ts` | 保留。 |
 | `EXTERNAL_HTTP_PROXY` | 在用 | Tavily、Jina、Telegram 文件下载 | 保留。 |
 
 ## 额外发现
 
-- `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` 仍在 `src/utils/env.ts` 和 `src/core/model-provider.ts` 里作为旧单 provider fallback，但没有出现在 settings 页面。开发期如果已经迁到多 provider 结构，可以考虑后续直接删除这组 legacy fallback。
+- 旧的 `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` fallback 已删除；模型只按 `ACTIVE_MODEL_PROVIDER` 指向的 provider 配置读取，配置错了就直接报错。
 - `WEB_ORIGIN` 目前像是“安全配置”，但全局 CORS 仍允许任意 origin。这个最好单独修，不然配置页会给人一种已经限制来源的错觉。
 - 手动 Reflection 已删除。后续记忆提案、成长记录、风险项统一从 Dream 深睡阶段进入待审核队列。
 - 已处理：旧 `reflection_jobs`、`reflection_reports`、`reflection_risk_flags` 表已删除；记忆提案、风险项、成长日志现在直接挂到 `dream_consolidation_reports`，由 Dream 深睡阶段统一生成和审核。
 
 ## 建议清理顺序
 
-1. 整理 `.env` 页面语义：`WEB_ORIGIN`、`TAVILY_API_KEY`/`TAVILY_API_KEYS`。
-2. 决定是否删除 legacy `MODEL_*` fallback。
-3. 最后再做前端分组文案优化，把“立即生效”和“需要重启”更明显地区分开。
+1. 上线前决定 `WEB_ORIGIN` 是否接入全局 CORS；开发测试阶段可以继续保持 `src/app.ts` 里的 `origin: true` 全放开。
+2. 最后再做前端分组文案优化，把“立即生效”和“需要重启”更明显地区分开。
 
 ## 审计命令
 

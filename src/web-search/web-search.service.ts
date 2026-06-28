@@ -13,7 +13,7 @@ class WebSearchService {
     }
 
     if (env.TAVILY_API_KEYS.length === 0) {
-      throw new Error("No Tavily API keys configured (TAVILY_API_KEYS or TAVILY_API_KEY)");
+      throw new Error("No Tavily API keys configured (TAVILY_API_KEYS)");
     }
 
     return tavilySearch(query, options);
