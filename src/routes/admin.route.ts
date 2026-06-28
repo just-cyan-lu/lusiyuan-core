@@ -142,7 +142,7 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
   { key: "TAVILY_API_KEY", group: "网页连接", label: "Tavily API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
   { key: "TAVILY_API_KEYS", group: "网页连接", label: "Tavily API Keys", type: "secret", description: "多个 key 用英文逗号分隔。" },
   { key: "JINA_API_KEY", group: "网页连接", label: "Jina API Key", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
-  { key: "EXTERNAL_HTTP_PROXY", group: "网络连接", label: "External HTTP Proxy", type: "string" },
+  { key: "EXTERNAL_HTTP_PROXY", group: "网络连接", label: "External HTTP Proxy", type: "string", description: "通用外部 HTTP 代理，例如 http://127.0.0.1:7890；影响 Tavily、Jina 和 Telegram 文件下载，不影响模型 API、Playwright 或 Chrome MCP。" },
 ];
 
 const editableEnvConfigByKey = new Map(
