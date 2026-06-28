@@ -14,6 +14,10 @@ const conversationSessions = new Map<number, string>();
 
 class TelegramImageTooLargeError extends Error {}
 
+function telegramMaxImageFileBytes(): number {
+  return Math.floor(runtimeConfig.TELEGRAM_MAX_IMAGE_FILE_MB * 1024 * 1024);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 }
@@ -75,7 +79,8 @@ export function createTelegramBot(token: string) {
     fileSize?: number,
     fallbackMimeType?: string
   ): Promise<MessageContentPart> {
-    if (fileSize && fileSize > runtimeConfig.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
+    const maxImageBytes = telegramMaxImageFileBytes();
+    if (fileSize && fileSize > maxImageBytes) {
       throw new TelegramImageTooLargeError(
         `Telegram image is too large: ${fileSize} bytes`
       );
@@ -84,7 +89,7 @@ export function createTelegramBot(token: string) {
     const fileInfo = await bot.api.getFile(fileId);
     const telegramFile = fileInfo as { file_path?: string; file_size?: number };
     const resolvedSize = fileSize ?? telegramFile.file_size;
-    if (resolvedSize && resolvedSize > runtimeConfig.TELEGRAM_MAX_IMAGE_FILE_BYTES) {
+    if (resolvedSize && resolvedSize > maxImageBytes) {
       throw new TelegramImageTooLargeError(
         `Telegram image is too large: ${resolvedSize} bytes`
       );

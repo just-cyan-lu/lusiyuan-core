@@ -68,11 +68,11 @@ export const runtimeSettingDefinitions = {
   CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS: { group: "Chrome MCP", label: "稳定等待最短时间", type: "integer", defaultValue: 3000, min: 300, max: 60000, description: "打开或切换页面后至少等待多久再读取，让页面 JS 和评论有时间加载。" },
   CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS: { group: "Chrome MCP", label: "稳定等待最长时间", type: "integer", defaultValue: 5000, min: 300, max: 60000, description: "没有指定等待时间时的随机等待上限；必须大于等于最短等待。" },
 
-  TELEGRAM_ENABLED: { group: "渠道", label: "Telegram 启用", type: "boolean", defaultValue: false, description: "保存后立即启动或停止长轮询。" },
-  TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS: { group: "渠道", label: "Telegram 下载超时", type: "integer", defaultValue: 30000, min: 1000, max: 300000 },
-  TELEGRAM_FILE_DOWNLOAD_RETRIES: { group: "渠道", label: "Telegram 下载重试", type: "integer", defaultValue: 2, min: 0, max: 20 },
-  TELEGRAM_MAX_IMAGE_FILE_BYTES: { group: "渠道", label: "Telegram 图片最大字节", type: "integer", defaultValue: 10485760, min: 1, max: 104857600 },
-  WEIXIN_ENABLED: { group: "渠道", label: "微信桥接启用", type: "boolean", defaultValue: false },
+  TELEGRAM_ENABLED: { group: "渠道", label: "Telegram 启用", type: "boolean", defaultValue: false, description: "保存后立即启动或停止 Telegram 长轮询；需要先在渠道连接里配置 Bot Token 并重启。" },
+  TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS: { group: "渠道", label: "Telegram 下载超时", type: "integer", defaultValue: 30000, min: 1000, max: 300000, description: "Telegram 图片/文件下载的单次等待时间，单位毫秒；网络慢或走代理时可以调大。" },
+  TELEGRAM_FILE_DOWNLOAD_RETRIES: { group: "渠道", label: "Telegram 下载重试", type: "integer", defaultValue: 2, min: 0, max: 20, description: "Telegram 图片/文件下载失败后的重试次数；0 表示不重试。" },
+  TELEGRAM_MAX_IMAGE_FILE_MB: { group: "渠道", label: "Telegram 图片最大大小", type: "number", defaultValue: 10, min: 0.1, max: 100, description: "Telegram 图片输入的最大大小，单位 MB；支持小数，比如 2.5 表示 2.5 MB。" },
+  WEIXIN_ENABLED: { group: "渠道", label: "微信桥接启用", type: "boolean", defaultValue: false, description: "开启后接收 OpenClaw/微信桥接推送；需要先在渠道连接里配置 Weixin Bridge Secret 并重启。" },
 } as const satisfies Record<string, RuntimeSettingDefinition>;
 
 export type RuntimeSettingKey = keyof typeof runtimeSettingDefinitions;

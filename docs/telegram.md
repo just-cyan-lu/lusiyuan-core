@@ -70,4 +70,4 @@ pnpm telegram:dev
 
 **Q: 想部署到服务器**
 - v0.2 使用 long polling，可以直接在服务器运行 `pnpm telegram:dev`
-- 后续可以改成 webhook 模式（在 `.env` 中设置 `TELEGRAM_MODE=webhook`，需要公网 HTTPS 域名）
+- 目前代码只接了 polling；`TELEGRAM_MODE` 页面上也只有 `polling` 选项，webhook 要等后续真正实现后再开放。
