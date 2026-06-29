@@ -11,6 +11,7 @@ import {
   resetRelationshipState,
   updateRelationshipState,
   type IdentityLinkProposal,
+  type RelationshipAffinityProposal,
   type RelationshipState,
   type RelationshipStateEvent,
 } from "../../api/lusiyuan-api";
@@ -27,6 +28,7 @@ interface RelationshipStatePageProps {
 interface PageState {
   relationships: RelationshipState[];
   proposals: IdentityLinkProposal[];
+  affinityProposals: RelationshipAffinityProposal[];
   selected: RelationshipState | null;
   events: RelationshipStateEvent[];
   loading: boolean;
@@ -147,6 +149,37 @@ const relationshipFieldLabels: Record<string, string> = {
   reason: "原因",
 };
 
+function affinityEvidenceTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    sincerity: "真诚暴露",
+    shared_trait: "同频 trait",
+    cheerful_chat: "聊得开心",
+    caring_for_lusiyuan: "关心思源",
+    gentle_kindness: "温柔体贴",
+    project_interest: "项目兴趣",
+    project_contribution: "项目贡献",
+    value_conflict: "价值冲突",
+    hostility_or_value_denial: "敌意/否定价值",
+  };
+  return labels[type] ?? type;
+}
+
+function affinityProposalStatusLabel(status: string): string {
+  if (status === "applied") return "已自动应用";
+  if (status === "observed") return "已记录未变化";
+  return status;
+}
+
+function signedDelta(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function sourceMessageIdsText(value: unknown): string {
+  if (!Array.isArray(value)) return "暂无";
+  const ids = value.filter((item): item is string => typeof item === "string");
+  return ids.length > 0 ? ids.join(" / ") : "暂无";
+}
+
 export function RelationshipStatePage({
   adminToken,
   selectedRelationshipId,
@@ -162,6 +195,7 @@ export function RelationshipStatePage({
   const [pageState, setPageState] = useState<PageState>({
     relationships: [],
     proposals: [],
+    affinityProposals: [],
     selected: null,
     events: [],
     loading: false,
@@ -175,6 +209,7 @@ export function RelationshipStatePage({
       setPageState({
         relationships: [],
         proposals: [],
+        affinityProposals: [],
         selected: null,
         events: [],
         loading: false,
@@ -202,6 +237,7 @@ export function RelationshipStatePage({
       ]);
       const selectedId = preferredId ?? selectedRelationshipId ?? null;
       let events: RelationshipStateEvent[] = [];
+      let affinityProposals: RelationshipAffinityProposal[] = [];
       let detailRelationship: RelationshipState | null = null;
       if (selectedId) {
         const detail = await fetchRelationshipDetail({
@@ -210,6 +246,7 @@ export function RelationshipStatePage({
         });
         detailRelationship = detail.relationship;
         events = detail.events;
+        affinityProposals = detail.affinityProposals ?? [];
       }
 
       setPageState((current) => ({
@@ -218,6 +255,7 @@ export function RelationshipStatePage({
         proposals: proposalData.proposals,
         selected: detailRelationship,
         events,
+        affinityProposals,
         loading: false,
         error: null,
       }));
@@ -244,6 +282,7 @@ export function RelationshipStatePage({
         ...current,
         selected: detail.relationship,
         events: detail.events,
+        affinityProposals: detail.affinityProposals ?? [],
         loading: false,
         error: null,
         message: null,
@@ -336,6 +375,7 @@ export function RelationshipStatePage({
         ),
         selected: detail.relationship,
         events: detail.events,
+        affinityProposals: detail.affinityProposals ?? [],
         saving: false,
         message: "关系状态已保存。",
       }));
@@ -365,6 +405,7 @@ export function RelationshipStatePage({
         ),
         selected: detail.relationship,
         events: detail.events,
+        affinityProposals: detail.affinityProposals ?? [],
         saving: false,
         message: "关系状态已重置。",
       }));
@@ -393,6 +434,7 @@ export function RelationshipStatePage({
         relationships: list.relationships,
         selected: detail.relationship,
         events: detail.events,
+        affinityProposals: detail.affinityProposals ?? [],
         saving: false,
         message: "用户身份已绑定到当前现实身份。",
       }));
@@ -784,6 +826,90 @@ export function RelationshipStatePage({
               ) : (
                 <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
                   暂无待审核的身份怀疑。
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">好感度整理</h3>
+                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+                  Dream 根据真诚、同频、关心和价值冲突等证据自动调整。这里保留每次调整的完整证据。
+                </p>
+              </div>
+              <div className="rounded-full bg-[var(--ls-panel-soft)] px-3 py-1 text-xs font-medium text-[var(--ls-ink-soft)]">
+                {pageState.affinityProposals.length} 条整理
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              {pageState.affinityProposals.length > 0 ? (
+                pageState.affinityProposals.map((proposal) => (
+                  <div
+                    key={proposal.id}
+                    className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
+                          <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
+                            {affinityProposalStatusLabel(proposal.status)}
+                          </span>
+                          <span>{proposal.source}</span>
+                          {proposal.channel && <span>渠道：{proposal.channel}</span>}
+                          <span>{formatDate(proposal.createdAt)}</span>
+                        </div>
+                        <div className="mt-2 text-sm font-semibold leading-6 text-[var(--ls-ink-strong)]">
+                          {proposal.reason}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
+                        <span className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-1.5 font-semibold text-[var(--ls-ink-strong)]">
+                          {proposal.beforeAffinity} → {proposal.afterAffinity}
+                        </span>
+                        <span className={`rounded-lg border px-3 py-1.5 font-black tabular-nums ${
+                          proposal.delta >= 0
+                            ? "border-[var(--ls-success-border-soft)] bg-[var(--ls-success-bg-soft)] text-[var(--ls-success-text-strong)]"
+                            : "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text-strong)]"
+                        }`}>
+                          {signedDelta(proposal.delta)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-3">
+                      {proposal.evidences.map((evidence) => (
+                        <div
+                          key={evidence.id}
+                          className="rounded-md border border-[var(--ls-border)] bg-white px-3 py-3"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
+                            <span className="rounded-full border border-[var(--ls-border-cold)] bg-[var(--ls-panel-cold)] px-2 py-0.5 font-semibold text-[var(--ls-ink-strong)]">
+                              {affinityEvidenceTypeLabel(evidence.evidenceType)}
+                            </span>
+                            <span>基础 {signedDelta(evidence.baseDelta)}</span>
+                            <span>实际 {signedDelta(evidence.adjustedDelta)}</span>
+                            <span>置信 {Math.round(evidence.confidence * 100)}%</span>
+                          </div>
+                          <div className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">
+                            {evidence.content}
+                          </div>
+                          <div className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+                            {evidence.reason}
+                          </div>
+                          <div className="mt-1 break-all text-[11px] leading-5 text-[var(--ls-ink-soft)]">
+                            来源消息：{sourceMessageIdsText(evidence.sourceMessageIds)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
+                  暂无 Dream 好感度整理记录。
                 </div>
               )}
             </div>

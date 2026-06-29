@@ -79,7 +79,26 @@ export class DreamContextBuilder {
     const rows = await prisma.message.findMany({
       where,
       orderBy: { createdAt: "asc" },
-      select: { id: true, role: true, content: true, createdAt: true },
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        createdAt: true,
+        conversationId: true,
+        conversation: {
+          select: {
+            channel: true,
+            externalConversationId: true,
+            userId: true,
+            user: {
+              select: {
+                externalId: true,
+                displayName: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     return rows.map((r) => ({
@@ -87,6 +106,12 @@ export class DreamContextBuilder {
       role: r.role,
       content: r.content,
       createdAt: r.createdAt,
+      conversationId: r.conversationId,
+      channel: r.conversation.channel,
+      externalConversationId: r.conversation.externalConversationId,
+      userId: r.conversation.userId,
+      userDisplayName: r.conversation.user.displayName,
+      userExternalId: r.conversation.user.externalId,
     }));
   }
 

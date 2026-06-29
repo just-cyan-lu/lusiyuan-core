@@ -4,14 +4,14 @@ import type { RuntimeState } from "@prisma/client";
 import {
   deriveRuntimeEventFromChatTurn,
   deriveRuntimeStatePatch,
+  moodLabelFromEnergyLevel,
   validateRuntimeStateProposal,
 } from "../src/runtime/runtime-state.service.js";
 
 const baseState: RuntimeState = {
   id: "runtime-1",
   key: "global",
-  moodLabel: "平稳",
-  moodScore: 10,
+  moodLabel: "平稳在线",
   energyLevel: 62,
   currentGoal: "自然聊天。",
   currentFocus: "日常聊天。",
@@ -34,7 +34,6 @@ test("derives an emotional runtime patch from tired user messages", () => {
     assistantReply: "我在，先别急着撑住。",
   });
 
-  assert.equal(patch.moodLabel, "有点担心，但在认真接住");
   assert.equal(patch.currentFocus, "对方当下的情绪和需要被接住的部分");
   assert.equal(patch.currentActivity, "陪对方待在情绪里，不急着给答案。");
   assert.ok((patch.energyLevel ?? 100) < baseState.energyLevel);
@@ -49,7 +48,6 @@ test("derives a focused runtime patch from runtime design messages", () => {
     assistantReply: "可以，我先把运行态落成正式骨架。",
   });
 
-  assert.equal(patch.moodLabel, "专注、有点被点亮");
   assert.equal(patch.currentFocus, "运行体结构和项目实现");
   assert.equal(patch.currentGoal, "把陆思源的持续状态系统做稳。");
   assert.ok((patch.energyLevel ?? 0) > baseState.energyLevel);
@@ -113,9 +111,9 @@ test("validates LLM runtime proposals with bounded numeric changes", () => {
     },
   });
 
-  assert.equal(validated.patch.moodScore, 0);
   assert.equal(validated.patch.energyLevel, 52);
-  assert.deepEqual(validated.rejectedFields, ["updateStrategy"]);
+  assert.equal("moodScore" in validated.patch, false);
+  assert.deepEqual(validated.rejectedFields, ["moodLabel", "moodScore", "updateStrategy"]);
   assert.match(JSON.stringify(validated.patch.metadata), /innerWeather/);
 });
 
@@ -127,7 +125,16 @@ test("rejects invalid numeric values from LLM runtime proposals", () => {
     },
   });
 
-  assert.equal(validated.patch.moodScore, undefined);
+  assert.equal("moodScore" in validated.patch, false);
   assert.equal(validated.patch.energyLevel, undefined);
   assert.deepEqual(validated.rejectedFields, ["moodScore", "energyLevel"]);
+});
+
+test("maps energy level to mood label", () => {
+  assert.equal(moodLabelFromEnergyLevel(5), "很低电");
+  assert.equal(moodLabelFromEnergyLevel(28), "安静，需要缓一缓");
+  assert.equal(moodLabelFromEnergyLevel(44), "有点累，但稳定");
+  assert.equal(moodLabelFromEnergyLevel(62), "平稳在线");
+  assert.equal(moodLabelFromEnergyLevel(74), "被点亮了一点");
+  assert.equal(moodLabelFromEnergyLevel(95), "兴致很高");
 });

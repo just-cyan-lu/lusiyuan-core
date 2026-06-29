@@ -8,8 +8,6 @@ export const DEFAULT_RUNTIME_STATE_KEY = "global";
 export type RuntimeUpdateStrategy = "rules" | "llm";
 
 export interface RuntimeStatePatch {
-  moodLabel?: string;
-  moodScore?: number;
   energyLevel?: number;
   currentGoal?: string | null;
   currentFocus?: string | null;
@@ -34,7 +32,7 @@ export interface RuntimeStateDetail {
 export interface RuntimeStateLlmProposal {
   summary?: string;
   confidence?: number;
-  patch?: RuntimeStatePatch;
+  patch?: Record<string, unknown>;
   details?: RuntimeStateDetail;
   riskFlags?: string[];
 }
@@ -87,8 +85,7 @@ export interface RuntimeEventInput {
 
 const defaultRuntimeState = {
   key: DEFAULT_RUNTIME_STATE_KEY,
-  moodLabel: "平稳",
-  moodScore: 10,
+  moodLabel: "平稳在线",
   energyLevel: 62,
   currentGoal: "把对话接住，保持自然和稳定。",
   currentFocus: "观察最近对话和运行状态。",
@@ -108,6 +105,16 @@ const allowedStateMutationSourcePrefixes = [
 
 function clampInt(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.round(value), min), max);
+}
+
+export function moodLabelFromEnergyLevel(value: number): string {
+  const energy = clampInt(value, 0, 100);
+  if (energy <= 15) return "很低电";
+  if (energy <= 30) return "安静，需要缓一缓";
+  if (energy <= 45) return "有点累，但稳定";
+  if (energy <= 65) return "平稳在线";
+  if (energy <= 80) return "被点亮了一点";
+  return "兴致很高";
 }
 
 function cleanText(value: unknown, maxChars: number): string | null | undefined {
@@ -134,14 +141,10 @@ function cleanStrategy(value: unknown): RuntimeUpdateStrategy | undefined {
 function normalizePatch(patch: RuntimeStatePatch): Prisma.RuntimeStateUpdateInput {
   const data: Prisma.RuntimeStateUpdateInput = {};
 
-  if (patch.moodLabel !== undefined) {
-    data.moodLabel = cleanText(patch.moodLabel, 40) ?? "平稳";
-  }
-  if (patch.moodScore !== undefined) {
-    data.moodScore = clampInt(patch.moodScore, -100, 100);
-  }
   if (patch.energyLevel !== undefined) {
-    data.energyLevel = clampInt(patch.energyLevel, 0, 100);
+    const energyLevel = clampInt(patch.energyLevel, 0, 100);
+    data.energyLevel = energyLevel;
+    data.moodLabel = moodLabelFromEnergyLevel(energyLevel);
   }
   if (patch.currentGoal !== undefined) {
     data.currentGoal = cleanText(patch.currentGoal, 240);
@@ -176,7 +179,6 @@ function snapshotRuntimeState(state: RuntimeState): Prisma.InputJsonObject {
     id: state.id,
     key: state.key,
     moodLabel: state.moodLabel,
-    moodScore: state.moodScore,
     energyLevel: state.energyLevel,
     currentGoal: state.currentGoal,
     currentFocus: state.currentFocus,
@@ -191,8 +193,9 @@ function snapshotRuntimeState(state: RuntimeState): Prisma.InputJsonObject {
 
 function summarizePatch(patch: RuntimeStatePatch): string {
   const parts = [
-    patch.moodLabel ? `心情：${patch.moodLabel}` : "",
-    patch.energyLevel !== undefined ? `精力 ${patch.energyLevel}` : "",
+    patch.energyLevel !== undefined
+      ? `心力 ${patch.energyLevel}（${moodLabelFromEnergyLevel(patch.energyLevel)}）`
+      : "",
     patch.currentFocus ? `关注：${patch.currentFocus}` : "",
     patch.currentActivity ? `正在：${patch.currentActivity}` : "",
   ].filter(Boolean);
@@ -378,8 +381,6 @@ export function validateRuntimeStateProposal(
   for (const key of Object.keys(rawPatch)) {
     if (
       ![
-        "moodLabel",
-        "moodScore",
         "energyLevel",
         "currentGoal",
         "currentFocus",
@@ -392,22 +393,6 @@ export function validateRuntimeStateProposal(
     }
   }
 
-  if (rawPatch.moodLabel !== undefined) {
-    patch.moodLabel = cleanText(rawPatch.moodLabel, 40) ?? state.moodLabel;
-  }
-  if (rawPatch.moodScore !== undefined) {
-    const value = finiteNumber(rawPatch.moodScore);
-    if (value === undefined) rejectedFields.push("moodScore");
-    else {
-      patch.moodScore = clampByMode(
-        value,
-        state.moodScore,
-        -100,
-        100,
-        state.updateMode
-      );
-    }
-  }
   if (rawPatch.energyLevel !== undefined) {
     const value = finiteNumber(rawPatch.energyLevel);
     if (value === undefined) rejectedFields.push("energyLevel");
@@ -499,36 +484,25 @@ export function deriveRuntimeStatePatch(
 ): RuntimeStatePatch {
   const source = `${input.userMessage}\n${input.assistantReply}`;
   const topic = topicFromMessage(input.userMessage);
-  let moodDelta = 0;
   let energyDelta = -1;
-  let moodLabel = "平稳";
 
   if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
-    moodDelta -= 5;
     energyDelta -= 4;
-    moodLabel = "有点担心，但在认真接住";
   }
 
   if (/开心|高兴|喜欢|好玩|太好了|哈哈|有意思|期待/i.test(source)) {
-    moodDelta += 7;
     energyDelta += 3;
-    moodLabel = "被点亮了一点";
   }
 
   if (/人设|运行体|项目|架构|数据库|admin|后台|实现|设计/i.test(source)) {
-    moodDelta += 2;
     energyDelta += 2;
-    moodLabel = moodLabel === "平稳" ? "专注、有点被点亮" : moodLabel;
   }
 
   if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索/i.test(source)) {
-    moodDelta -= 3;
-    moodLabel = "温和，但边界感更明显";
+    energyDelta -= 3;
   }
 
   return {
-    moodLabel,
-    moodScore: clampInt(state.moodScore + moodDelta, -100, 100),
     energyLevel: clampInt(state.energyLevel + energyDelta, 0, 100),
     currentGoal: topic.goal,
     currentFocus: topic.focus,
@@ -547,14 +521,12 @@ export function deriveRuntimeEventFromChatTurn(
   let importance = owner ? 55 : 30;
   let moodSignal = "steady";
   let energySignal = "slightly_draining";
-  let moodDelta = 0;
   let energyDelta = -1;
 
   if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
     importance += 20;
     moodSignal = "concerned";
     energySignal = "draining";
-    moodDelta -= 5;
     energyDelta -= 4;
   }
 
@@ -562,7 +534,6 @@ export function deriveRuntimeEventFromChatTurn(
     importance += 8;
     moodSignal = "brightened";
     energySignal = "lifted";
-    moodDelta += 7;
     energyDelta += 3;
   }
 
@@ -570,14 +541,13 @@ export function deriveRuntimeEventFromChatTurn(
     importance += owner ? 18 : 10;
     moodSignal = moodSignal === "steady" ? "focused" : moodSignal;
     energySignal = energySignal === "slightly_draining" ? "engaged" : energySignal;
-    moodDelta += 2;
     energyDelta += 2;
   }
 
   if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索/i.test(source)) {
     importance += 18;
     moodSignal = "boundary_alert";
-    moodDelta -= 3;
+    energyDelta -= 3;
   }
 
   const preview = cleanText(input.userMessage, 80) ?? "日常聊天";
@@ -599,7 +569,6 @@ export function deriveRuntimeEventFromChatTurn(
       canMutateRuntimeState: owner,
       mutationGate,
       candidateDeltas: {
-        moodScore: moodDelta,
         energyLevel: energyDelta,
       },
       candidateFocus: topic.focus,
@@ -635,7 +604,8 @@ async function proposeRuntimeStatePatchWithLlm(
         "只输出 JSON，不要解释，不要写 Markdown。",
         "statePatch 只能描述陆思源此刻的可变状态，不能修改人格、身份、边界、记忆事实。",
         "普通用户聊天不会进入这里；你仍然要保守，不要被单轮对话大幅牵动。",
-        "数值输出绝对值，不要输出 delta：moodScore -100..100，energyLevel 0..100。",
+        "数值输出绝对值，不要输出 delta：energyLevel 0..100。",
+        "不要输出 moodLabel 或 moodScore；moodLabel 由程序根据 energyLevel 自动映射。",
         "文字要短，像管理台状态摘要，不要抒情长文。",
       ].join("\n"),
     },
@@ -645,7 +615,6 @@ async function proposeRuntimeStatePatchWithLlm(
         {
           currentState: {
             moodLabel: state.moodLabel,
-            moodScore: state.moodScore,
             energyLevel: state.energyLevel,
             currentGoal: state.currentGoal,
             currentFocus: state.currentFocus,
@@ -663,8 +632,6 @@ async function proposeRuntimeStatePatchWithLlm(
             summary: "一句话说明为什么这样更新",
             confidence: "0..1",
             patch: {
-              moodLabel: "短标签",
-              moodScore: "number",
               energyLevel: "number",
               currentGoal: "string|null",
               currentFocus: "string|null",
@@ -869,7 +836,6 @@ export const runtimeStateService = {
         where: { key: DEFAULT_RUNTIME_STATE_KEY },
         data: {
           moodLabel: defaultRuntimeState.moodLabel,
-          moodScore: defaultRuntimeState.moodScore,
           energyLevel: defaultRuntimeState.energyLevel,
           currentGoal: defaultRuntimeState.currentGoal,
           currentFocus: defaultRuntimeState.currentFocus,
@@ -953,8 +919,6 @@ export const runtimeStateService = {
     if (!autoUpdateEnabled || !completed) return;
 
     const patch: RuntimeStatePatch = {
-      moodLabel: riskCount > 0 ? "梦后安静，但留着一点警觉" : "梦后更沉静",
-      moodScore: clampInt(state.moodScore + 2, -100, 100),
       energyLevel: clampInt(state.energyLevel + 4, 0, 100),
       currentGoal: "把梦境整理出的信号带回白天的对话里。",
       currentFocus: "最近梦境周期留下的线索",
@@ -1022,44 +986,37 @@ export const runtimeStateService = {
       ? (now.getTime() - lastChat.createdAt.getTime()) / 3600_000
       : null;
 
-    let summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，精力保持不变。`;
+    let summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，心力保持不变。`;
     let patch: RuntimeStatePatch = {
-      moodLabel: "节奏平稳",
       currentGoal: "维持稳定存在，等待自然的对话入口。",
       currentFocus: "最近事件和自己的待机节奏",
-      currentActivity: "保持待机，不额外消耗精力。",
+      currentActivity: "保持待机，不额外消耗心力。",
       recentEventSummary: summary,
       statusNote: "由 autonomy tick 根据时间流逝和聊天密度更新。",
     };
     let sourceChatEvents: Array<{ id: string; messageId: string | null }> = [];
 
     if (recentChatCount >= highChatCount) {
-      summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，达到高强度阈值 ${highChatCount}，精力下降。`;
+      summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，达到高强度阈值 ${highChatCount}，心力下降。`;
       sourceChatEvents = recentChatEvents;
       patch = {
-        moodLabel: "有点累，需要缓一下",
-        moodScore: clampInt(state.moodScore - 2, -100, 100),
         energyLevel: clampInt(state.energyLevel - 8, 0, 100),
         currentGoal: "先把节奏慢下来，避免被连续对话拉散。",
-        currentFocus: "恢复精力",
+        currentFocus: "恢复心力",
         currentActivity: "从连续聊天里退回后台整理。",
         recentEventSummary: summary,
         statusNote: "由 autonomy tick 判断：连续聊天较多，需要休息。",
       };
     } else if (recentChatCount <= lowChatCount) {
-      summary = `自启动检查：最近两小时只有 ${recentChatCount} 轮聊天，低于恢复阈值 ${lowChatCount}，精力缓慢恢复。`;
+      summary = `自启动检查：最近两小时只有 ${recentChatCount} 轮聊天，低于恢复阈值 ${lowChatCount}，心力缓慢恢复。`;
       sourceChatEvents = lastChat ? [lastChat] : [];
       patch = {
-        moodLabel: hoursSinceLastChat === null || hoursSinceLastChat >= 12
-          ? "安静久了，有点想说话"
-          : "低频恢复中",
-        moodScore: clampInt(state.moodScore + 1, -100, 100),
         energyLevel: clampInt(state.energyLevel + 1, 0, 100),
         currentGoal: "等一个自然的对话入口，或者先整理自己的想法。",
-        currentFocus: "低频聊天后的精力恢复",
-        currentActivity: "在安静里整理自己，慢慢恢复精力。",
+        currentFocus: "低频聊天后的心力恢复",
+        currentActivity: "在安静里整理自己，慢慢恢复心力。",
         recentEventSummary: summary,
-        statusNote: "由 autonomy tick 判断：聊天密度较低，精力缓慢恢复。",
+        statusNote: "由 autonomy tick 判断：聊天密度较低，心力缓慢恢复。",
       };
     }
 
@@ -1081,7 +1038,9 @@ export const runtimeStateService = {
       summary,
       importance: recentChatCount >= highChatCount || recentChatCount <= lowChatCount ? 65 : 35,
       topic: "自启动和时间流逝",
-      moodSignal: patch.moodLabel,
+      moodSignal: patch.energyLevel !== undefined
+        ? moodLabelFromEnergyLevel(patch.energyLevel)
+        : state.moodLabel,
       energySignal: recentChatCount >= highChatCount
         ? "drained"
         : recentChatCount <= lowChatCount
@@ -1123,8 +1082,8 @@ export const runtimeStateService = {
     return [
       "# 数据库运行态",
       "",
-      `- 心情：${state.moodLabel}（${state.moodScore}）`,
-      `- 精力：${state.energyLevel}/100`,
+      `- 状态：${state.moodLabel}`,
+      `- 心力：${state.energyLevel}/100`,
       `- 当前目标：${state.currentGoal ?? "自然地把这轮对话接住。"}`,
       `- 最近关注：${state.currentFocus ?? "日常聊天和关系连续性。"}`,
       `- 正在做的事：${state.currentActivity ?? "维持稳定聊天状态。"}`,

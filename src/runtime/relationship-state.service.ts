@@ -533,8 +533,20 @@ export const relationshipStateService = {
         },
       },
     });
-    const events = await this.listEvents(relationshipId, limit);
-    return { relationship, events };
+    const [events, affinityProposals] = await Promise.all([
+      this.listEvents(relationshipId, limit),
+      prisma.relationshipAffinityProposal.findMany({
+        where: { relationshipStateId: relationshipId },
+        orderBy: { createdAt: "desc" },
+        take: clampInt(limit, 1, 100),
+        include: {
+          evidences: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      }),
+    ]);
+    return { relationship, events, affinityProposals };
   },
 
   async listIdentityLinkProposals(status = "pending", limit = 50) {

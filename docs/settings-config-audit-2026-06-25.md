@@ -56,21 +56,21 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - Dream 阶段和提案类型开关：删除，`DREAM_ENABLED=true` 时固定完整运行 Daily Note、Dream Signal、Dream Diary、Deep Sleep，并生成待审核提案。
 - `DREAM_LOCK_TTL_MINUTES`：删除配置项；Dream 使用不可过期运行锁防并发，拿不到锁时本次运行返回 `running` 并跳过，等待下次 cron 继续。
 
-## Pending：关系好感度入口
+## 已处理：关系好感度入口
 
 - 关系模块已从“熟悉度、信任度、亲近感、关系张力”四维分数收敛为单一 `affinity`（好感度）。
 - 当前聊天不再靠关键词自动升降关系，也删除了 `RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS` 两个设置项。
-- 未来入口保留在 `relationshipStateService.applyAffinityPatch(...)`：Dream 或未来统一整理器后续如果根据梦境、证据链判断要调整好感度，应通过这个方法写入，并带上 `source`、`reason`、`delta`/`affinity`、`evidence`，方便 admin 审计、导出和后续训练数据整理。
-- 后续整理 Dream 时再设计“什么证据可以影响好感度、一次最多变化多少、是否需要 admin 确认或可回滚”。
+- 设计已收敛到 `docs/relationship-affinity-and-runtime-energy-2026-06-29.md`：Dream 关系整理器根据真诚、同频、关心、价值冲突等证据调整 affinity，第一版直接静默应用，但保留完整 proposal/evidence 记录。
+- 写入入口仍统一使用 `relationshipStateService.applyAffinityPatch(...)`，便于 admin 审计、导出和后续训练数据整理。
 
 ## Pending：聊天上下文结构
 
 - 第一阶段已从固定最近 10 条 `Message` 改成 `CHAT_CONTEXT_MAX_CHARS` 字符预算：按内容大小回填最近对话，不按消息条数。
 - 第一阶段已把同一次最终分条回复按 `replyGroupId` 合并，过滤 `intermediate` 消息，并排除本轮刚入库的用户消息，避免 prompt 里重复出现当前输入。
-- 当前先使用字符预算，不是精确 token 预算。后续如果接入模型 tokenizer 或 provider token counting，应把预算从“字符近似”升级为“输入 token 预算”。
+- 当前先使用字符预算，不是精确 token 预算；对现在的 1M 上下文模型来说已经够用，暂时不需要为了更精确而引入 tokenizer 复杂度。
 - 第二阶段已拆成三层上下文：最近原文热区、较早对话 compact 摘要、按当前问题向量召回的旧原文窗口。
 - compact 摘要写入 `conversation_context_summaries`，保留来源消息范围和消息数，后续可以审计、导出或重新生成。
-- 旧原文召回写入 `message_embeddings`，召回时返回命中消息前后的原文窗口，不只给模型一个模糊摘要。旧消息可用 `npm run context:index` 做 embedding backfill。
+- 旧原文召回写入 `message_embeddings`，召回时返回命中消息前后的原文窗口，不只给模型一个模糊摘要。测试阶段不需要给旧消息补 embedding；新消息会自动建索引。
 - `summarize_recent_conversation` 工具已删除；过去它只是工具调用时从数据库回看最近 20 条消息并结构化总结，和普通 prompt 的最近上下文、compact 摘要、向量召回原文窗口都有重叠。
 
 ## 工具配置瘦身与手动停止

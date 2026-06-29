@@ -38,8 +38,8 @@ model Conversation {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id])
-  messages Message[]
+  user             User                         @relation(fields: [userId], references: [id])
+  messages         Message[]
   contextSummaries ConversationContextSummary[]
 
   @@index([userId])
@@ -59,7 +59,7 @@ model Message {
   metadata          Json?
   createdAt         DateTime @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id])
+  conversation Conversation       @relation(fields: [conversationId], references: [id])
   embeddings   MessageEmbedding[]
 
   @@unique([conversationId, externalMessageId])
@@ -334,7 +334,7 @@ model ExpressionLearningExample {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  embeddings       ExpressionLearningEmbedding[]
+  embeddings      ExpressionLearningEmbedding[]
   trainingRecords ExpressionLearningTrainingRecord[]
 
   @@index([platform, scene, status])
@@ -403,8 +403,7 @@ model ExpressionLearningEmbedding {
 model RuntimeState {
   id                 String   @id @default(cuid())
   key                String   @unique @default("global")
-  moodLabel          String   @default("平稳")
-  moodScore          Int      @default(10)
+  moodLabel          String   @default("平稳在线")
   energyLevel        Int      @default(62)
   currentGoal        String?
   currentFocus       String?
@@ -488,6 +487,8 @@ model PersonIdentity {
   relationshipState  RelationshipState?
   relationshipEvents RelationshipStateEvent[]
   identityProposals  IdentityLinkProposal[]
+  affinityProposals  RelationshipAffinityProposal[]
+  affinityEvidences  RelationshipAffinityEvidence[]
 
   @@index([label])
   @@map("person_identities")
@@ -554,8 +555,10 @@ model RelationshipState {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  person PersonIdentity           @relation(fields: [personId], references: [id], onDelete: Cascade)
-  events RelationshipStateEvent[]
+  person            PersonIdentity                 @relation(fields: [personId], references: [id], onDelete: Cascade)
+  events            RelationshipStateEvent[]
+  affinityProposals RelationshipAffinityProposal[]
+  affinityEvidences RelationshipAffinityEvidence[]
 
   @@index([personId])
   @@index([updatedAt])
@@ -590,6 +593,85 @@ model RelationshipStateEvent {
   @@index([source])
   @@index([createdAt])
   @@map("relationship_state_events")
+}
+
+/// Dream-generated affinity adjustment record. First version is auto-applied but still auditable.
+model RelationshipAffinityProposal {
+  id                  String    @id @default(cuid())
+  reportId            String?
+  relationshipStateId String
+  personId            String
+  userId              String?
+  conversationId      String?
+  channel             String?
+  source              String    @default("dream")
+  status              String    @default("applied")
+  beforeAffinity      Int
+  delta               Int
+  afterAffinity       Int
+  reason              String
+  confidence          Float     @default(0.7)
+  evidenceCount       Int       @default(0)
+  appliedAt           DateTime?
+  rawOutput           Json?
+  metadata            Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  report            DreamConsolidationReport?      @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  relationshipState RelationshipState              @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
+  person            PersonIdentity                 @relation(fields: [personId], references: [id], onDelete: Cascade)
+  evidences         RelationshipAffinityEvidence[]
+
+  @@index([reportId])
+  @@index([relationshipStateId])
+  @@index([personId])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([status])
+  @@index([source])
+  @@index([createdAt])
+  @@map("relationship_affinity_proposals")
+}
+
+/// Single relationship evidence item used to compute an affinity adjustment.
+model RelationshipAffinityEvidence {
+  id                  String   @id @default(cuid())
+  proposalId          String
+  relationshipStateId String
+  personId            String
+  userId              String?
+  conversationId      String?
+  messageId           String?
+  channel             String?
+  source              String   @default("dream")
+  evidenceKey         String
+  evidenceType        String
+  polarity            String
+  baseDelta           Int      @default(0)
+  adjustedDelta       Int      @default(0)
+  confidence          Float    @default(0.7)
+  content             String
+  reason              String
+  sourceMessageIds    Json?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  proposal          RelationshipAffinityProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  relationshipState RelationshipState            @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
+  person            PersonIdentity               @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([relationshipStateId, evidenceKey])
+  @@index([proposalId])
+  @@index([relationshipStateId])
+  @@index([personId])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([messageId])
+  @@index([evidenceType])
+  @@index([polarity])
+  @@index([createdAt])
+  @@map("relationship_affinity_evidence")
 }
 
 /// Vector embeddings attached to long-term memories.
@@ -844,10 +926,11 @@ model DreamConsolidationReport {
   metadata             Json?
   createdAt            DateTime @default(now())
 
-  job DreamJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  proposals  MemoryProposal[]
-  riskFlags  MemoryRiskFlag[]
-  growthLogs GrowthLogProposal[]
+  job               DreamJob?                      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  proposals         MemoryProposal[]
+  riskFlags         MemoryRiskFlag[]
+  growthLogs        GrowthLogProposal[]
+  affinityProposals RelationshipAffinityProposal[]
 
   @@index([phase])
   @@index([createdAt])

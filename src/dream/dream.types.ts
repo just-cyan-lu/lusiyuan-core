@@ -28,6 +28,11 @@ export interface DreamSourceMessage {
   content: string;
   createdAt: Date;
   userId?: string;
+  conversationId?: string;
+  channel?: string;
+  externalConversationId?: string;
+  userDisplayName?: string | null;
+  userExternalId?: string;
 }
 
 export interface DreamSourceMemory {
@@ -137,6 +142,36 @@ export interface RawConsolidationOutput {
   growthLogProposals: RawConsolidationGrowthLog[];
   riskFlags: RawConsolidationRiskFlag[];
   openQuestions: string[];
+}
+
+// ─── Relationship Affinity ───────────────────────────────────────────────────
+
+export type RawRelationshipAffinityEvidenceType =
+  | "sincerity"
+  | "shared_trait"
+  | "cheerful_chat"
+  | "caring_for_lusiyuan"
+  | "gentle_kindness"
+  | "project_interest"
+  | "project_contribution"
+  | "value_conflict"
+  | "hostility_or_value_denial";
+
+export interface RawRelationshipAffinityEvidence {
+  evidenceType: RawRelationshipAffinityEvidenceType;
+  content: string;
+  reason: string;
+  sourceMessageIds: string[];
+  confidence: number;
+  traitKey?: string;
+  severity?: "low" | "medium" | "high";
+}
+
+export interface RawRelationshipAffinityOutput {
+  summary: string;
+  confidence: number;
+  evidences: RawRelationshipAffinityEvidence[];
+  openQuestions?: string[];
 }
 
 // ─── Morning Brief ────────────────────────────────────────────────────────────

@@ -80,7 +80,6 @@ export interface RuntimeState {
   id: string;
   key: string;
   moodLabel: string;
-  moodScore: number;
   energyLevel: number;
   currentGoal: string | null;
   currentFocus: string | null;
@@ -223,6 +222,53 @@ export interface RelationshipStateEvent {
   createdAt: string;
 }
 
+export interface RelationshipAffinityEvidence {
+  id: string;
+  proposalId: string;
+  relationshipStateId: string;
+  personId: string;
+  userId: string | null;
+  conversationId: string | null;
+  messageId: string | null;
+  channel: string | null;
+  source: string;
+  evidenceKey: string;
+  evidenceType: string;
+  polarity: string;
+  baseDelta: number;
+  adjustedDelta: number;
+  confidence: number;
+  content: string;
+  reason: string;
+  sourceMessageIds: unknown;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface RelationshipAffinityProposal {
+  id: string;
+  reportId: string | null;
+  relationshipStateId: string;
+  personId: string;
+  userId: string | null;
+  conversationId: string | null;
+  channel: string | null;
+  source: string;
+  status: string;
+  beforeAffinity: number;
+  delta: number;
+  afterAffinity: number;
+  reason: string;
+  confidence: number;
+  evidenceCount: number;
+  appliedAt: string | null;
+  rawOutput: unknown;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+  evidences: RelationshipAffinityEvidence[];
+}
+
 export interface RelationshipListResponse {
   relationships: RelationshipState[];
 }
@@ -230,6 +276,7 @@ export interface RelationshipListResponse {
 export interface RelationshipDetailResponse {
   relationship: RelationshipState;
   events: RelationshipStateEvent[];
+  affinityProposals?: RelationshipAffinityProposal[];
 }
 
 export interface IdentityLinkProposal {
@@ -379,8 +426,6 @@ export interface RelationshipUpdateInput {
 
 export interface RuntimeStateUpdateInput {
   token: string;
-  moodLabel?: string;
-  moodScore?: number;
   energyLevel?: number;
   currentGoal?: string | null;
   currentFocus?: string | null;

@@ -12,6 +12,7 @@ export type AdminSection =
   | "learning"
   | "memory"
   | "dream"
+  | "ops"
   | "platforms"
   | "tools"
   | "chat"
@@ -108,8 +109,17 @@ const navItems: Array<{
     accentClass: "bg-[var(--ls-blue)] text-white",
   },
   {
-    section: "skills",
+    section: "ops",
     index: "09",
+    label: "运维台",
+    description: "运行任务",
+    icon: "icon-variant",
+    color: "app-green",
+    accentClass: "bg-[var(--ls-green)] text-white",
+  },
+  {
+    section: "skills",
+    index: "10",
     label: "Skills",
     description: "能力开关",
     icon: "icon-diy",
@@ -118,7 +128,7 @@ const navItems: Array<{
   },
   {
     section: "platforms",
-    index: "10",
+    index: "11",
     label: "平台",
     description: "外部平台工作台",
     icon: "icon-shopping",
@@ -127,7 +137,7 @@ const navItems: Array<{
   },
   {
     section: "tools",
-    index: "11",
+    index: "12",
     label: "工具",
     description: "调用与日志",
     icon: "icon-variant",
@@ -136,7 +146,7 @@ const navItems: Array<{
   },
   {
     section: "settings",
-    index: "12",
+    index: "13",
     label: "配置",
     description: "实时设置 / 连接",
     icon: "icon-diy",
@@ -148,7 +158,7 @@ const navItems: Array<{
 const navGroups: Array<{ label: string; items: AdminSection[] }> = [
   { label: "核心状态", items: ["overview", "runtime", "relationships"] },
   { label: "记忆与表达", items: ["memory", "conversations", "learning", "chat"] },
-  { label: "自动循环", items: ["dream"] },
+  { label: "后台运行", items: ["dream", "ops"] },
   { label: "通道与能力", items: ["skills", "platforms", "tools"] },
   { label: "系统", items: ["settings"] },
 ];
