@@ -41,8 +41,8 @@ export const runtimeSettingDefinitions = {
   RUNTIME_STATE_AUTO_UPDATE_ENABLED: { group: "运行态", label: "自动校准总开关", type: "boolean", defaultValue: true, description: "控制 Owner 聊天、Dream、自启动检查是否能自动写入运行态；关闭后只有 Admin 手动保存或重置会改运行态。" },
   RUNTIME_AUTONOMY_AUTO_RUN: { group: "运行态", label: "自启动定时运行", type: "boolean", defaultValue: false, description: "开启后按运行频率自动做一次轻量自检；它只看聊天密度和时间流逝，不读取消息内容。" },
   RUNTIME_AUTONOMY_CRON: { group: "运行态", label: "自启动运行频率", type: "string", defaultValue: "*/30 * * * *", description: "Cron 表达式，使用服务器本地时间；保存后立即重排定时任务。" },
-  RUNTIME_AUTONOMY_LOW_CHAT_COUNT: { group: "运行态", label: "自启动低聊天阈值", type: "integer", defaultValue: 20, min: 0, max: 10000, description: "最近 2 小时聊天轮数小于等于这个值时，精力缓慢恢复。" },
-  RUNTIME_AUTONOMY_HIGH_CHAT_COUNT: { group: "运行态", label: "自启动高聊天阈值", type: "integer", defaultValue: 80, min: 1, max: 10000, description: "最近 2 小时聊天轮数达到这个值时，判断为高强度聊天，精力下降。" },
+  RUNTIME_AUTONOMY_LOW_CHAT_COUNT: { group: "运行态", label: "自启动低聊天阈值", type: "integer", defaultValue: 20, min: 0, max: 10000, description: "最近 2 小时聊天轮数小于等于这个值时，心力缓慢恢复。" },
+  RUNTIME_AUTONOMY_HIGH_CHAT_COUNT: { group: "运行态", label: "自启动高聊天阈值", type: "integer", defaultValue: 80, min: 1, max: 10000, description: "最近 2 小时聊天轮数达到这个值时，判断为高强度聊天，心力下降。" },
 
   TAVILY_ENABLED: { group: "网页能力", label: "Tavily 搜索启用", type: "boolean", defaultValue: false, description: "启用 web_search 搜索引擎；适合找链接、查新闻和外部资料，不负责读取完整网页。" },
   TAVILY_MAX_RESULTS: { group: "网页能力", label: "Tavily 最大结果", type: "integer", defaultValue: 5, min: 1, max: 20, description: "一次搜索最多返回多少条结果；越大信息越多，也越容易带入噪声。" },

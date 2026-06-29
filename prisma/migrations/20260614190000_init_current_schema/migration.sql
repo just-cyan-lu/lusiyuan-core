@@ -107,8 +107,7 @@ CREATE TABLE "tool_call_logs" (
 CREATE TABLE "runtime_states" (
     "id" TEXT NOT NULL,
     "key" TEXT NOT NULL DEFAULT 'global',
-    "moodLabel" TEXT NOT NULL DEFAULT '平稳',
-    "moodScore" INTEGER NOT NULL DEFAULT 10,
+    "moodLabel" TEXT NOT NULL DEFAULT '平稳在线',
     "energyLevel" INTEGER NOT NULL DEFAULT 62,
     "currentGoal" TEXT,
     "currentFocus" TEXT,
@@ -243,6 +242,58 @@ CREATE TABLE "relationship_state_events" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "relationship_state_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "relationship_affinity_proposals" (
+    "id" TEXT NOT NULL,
+    "reportId" TEXT,
+    "relationshipStateId" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "userId" TEXT,
+    "conversationId" TEXT,
+    "channel" TEXT,
+    "source" TEXT NOT NULL DEFAULT 'dream',
+    "status" TEXT NOT NULL DEFAULT 'applied',
+    "beforeAffinity" INTEGER NOT NULL,
+    "delta" INTEGER NOT NULL,
+    "afterAffinity" INTEGER NOT NULL,
+    "reason" TEXT NOT NULL,
+    "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.7,
+    "evidenceCount" INTEGER NOT NULL DEFAULT 0,
+    "appliedAt" TIMESTAMP(3),
+    "rawOutput" JSONB,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "relationship_affinity_proposals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "relationship_affinity_evidence" (
+    "id" TEXT NOT NULL,
+    "proposalId" TEXT NOT NULL,
+    "relationshipStateId" TEXT NOT NULL,
+    "personId" TEXT NOT NULL,
+    "userId" TEXT,
+    "conversationId" TEXT,
+    "messageId" TEXT,
+    "channel" TEXT,
+    "source" TEXT NOT NULL DEFAULT 'dream',
+    "evidenceKey" TEXT NOT NULL,
+    "evidenceType" TEXT NOT NULL,
+    "polarity" TEXT NOT NULL,
+    "baseDelta" INTEGER NOT NULL DEFAULT 0,
+    "adjustedDelta" INTEGER NOT NULL DEFAULT 0,
+    "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.7,
+    "content" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    "sourceMessageIds" JSONB,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "relationship_affinity_evidence_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -600,6 +651,60 @@ CREATE INDEX "relationship_state_events_source_idx" ON "relationship_state_event
 CREATE INDEX "relationship_state_events_createdAt_idx" ON "relationship_state_events"("createdAt");
 
 -- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_reportId_idx" ON "relationship_affinity_proposals"("reportId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_relationshipStateId_idx" ON "relationship_affinity_proposals"("relationshipStateId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_personId_idx" ON "relationship_affinity_proposals"("personId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_userId_idx" ON "relationship_affinity_proposals"("userId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_conversationId_idx" ON "relationship_affinity_proposals"("conversationId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_status_idx" ON "relationship_affinity_proposals"("status");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_source_idx" ON "relationship_affinity_proposals"("source");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_proposals_createdAt_idx" ON "relationship_affinity_proposals"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "relationship_affinity_evidence_relationshipStateId_evidenceKey_key" ON "relationship_affinity_evidence"("relationshipStateId", "evidenceKey");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_proposalId_idx" ON "relationship_affinity_evidence"("proposalId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_relationshipStateId_idx" ON "relationship_affinity_evidence"("relationshipStateId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_personId_idx" ON "relationship_affinity_evidence"("personId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_userId_idx" ON "relationship_affinity_evidence"("userId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_conversationId_idx" ON "relationship_affinity_evidence"("conversationId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_messageId_idx" ON "relationship_affinity_evidence"("messageId");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_evidenceType_idx" ON "relationship_affinity_evidence"("evidenceType");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_polarity_idx" ON "relationship_affinity_evidence"("polarity");
+
+-- CreateIndex
+CREATE INDEX "relationship_affinity_evidence_createdAt_idx" ON "relationship_affinity_evidence"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "memory_embeddings_memoryId_idx" ON "memory_embeddings"("memoryId");
 
 -- CreateIndex
@@ -756,6 +861,24 @@ ALTER TABLE "relationship_state_events" ADD CONSTRAINT "relationship_state_event
 
 -- AddForeignKey
 ALTER TABLE "relationship_state_events" ADD CONSTRAINT "relationship_state_events_userId_fkey" FOREIGN KEY ("userId") REFERENCES "app_users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_affinity_proposals" ADD CONSTRAINT "relationship_affinity_proposals_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "dream_consolidation_reports"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_affinity_proposals" ADD CONSTRAINT "relationship_affinity_proposals_relationshipStateId_fkey" FOREIGN KEY ("relationshipStateId") REFERENCES "relationship_states"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_affinity_proposals" ADD CONSTRAINT "relationship_affinity_proposals_personId_fkey" FOREIGN KEY ("personId") REFERENCES "person_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_affinity_evidence" ADD CONSTRAINT "relationship_affinity_evidence_proposalId_fkey" FOREIGN KEY ("proposalId") REFERENCES "relationship_affinity_proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_affinity_evidence" ADD CONSTRAINT "relationship_affinity_evidence_relationshipStateId_fkey" FOREIGN KEY ("relationshipStateId") REFERENCES "relationship_states"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "relationship_affinity_evidence" ADD CONSTRAINT "relationship_affinity_evidence_personId_fkey" FOREIGN KEY ("personId") REFERENCES "person_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "memory_embeddings" ADD CONSTRAINT "memory_embeddings_memoryId_fkey" FOREIGN KEY ("memoryId") REFERENCES "memories"("id") ON DELETE CASCADE ON UPDATE CASCADE;

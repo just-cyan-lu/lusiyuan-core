@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
-import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
+import { AdminSelect } from "./AdminFormPrimitives";
 import {
   fetchRuntimeStateEventSources,
   fetchRuntimeState,
@@ -34,8 +34,6 @@ interface RuntimePageState {
 }
 
 interface RuntimeFormState {
-  moodLabel: string;
-  moodScore: number;
   energyLevel: number;
   currentGoal: string;
   currentFocus: string;
@@ -58,9 +56,8 @@ const updateStrategyLabels: Record<string, string> = {
 };
 
 const runtimeFieldLabels: Record<string, string> = {
-  moodLabel: "心情",
-  moodScore: "心情指数",
-  energyLevel: "精力",
+  moodLabel: "状态标签",
+  energyLevel: "心力",
   currentGoal: "当前目标",
   currentFocus: "最近关注",
   currentActivity: "正在做",
@@ -98,8 +95,6 @@ function friendlyErrorMessage(error: unknown): string {
 
 function formFromState(state: RuntimeState): RuntimeFormState {
   return {
-    moodLabel: state.moodLabel,
-    moodScore: state.moodScore,
     energyLevel: state.energyLevel,
     currentGoal: state.currentGoal ?? "",
     currentFocus: state.currentFocus ?? "",
@@ -156,13 +151,6 @@ function runtimeEventTypeLabel(type: string): string {
   if (type === "dream_cycle") return "梦境事件";
   if (type === "autonomy_tick") return "自启动检查";
   return type;
-}
-
-function moodTone(score: number): string {
-  if (score >= 45) return "明亮";
-  if (score >= 10) return "平稳";
-  if (score >= -25) return "低一点";
-  return "需要照看";
 }
 
 export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
@@ -447,7 +435,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
         <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-          请先在顶部输入 Admin Token。运行态会保存陆思源最近的心情、精力、关注点和正在做的事。
+          请先在顶部输入 Admin Token。运行态会保存陆思源最近的心力、状态标签、关注点和正在做的事。
         </p>
       </section>
     );
@@ -516,14 +504,13 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                     {runtime.moodLabel}
                   </div>
                   <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">
-                    {moodTone(runtime.moodScore)} · 更新于 {formatDate(runtime.updatedAt)}
+                    由心力自动映射 · 更新于 {formatDate(runtime.updatedAt)}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <MetricBar label="心情指数" value={runtime.moodScore} min={-100} max={100} />
-                <MetricBar label="精力" value={runtime.energyLevel} min={0} max={100} />
+              <div className="mt-6 grid gap-4">
+                <MetricBar label="心力 / 状态值" value={runtime.energyLevel} min={0} max={100} />
               </div>
             </div>
 
@@ -587,15 +574,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 xl:col-span-2">
               <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">配置与控制</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <Field label="心情">
-                  <AdminInput
-                    value={form.moodLabel}
-                    onChange={(event) =>
-                      setForm({ ...form, moodLabel: event.target.value })
-                    }
-                    aria-label="心情"
-                  />
-                </Field>
                 <div className="flex flex-col gap-1">
                   <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">更新模式</span>
                   <AdminSelect
@@ -624,19 +602,12 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               </div>
 
               <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                规则校准更稳定省资源；LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、梦境或自启动。普通聊天不会直接改这里。
+                状态标签由心力自动映射；规则校准更稳定省资源。LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、梦境或自启动。普通聊天不会直接改这里。
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid gap-4">
                 <SliderField
-                  label="心情指数"
-                  value={form.moodScore}
-                  min={-100}
-                  max={100}
-                  onChange={(value) => setForm({ ...form, moodScore: value })}
-                />
-                <SliderField
-                  label="精力"
+                  label="心力 / 状态值"
                   value={form.energyLevel}
                   min={0}
                   max={100}
@@ -804,15 +775,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         </div>
       )}
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label>
-      <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
-      {children}
-    </label>
   );
 }
 

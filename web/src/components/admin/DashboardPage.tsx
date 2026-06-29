@@ -288,7 +288,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                   {state.runtimeState.moodLabel}
                 </div>
               </div>
-              <ConfigRow label="精力" enabled={state.runtimeState.energyLevel >= 45} />
+              <ConfigRow label="心力" enabled={state.runtimeState.energyLevel >= 45} />
               <ConfigRow
                 label="自动校准"
                 enabled={Boolean(state.runtime?.features.runtimeStateAutoUpdate)}
@@ -412,7 +412,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                       {weather.label}
                     </div>
                     <div className="mt-1 text-xs font-semibold text-[var(--ls-ink-soft)]">
-                      精力 {state.runtimeState.energyLevel}
+                      心力 {state.runtimeState.energyLevel}
                     </div>
                   </div>
                 </div>

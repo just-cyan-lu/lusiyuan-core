@@ -32,8 +32,7 @@ const mutationGateLabels: Record<string, string> = {
 };
 
 const deltaLabels: Record<string, string> = {
-  moodScore: "心情",
-  energyLevel: "精力",
+  energyLevel: "心力",
 };
 
 export function RuntimeEventDetail({

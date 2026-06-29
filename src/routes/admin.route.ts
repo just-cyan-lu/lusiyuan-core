@@ -171,10 +171,6 @@ function hasOwn(object: Record<string, unknown>, key: string): boolean {
 function runtimeStatePatchFromBody(body: Record<string, unknown>): RuntimeStatePatch {
   const patch: RuntimeStatePatch = {};
 
-  if (hasOwn(body, "moodLabel")) patch.moodLabel = cleanNullableString(body.moodLabel) ?? "";
-  if (hasOwn(body, "moodScore")) {
-    patch.moodScore = boundedNumber(body.moodScore, 0, -100, 100);
-  }
   if (hasOwn(body, "energyLevel")) {
     patch.energyLevel = boundedNumber(body.energyLevel, 62, 0, 100);
   }
@@ -407,6 +403,8 @@ const databaseDataTables = [
   "runtime_states",
   "runtime_events",
   "identity_link_proposals",
+  "relationship_affinity_evidence",
+  "relationship_affinity_proposals",
   "relationship_state_events",
   "relationship_states",
   "identity_links",
