@@ -81,13 +81,8 @@ export interface RuntimeState {
   key: string;
   moodLabel: string;
   energyLevel: number;
-  currentGoal: string | null;
-  currentFocus: string | null;
-  currentActivity: string | null;
   recentEventSummary: string | null;
   statusNote: string | null;
-  updateMode: string;
-  updateStrategy: string;
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
@@ -154,6 +149,60 @@ export interface RuntimeStateResponse {
   state: RuntimeState;
   events: RuntimeStateEvent[];
   runtimeEvents: RuntimeEvent[];
+  autonomousTasks?: AutonomousTask[];
+  idleTaskRun?: AutonomousTaskRunResult | null;
+}
+
+export interface AutonomousArtifact {
+  id: string;
+  taskId: string;
+  runId: string | null;
+  kind: string;
+  title: string;
+  content: string;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutonomousTaskRun {
+  id: string;
+  taskId: string;
+  trigger: string;
+  status: string;
+  summary: string | null;
+  plan: unknown;
+  result: unknown;
+  error: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface AutonomousTask {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  status: string;
+  priority: number;
+  currentStep: string | null;
+  nextStep: string | null;
+  createdBy: string;
+  lastRunAt: string | null;
+  completedAt: string | null;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+  runs?: AutonomousTaskRun[];
+  artifacts?: AutonomousArtifact[];
+}
+
+export interface AutonomousTaskRunResult {
+  status: "completed" | "skipped" | "failed";
+  summary: string;
+  task: AutonomousTask | null;
+  run: AutonomousTaskRun | null;
+  artifact: AutonomousArtifact | null;
 }
 
 export interface RuntimeStateEventSourcesResponse {
@@ -427,13 +476,8 @@ export interface RelationshipUpdateInput {
 export interface RuntimeStateUpdateInput {
   token: string;
   energyLevel?: number;
-  currentGoal?: string | null;
-  currentFocus?: string | null;
-  currentActivity?: string | null;
   recentEventSummary?: string | null;
   statusNote?: string | null;
-  updateMode?: string;
-  updateStrategy?: string;
   summary?: string;
 }
 
@@ -1288,6 +1332,60 @@ export async function runRuntimeAutonomyTick(token: string): Promise<RuntimeStat
     headers: adminHeaders(token),
   });
   return parseJsonResponse<RuntimeStateResponse>(response, "自启动检查失败");
+}
+
+export async function createAutonomousTask(input: {
+  token: string;
+  title: string;
+  description: string;
+  type: string;
+  priority: number;
+}): Promise<{ task: AutonomousTask }> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/runtime/autonomous-tasks`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<{ task: AutonomousTask }>(response, "创建自主任务失败");
+}
+
+export async function updateAutonomousTask(input: {
+  token: string;
+  taskId: string;
+  status?: string;
+  priority?: number;
+}): Promise<{ task: AutonomousTask }> {
+  const { token, taskId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/runtime/autonomous-tasks/${encodeURIComponent(taskId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        ...adminHeaders(token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ task: AutonomousTask }>(response, "更新自主任务失败");
+}
+
+export async function runAutonomousTask(input: {
+  token: string;
+  taskId: string;
+}): Promise<AutonomousTaskRunResult> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/runtime/autonomous-tasks/${encodeURIComponent(input.taskId)}/run`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<AutonomousTaskRunResult>(response, "推进自主任务失败");
 }
 
 export async function fetchRelationships(input: {
