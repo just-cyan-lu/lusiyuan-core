@@ -9,7 +9,7 @@
 - 运行时配置：来自 `src/config/runtime-settings.registry.ts`，写入数据库，通常保存后立即生效。
 - `.env` 连接配置：来自 `src/routes/admin.route.ts` 的 `editableEnvConfig`，写入 `.env`，通常需要重启进程才生效。
 
-审计范围是“是否仍然被代码读取、是否有必要继续出现在配置页、用在哪里”。确认没必要的配置会同步清理；暂时不做的方向记录到 Pending。
+审计范围是“是否仍然被代码读取、是否有必要继续出现在配置页、用在哪里”。确认没必要的配置会同步清理；暂时不做的方向记录到“后续可选”。
 
 ## 总结
 
@@ -63,7 +63,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - 设计已收敛到 `docs/relationship-affinity-and-runtime-energy-2026-06-29.md`：Dream 关系整理器根据真诚、同频、关心、价值冲突等证据调整 affinity，第一版直接静默应用，但保留完整 proposal/evidence 记录。
 - 写入入口仍统一使用 `relationshipStateService.applyAffinityPatch(...)`，便于 admin 审计、导出和后续训练数据整理。
 
-## Pending：聊天上下文结构
+## 已处理：聊天上下文结构
 
 - 第一阶段已从固定最近 10 条 `Message` 改成 `CHAT_CONTEXT_MAX_CHARS` 字符预算：按内容大小回填最近对话，不按消息条数。
 - 第一阶段已把同一次最终分条回复按 `replyGroupId` 合并，过滤 `intermediate` 消息，并排除本轮刚入库的用户消息，避免 prompt 里重复出现当前输入。
@@ -84,7 +84,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - 模型请求、工具执行、Tavily/Jina fetch、Playwright 读取、Chrome MCP 阶段检查、Dream 长循环都已接收或检查 `AbortSignal`。不是所有第三方调用都一定能立刻中断，但外层会停止后续步骤，并把 Dream job 标记为 `cancelled`。
 - Admin 运维页已新增“运行中任务”面板，用来停止 Telegram、微信、WebChat 或后台 Dream 里的长任务。
 
-## Pending：下一批设置页精简候选
+## 后续可选：下一批设置页精简候选
 
 - 回复投递细项：`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` 更像体验调参，后续可考虑固定默认；`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT` 已删除。
 - 网页能力细项：`TAVILY_MAX_RESULTS`、Chrome MCP 的 settle/open interval 等更像内部调优参数；常用配置只需要保留 Jina/Playwright/Chrome MCP 是否启用和访问权限。`TAVILY_SEARCH_DEPTH` 已删除，改由模型在 `web_search.searchDepth` 参数里按本次搜索选择。
