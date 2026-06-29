@@ -57,6 +57,9 @@ export function ChatInput({
 
   const canSend = !isSending && !disabled && Boolean(text.trim());
   const stopEnabled = isSending && canStop && !isStopping;
+  const primaryButtonTone = isSending
+    ? "bg-[#b85f6b] shadow-[0_3px_0_#8e4650] hover:bg-[#a8505c] active:shadow-[0_1px_0_#8e4650]"
+    : "bg-[#6f8fb8] shadow-[0_3px_0_#4f6f98] hover:bg-[#5f7fa7] active:shadow-[0_1px_0_#4f6f98]";
 
   return (
     <div className="border-t border-[#d9e2ec] bg-[#f8fbff] px-4 py-3">
@@ -78,11 +81,7 @@ export function ChatInput({
           type="button"
           onClick={handlePrimaryAction}
           disabled={isSending ? !stopEnabled : !canSend}
-          className={`admin-icon-button mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] text-white shadow-[0_3px_0_#4f6f98] transition hover:-translate-y-0.5 active:translate-y-[1px] active:shadow-[0_1px_0_#4f6f98] disabled:cursor-not-allowed disabled:opacity-30 ${
-            isSending
-              ? "bg-[#b85f6b] hover:bg-[#a8505c]"
-              : "bg-[#6f8fb8] hover:bg-[#5f7fa7]"
-          }`}
+          className={`admin-icon-button mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] text-white transition hover:-translate-y-0.5 active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-30 ${primaryButtonTone}`}
           aria-label={isSending ? "停止" : "发送"}
           title={isSending ? (isStopping ? "正在停止…" : "停止") : "发送"}
         >
