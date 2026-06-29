@@ -10,6 +10,7 @@
     "test": "node --import tsx --test tests/**/*.test.ts",
     "smoke": "tsx scripts/smoke-test.ts",
     "seed:admin": "tsx scripts/seed-admin-demo.ts",
+    "seed:relationships": "tsx scripts/seed-relationship-conversations.ts",
     "web:dev": "cd web && pnpm dev",
     "web:build": "cd web && pnpm build",
     "web:install": "cd web && pnpm install",
