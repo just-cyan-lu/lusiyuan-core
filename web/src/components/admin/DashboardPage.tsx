@@ -293,10 +293,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 label="自动校准"
                 enabled={Boolean(state.runtime?.features.runtimeStateAutoUpdate)}
               />
-              <InfoBlock>
-                更新策略：{state.runtimeState.updateStrategy === "llm" ? "LLM 提议校验" : "规则校准"}
-              </InfoBlock>
-              <InfoBlock>{state.runtimeState.currentActivity ?? "暂无正在做的事。"}</InfoBlock>
+              <InfoBlock>{state.runtimeState.recentEventSummary ?? "暂无新的运行事件。"}</InfoBlock>
 
               {state.runtimeEvents.length > 0 && (
                 <div className="admin-island-row px-4 py-3">
@@ -417,7 +414,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                   </div>
                 </div>
               </div>
-              <InfoBlock>{state.runtimeState.currentActivity ?? "岛上安静，听听风。"}</InfoBlock>
+              <InfoBlock>{state.runtimeState.statusNote ?? "岛上安静，听听风。"}</InfoBlock>
             </div>
           ) : (
             <TokenHint />

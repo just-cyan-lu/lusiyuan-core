@@ -405,13 +405,8 @@ model RuntimeState {
   key                String   @unique @default("global")
   moodLabel          String   @default("平稳在线")
   energyLevel        Int      @default(62)
-  currentGoal        String?
-  currentFocus       String?
-  currentActivity    String?
   recentEventSummary String?
   statusNote         String?
-  updateMode         String   @default("balanced")
-  updateStrategy     String   @default("rules")
   metadata           Json?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -445,6 +440,78 @@ model RuntimeStateEvent {
   @@index([source])
   @@index([createdAt])
   @@map("runtime_state_events")
+}
+
+/// Things Lusiyuan is actually trying to do when idle.
+model AutonomousTask {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  type        String    @default("custom")
+  status      String    @default("active")
+  priority    Int       @default(50)
+  currentStep String?
+  nextStep    String?
+  createdBy   String    @default("admin")
+  lastRunAt   DateTime?
+  completedAt DateTime?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  runs      AutonomousTaskRun[]
+  artifacts AutonomousArtifact[]
+
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([lastRunAt])
+  @@map("autonomous_tasks")
+}
+
+/// One idle/manual step taken on an autonomous task.
+model AutonomousTaskRun {
+  id         String    @id @default(cuid())
+  taskId     String
+  trigger    String
+  status     String    @default("running")
+  summary    String?
+  plan       Json?
+  result     Json?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  task      AutonomousTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  artifacts AutonomousArtifact[]
+
+  @@index([taskId])
+  @@index([status])
+  @@index([trigger])
+  @@index([startedAt])
+  @@map("autonomous_task_runs")
+}
+
+/// Concrete output from an autonomous task, such as a note, draft, or plan.
+model AutonomousArtifact {
+  id        String   @id @default(cuid())
+  taskId    String
+  runId     String?
+  kind      String   @default("note")
+  title     String
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task AutonomousTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  run  AutonomousTaskRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([runId])
+  @@index([kind])
+  @@index([createdAt])
+  @@map("autonomous_artifacts")
 }
 
 /// Event journal for things Lusiyuan experienced or processed.

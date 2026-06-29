@@ -1,47 +1,15 @@
 import { Prisma, type RuntimeState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
-import { modelProvider } from "../core/model-provider.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
+import { autonomousTaskService } from "./autonomous-task.service.js";
 
 export const DEFAULT_RUNTIME_STATE_KEY = "global";
 
-export type RuntimeUpdateStrategy = "rules" | "llm";
-
 export interface RuntimeStatePatch {
   energyLevel?: number;
-  currentGoal?: string | null;
-  currentFocus?: string | null;
-  currentActivity?: string | null;
   recentEventSummary?: string | null;
   statusNote?: string | null;
-  updateMode?: string;
-  updateStrategy?: RuntimeUpdateStrategy | string;
   metadata?: Prisma.InputJsonValue;
-}
-
-export interface RuntimeStateDetail {
-  innerWeather?: string;
-  emotionalTones?: string[];
-  needs?: string[];
-  tensions?: string[];
-  openQuestions?: string[];
-  relationshipSignal?: string;
-  topicSignals?: string[];
-}
-
-export interface RuntimeStateLlmProposal {
-  summary?: string;
-  confidence?: number;
-  patch?: Record<string, unknown>;
-  details?: RuntimeStateDetail;
-  riskFlags?: string[];
-}
-
-export interface ValidatedRuntimeStateProposal {
-  patch: RuntimeStatePatch;
-  summary: string;
-  confidence: number;
-  rejectedFields: string[];
 }
 
 interface ApplyRuntimeStatePatchInput {
@@ -87,18 +55,12 @@ const defaultRuntimeState = {
   key: DEFAULT_RUNTIME_STATE_KEY,
   moodLabel: "平稳在线",
   energyLevel: 62,
-  currentGoal: "把对话接住，保持自然和稳定。",
-  currentFocus: "观察最近对话和运行状态。",
-  currentActivity: "在聊天和整理状态之间保持待机。",
   recentEventSummary: "暂无新的运行事件。",
-  statusNote: "默认运行态已初始化，等待真实对话慢慢更新。",
-  updateMode: "balanced",
-  updateStrategy: "rules",
+  statusNote: "默认运行态已初始化；正在做的事由自主任务系统记录。",
 } satisfies Prisma.RuntimeStateCreateInput;
 
 const allowedStateMutationSourcePrefixes = [
   "admin",
-  "owner_chat",
   "dream",
   "autonomy",
 ];
@@ -126,18 +88,6 @@ function cleanText(value: unknown, maxChars: number): string | null | undefined 
   return trimmed.length > maxChars ? `${trimmed.slice(0, maxChars - 1)}…` : trimmed;
 }
 
-function cleanMode(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const mode = value.trim();
-  return ["quiet", "balanced", "active"].includes(mode) ? mode : undefined;
-}
-
-function cleanStrategy(value: unknown): RuntimeUpdateStrategy | undefined {
-  if (typeof value !== "string") return undefined;
-  const strategy = value.trim();
-  return strategy === "llm" ? "llm" : strategy === "rules" ? "rules" : undefined;
-}
-
 function normalizePatch(patch: RuntimeStatePatch): Prisma.RuntimeStateUpdateInput {
   const data: Prisma.RuntimeStateUpdateInput = {};
 
@@ -146,26 +96,11 @@ function normalizePatch(patch: RuntimeStatePatch): Prisma.RuntimeStateUpdateInpu
     data.energyLevel = energyLevel;
     data.moodLabel = moodLabelFromEnergyLevel(energyLevel);
   }
-  if (patch.currentGoal !== undefined) {
-    data.currentGoal = cleanText(patch.currentGoal, 240);
-  }
-  if (patch.currentFocus !== undefined) {
-    data.currentFocus = cleanText(patch.currentFocus, 200);
-  }
-  if (patch.currentActivity !== undefined) {
-    data.currentActivity = cleanText(patch.currentActivity, 200);
-  }
   if (patch.recentEventSummary !== undefined) {
     data.recentEventSummary = cleanText(patch.recentEventSummary, 320);
   }
   if (patch.statusNote !== undefined) {
     data.statusNote = cleanText(patch.statusNote, 320);
-  }
-  if (patch.updateMode !== undefined) {
-    data.updateMode = cleanMode(patch.updateMode) ?? "balanced";
-  }
-  if (patch.updateStrategy !== undefined) {
-    data.updateStrategy = cleanStrategy(patch.updateStrategy) ?? "rules";
   }
   if (patch.metadata !== undefined) {
     data.metadata = patch.metadata;
@@ -180,13 +115,8 @@ function snapshotRuntimeState(state: RuntimeState): Prisma.InputJsonObject {
     key: state.key,
     moodLabel: state.moodLabel,
     energyLevel: state.energyLevel,
-    currentGoal: state.currentGoal,
-    currentFocus: state.currentFocus,
-    currentActivity: state.currentActivity,
     recentEventSummary: state.recentEventSummary,
     statusNote: state.statusNote,
-    updateMode: state.updateMode,
-    updateStrategy: state.updateStrategy,
     updatedAt: state.updatedAt.toISOString(),
   };
 }
@@ -196,40 +126,15 @@ function summarizePatch(patch: RuntimeStatePatch): string {
     patch.energyLevel !== undefined
       ? `心力 ${patch.energyLevel}（${moodLabelFromEnergyLevel(patch.energyLevel)}）`
       : "",
-    patch.currentFocus ? `关注：${patch.currentFocus}` : "",
-    patch.currentActivity ? `正在：${patch.currentActivity}` : "",
+    patch.recentEventSummary ? `事件：${patch.recentEventSummary}` : "",
   ].filter(Boolean);
   return parts.length > 0 ? parts.join("；") : "运行态已更新。";
-}
-
-function clampByMode(
-  proposed: number,
-  current: number,
-  min: number,
-  max: number,
-  mode: string
-): number {
-  const maxDelta = mode === "active" ? 18 : mode === "quiet" ? 4 : 10;
-  const bounded = clampInt(proposed, min, max);
-  return clampInt(
-    Math.min(Math.max(bounded, current - maxDelta), current + maxDelta),
-    min,
-    max
-  );
 }
 
 function readRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function cleanStringArray(value: unknown, maxItems: number, maxChars: number): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => cleanText(item, maxChars))
-    .filter((item): item is string => Boolean(item))
-    .slice(0, maxItems);
 }
 
 function cleanSourceIds(
@@ -285,23 +190,13 @@ function orderBySourceIds<T extends { id: string }>(items: T[], sourceIds: strin
   return ordered.concat(items.filter((item) => !seen.has(item.id)));
 }
 
-function cleanConfidence(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0.5;
-}
-
-function finiteNumber(value: unknown): number | undefined {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function assertAllowedStateMutationSource(source: string): void {
   const allowed = allowedStateMutationSourcePrefixes.some(
     (prefix) => source === prefix || source.startsWith(`${prefix}_`)
   );
   if (!allowed) {
     throw new Error(
-      `RuntimeState can only be changed by owner/dream/autonomy/admin sources, got: ${source}`
+      `RuntimeState can only be changed by admin/dream/autonomy sources, got: ${source}`
     );
   }
 }
@@ -315,122 +210,6 @@ function metadataWith(
     ...base,
     ...patch,
     updatedAt: new Date().toISOString(),
-  };
-}
-
-function buildValidatedMetadata(
-  proposal: RuntimeStateLlmProposal,
-  rejectedFields: string[]
-): Prisma.InputJsonObject {
-  const details = readRecord(proposal.details);
-  return {
-    lastObserver: "llm",
-    confidence: cleanConfidence(proposal.confidence),
-    innerWeather: cleanText(details.innerWeather, 160) ?? null,
-    emotionalTones: cleanStringArray(details.emotionalTones, 5, 40),
-    needs: cleanStringArray(details.needs, 5, 60),
-    tensions: cleanStringArray(details.tensions, 5, 80),
-    openQuestions: cleanStringArray(details.openQuestions, 5, 90),
-    relationshipSignal: cleanText(details.relationshipSignal, 120) ?? null,
-    topicSignals: cleanStringArray(details.topicSignals, 6, 60),
-    riskFlags: cleanStringArray(proposal.riskFlags, 5, 80),
-    rejectedFields,
-    validatedAt: new Date().toISOString(),
-  };
-}
-
-function formatMetadataList(metadata: Record<string, unknown>, key: string): string {
-  const value = metadata[key];
-  if (!Array.isArray(value)) return "";
-  const items = value
-    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    .slice(0, 5);
-  return items.length > 0 ? items.join("、") : "";
-}
-
-function formatRuntimeMetadata(metadataValue: Prisma.JsonValue | null): string[] {
-  const metadata = readRecord(metadataValue);
-  const lines: string[] = [];
-  const innerWeather = cleanText(metadata.innerWeather, 160);
-  const relationshipSignal = cleanText(metadata.relationshipSignal, 120);
-  const emotionalTones = formatMetadataList(metadata, "emotionalTones");
-  const needs = formatMetadataList(metadata, "needs");
-  const tensions = formatMetadataList(metadata, "tensions");
-  const openQuestions = formatMetadataList(metadata, "openQuestions");
-  const topicSignals = formatMetadataList(metadata, "topicSignals");
-
-  if (innerWeather) lines.push(`- 内在天气：${innerWeather}`);
-  if (emotionalTones) lines.push(`- 情绪色调：${emotionalTones}`);
-  if (needs) lines.push(`- 当前需要：${needs}`);
-  if (tensions) lines.push(`- 内部张力：${tensions}`);
-  if (openQuestions) lines.push(`- 还在想的问题：${openQuestions}`);
-  if (relationshipSignal) lines.push(`- 关系信号：${relationshipSignal}`);
-  if (topicSignals) lines.push(`- 话题信号：${topicSignals}`);
-
-  return lines;
-}
-
-export function validateRuntimeStateProposal(
-  state: RuntimeState,
-  proposal: RuntimeStateLlmProposal
-): ValidatedRuntimeStateProposal {
-  const rawPatch = readRecord(proposal.patch);
-  const patch: RuntimeStatePatch = {};
-  const rejectedFields: string[] = [];
-
-  for (const key of Object.keys(rawPatch)) {
-    if (
-      ![
-        "energyLevel",
-        "currentGoal",
-        "currentFocus",
-        "currentActivity",
-        "recentEventSummary",
-        "statusNote",
-      ].includes(key)
-    ) {
-      rejectedFields.push(key);
-    }
-  }
-
-  if (rawPatch.energyLevel !== undefined) {
-    const value = finiteNumber(rawPatch.energyLevel);
-    if (value === undefined) rejectedFields.push("energyLevel");
-    else {
-      patch.energyLevel = clampByMode(
-        value,
-        state.energyLevel,
-        0,
-        100,
-        state.updateMode
-      );
-    }
-  }
-  if (rawPatch.currentGoal !== undefined) {
-    patch.currentGoal = cleanText(rawPatch.currentGoal, 240);
-  }
-  if (rawPatch.currentFocus !== undefined) {
-    patch.currentFocus = cleanText(rawPatch.currentFocus, 200);
-  }
-  if (rawPatch.currentActivity !== undefined) {
-    patch.currentActivity = cleanText(rawPatch.currentActivity, 200);
-  }
-  if (rawPatch.recentEventSummary !== undefined) {
-    patch.recentEventSummary = cleanText(rawPatch.recentEventSummary, 320);
-  }
-  if (rawPatch.statusNote !== undefined) {
-    patch.statusNote = cleanText(rawPatch.statusNote, 320);
-  }
-
-  patch.metadata = buildValidatedMetadata(proposal, rejectedFields);
-  patch.statusNote =
-    patch.statusNote ?? "由 LLM 提议 statePatch，并经程序校验后更新。";
-
-  return {
-    patch,
-    summary: cleanText(proposal.summary, 180) ?? summarizePatch(patch),
-    confidence: cleanConfidence(proposal.confidence),
-    rejectedFields,
   };
 }
 
@@ -478,40 +257,6 @@ function topicFromMessage(message: string): {
   };
 }
 
-export function deriveRuntimeStatePatch(
-  state: RuntimeState,
-  input: ObserveChatTurnInput
-): RuntimeStatePatch {
-  const source = `${input.userMessage}\n${input.assistantReply}`;
-  const topic = topicFromMessage(input.userMessage);
-  let energyDelta = -1;
-
-  if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
-    energyDelta -= 4;
-  }
-
-  if (/开心|高兴|喜欢|好玩|太好了|哈哈|有意思|期待/i.test(source)) {
-    energyDelta += 3;
-  }
-
-  if (/人设|运行体|项目|架构|数据库|admin|后台|实现|设计/i.test(source)) {
-    energyDelta += 2;
-  }
-
-  if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索/i.test(source)) {
-    energyDelta -= 3;
-  }
-
-  return {
-    energyLevel: clampInt(state.energyLevel + energyDelta, 0, 100),
-    currentGoal: topic.goal,
-    currentFocus: topic.focus,
-    currentActivity: topic.activity,
-    recentEventSummary: `最近在 ${input.channel} 收到一轮 owner 对话：“${cleanText(input.userMessage, 80) ?? "日常聊天"}”。`,
-    statusNote: "由 owner 对话入口更新；普通聊天只记录 RuntimeEvent，等待梦境整理。",
-  };
-}
-
 export function deriveRuntimeEventFromChatTurn(
   input: ObserveChatTurnInput
 ): RuntimeEventInput {
@@ -551,9 +296,6 @@ export function deriveRuntimeEventFromChatTurn(
   }
 
   const preview = cleanText(input.userMessage, 80) ?? "日常聊天";
-  const mutationGate = owner
-    ? "owner_chat_allowed"
-    : "ordinary_chat_observe_only";
 
   return {
     eventType: "chat_turn",
@@ -566,17 +308,15 @@ export function deriveRuntimeEventFromChatTurn(
     moodSignal,
     energySignal,
     stateImpact: {
-      canMutateRuntimeState: owner,
-      mutationGate,
+      canMutateRuntimeState: false,
+      mutationGate: owner ? "owner_chat_observe_only" : "ordinary_chat_observe_only",
       candidateDeltas: {
         energyLevel: energyDelta,
       },
       candidateFocus: topic.focus,
       candidateGoal: topic.goal,
       candidateActivity: topic.activity,
-      note: input.isOwner
-        ? "Owner 对话允许在自动更新开启时进入 RuntimeState 校准。"
-        : "普通聊天只作为梦境材料，不直接改变全局 RuntimeState。",
+      note: "聊天只记录 RuntimeEvent，运行态不再被单轮对话牵着走；自主任务和 Dream 后续整理会使用这些材料。",
     },
     payload: {
       userMessagePreview: cleanText(input.userMessage, 220) ?? "",
@@ -591,73 +331,14 @@ export function deriveRuntimeEventFromChatTurn(
   };
 }
 
-async function proposeRuntimeStatePatchWithLlm(
-  state: RuntimeState,
-  input: ObserveChatTurnInput
-): Promise<ValidatedRuntimeStateProposal> {
-  const proposal = await modelProvider.chatJson<RuntimeStateLlmProposal>([
-    {
-      role: "system",
-      content: [
-        "你是陆思源运行体内部的状态观察模块。",
-        "你的任务不是回复用户，而是根据一轮允许更新长期状态的 owner 对话提出运行态 statePatch。",
-        "只输出 JSON，不要解释，不要写 Markdown。",
-        "statePatch 只能描述陆思源此刻的可变状态，不能修改人格、身份、边界、记忆事实。",
-        "普通用户聊天不会进入这里；你仍然要保守，不要被单轮对话大幅牵动。",
-        "数值输出绝对值，不要输出 delta：energyLevel 0..100。",
-        "不要输出 moodLabel 或 moodScore；moodLabel 由程序根据 energyLevel 自动映射。",
-        "文字要短，像管理台状态摘要，不要抒情长文。",
-      ].join("\n"),
-    },
-    {
-      role: "user",
-      content: JSON.stringify(
-        {
-          currentState: {
-            moodLabel: state.moodLabel,
-            energyLevel: state.energyLevel,
-            currentGoal: state.currentGoal,
-            currentFocus: state.currentFocus,
-            currentActivity: state.currentActivity,
-            recentEventSummary: state.recentEventSummary,
-            statusNote: state.statusNote,
-            updateMode: state.updateMode,
-          },
-          chatTurn: {
-            channel: input.channel,
-            userMessage: input.userMessage,
-            assistantReply: input.assistantReply,
-          },
-          requiredJsonShape: {
-            summary: "一句话说明为什么这样更新",
-            confidence: "0..1",
-            patch: {
-              energyLevel: "number",
-              currentGoal: "string|null",
-              currentFocus: "string|null",
-              currentActivity: "string|null",
-              recentEventSummary: "string|null",
-              statusNote: "string|null",
-            },
-            details: {
-              innerWeather: "内在天气/状态氛围，一句话",
-              emotionalTones: ["情绪色调"],
-              needs: ["当前需要"],
-              tensions: ["内部张力"],
-              openQuestions: ["还在想的问题"],
-              relationshipSignal: "这轮对关系的信号",
-              topicSignals: ["话题信号"],
-            },
-            riskFlags: ["如有不确定、过度推断、敏感风险，写在这里"],
-          },
-        },
-        null,
-        2
-      ),
-    },
-  ]);
-
-  return validateRuntimeStateProposal(state, proposal);
+function formatMetadataList(metadataValue: Prisma.JsonValue | null, key: string): string {
+  const metadata = readRecord(metadataValue);
+  const value = metadata[key];
+  if (!Array.isArray(value)) return "";
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .slice(0, 5)
+    .join("、");
 }
 
 export const runtimeStateService = {
@@ -837,13 +518,8 @@ export const runtimeStateService = {
         data: {
           moodLabel: defaultRuntimeState.moodLabel,
           energyLevel: defaultRuntimeState.energyLevel,
-          currentGoal: defaultRuntimeState.currentGoal,
-          currentFocus: defaultRuntimeState.currentFocus,
-          currentActivity: defaultRuntimeState.currentActivity,
           recentEventSummary: defaultRuntimeState.recentEventSummary,
           statusNote: defaultRuntimeState.statusNote,
-          updateMode: defaultRuntimeState.updateMode,
-          updateStrategy: defaultRuntimeState.updateStrategy,
           metadata: Prisma.JsonNull,
         },
       });
@@ -892,7 +568,7 @@ export const runtimeStateService = {
       importance: completed ? 70 : 35,
       topic: "梦境和闲时整理",
       moodSignal: completed ? "settled" : "quiet",
-      energySignal: completed ? "restored" : "steady",
+      energySignal: "steady",
       stateImpact: {
         canMutateRuntimeState: autoUpdateEnabled && completed,
         mutationGate: !completed
@@ -919,12 +595,8 @@ export const runtimeStateService = {
     if (!autoUpdateEnabled || !completed) return;
 
     const patch: RuntimeStatePatch = {
-      energyLevel: clampInt(state.energyLevel + 4, 0, 100),
-      currentGoal: "把梦境整理出的信号带回白天的对话里。",
-      currentFocus: "最近梦境周期留下的线索",
-      currentActivity: "在后台整理梦境、日记和信号。",
       recentEventSummary: `梦境整理完成：${summary}`,
-      statusNote: "由 Dream Cycle 更新；这是闲时整理后的长期运行态。",
+      statusNote: "由 Dream Cycle 写入整理结果；Dream 不再简单给心力加分。",
       metadata: metadataWith(state.metadata, {
         lastDream: {
           jobId: input.jobId,
@@ -986,38 +658,34 @@ export const runtimeStateService = {
       ? (now.getTime() - lastChat.createdAt.getTime()) / 3600_000
       : null;
 
-    let summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，心力保持不变。`;
+    let summary = `自主检查：最近两小时有 ${recentChatCount} 轮聊天，暂不调整心力。`;
     let patch: RuntimeStatePatch = {
-      currentGoal: "维持稳定存在，等待自然的对话入口。",
-      currentFocus: "最近事件和自己的待机节奏",
-      currentActivity: "保持待机，不额外消耗心力。",
       recentEventSummary: summary,
-      statusNote: "由 autonomy tick 根据时间流逝和聊天密度更新。",
+      statusNote: "由 autonomy tick 根据聊天密度判断是否适合休息或推进自主任务。",
     };
     let sourceChatEvents: Array<{ id: string; messageId: string | null }> = [];
+    let idleTaskRun: Awaited<ReturnType<typeof autonomousTaskService.runNextIdleTask>> | null = null;
 
     if (recentChatCount >= highChatCount) {
-      summary = `自启动检查：最近两小时有 ${recentChatCount} 轮聊天，达到高强度阈值 ${highChatCount}，心力下降。`;
+      summary = `自主检查：最近两小时有 ${recentChatCount} 轮聊天，达到高强度阈值 ${highChatCount}，心力下降并暂停闲时任务。`;
       sourceChatEvents = recentChatEvents;
       patch = {
         energyLevel: clampInt(state.energyLevel - 8, 0, 100),
-        currentGoal: "先把节奏慢下来，避免被连续对话拉散。",
-        currentFocus: "恢复心力",
-        currentActivity: "从连续聊天里退回后台整理。",
         recentEventSummary: summary,
-        statusNote: "由 autonomy tick 判断：连续聊天较多，需要休息。",
+        statusNote: "由 autonomy tick 判断：连续聊天较多，先回到休息和接话状态。",
       };
     } else if (recentChatCount <= lowChatCount) {
-      summary = `自启动检查：最近两小时只有 ${recentChatCount} 轮聊天，低于恢复阈值 ${lowChatCount}，心力缓慢恢复。`;
+      summary = `自主检查：最近两小时只有 ${recentChatCount} 轮聊天，低于恢复阈值 ${lowChatCount}，适合恢复心力并推进一个闲时任务。`;
       sourceChatEvents = lastChat ? [lastChat] : [];
       patch = {
         energyLevel: clampInt(state.energyLevel + 1, 0, 100),
-        currentGoal: "等一个自然的对话入口，或者先整理自己的想法。",
-        currentFocus: "低频聊天后的心力恢复",
-        currentActivity: "在安静里整理自己，慢慢恢复心力。",
         recentEventSummary: summary,
-        statusNote: "由 autonomy tick 判断：聊天密度较低，心力缓慢恢复。",
+        statusNote: "由 autonomy tick 判断：当前较空闲，可以做一点自己的事。",
       };
+
+      idleTaskRun = await autonomousTaskService.runNextIdleTask({
+        trigger: "autonomy_tick",
+      });
     }
 
     patch.metadata = metadataWith(state.metadata, {
@@ -1028,6 +696,14 @@ export const runtimeStateService = {
         hoursSinceLastChat,
         lowChatCount,
         highChatCount,
+        idleTaskRun: idleTaskRun
+          ? {
+              taskId: idleTaskRun.task?.id ?? null,
+              runId: idleTaskRun.run?.id ?? null,
+              status: idleTaskRun.status,
+              summary: idleTaskRun.summary,
+            }
+          : null,
         summary,
       },
     });
@@ -1035,9 +711,9 @@ export const runtimeStateService = {
     const event = await this.recordRuntimeEvent({
       eventType: "autonomy_tick",
       source: "autonomy",
-      summary,
+      summary: idleTaskRun?.summary ? `${summary}；${idleTaskRun.summary}` : summary,
       importance: recentChatCount >= highChatCount || recentChatCount <= lowChatCount ? 65 : 35,
-      topic: "自启动和时间流逝",
+      topic: "自启动、时间流逝和自主任务",
       moodSignal: patch.energyLevel !== undefined
         ? moodLabelFromEnergyLevel(patch.energyLevel)
         : state.moodLabel,
@@ -1056,13 +732,14 @@ export const runtimeStateService = {
         hoursSinceLastChat,
         lowChatCount,
         highChatCount,
+        idleTaskRunStatus: idleTaskRun?.status ?? null,
       },
       payload: {
         generatedPatch: patch as Prisma.InputJsonObject,
       },
     });
 
-    if (!autoUpdateEnabled) return { state, event };
+    if (!autoUpdateEnabled) return { state, event, idleTaskRun };
 
     const updated = await this.applyPatch({
       patch,
@@ -1073,95 +750,35 @@ export const runtimeStateService = {
       sourceMessageIds: sourceChatEvents.map((sourceEvent) => sourceEvent.messageId),
     });
 
-    return { state: updated, event };
+    return { state: updated, event, idleTaskRun };
   },
 
   async formatForPrompt(): Promise<string> {
-    const state = await this.getOrCreate();
-    const metadataLines = formatRuntimeMetadata(state.metadata);
+    const [state, taskContext] = await Promise.all([
+      this.getOrCreate(),
+      autonomousTaskService.formatForPrompt(),
+    ]);
+    const innerWeather = formatMetadataList(state.metadata, "emotionalTones");
+
     return [
       "# 数据库运行态",
       "",
       `- 状态：${state.moodLabel}`,
       `- 心力：${state.energyLevel}/100`,
-      `- 当前目标：${state.currentGoal ?? "自然地把这轮对话接住。"}`,
-      `- 最近关注：${state.currentFocus ?? "日常聊天和关系连续性。"}`,
-      `- 正在做的事：${state.currentActivity ?? "维持稳定聊天状态。"}`,
       `- 最近事件：${state.recentEventSummary ?? "暂无新的运行事件。"}`,
       state.statusNote ? `- 状态备注：${state.statusNote}` : "",
-      `- 状态更新策略：${state.updateStrategy === "llm" ? "LLM 提议后由程序校验" : "规则校准"}（只在 owner、梦境、自启动等允许入口生效）`,
-      metadataLines.length > 0 ? "\n## 内在细节\n" : "",
-      ...metadataLines,
+      innerWeather ? `- 情绪色调：${innerWeather}` : "",
       "",
-      "这是真实数据库里的可变运行态，只表示当前状态；不能覆盖固定人格、边界和长期记忆。普通用户聊天只会记录 RuntimeEvent，不直接改变这里。",
+      taskContext,
+      "",
+      "运行态只表示当前心力和最近状态；正在做的事来自自主任务系统。单轮聊天不会直接改运行态。",
     ]
       .filter(Boolean)
       .join("\n");
   },
 
   async observeChatTurn(input: ObserveChatTurnInput): Promise<void> {
-    const state = await this.getOrCreate();
-    const autoUpdateEnabled = runtimeConfig.RUNTIME_STATE_AUTO_UPDATE_ENABLED;
     const runtimeEvent = deriveRuntimeEventFromChatTurn(input);
-    if (input.isOwner) {
-      const stateImpact = readRecord(runtimeEvent.stateImpact);
-      runtimeEvent.stateImpact = {
-        ...stateImpact,
-        canMutateRuntimeState: autoUpdateEnabled,
-        mutationGate: autoUpdateEnabled
-          ? "owner_chat_allowed"
-          : "runtime_state_auto_update_disabled",
-      };
-    }
-    const recordedEvent = await this.recordRuntimeEvent(runtimeEvent);
-
-    if (!Boolean(input.isOwner) || !autoUpdateEnabled) return;
-
-    if (state.updateStrategy === "llm") {
-      try {
-        const validated = await proposeRuntimeStatePatchWithLlm(state, input);
-        await this.applyPatch({
-          patch: validated.patch,
-          eventType: "owner_chat_state_llm",
-          source: "owner_chat_llm",
-          summary: validated.summary,
-          userId: input.userId,
-          conversationId: input.conversationId,
-          sourceRuntimeEventIds: [recordedEvent.id],
-          sourceMessageIds: [input.messageId],
-          channel: input.channel,
-        });
-      } catch (error) {
-        await this.recordRuntimeEvent({
-          eventType: "owner_chat_state_failed",
-          source: "owner_chat_llm",
-          summary:
-            error instanceof Error
-              ? `LLM statePatch 失败：${error.message.slice(0, 180)}`
-              : "LLM statePatch 失败。",
-          importance: 70,
-          topic: "运行态更新失败",
-          userId: input.userId,
-          conversationId: input.conversationId,
-          messageId: input.messageId,
-          channel: input.channel,
-          status: "failed",
-        });
-      }
-      return;
-    }
-
-    const patch = deriveRuntimeStatePatch(state, input);
-    await this.applyPatch({
-      patch,
-      eventType: "owner_chat_state_rules",
-      source: "owner_chat_rules",
-      summary: summarizePatch(patch),
-      userId: input.userId,
-      conversationId: input.conversationId,
-      sourceRuntimeEventIds: [recordedEvent.id],
-      sourceMessageIds: [input.messageId],
-      channel: input.channel,
-    });
+    await this.recordRuntimeEvent(runtimeEvent);
   },
 };

@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "animal-island-ui";
-import { AdminSelect } from "./AdminFormPrimitives";
 import {
+  createAutonomousTask,
   fetchRuntimeStateEventSources,
   fetchRuntimeState,
   resetRuntimeState,
+  runAutonomousTask,
   runRuntimeAutonomyTick,
+  updateAutonomousTask,
   updateRuntimeState,
+  type AutonomousTask,
   type RuntimeEvent,
   type RuntimeState,
   type RuntimeStateEvent,
   type RuntimeStateEventSourcesResponse,
+  type RuntimeStateResponse,
 } from "../../api/lusiyuan-api";
 import { RuntimeEventDetail } from "./RuntimeEventDetail";
 import { StateChangeDetail } from "./StateChangeDetail";
@@ -24,61 +28,59 @@ interface RuntimePageState {
   state: RuntimeState | null;
   events: RuntimeStateEvent[];
   runtimeEvents: RuntimeEvent[];
+  autonomousTasks: AutonomousTask[];
   sourceDetail: RuntimeStateEventSourcesResponse | null;
   sourceLoading: boolean;
   sourceError: string | null;
   loading: boolean;
   saving: boolean;
+  taskBusy: boolean;
+  runningTaskId: string | null;
   error: string | null;
   message: string | null;
 }
 
 interface RuntimeFormState {
   energyLevel: number;
-  currentGoal: string;
-  currentFocus: string;
-  currentActivity: string;
   recentEventSummary: string;
   statusNote: string;
-  updateMode: string;
-  updateStrategy: string;
 }
 
-const updateModeLabels: Record<string, string> = {
-  quiet: "安静",
-  balanced: "平衡",
-  active: "主动",
-};
+interface TaskFormState {
+  title: string;
+  description: string;
+  type: string;
+  priority: number;
+}
 
-const updateStrategyLabels: Record<string, string> = {
-  rules: "规则校准",
-  llm: "LLM 提议校验",
+const taskTypeOptions = [
+  { value: "reading", label: "读书/资料" },
+  { value: "game_research", label: "游戏研究" },
+  { value: "content_creation", label: "内容创作" },
+  { value: "self_growth", label: "自我整理" },
+  { value: "open_research", label: "开放研究" },
+  { value: "custom", label: "自定义" },
+];
+
+const taskStatusLabels: Record<string, string> = {
+  active: "进行中",
+  paused: "已暂停",
+  completed: "已完成",
+  abandoned: "已放弃",
 };
 
 const runtimeFieldLabels: Record<string, string> = {
   moodLabel: "状态标签",
   energyLevel: "心力",
-  currentGoal: "当前目标",
-  currentFocus: "最近关注",
-  currentActivity: "正在做",
   recentEventSummary: "最近事件",
   statusNote: "状态备注",
-  updateMode: "更新模式",
-  updateStrategy: "更新策略",
   metadata: "内在详情",
-  innerWeather: "内在天气",
-  emotionalTones: "情绪色调",
-  needs: "当前需要",
-  tensions: "内部张力",
-  openQuestions: "还在想的问题",
-  relationshipSignal: "关系信号",
-  topicSignals: "话题信号",
-  deltas: "变化量",
-  counts: "统计",
-  signal: "信号",
-  proposedPatch: "LLM 提议",
+  lastDream: "最近梦境",
+  lastAutonomyTick: "最近自主检查",
+  signalCount: "信号数",
+  proposalCount: "提案数",
+  riskCount: "风险数",
   stateImpact: "状态影响",
-  metadataPatch: "内在详情补丁",
   reason: "原因",
 };
 
@@ -96,13 +98,35 @@ function friendlyErrorMessage(error: unknown): string {
 function formFromState(state: RuntimeState): RuntimeFormState {
   return {
     energyLevel: state.energyLevel,
-    currentGoal: state.currentGoal ?? "",
-    currentFocus: state.currentFocus ?? "",
-    currentActivity: state.currentActivity ?? "",
     recentEventSummary: state.recentEventSummary ?? "",
     statusNote: state.statusNote ?? "",
-    updateMode: state.updateMode,
-    updateStrategy: state.updateStrategy || "rules",
+  };
+}
+
+function emptyPageState(): RuntimePageState {
+  return {
+    state: null,
+    events: [],
+    runtimeEvents: [],
+    autonomousTasks: [],
+    sourceDetail: null,
+    sourceLoading: false,
+    sourceError: null,
+    loading: false,
+    saving: false,
+    taskBusy: false,
+    runningTaskId: null,
+    error: null,
+    message: null,
+  };
+}
+
+function emptyTaskForm(): TaskFormState {
+  return {
+    title: "",
+    description: "",
+    type: "custom",
+    priority: 50,
   };
 }
 
@@ -112,16 +136,12 @@ function metadataRecord(metadata: unknown): Record<string, unknown> {
     : {};
 }
 
-function metadataText(metadata: Record<string, unknown>, key: string): string {
+function metadataValue(metadata: Record<string, unknown>, key: string): string {
   const value = metadata[key];
-  return typeof value === "string" && value.trim() ? value : "暂无";
-}
-
-function metadataList(metadata: Record<string, unknown>, key: string): string[] {
-  const value = metadata[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : [];
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object") return JSON.stringify(value);
+  return "暂无";
 }
 
 function formatDate(value: string | null): string {
@@ -130,16 +150,8 @@ function formatDate(value: string | null): string {
 }
 
 function eventTypeLabel(type: string): string {
-  if (type === "chat_observation") return "聊天观察";
-  if (type === "chat_observation_rules") return "规则观察";
-  if (type === "chat_observation_llm") return "LLM 观察";
-  if (type === "chat_observation_failed") return "观察失败";
-  if (type === "owner_chat_state_rules") return "Owner 对话校准";
-  if (type === "owner_chat_state_llm") return "Owner LLM 校准";
-  if (type === "owner_chat_state_failed") return "Owner 校准失败";
-  if (type === "reflection_state_update") return "整理更新";
   if (type === "dream_state_update") return "梦境更新";
-  if (type === "autonomy_state_update") return "自启动更新";
+  if (type === "autonomy_state_update") return "自主检查更新";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
   return type;
@@ -147,43 +159,42 @@ function eventTypeLabel(type: string): string {
 
 function runtimeEventTypeLabel(type: string): string {
   if (type === "chat_turn") return "聊天事件";
-  if (type === "reflection_report") return "整理事件";
   if (type === "dream_cycle") return "梦境事件";
-  if (type === "autonomy_tick") return "自启动检查";
+  if (type === "autonomy_tick") return "自主检查";
   return type;
 }
 
+function taskTypeLabel(type: string): string {
+  return taskTypeOptions.find((item) => item.value === type)?.label ?? type;
+}
+
 export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
-  const [pageState, setPageState] = useState<RuntimePageState>({
-    state: null,
-    events: [],
-    runtimeEvents: [],
-    sourceDetail: null,
-    sourceLoading: false,
-    sourceError: null,
-    loading: false,
-    saving: false,
-    error: null,
-    message: null,
-  });
+  const [pageState, setPageState] = useState<RuntimePageState>(() => emptyPageState());
   const [form, setForm] = useState<RuntimeFormState | null>(null);
+  const [taskForm, setTaskForm] = useState<TaskFormState>(() => emptyTaskForm());
   const [selectedRuntimeEventId, setSelectedRuntimeEventId] = useState<string | null>(null);
   const [selectedStateEventId, setSelectedStateEventId] = useState<string | null>(null);
 
+  function applyRuntimeResponse(data: RuntimeStateResponse, message?: string) {
+    setPageState((current) => ({
+      ...current,
+      state: data.state,
+      events: data.events,
+      runtimeEvents: data.runtimeEvents ?? [],
+      autonomousTasks: data.autonomousTasks ?? current.autonomousTasks,
+      loading: false,
+      saving: false,
+      taskBusy: false,
+      runningTaskId: null,
+      error: null,
+      message: message ?? null,
+    }));
+    setForm(formFromState(data.state));
+  }
+
   async function loadState() {
     if (!adminToken) {
-      setPageState({
-        state: null,
-        events: [],
-        runtimeEvents: [],
-        sourceDetail: null,
-        sourceLoading: false,
-        sourceError: null,
-        loading: false,
-        saving: false,
-        error: null,
-        message: null,
-      });
+      setPageState(emptyPageState());
       setForm(null);
       return;
     }
@@ -191,15 +202,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     setPageState((current) => ({ ...current, loading: true, error: null }));
     try {
       const data = await fetchRuntimeState(adminToken);
-      setPageState((current) => ({
-        ...current,
-        state: data.state,
-        events: data.events,
-        runtimeEvents: data.runtimeEvents ?? [],
-        loading: false,
-        error: null,
-      }));
-      setForm(formFromState(data.state));
+      applyRuntimeResponse(data);
     } catch (error) {
       setPageState((current) => ({
         ...current,
@@ -214,18 +217,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
 
     async function load() {
       if (!adminToken) {
-        setPageState({
-          state: null,
-          events: [],
-          runtimeEvents: [],
-          sourceDetail: null,
-          sourceLoading: false,
-          sourceError: null,
-          loading: false,
-          saving: false,
-          error: null,
-          message: null,
-        });
+        setPageState(emptyPageState());
         setForm(null);
         return;
       }
@@ -233,17 +225,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       setPageState((current) => ({ ...current, loading: true, error: null }));
       try {
         const data = await fetchRuntimeState(adminToken);
-        if (!cancelled) {
-          setPageState((current) => ({
-            ...current,
-            state: data.state,
-            events: data.events,
-            runtimeEvents: data.runtimeEvents ?? [],
-            loading: false,
-            error: null,
-          }));
-          setForm(formFromState(data.state));
-        }
+        if (!cancelled) applyRuntimeResponse(data);
       } catch (error) {
         if (!cancelled) {
           setPageState((current) => ({
@@ -352,17 +334,9 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       const data = await updateRuntimeState({
         token: adminToken,
         ...form,
-        summary: "Admin 页面手动调整运行态。",
+        summary: "Admin 页面手动调整心力运行态。",
       });
-      setPageState((current) => ({
-        ...current,
-        state: data.state,
-        events: data.events,
-        runtimeEvents: data.runtimeEvents ?? [],
-        saving: false,
-        message: "运行态已保存。",
-      }));
-      setForm(formFromState(data.state));
+      applyRuntimeResponse(data, "运行态已保存。");
     } catch (error) {
       setPageState((current) => ({
         ...current,
@@ -383,15 +357,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     }));
     try {
       const data = await resetRuntimeState(adminToken);
-      setPageState((current) => ({
-        ...current,
-        state: data.state,
-        events: data.events,
-        runtimeEvents: data.runtimeEvents ?? [],
-        saving: false,
-        message: "运行态已重置。",
-      }));
-      setForm(formFromState(data.state));
+      applyRuntimeResponse(data, "运行态已重置。");
     } catch (error) {
       setPageState((current) => ({
         ...current,
@@ -411,19 +377,87 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
     }));
     try {
       const data = await runRuntimeAutonomyTick(adminToken);
-      setPageState((current) => ({
-        ...current,
-        state: data.state,
-        events: data.events,
-        runtimeEvents: data.runtimeEvents ?? [],
-        saving: false,
-        message: "自启动检查已完成。",
-      }));
-      setForm(formFromState(data.state));
+      const suffix = data.idleTaskRun?.summary ? ` ${data.idleTaskRun.summary}` : "";
+      applyRuntimeResponse(data, `自主检查已完成。${suffix}`);
     } catch (error) {
       setPageState((current) => ({
         ...current,
         saving: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  async function createTask() {
+    if (!adminToken) return;
+    if (!taskForm.title.trim() || !taskForm.description.trim()) {
+      setPageState((current) => ({ ...current, error: "任务标题和描述都要填写。" }));
+      return;
+    }
+    setPageState((current) => ({ ...current, taskBusy: true, error: null, message: null }));
+    try {
+      await createAutonomousTask({
+        token: adminToken,
+        title: taskForm.title,
+        description: taskForm.description,
+        type: taskForm.type,
+        priority: taskForm.priority,
+      });
+      setTaskForm(emptyTaskForm());
+      await loadState();
+      setPageState((current) => ({ ...current, taskBusy: false, message: "自主任务已创建。" }));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        taskBusy: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  async function changeTaskStatus(task: AutonomousTask, status: string) {
+    if (!adminToken) return;
+    setPageState((current) => ({ ...current, taskBusy: true, error: null, message: null }));
+    try {
+      await updateAutonomousTask({ token: adminToken, taskId: task.id, status });
+      await loadState();
+      setPageState((current) => ({
+        ...current,
+        taskBusy: false,
+        message: `任务已更新为${taskStatusLabels[status] ?? status}。`,
+      }));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        taskBusy: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  async function runTask(task: AutonomousTask) {
+    if (!adminToken) return;
+    setPageState((current) => ({
+      ...current,
+      taskBusy: true,
+      runningTaskId: task.id,
+      error: null,
+      message: null,
+    }));
+    try {
+      const result = await runAutonomousTask({ token: adminToken, taskId: task.id });
+      await loadState();
+      setPageState((current) => ({
+        ...current,
+        taskBusy: false,
+        runningTaskId: null,
+        message: result.summary,
+      }));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        taskBusy: false,
+        runningTaskId: null,
         error: friendlyErrorMessage(error),
       }));
     }
@@ -435,7 +469,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
         <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-          请先在顶部输入 Admin Token。运行态会保存陆思源最近的心力、状态标签、关注点和正在做的事。
+          请先在顶部输入 Admin Token。运行态保存心力和状态标签；正在做的事由自主任务系统记录。
         </p>
       </section>
     );
@@ -443,6 +477,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
 
   const runtime = pageState.state;
   const runtimeMetadata = metadataRecord(runtime?.metadata);
+  const activeTasks = pageState.autonomousTasks.filter((task) => task.status === "active");
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -452,7 +487,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
             <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-              数据库里的当前状态。普通聊天只记录事件；长期状态由 owner 对话、梦境、自启动和手动校准更新。
+              运行态现在只管心力和最近状态。Owner 聊天不会直接改这里；“正在做的事”由下面的自主任务真实推进并落库。
             </p>
           </div>
 
@@ -473,7 +508,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               disabled={pageState.saving}
               onClick={() => void runAutonomyCheck()}
             >
-              自启动检查
+              自主检查
             </Button>
             <Button type="default" danger onClick={() => void resetState()}>
               重置
@@ -497,28 +532,25 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
         <>
           <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="text-sm text-[var(--ls-ink-soft)]">最近心情</div>
-                  <div className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">
-                    {runtime.moodLabel}
-                  </div>
-                  <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">
-                    由心力自动映射 · 更新于 {formatDate(runtime.updatedAt)}
-                  </div>
-                </div>
+              <div className="text-sm text-[var(--ls-ink-soft)]">最近心情</div>
+              <div className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">
+                {runtime.moodLabel}
               </div>
-
+              <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">
+                由心力自动映射 · 更新于 {formatDate(runtime.updatedAt)}
+              </div>
               <div className="mt-6 grid gap-4">
                 <MetricBar label="心力 / 状态值" value={runtime.energyLevel} min={0} max={100} />
               </div>
             </div>
 
             <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-5">
-              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">当前在做的事</h3>
-              <InfoBlock label="当前目标" value={runtime.currentGoal} />
-              <InfoBlock label="最近关注" value={runtime.currentFocus} />
-              <InfoBlock label="正在做" value={runtime.currentActivity} />
+              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">自主活动摘要</h3>
+              <InfoBlock label="进行中任务" value={activeTasks.length > 0 ? `${activeTasks.length} 个` : "暂无"} />
+              <InfoBlock
+                label="最近自主检查"
+                value={metadataValue(runtimeMetadata, "lastAutonomyTick")}
+              />
             </div>
           </section>
 
@@ -530,14 +562,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                 <DetailRow label="Key" value={runtime.key} />
                 <DetailRow label="创建时间" value={formatDate(runtime.createdAt)} />
                 <DetailRow label="更新时间" value={formatDate(runtime.updatedAt)} />
-                <DetailRow
-                  label="更新模式"
-                  value={updateModeLabels[runtime.updateMode] ?? runtime.updateMode}
-                />
-                <DetailRow
-                  label="更新策略"
-                  value={updateStrategyLabels[runtime.updateStrategy] ?? runtime.updateStrategy}
-                />
               </div>
 
               <div className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
@@ -556,55 +580,10 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
             </div>
 
             <div className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
-              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">内在详情</h3>
-              <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                LLM 提议校验和梦境会填充这些细节；普通聊天只留下事件材料。
-              </p>
-              <div className="mt-4 grid gap-3">
-                <InfoBlock label="内在天气" value={metadataText(runtimeMetadata, "innerWeather")} />
-                <InfoList label="情绪色调" items={metadataList(runtimeMetadata, "emotionalTones")} />
-                <InfoList label="当前需要" items={metadataList(runtimeMetadata, "needs")} />
-                <InfoList label="内部张力" items={metadataList(runtimeMetadata, "tensions")} />
-                <InfoList label="还在想的问题" items={metadataList(runtimeMetadata, "openQuestions")} />
-                <InfoBlock label="关系信号" value={metadataText(runtimeMetadata, "relationshipSignal")} />
-                <InfoList label="话题信号" items={metadataList(runtimeMetadata, "topicSignals")} />
-              </div>
-            </div>
-
-            <div className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 xl:col-span-2">
               <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">配置与控制</h3>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="flex flex-col gap-1">
-                  <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">更新模式</span>
-                  <AdminSelect
-                    ariaLabel="更新模式"
-                    value={form.updateMode}
-                    onChange={(value) => setForm({ ...form, updateMode: value })}
-                    options={[
-                      { key: "quiet", label: "安静" },
-                      { key: "balanced", label: "平衡" },
-                      { key: "active", label: "主动" },
-                    ]}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">更新策略</span>
-                  <AdminSelect
-                    ariaLabel="更新策略"
-                    value={form.updateStrategy}
-                    onChange={(value) => setForm({ ...form, updateStrategy: value })}
-                    options={[
-                      { key: "rules", label: "规则校准" },
-                      { key: "llm", label: "LLM 提议校验" },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                状态标签由心力自动映射；规则校准更稳定省资源。LLM 提议校验只在允许改长期状态的入口运行，比如 owner 对话、梦境或自启动。普通聊天不会直接改这里。
-              </div>
-
+              <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+                状态标签由心力自动映射。当前页面只允许手动调心力和备注；目标、关注点、正在做的事不再写入运行态。
+              </p>
               <div className="mt-4 grid gap-4">
                 <SliderField
                   label="心力 / 状态值"
@@ -613,30 +592,10 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                   max={100}
                   onChange={(value) => setForm({ ...form, energyLevel: value })}
                 />
-              </div>
-
-              <div className="mt-4 grid gap-4">
-                <TextAreaField
-                  label="当前目标"
-                  value={form.currentGoal}
-                  onChange={(value) => setForm({ ...form, currentGoal: value })}
-                />
-                <TextAreaField
-                  label="最近关注"
-                  value={form.currentFocus}
-                  onChange={(value) => setForm({ ...form, currentFocus: value })}
-                />
-                <TextAreaField
-                  label="正在做的事"
-                  value={form.currentActivity}
-                  onChange={(value) => setForm({ ...form, currentActivity: value })}
-                />
                 <TextAreaField
                   label="最近事件"
                   value={form.recentEventSummary}
-                  onChange={(value) =>
-                    setForm({ ...form, recentEventSummary: value })
-                  }
+                  onChange={(value) => setForm({ ...form, recentEventSummary: value })}
                 />
                 <TextAreaField
                   label="状态备注"
@@ -648,11 +607,85 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           </section>
 
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">自主任务</h3>
+                <p className="mt-1 max-w-3xl text-xs leading-6 text-[var(--ls-ink-soft)]">
+                  这里记录陆思源“真的在做的事”。每次推进只做一小步，会留下运行记录和产物；自主检查在聊天较少时会自动挑一个 active 任务推进。
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+              <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+                <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">新建任务</h4>
+                <div className="mt-3 grid gap-3">
+                  <TextField
+                    label="标题"
+                    value={taskForm.title}
+                    onChange={(value) => setTaskForm({ ...taskForm, title: value })}
+                  />
+                  <label>
+                    <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">类型</span>
+                    <select
+                      className="field-input"
+                      value={taskForm.type}
+                      onChange={(event) => setTaskForm({ ...taskForm, type: event.target.value })}
+                    >
+                      {taskTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <SliderField
+                    label="优先级"
+                    value={taskForm.priority}
+                    min={0}
+                    max={100}
+                    onChange={(value) => setTaskForm({ ...taskForm, priority: value })}
+                  />
+                  <TextAreaField
+                    label="任务描述"
+                    value={taskForm.description}
+                    onChange={(value) => setTaskForm({ ...taskForm, description: value })}
+                  />
+                  <Button
+                    type="primary"
+                    loading={pageState.taskBusy}
+                    onClick={() => void createTask()}
+                  >
+                    创建自主任务
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                {pageState.autonomousTasks.length > 0 ? (
+                  pageState.autonomousTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      busy={pageState.taskBusy}
+                      running={pageState.runningTaskId === task.id}
+                      onRun={() => void runTask(task)}
+                      onStatus={(status) => void changeTaskStatus(task, status)}
+                    />
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
+                    暂无自主任务。可以先手动给他一个长期任务，比如读一本书、整理一个游戏攻略，或准备一组小红书内容。
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">运行事件</h3>
                 <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
-                  最近 12 条经历和观察；点开一条可以看它是否有资格影响长期状态。
+                  最近 12 条经历和观察；聊天事件只作为材料，不直接改运行态。
                 </p>
               </div>
             </div>
@@ -778,6 +811,102 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
   );
 }
 
+function TaskCard({
+  task,
+  busy,
+  running,
+  onRun,
+  onStatus,
+}: {
+  task: AutonomousTask;
+  busy: boolean;
+  running: boolean;
+  onRun: () => void;
+  onStatus: (status: string) => void;
+}) {
+  const latestArtifact = task.artifacts?.[0] ?? null;
+  return (
+    <article className="rounded-lg border border-[var(--ls-border)] bg-white p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-base font-semibold text-[var(--ls-ink-strong)]">{task.title}</h4>
+            <span className="admin-chip">{taskTypeLabel(task.type)}</span>
+            <span className={task.status === "active" ? "admin-chip admin-chip-mint" : "admin-chip"}>
+              {taskStatusLabels[task.status] ?? task.status}
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-7 text-[var(--ls-ink-strong)]">{task.description}</p>
+          <div className="mt-3 grid gap-2 text-xs leading-6 text-[var(--ls-ink-soft)]">
+            <div>优先级 {task.priority} · 最近运行 {formatDate(task.lastRunAt)}</div>
+            <div>当前进度：{task.currentStep || "暂无"}</div>
+            <div>下一步：{task.nextStep || "暂无"}</div>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button
+            type="primary"
+            loading={running}
+            disabled={busy || task.status !== "active"}
+            onClick={onRun}
+          >
+            推进一步
+          </Button>
+          {task.status === "active" ? (
+            <Button type="default" disabled={busy} onClick={() => onStatus("paused")}>
+              暂停
+            </Button>
+          ) : task.status === "paused" ? (
+            <Button type="default" disabled={busy} onClick={() => onStatus("active")}>
+              继续
+            </Button>
+          ) : null}
+          {task.status !== "completed" && (
+            <Button type="default" disabled={busy} onClick={() => onStatus("completed")}>
+              完成
+            </Button>
+          )}
+          {task.status !== "abandoned" && (
+            <Button type="default" danger disabled={busy} onClick={() => onStatus("abandoned")}>
+              放弃
+            </Button>
+          )}
+        </div>
+      </div>
+      {latestArtifact && (
+        <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">最近产物 · {latestArtifact.kind}</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--ls-ink-strong)]">{latestArtifact.title}</div>
+          <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-7 text-[var(--ls-ink-strong)]">
+            {latestArtifact.content}
+          </p>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>
+      <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</span>
+      <input
+        className="field-input"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
 function TextAreaField({
   label,
   value,
@@ -866,29 +995,7 @@ function InfoBlock({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
       <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
-      <div className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">{value || "暂无"}</div>
-    </div>
-  );
-}
-
-function InfoList({ label, items }: { label: string; items: string[] }) {
-  return (
-    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
-      <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">{label}</div>
-      {items.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {items.map((item) => (
-            <span
-              key={item}
-              className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 text-xs text-[var(--ls-ink-strong)]"
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">暂无</div>
-      )}
+      <div className="mt-2 break-all text-sm leading-6 text-[var(--ls-ink-strong)]">{value || "暂无"}</div>
     </div>
   );
 }

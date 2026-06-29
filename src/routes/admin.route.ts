@@ -12,6 +12,7 @@ import {
   runtimeStateService,
   type RuntimeStatePatch,
 } from "../runtime/runtime-state.service.js";
+import { autonomousTaskService } from "../runtime/autonomous-task.service.js";
 import { runningTaskRegistry } from "../runtime/running-task-registry.js";
 import {
   relationshipPatchFromAdminBody,
@@ -174,19 +175,10 @@ function runtimeStatePatchFromBody(body: Record<string, unknown>): RuntimeStateP
   if (hasOwn(body, "energyLevel")) {
     patch.energyLevel = boundedNumber(body.energyLevel, 62, 0, 100);
   }
-  if (hasOwn(body, "currentGoal")) patch.currentGoal = cleanNullableString(body.currentGoal) ?? null;
-  if (hasOwn(body, "currentFocus")) patch.currentFocus = cleanNullableString(body.currentFocus) ?? null;
-  if (hasOwn(body, "currentActivity")) {
-    patch.currentActivity = cleanNullableString(body.currentActivity) ?? null;
-  }
   if (hasOwn(body, "recentEventSummary")) {
     patch.recentEventSummary = cleanNullableString(body.recentEventSummary) ?? null;
   }
   if (hasOwn(body, "statusNote")) patch.statusNote = cleanNullableString(body.statusNote) ?? null;
-  if (hasOwn(body, "updateMode")) patch.updateMode = cleanString(body.updateMode);
-  if (hasOwn(body, "updateStrategy")) {
-    patch.updateStrategy = cleanString(body.updateStrategy);
-  }
   if (hasOwn(body, "metadata")) patch.metadata = jsonInput(body.metadata);
 
   return patch;
@@ -1222,12 +1214,13 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/v1/admin/runtime/state", async (_request, reply) => {
-    const [state, events, runtimeEvents] = await Promise.all([
+    const [state, events, runtimeEvents, autonomousTasks] = await Promise.all([
       runtimeStateService.getOrCreate(),
       runtimeStateService.listEvents(12),
       runtimeStateService.listRuntimeEvents(12),
+      autonomousTaskService.listTasks({ limit: 20 }),
     ]);
-    return reply.send({ state, events, runtimeEvents });
+    return reply.send({ state, events, runtimeEvents, autonomousTasks });
   });
 
   app.patch("/v1/admin/runtime/state", async (request, reply) => {
@@ -1238,20 +1231,22 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       source: "admin",
       summary: cleanString(body.summary) ?? "Admin 手动更新运行态。",
     });
-    const [events, runtimeEvents] = await Promise.all([
+    const [events, runtimeEvents, autonomousTasks] = await Promise.all([
       runtimeStateService.listEvents(12),
       runtimeStateService.listRuntimeEvents(12),
+      autonomousTaskService.listTasks({ limit: 20 }),
     ]);
-    return reply.send({ state, events, runtimeEvents });
+    return reply.send({ state, events, runtimeEvents, autonomousTasks });
   });
 
   app.post("/v1/admin/runtime/state/reset", async (_request, reply) => {
     const state = await runtimeStateService.reset("admin");
-    const [events, runtimeEvents] = await Promise.all([
+    const [events, runtimeEvents, autonomousTasks] = await Promise.all([
       runtimeStateService.listEvents(12),
       runtimeStateService.listRuntimeEvents(12),
+      autonomousTaskService.listTasks({ limit: 20 }),
     ]);
-    return reply.send({ state, events, runtimeEvents });
+    return reply.send({ state, events, runtimeEvents, autonomousTasks });
   });
 
   app.get("/v1/admin/runtime/state/events", async (request, reply) => {
@@ -1277,16 +1272,75 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
   app.post("/v1/admin/runtime/autonomy/tick", async (_request, reply) => {
     const result = await runtimeStateService.runAutonomyTick();
-    const [events, runtimeEvents] = await Promise.all([
+    const [events, runtimeEvents, autonomousTasks] = await Promise.all([
       runtimeStateService.listEvents(12),
       runtimeStateService.listRuntimeEvents(12),
+      autonomousTaskService.listTasks({ limit: 20 }),
     ]);
     return reply.send({
       state: result.state,
       event: result.event,
       events,
       runtimeEvents,
+      autonomousTasks,
+      idleTaskRun: result.idleTaskRun,
     });
+  });
+
+  app.get("/v1/admin/runtime/autonomous-tasks", async (request, reply) => {
+    const query = request.query as { status?: string; limit?: string };
+    return reply.send({
+      tasks: await autonomousTaskService.listTasks({
+        status: query.status,
+        limit: clampLimit(query.limit, 80),
+      }),
+    });
+  });
+
+  app.post("/v1/admin/runtime/autonomous-tasks", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const task = await autonomousTaskService.createTask({
+      title: cleanString(body.title) ?? "",
+      description: cleanString(body.description) ?? "",
+      type: cleanString(body.type),
+      priority: body.priority === undefined
+        ? undefined
+        : boundedNumber(body.priority, 50, 0, 100),
+      currentStep: cleanNullableString(body.currentStep),
+      nextStep: cleanNullableString(body.nextStep),
+      createdBy: "admin",
+    });
+    return reply.send({ task });
+  });
+
+  app.patch("/v1/admin/runtime/autonomous-tasks/:taskId", async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const task = await autonomousTaskService.updateTask(taskId, {
+      title: hasOwn(body, "title") ? cleanString(body.title) ?? "" : undefined,
+      description: hasOwn(body, "description") ? cleanString(body.description) ?? "" : undefined,
+      type: hasOwn(body, "type") ? cleanString(body.type) : undefined,
+      status: hasOwn(body, "status") ? cleanString(body.status) : undefined,
+      priority: hasOwn(body, "priority")
+        ? boundedNumber(body.priority, 50, 0, 100)
+        : undefined,
+      currentStep: hasOwn(body, "currentStep")
+        ? cleanNullableString(body.currentStep)
+        : undefined,
+      nextStep: hasOwn(body, "nextStep")
+        ? cleanNullableString(body.nextStep)
+        : undefined,
+    });
+    return reply.send({ task });
+  });
+
+  app.post("/v1/admin/runtime/autonomous-tasks/:taskId/run", async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const result = await autonomousTaskService.runTaskStep({
+      taskId,
+      trigger: "manual",
+    });
+    return reply.send(result);
   });
 
   app.get("/v1/admin/conversation-people", async (request, reply) => {

@@ -38,8 +38,8 @@ export const runtimeSettingDefinitions = {
   DREAM_ENABLED: { group: "Dream", label: "Dream 启用", type: "boolean", defaultValue: true, description: "Dream 总开关；开启后按 DREAM_CRON 自动整理，关闭后手动和定时 Dream 都不运行。" },
   DREAM_CRON: { group: "Dream", label: "Dream 运行时间", type: "string", defaultValue: "30 3 * * *", description: "Cron 表达式，使用服务器本地时间；保存后立即重排定时任务。" },
 
-  RUNTIME_STATE_AUTO_UPDATE_ENABLED: { group: "运行态", label: "自动校准总开关", type: "boolean", defaultValue: true, description: "控制 Owner 聊天、Dream、自启动检查是否能自动写入运行态；关闭后只有 Admin 手动保存或重置会改运行态。" },
-  RUNTIME_AUTONOMY_AUTO_RUN: { group: "运行态", label: "自启动定时运行", type: "boolean", defaultValue: false, description: "开启后按运行频率自动做一次轻量自检；它只看聊天密度和时间流逝，不读取消息内容。" },
+  RUNTIME_STATE_AUTO_UPDATE_ENABLED: { group: "运行态", label: "自动校准总开关", type: "boolean", defaultValue: true, description: "控制 Dream 和自启动是否能自动写入心力/最近状态；Owner 聊天只记录事件，不直接改运行态。" },
+  RUNTIME_AUTONOMY_AUTO_RUN: { group: "运行态", label: "自启动定时运行", type: "boolean", defaultValue: false, description: "开启后按运行频率做空闲检查；聊天少时可推进一个自主任务，聊天多时只调整心力并暂停闲时任务。" },
   RUNTIME_AUTONOMY_CRON: { group: "运行态", label: "自启动运行频率", type: "string", defaultValue: "*/30 * * * *", description: "Cron 表达式，使用服务器本地时间；保存后立即重排定时任务。" },
   RUNTIME_AUTONOMY_LOW_CHAT_COUNT: { group: "运行态", label: "自启动低聊天阈值", type: "integer", defaultValue: 20, min: 0, max: 10000, description: "最近 2 小时聊天轮数小于等于这个值时，心力缓慢恢复。" },
   RUNTIME_AUTONOMY_HIGH_CHAT_COUNT: { group: "运行态", label: "自启动高聊天阈值", type: "integer", defaultValue: 80, min: 1, max: 10000, description: "最近 2 小时聊天轮数达到这个值时，判断为高强度聊天，心力下降。" },
