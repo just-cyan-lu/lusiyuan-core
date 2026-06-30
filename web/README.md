@@ -4,12 +4,14 @@
 
 ## 开发
 
+从项目根目录执行：
+
 ```bash
 # 安装依赖
 pnpm install
 
 # 启动开发服务器（端口 64111）
-pnpm dev
+pnpm web:dev
 ```
 
 确保后端 API 已启动（`http://localhost:64100`）。
@@ -18,10 +20,10 @@ pnpm dev
 
 ```bash
 # 构建生产版本
-pnpm build
+pnpm web:build
 
 # 预览构建结果
-pnpm preview
+cd web && pnpm preview
 ```
 
 构建产物在 `dist/` 目录，可以由后端 Fastify 静态文件服务提供。

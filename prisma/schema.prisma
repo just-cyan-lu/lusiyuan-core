@@ -613,6 +613,7 @@ model RelationshipState {
   personId          String    @unique
   relationshipLabel String    @default("刚认识")
   affinity          Int       @default(10)
+  userIntroduction  String?
   interactionStyle  String?
   summary           String?
   recentSignal      String?

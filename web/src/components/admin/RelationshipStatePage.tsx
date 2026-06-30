@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { Button } from "animal-island-ui";
-import { AdminInput } from "./AdminFormPrimitives";
+import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   approveIdentityLinkProposal,
   fetchIdentityLinkProposals,
   fetchRelationshipDetail,
   fetchRelationships,
-  linkRelationshipUser,
+  mergeRelationshipIdentities,
   rejectIdentityLinkProposal,
   resetRelationshipState,
+  splitRelationshipIdentity,
+  updateRelationshipIdentityLabel,
+  updateRelationshipUserDisplayName,
   updateRelationshipState,
   type IdentityLinkProposal,
   type RelationshipAffinityProposal,
@@ -40,11 +43,17 @@ interface PageState {
 interface RelationshipForm {
   relationshipLabel: string;
   affinity: number;
+  userIntroduction: string;
   interactionStyle: string;
   summary: string;
-  recentSignal: string;
   statusNote: string;
+  autoUpdateEnabled: boolean;
 }
+
+type EditNameDialog =
+  | { type: "person"; value: string }
+  | { type: "user"; userId: string; channel: string; value: string }
+  | null;
 
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -55,6 +64,11 @@ function friendlyErrorMessage(error: unknown): string {
     return "Admin Token 不正确或未配置。";
   }
   return message || "关系状态读取失败";
+}
+
+function isMissingRelationshipError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Relationship not found");
 }
 
 function formatDate(value: string | null): string {
@@ -69,6 +83,52 @@ function userLabel(relationship: RelationshipState): string {
   if (person?.label) return person.label;
   const firstUser = person?.identityLinks?.[0]?.user;
   return firstUser?.displayName ?? firstUser?.externalId ?? relationship.personId;
+}
+
+function relationshipLabelFromAffinityValue(affinity: number): string {
+  if (affinity >= 85) return "非常熟悉";
+  if (affinity >= 65) return "很熟悉";
+  if (affinity >= 40) return "熟悉稳定";
+  if (affinity >= 20) return "逐渐熟悉";
+  return "刚认识";
+}
+
+function channelLabel(externalId: string): string {
+  const channel = externalId.split(":")[0]?.trim().toLowerCase() ?? "";
+  const labels: Record<string, string> = {
+    web: "web",
+    xiaohongshu: "小红书",
+    rednote: "小红书",
+    telegram: "telegram",
+    tg: "telegram",
+    weixin: "微信",
+    wx: "微信",
+    bilibili: "B站",
+    bili: "B站",
+  };
+  return labels[channel] ?? (channel || "未知渠道");
+}
+
+function channelUserName(user: { externalId: string; displayName: string | null }): string {
+  return user.displayName?.trim() || "未命名用户";
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function relationshipAutoUpdateEnabled(relationship: RelationshipState): boolean {
+  const value = metadataRecord(relationship.metadata).autoUpdateEnabled;
+  return typeof value === "boolean" ? value : true;
+}
+
+function metadataWithAutoUpdate(relationship: RelationshipState, enabled: boolean): Record<string, unknown> {
+  return {
+    ...metadataRecord(relationship.metadata),
+    autoUpdateEnabled: enabled,
+  };
 }
 
 function relationshipSummaryText(relationship: RelationshipState): string {
@@ -118,67 +178,46 @@ function formFromRelationship(relationship: RelationshipState): RelationshipForm
   return {
     relationshipLabel: relationship.relationshipLabel,
     affinity: relationship.affinity,
+    userIntroduction: relationship.userIntroduction ?? "",
     interactionStyle: relationship.interactionStyle ?? "",
     summary: relationship.summary ?? "",
-    recentSignal: relationship.recentSignal ?? "",
     statusNote: relationship.statusNote ?? "",
+    autoUpdateEnabled: relationshipAutoUpdateEnabled(relationship),
   };
 }
 
 function eventTypeLabel(type: string): string {
-  if (type === "affinity_update") return "好感度调整";
+  if (type === "affinity_update") return "好感度变化";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
   if (type === "identity_merge") return "身份合并";
-  if (type === "identity_link_added") return "身份绑定";
+  if (type === "identity_split") return "身份拆分";
+  if (type === "identity_link_added") return "身份链接";
+  if (type === "identity_name_update") return "身份改名";
+  if (type === "channel_user_name_update") return "渠道昵称修改";
   return type;
 }
 
 const relationshipFieldLabels: Record<string, string> = {
   relationshipLabel: "关系标签",
   affinity: "好感度",
+  userIntroduction: "用户介绍",
   interactionStyle: "互动风格",
   summary: "关系摘要",
   recentSignal: "最近信号",
   statusNote: "备注",
   lastInteractionAt: "最近互动",
   metadata: "关系细节",
+  autoUpdateEnabled: "允许 Dream 自动维护",
   delta: "变化量",
   evidence: "证据",
   lastAffinityPatch: "最近好感度调整",
   reason: "原因",
+  personLabel: "身份名称",
+  displayName: "渠道昵称",
+  externalId: "渠道外部 ID",
+  userId: "渠道用户",
 };
-
-function affinityEvidenceTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    sincerity: "真诚暴露",
-    shared_trait: "同频 trait",
-    cheerful_chat: "聊得开心",
-    caring_for_lusiyuan: "关心思源",
-    gentle_kindness: "温柔体贴",
-    project_interest: "项目兴趣",
-    project_contribution: "项目贡献",
-    value_conflict: "价值冲突",
-    hostility_or_value_denial: "敌意/否定价值",
-  };
-  return labels[type] ?? type;
-}
-
-function affinityProposalStatusLabel(status: string): string {
-  if (status === "applied") return "已自动应用";
-  if (status === "observed") return "已记录未变化";
-  return status;
-}
-
-function signedDelta(value: number): string {
-  return value > 0 ? `+${value}` : String(value);
-}
-
-function sourceMessageIdsText(value: unknown): string {
-  if (!Array.isArray(value)) return "暂无";
-  const ids = value.filter((item): item is string => typeof item === "string");
-  return ids.length > 0 ? ids.join(" / ") : "暂无";
-}
 
 export function RelationshipStatePage({
   adminToken,
@@ -188,7 +227,14 @@ export function RelationshipStatePage({
   onOpenConversationPerson,
 }: RelationshipStatePageProps) {
   const [query, setQuery] = useState("");
-  const [linkUserId, setLinkUserId] = useState("");
+  const [mergeSourceId, setMergeSourceId] = useState("");
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [splitUserIds, setSplitUserIds] = useState<string[]>([]);
+  const [splitLabel, setSplitLabel] = useState("");
+  const [splitAffinity, setSplitAffinity] = useState("");
+  const [editNameDialog, setEditNameDialog] = useState<EditNameDialog>(null);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [form, setForm] = useState<RelationshipForm | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
@@ -240,13 +286,31 @@ export function RelationshipStatePage({
       let affinityProposals: RelationshipAffinityProposal[] = [];
       let detailRelationship: RelationshipState | null = null;
       if (selectedId) {
-        const detail = await fetchRelationshipDetail({
-          token: adminToken,
-          relationshipId: selectedId,
-        });
-        detailRelationship = detail.relationship;
-        events = detail.events;
-        affinityProposals = detail.affinityProposals ?? [];
+        try {
+          const detail = await fetchRelationshipDetail({
+            token: adminToken,
+            relationshipId: selectedId,
+          });
+          detailRelationship = detail.relationship;
+          events = detail.events;
+          affinityProposals = detail.affinityProposals ?? [];
+        } catch (error) {
+          if (!isMissingRelationshipError(error)) throw error;
+          setPageState((current) => ({
+            ...current,
+            relationships: data.relationships,
+            proposals: proposalData.proposals,
+            selected: null,
+            events: [],
+            affinityProposals: [],
+            loading: false,
+            error: null,
+            message: "这条关系记录已经不存在，已回到关系列表。",
+          }));
+          setForm(null);
+          onBackToRelationshipList?.();
+          return;
+        }
       }
 
       setPageState((current) => ({
@@ -317,13 +381,23 @@ export function RelationshipStatePage({
     }
     return [
       { type: "all", label: "全部", count: pageState.events.length },
+      { type: "affinity_update", label: "好感度变化", count: counts.get("affinity_update") ?? 0 },
       ...Array.from(counts.entries()).map(([type, count]) => ({
         type,
         label: eventTypeLabel(type),
         count,
-      })),
+      })).filter((option) => option.type !== "affinity_update"),
     ];
   }, [pageState.events]);
+
+  const relationshipSelectOptions = useMemo(
+    () =>
+      pageState.relationships.map((relationship) => ({
+        key: relationship.id,
+        label: `${userLabel(relationship)} · 好感 ${relationship.affinity}`,
+      })),
+    [pageState.relationships]
+  );
 
   const filteredEvents = useMemo(
     () =>
@@ -345,6 +419,9 @@ export function RelationshipStatePage({
 
   useEffect(() => {
     setEventTypeFilter("all");
+    setSplitUserIds([]);
+    setSplitLabel("");
+    setSplitAffinity("");
   }, [pageState.selected?.id]);
 
   useEffect(() => {
@@ -365,7 +442,13 @@ export function RelationshipStatePage({
       const detail = await updateRelationshipState({
         token: adminToken,
         relationshipId: pageState.selected.id,
-        ...form,
+        relationshipLabel: form.relationshipLabel,
+        affinity: form.affinity,
+        userIntroduction: form.userIntroduction,
+        summary: form.summary,
+        interactionStyle: form.interactionStyle,
+        statusNote: form.statusNote,
+        metadata: metadataWithAutoUpdate(pageState.selected, form.autoUpdateEnabled),
         eventSummary: "Admin 手动调整关系状态。",
       });
       setPageState((current) => ({
@@ -391,7 +474,15 @@ export function RelationshipStatePage({
 
   async function resetSelectedRelationship() {
     if (!adminToken || !pageState.selected) return;
-    if (!window.confirm("确定要把这个用户的关系状态重置为默认状态吗？")) return;
+    const expectedName = userLabel(pageState.selected);
+    if (resetConfirmText.trim() !== expectedName) {
+      setPageState((current) => ({
+        ...current,
+        error: `请输入「${expectedName}」后再重置。`,
+        message: null,
+      }));
+      return;
+    }
     setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
     try {
       const detail = await resetRelationshipState({
@@ -409,37 +500,9 @@ export function RelationshipStatePage({
         saving: false,
         message: "关系状态已重置。",
       }));
+      setResetConfirmOpen(false);
+      setResetConfirmText("");
       setForm(formFromRelationship(detail.relationship));
-    } catch (error) {
-      setPageState((current) => ({
-        ...current,
-        saving: false,
-        error: friendlyErrorMessage(error),
-      }));
-    }
-  }
-
-  async function linkUserToSelectedPerson() {
-    if (!adminToken || !pageState.selected || !linkUserId.trim()) return;
-    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
-    try {
-      const detail = await linkRelationshipUser({
-        token: adminToken,
-        relationshipId: pageState.selected.id,
-        userId: linkUserId.trim(),
-      });
-      const list = await fetchRelationships({ token: adminToken, q: query, limit: 80 });
-      setPageState((current) => ({
-        ...current,
-        relationships: list.relationships,
-        selected: detail.relationship,
-        events: detail.events,
-        affinityProposals: detail.affinityProposals ?? [],
-        saving: false,
-        message: "用户身份已绑定到当前现实身份。",
-      }));
-      setForm(formFromRelationship(detail.relationship));
-      setLinkUserId("");
     } catch (error) {
       setPageState((current) => ({
         ...current,
@@ -481,6 +544,165 @@ export function RelationshipStatePage({
     }
   }
 
+  async function mergeSelectedRelationships() {
+    if (!adminToken || !mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId) return;
+    const source = pageState.relationships.find((relationship) => relationship.id === mergeSourceId);
+    const target = pageState.relationships.find((relationship) => relationship.id === mergeTargetId);
+    const sourceLabel = source ? userLabel(source) : "来源身份";
+    const targetLabel = target ? userLabel(target) : "目标身份";
+    const confirmed = window.confirm(
+      `确认把「${sourceLabel}」合并到「${targetLabel}」吗？\n\n合并后会保留目标身份，好感度取两边较高值。`
+    );
+    if (!confirmed) return;
+
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail = await mergeRelationshipIdentities({
+        token: adminToken,
+        sourceRelationshipId: mergeSourceId,
+        targetRelationshipId: mergeTargetId,
+      });
+      const list = await fetchRelationships({ token: adminToken, q: query, limit: 80 });
+      setPageState((current) => ({
+        ...current,
+        relationships: list.relationships,
+        selected: null,
+        events: [],
+        affinityProposals: detail.affinityProposals ?? [],
+        saving: false,
+        message: `已把「${sourceLabel}」合并到「${targetLabel}」。`,
+        error: null,
+      }));
+      setForm(null);
+      setMergeSourceId("");
+      setMergeTargetId(detail.relationship.id);
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+        message: null,
+      }));
+    }
+  }
+
+  function toggleSplitUserId(userId: string) {
+    setSplitUserIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    );
+  }
+
+  async function splitSelectedIdentity() {
+    if (!adminToken || !pageState.selected) return;
+    const links = pageState.selected.person?.identityLinks ?? [];
+    if (splitUserIds.length === 0 || splitUserIds.length >= links.length) return;
+
+    const selectedLinks = links.filter((link) => splitUserIds.includes(link.userId));
+    const selectedNames = selectedLinks
+      .map((link) => `${channelLabel(link.user.externalId)}：${channelUserName(link.user)}`)
+      .join(" / ");
+    const affinity = splitAffinity.trim() ? Number(splitAffinity) : undefined;
+    if (affinity !== undefined && (!Number.isFinite(affinity) || affinity < 0 || affinity > 100)) {
+      setPageState((current) => ({
+        ...current,
+        error: "新身份好感度需要是 0 到 100 之间的数字。",
+        message: null,
+      }));
+      return;
+    }
+    const confirmed = window.confirm(
+      `确认把「${selectedNames}」拆分成新的身份吗？\n\n这些渠道的聊天记录会跟着渠道账号归到新身份，原身份会保留剩余渠道。`
+    );
+    if (!confirmed) return;
+
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail = await splitRelationshipIdentity({
+        token: adminToken,
+        relationshipId: pageState.selected.id,
+        userIds: splitUserIds,
+        newLabel: splitLabel.trim() || undefined,
+        newAffinity: affinity,
+      });
+      setSplitUserIds([]);
+      setSplitLabel("");
+      setSplitAffinity("");
+      setPageState((current) => ({
+        ...current,
+        selected: detail.relationship,
+        events: detail.events,
+        affinityProposals: detail.affinityProposals ?? [],
+        saving: false,
+        error: null,
+        message: "身份已拆分，已切到新身份详情。",
+      }));
+      setForm(formFromRelationship(detail.relationship));
+      onOpenRelationship?.(detail.relationship.id);
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+        message: null,
+      }));
+    }
+  }
+
+  function openPersonNameEditor() {
+    if (!pageState.selected) return;
+    setEditNameDialog({
+      type: "person",
+      value: pageState.selected.person?.label ?? userLabel(pageState.selected),
+    });
+  }
+
+  function openUserNameEditor(userId: string, channel: string, value: string) {
+    setEditNameDialog({ type: "user", userId, channel, value });
+  }
+
+  async function saveNameDialog() {
+    if (!adminToken || !pageState.selected || !editNameDialog) return;
+    const nextValue = editNameDialog.value.trim();
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail = editNameDialog.type === "person"
+        ? await updateRelationshipIdentityLabel({
+            token: adminToken,
+            relationshipId: pageState.selected.id,
+            label: nextValue || null,
+          })
+        : await updateRelationshipUserDisplayName({
+            token: adminToken,
+            relationshipId: pageState.selected.id,
+            userId: editNameDialog.userId,
+            displayName: nextValue || null,
+          });
+      setPageState((current) => ({
+        ...current,
+        relationships: current.relationships.map((relationship) =>
+          relationship.id === detail.relationship.id ? detail.relationship : relationship
+        ),
+        selected: detail.relationship,
+        events: detail.events,
+        affinityProposals: detail.affinityProposals ?? [],
+        saving: false,
+        error: null,
+        message: editNameDialog.type === "person" ? "身份名称已更新。" : "渠道昵称已更新。",
+      }));
+      setForm(formFromRelationship(detail.relationship));
+      setEditNameDialog(null);
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+        message: null,
+      }));
+    }
+  }
+
   if (!adminToken) {
     return (
       <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
@@ -504,7 +726,7 @@ export function RelationshipStatePage({
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ls-ink-soft)]">
               {selectedRelationshipId
-                ? "这里集中处理一个现实身份的关系状态、渠道绑定和关系变更记录。"
+                ? "这里集中处理一个现实身份的关系状态、渠道账号和关系变更记录。"
                 : "每个现实身份一份关系状态。列表只放关键关系信息，点进详情后再修正状态和查看变更。"}
             </p>
           </div>
@@ -532,7 +754,10 @@ export function RelationshipStatePage({
                   type="default"
                   danger
                   disabled={!pageState.selected || pageState.saving}
-                  onClick={() => void resetSelectedRelationship()}
+                  onClick={() => {
+                    setResetConfirmText("");
+                    setResetConfirmOpen(true);
+                  }}
                 >
                   重置
                 </Button>
@@ -556,115 +781,158 @@ export function RelationshipStatePage({
       </section>
 
       {!selectedRelationshipId ? (
-        <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">用户关系</h3>
-              <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
-                {pageState.relationships.length} 个现实身份，按更新时间读取最近的关系状态。
-              </p>
-            </div>
-            <form
-              className="flex w-full gap-2 md:w-auto"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void loadList(query);
-              }}
-            >
-              <AdminInput
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索用户或摘要"
-                aria-label="搜索用户或摘要"
-              />
-              <Button htmlType="submit" type="default">
-                搜索
-              </Button>
-            </form>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
-            <div className="hidden grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_minmax(5rem,0.4fr)_minmax(8rem,0.75fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
-              <div>用户</div>
-              <div>主要内容</div>
-              <div className="text-center">好感</div>
-              <div>最近更新</div>
-              <div />
-            </div>
-            {pageState.relationships.length > 0 ? (
-              pageState.relationships.map((relationship) => (
-                <button
-                  key={relationship.id}
-                  type="button"
-                  onClick={() => void selectRelationship(relationship.id)}
-                  className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(15rem,1.05fr)_minmax(18rem,1.45fr)_minmax(5rem,0.4fr)_minmax(8rem,0.75fr)_2rem] lg:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="break-words text-sm font-semibold text-[var(--ls-ink-strong)]">
-                        {userLabel(relationship)}
-                      </span>
-                      {(() => {
-                        const tone = relationshipLabelTone(relationship.relationshipLabel);
-                        return (
-                          <span
-                            className="rounded-full border px-2.5 py-1 text-xs font-semibold"
-                            style={{ background: tone.bg, color: tone.text, borderColor: tone.border }}
-                          >
-                            {relationship.relationshipLabel}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-[var(--ls-ink-soft)]">
-                      {(() => {
-                        // 只在 chip 内容与上方 userLabel 不同时才显示，避免同一 user ID 重复两次
-                        const top = userLabel(relationship);
-                        const links = relationship.person?.identityLinks ?? [];
-                        const labels = links
-                          .map((link) => link.user.displayName ?? link.user.externalId)
-                          .filter((label) => label && label !== top);
-                        if (labels.length === 0) return null;
-                        return labels.map((label, i) => (
-                          <span
-                            key={`${label}-${i}`}
-                            className="rounded-full bg-[var(--ls-panel-cold)] px-2.5 py-1"
-                          >
-                            {label}
-                          </span>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                  <div className="min-w-0 text-sm leading-6 text-[var(--ls-ink-strong)]">
-                    {relationshipSummaryText(relationship)}
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 lg:contents">
-                    <RelationshipScoreCell label="好感" value={relationship.affinity} />
-                  </div>
-                  <div className="text-xs leading-5 text-[var(--ls-ink-soft)]">
-                    {formatDate(relationship.lastInteractionAt ?? relationship.updatedAt)}
-                  </div>
-                  <div className="hidden text-right text-xl font-semibold text-[var(--ls-border-cold)] lg:block">
-                    ›
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="bg-[var(--ls-panel-soft)] px-4 py-8 text-sm text-[var(--ls-ink-soft)]">
-                {pageState.loading ? "正在读取关系状态..." : "暂无关系状态。用户聊天后会自动创建。"}
+        <>
+          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">用户关系</h3>
+                <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
+                  {pageState.relationships.length} 个现实身份，按更新时间读取最近的关系状态。
+                </p>
               </div>
-            )}
-          </div>
-        </section>
+              <form
+                className="flex w-full gap-2 md:w-auto"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void loadList(query);
+                }}
+              >
+                <AdminInput
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索用户或摘要"
+                  aria-label="搜索用户或摘要"
+                />
+                <Button htmlType="submit" type="default">
+                  搜索
+                </Button>
+              </form>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
+              <div className="hidden grid-cols-[minmax(11rem,0.9fr)_minmax(11rem,0.85fr)_minmax(16rem,1.35fr)_minmax(5rem,0.4fr)_minmax(8rem,0.7fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
+                <div>用户</div>
+                <div>渠道账号</div>
+                <div>主要内容</div>
+                <div className="text-center">好感</div>
+                <div>最近更新</div>
+                <div />
+              </div>
+              {pageState.relationships.length > 0 ? (
+                pageState.relationships.map((relationship) => (
+                  <button
+                    key={relationship.id}
+                    type="button"
+                    onClick={() => void selectRelationship(relationship.id)}
+                    className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(11rem,0.9fr)_minmax(11rem,0.85fr)_minmax(16rem,1.35fr)_minmax(5rem,0.4fr)_minmax(8rem,0.7fr)_2rem] lg:items-center"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words text-sm font-semibold text-[var(--ls-ink-strong)]">
+                          {userLabel(relationship)}
+                        </span>
+                        {(() => {
+                          const tone = relationshipLabelTone(relationship.relationshipLabel);
+                          return (
+                            <span
+                              className="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                              style={{ background: tone.bg, color: tone.text, borderColor: tone.border }}
+                            >
+                              {relationship.relationshipLabel}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    <div className="min-w-0 space-y-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
+                      {(relationship.person?.identityLinks ?? []).map((link) => (
+                        <div key={link.id} className="break-words">
+                          <span className="font-semibold text-[var(--ls-ink-strong)]">
+                            {channelLabel(link.user.externalId)}
+                          </span>
+                          <span>：{channelUserName(link.user)}</span>
+                        </div>
+                      ))}
+                      {(relationship.person?.identityLinks ?? []).length === 0 && (
+                        <div>暂无渠道账号</div>
+                      )}
+                    </div>
+                    <div className="min-w-0 text-sm leading-6 text-[var(--ls-ink-strong)]">
+                      {relationshipSummaryText(relationship)}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 lg:contents">
+                      <RelationshipScoreCell label="好感" value={relationship.affinity} />
+                    </div>
+                    <div className="text-xs leading-5 text-[var(--ls-ink-soft)]">
+                      {formatDate(relationship.lastInteractionAt ?? relationship.updatedAt)}
+                    </div>
+                    <div className="hidden text-right text-xl font-semibold text-[var(--ls-border-cold)] lg:block">
+                      ›
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="bg-[var(--ls-panel-soft)] px-4 py-8 text-sm text-[var(--ls-ink-soft)]">
+                  {pageState.loading ? "正在读取关系状态..." : "暂无关系状态。用户聊天后会自动创建。"}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">合并身份</h3>
+                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+                  确认两个身份其实是同一个人时使用。合并后保留目标身份，渠道账号迁过去，好感度取两边较高值。
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4 lg:grid-cols-[minmax(14rem,1fr)_minmax(14rem,1fr)_auto] lg:items-end">
+              <Field label="来源身份">
+                <AdminSelect
+                  ariaLabel="来源身份"
+                  value={mergeSourceId}
+                  onChange={setMergeSourceId}
+                  placeholder="选择要合并掉的身份"
+                  options={relationshipSelectOptions}
+                />
+              </Field>
+              <Field label="目标身份（保留）">
+                <AdminSelect
+                  ariaLabel="目标身份"
+                  value={mergeTargetId}
+                  onChange={setMergeTargetId}
+                  placeholder="选择要保留的身份"
+                  options={relationshipSelectOptions}
+                />
+              </Field>
+              <Button
+                type="primary"
+                loading={pageState.saving}
+                disabled={!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId}
+                onClick={() => void mergeSelectedRelationships()}
+              >
+                合并
+              </Button>
+            </div>
+          </section>
+        </>
       ) : pageState.selected && form ? (
         <div className="space-y-5">
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="text-sm text-[var(--ls-ink-soft)]">当前用户</div>
-                <div className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">
-                  {userLabel(pageState.selected)}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-2xl font-semibold text-[var(--ls-ink-strong)]">
+                    {userLabel(pageState.selected)}
+                  </span>
+                  <EditPencilButton
+                    label="编辑身份名称"
+                    onClick={openPersonNameEditor}
+                  />
                 </div>
                 <div className="mt-2 text-sm text-[var(--ls-ink-soft)]">
                   Person ID: {pageState.selected.personId}
@@ -673,9 +941,21 @@ export function RelationshipStatePage({
                   {(pageState.selected.person?.identityLinks ?? []).map((link) => (
                     <span
                       key={link.id}
-                      className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-1 text-xs text-[var(--ls-ink-strong)]"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-1 text-xs text-[var(--ls-ink-strong)]"
                     >
-                      {link.user.displayName ?? link.user.externalId}
+                      <span>{channelLabel(link.user.externalId)}：{channelUserName(link.user)}</span>
+                      <EditPencilButton
+                        label={`编辑${channelLabel(link.user.externalId)}渠道昵称`}
+                        compact
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openUserNameEditor(
+                            link.userId,
+                            channelLabel(link.user.externalId),
+                            link.user.displayName ?? ""
+                          );
+                        }}
+                      />
                     </span>
                   ))}
                 </div>
@@ -692,57 +972,40 @@ export function RelationshipStatePage({
                   查看对话记录
                 </Button>
                 <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm text-[var(--ls-ink-strong)]">
-                  {pageState.selected.relationshipLabel}
+                  <div className="text-xs text-[var(--ls-ink-soft)]">好感度</div>
+                  <div className="mt-1 text-lg font-black tabular-nums">
+                    {form.affinity}/100
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">
+                    {form.relationshipLabel}
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <MetricSlider
-                label="好感度"
-                value={form.affinity}
-                onChange={(value) => setForm({ ...form, affinity: value })}
-              />
             </div>
           </section>
 
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
-            <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">详情与修正</h3>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4 lg:col-span-2">
-                <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">绑定其他渠道账号</div>
-                <div className="mt-3 flex flex-col gap-2 md:flex-row">
-                  <AdminInput
-                    value={linkUserId}
-                    onChange={(event) => setLinkUserId(event.target.value)}
-                    placeholder="User externalId / id，例如 telegram:123"
-                    aria-label="绑定渠道账号"
-                  />
-                  <Button
-                    type="primary"
-                    disabled={!linkUserId.trim() || pageState.saving}
-                    onClick={() => void linkUserToSelectedPerson()}
-                  >
-                    绑定
-                  </Button>
-                </div>
-                <p className="mt-2 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                  只有明确确认是同一个现实用户时再绑定。绑定后多个渠道会共用这一份关系状态。
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">详细信息</h3>
+                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+                  用户介绍、关系摘要、互动风格和好感度会进入聊天上下文；备注只在 admin 里看。
                 </p>
               </div>
-              <Field label="关系标签">
-                <AdminInput
-                  value={form.relationshipLabel}
-                  onChange={(event) =>
-                    setForm({ ...form, relationshipLabel: event.target.value })
-                  }
-                  aria-label="关系标签"
+              <label className="flex items-center gap-2 rounded-full bg-[var(--ls-panel-soft)] px-3 py-1.5 text-xs font-medium text-[var(--ls-ink-soft)]">
+                <input
+                  type="checkbox"
+                  checked={form.autoUpdateEnabled}
+                  onChange={(event) => setForm({ ...form, autoUpdateEnabled: event.target.checked })}
                 />
-              </Field>
+                允许 Dream 自动维护
+              </label>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <TextAreaField
-                label="互动风格"
-                value={form.interactionStyle}
-                onChange={(value) => setForm({ ...form, interactionStyle: value })}
+                label="用户介绍"
+                value={form.userIntroduction}
+                onChange={(value) => setForm({ ...form, userIntroduction: value })}
               />
               <TextAreaField
                 label="关系摘要"
@@ -750,14 +1013,25 @@ export function RelationshipStatePage({
                 onChange={(value) => setForm({ ...form, summary: value })}
               />
               <TextAreaField
-                label="最近信号"
-                value={form.recentSignal}
-                onChange={(value) => setForm({ ...form, recentSignal: value })}
+                label="互动风格"
+                value={form.interactionStyle}
+                onChange={(value) => setForm({ ...form, interactionStyle: value })}
               />
               <TextAreaField
-                label="备注"
+                label="备注（仅 admin）"
                 value={form.statusNote}
                 onChange={(value) => setForm({ ...form, statusNote: value })}
+              />
+              <MetricSlider
+                label={`好感度 / 关系标签：${form.relationshipLabel}`}
+                value={form.affinity}
+                onChange={(value) =>
+                  setForm({
+                    ...form,
+                    affinity: value,
+                    relationshipLabel: relationshipLabelFromAffinityValue(value),
+                  })
+                }
               />
             </div>
           </section>
@@ -834,85 +1108,89 @@ export function RelationshipStatePage({
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">好感度整理</h3>
+                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">拆分身份</h3>
                 <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                  Dream 根据真诚、同频、关心和价值冲突等证据自动调整。这里保留每次调整的完整证据。
+                  发现某些渠道账号不属于当前现实身份时，把这些渠道整体拆出去。对应渠道的聊天记录会跟着账号归到新身份。
                 </p>
               </div>
               <div className="rounded-full bg-[var(--ls-panel-soft)] px-3 py-1 text-xs font-medium text-[var(--ls-ink-soft)]">
-                {pageState.affinityProposals.length} 条整理
+                {(pageState.selected.person?.identityLinks ?? []).length} 个渠道账号
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4">
-              {pageState.affinityProposals.length > 0 ? (
-                pageState.affinityProposals.map((proposal) => (
-                  <div
-                    key={proposal.id}
-                    className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4"
-                  >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
-                          <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
-                            {affinityProposalStatusLabel(proposal.status)}
-                          </span>
-                          <span>{proposal.source}</span>
-                          {proposal.channel && <span>渠道：{proposal.channel}</span>}
-                          <span>{formatDate(proposal.createdAt)}</span>
-                        </div>
-                        <div className="mt-2 text-sm font-semibold leading-6 text-[var(--ls-ink-strong)]">
-                          {proposal.reason}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
-                        <span className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-1.5 font-semibold text-[var(--ls-ink-strong)]">
-                          {proposal.beforeAffinity} → {proposal.afterAffinity}
+            {(pageState.selected.person?.identityLinks ?? []).length > 1 ? (
+              <>
+                <div className="mt-4 grid gap-2">
+                  {(pageState.selected.person?.identityLinks ?? []).map((link) => {
+                    const checked = splitUserIds.includes(link.userId);
+                    return (
+                      <label
+                        key={link.id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition ${
+                          checked
+                            ? "border-[var(--ls-border-cold)] bg-[var(--ls-panel-cold)]"
+                            : "border-[var(--ls-border)] bg-[var(--ls-panel-soft)]"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSplitUserId(link.userId)}
+                          className="mt-1"
+                        />
+                        <span className="min-w-0 text-sm leading-6 text-[var(--ls-ink-strong)]">
+                          <span className="font-semibold">{channelLabel(link.user.externalId)}</span>
+                          <span>：{channelUserName(link.user)}</span>
                         </span>
-                        <span className={`rounded-lg border px-3 py-1.5 font-black tabular-nums ${
-                          proposal.delta >= 0
-                            ? "border-[var(--ls-success-border-soft)] bg-[var(--ls-success-bg-soft)] text-[var(--ls-success-text-strong)]"
-                            : "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text-strong)]"
-                        }`}>
-                          {signedDelta(proposal.delta)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid gap-3">
-                      {proposal.evidences.map((evidence) => (
-                        <div
-                          key={evidence.id}
-                          className="rounded-md border border-[var(--ls-border)] bg-white px-3 py-3"
-                        >
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
-                            <span className="rounded-full border border-[var(--ls-border-cold)] bg-[var(--ls-panel-cold)] px-2 py-0.5 font-semibold text-[var(--ls-ink-strong)]">
-                              {affinityEvidenceTypeLabel(evidence.evidenceType)}
-                            </span>
-                            <span>基础 {signedDelta(evidence.baseDelta)}</span>
-                            <span>实际 {signedDelta(evidence.adjustedDelta)}</span>
-                            <span>置信 {Math.round(evidence.confidence * 100)}%</span>
-                          </div>
-                          <div className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">
-                            {evidence.content}
-                          </div>
-                          <div className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                            {evidence.reason}
-                          </div>
-                          <div className="mt-1 break-all text-[11px] leading-5 text-[var(--ls-ink-soft)]">
-                            来源消息：{sourceMessageIdsText(evidence.sourceMessageIds)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
-                  暂无 Dream 好感度整理记录。
+                      </label>
+                    );
+                  })}
                 </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.55fr)_auto] lg:items-end">
+                  <Field label="新身份名称（可选）">
+                    <AdminInput
+                      value={splitLabel}
+                      onChange={(event) => setSplitLabel(event.target.value)}
+                      placeholder="默认使用第一个渠道昵称"
+                      aria-label="新身份名称"
+                    />
+                  </Field>
+                  <Field label="新身份好感度（可选）">
+                    <AdminInput
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={splitAffinity}
+                      onChange={(event) => setSplitAffinity(event.target.value)}
+                      placeholder={`默认 ${pageState.selected.affinity}`}
+                      aria-label="新身份好感度"
+                    />
+                  </Field>
+                  <Button
+                    type="primary"
+                    loading={pageState.saving}
+                    disabled={
+                      splitUserIds.length === 0 ||
+                      splitUserIds.length >= (pageState.selected.person?.identityLinks ?? []).length
+                    }
+                    onClick={() => void splitSelectedIdentity()}
+                  >
+                    拆分
+                  </Button>
+                </div>
+
+                {splitUserIds.length >= (pageState.selected.person?.identityLinks ?? []).length && (
+                  <div className="mt-3 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-xs leading-6 text-[var(--ls-warning-text)]">
+                    不能把全部渠道都拆出去；原身份至少要保留一个渠道账号。
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-4 text-sm text-[var(--ls-ink-soft)]">
+                当前身份只有一个渠道账号，不需要拆分。要改好感度或名称，可以直接在详细信息里手动修正。
+              </div>
               )}
-            </div>
           </section>
 
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
@@ -1015,7 +1293,162 @@ export function RelationshipStatePage({
           {pageState.loading ? "正在读取关系详情..." : "没有找到这条关系状态。"}
         </section>
       )}
+
+      {editNameDialog && (
+        <RelationshipModal
+          title={editNameDialog.type === "person" ? "编辑身份名称" : `编辑${editNameDialog.channel}昵称`}
+          description={
+            editNameDialog.type === "person"
+              ? "身份名称是你在关系列表里看到的现实身份名字。"
+              : "渠道昵称只影响这个渠道账号在 admin 里的显示名，不会改变渠道外部 ID。"
+          }
+          onClose={() => setEditNameDialog(null)}
+          footer={
+            <>
+              <Button type="default" disabled={pageState.saving} onClick={() => setEditNameDialog(null)}>
+                取消
+              </Button>
+              <Button
+                type="primary"
+                loading={pageState.saving}
+                disabled={!editNameDialog.value.trim()}
+                onClick={() => void saveNameDialog()}
+              >
+                保存
+              </Button>
+            </>
+          }
+        >
+          <Field label={editNameDialog.type === "person" ? "身份名称" : "渠道昵称"}>
+            <AdminInput
+              value={editNameDialog.value}
+              onChange={(event) =>
+                setEditNameDialog((current) =>
+                  current ? { ...current, value: event.target.value } : current
+                )
+              }
+              placeholder={editNameDialog.type === "person" ? "输入身份名称" : "输入渠道昵称"}
+              aria-label={editNameDialog.type === "person" ? "身份名称" : "渠道昵称"}
+            />
+          </Field>
+        </RelationshipModal>
+      )}
+
+      {resetConfirmOpen && pageState.selected && (
+        <RelationshipModal
+          title="确认重置关系状态"
+          description={`请输入「${userLabel(pageState.selected)}」后才能重置。重置只会恢复关系状态字段，不会删除身份、渠道账号或聊天记录。`}
+          onClose={() => {
+            setResetConfirmOpen(false);
+            setResetConfirmText("");
+          }}
+          footer={
+            <>
+              <Button
+                type="default"
+                disabled={pageState.saving}
+                onClick={() => {
+                  setResetConfirmOpen(false);
+                  setResetConfirmText("");
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                type="default"
+                danger
+                loading={pageState.saving}
+                disabled={resetConfirmText.trim() !== userLabel(pageState.selected)}
+                onClick={() => void resetSelectedRelationship()}
+              >
+                确认重置
+              </Button>
+            </>
+          }
+        >
+          <Field label="输入身份名称">
+            <AdminInput
+              value={resetConfirmText}
+              onChange={(event) => setResetConfirmText(event.target.value)}
+              placeholder={userLabel(pageState.selected)}
+              aria-label="输入要重置的身份名称"
+            />
+          </Field>
+        </RelationshipModal>
+      )}
     </div>
+  );
+}
+
+function RelationshipModal({
+  title,
+  description,
+  children,
+  footer,
+  onClose,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  footer: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onMouseDown={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-[var(--ls-shadow)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-[var(--ls-ink-strong)]">{title}</h3>
+            {description && (
+              <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">{description}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="admin-layout-button rounded-full px-2 py-1 text-sm font-semibold text-[var(--ls-ink-soft)] hover:bg-[var(--ls-panel-soft)]"
+            onClick={onClose}
+            aria-label="关闭弹窗"
+          >
+            ×
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div>
+      </div>
+    </div>
+  );
+}
+
+function EditPencilButton({
+  label,
+  compact = false,
+  onClick,
+}: {
+  label: string;
+  compact?: boolean;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`admin-layout-button inline-flex items-center justify-center rounded-full border border-[var(--ls-border)] bg-white font-semibold text-[var(--ls-ink-soft)] transition hover:bg-[var(--ls-panel-soft)] hover:text-[var(--ls-ink-strong)] ${
+        compact ? "h-5 w-5 text-[11px]" : "h-7 w-7 text-sm"
+      }`}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+    >
+      <span className="inline-block -scale-x-100">✎</span>
+    </button>
   );
 }
 
