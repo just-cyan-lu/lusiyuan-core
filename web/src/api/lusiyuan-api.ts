@@ -272,7 +272,7 @@ export interface RelationshipStateEvent {
   createdAt: string;
 }
 
-export interface RelationshipAffinityEvidence {
+export interface RelationshipReviewEvidence {
   id: string;
   proposalId: string;
   relationshipStateId: string;
@@ -285,17 +285,16 @@ export interface RelationshipAffinityEvidence {
   evidenceKey: string;
   evidenceType: string;
   polarity: string;
-  baseDelta: number;
-  adjustedDelta: number;
   confidence: number;
   content: string;
   reason: string;
+  affectsFields: unknown;
   sourceMessageIds: unknown;
   metadata: unknown;
   createdAt: string;
 }
 
-export interface RelationshipAffinityProposal {
+export interface RelationshipReviewProposal {
   id: string;
   reportId: string | null;
   relationshipStateId: string;
@@ -305,18 +304,20 @@ export interface RelationshipAffinityProposal {
   channel: string | null;
   source: string;
   status: string;
-  beforeAffinity: number;
-  delta: number;
-  afterAffinity: number;
   reason: string;
   confidence: number;
   evidenceCount: number;
+  beforeSnapshot: unknown;
+  proposedPatch: unknown;
+  afterSnapshot: unknown;
   appliedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
   rawOutput: unknown;
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
-  evidences: RelationshipAffinityEvidence[];
+  evidences: RelationshipReviewEvidence[];
 }
 
 export interface RelationshipListResponse {
@@ -326,7 +327,7 @@ export interface RelationshipListResponse {
 export interface RelationshipDetailResponse {
   relationship: RelationshipState;
   events: RelationshipStateEvent[];
-  affinityProposals?: RelationshipAffinityProposal[];
+  reviewProposals?: RelationshipReviewProposal[];
 }
 
 export interface IdentityLinkProposal {
@@ -1552,6 +1553,34 @@ export async function rejectIdentityLinkProposal(input: {
     }
   );
   return parseJsonResponse<IdentityLinkProposalReviewResponse>(response, "忽略身份怀疑失败");
+}
+
+export async function applyRelationshipReviewProposal(input: {
+  token: string;
+  proposalId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationship-review-proposals/${input.proposalId}/apply`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<RelationshipDetailResponse>(response, "应用关系复盘失败");
+}
+
+export async function rejectRelationshipReviewProposal(input: {
+  token: string;
+  proposalId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationship-review-proposals/${input.proposalId}/reject`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<RelationshipDetailResponse>(response, "忽略关系复盘失败");
 }
 
 export async function resetRelationshipState(input: {

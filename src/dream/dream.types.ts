@@ -144,9 +144,9 @@ export interface RawConsolidationOutput {
   openQuestions: string[];
 }
 
-// ─── Relationship Affinity ───────────────────────────────────────────────────
+// ─── Relationship Review ─────────────────────────────────────────────────────
 
-export type RawRelationshipAffinityEvidenceType =
+export type RawRelationshipReviewEvidenceType =
   | "sincerity"
   | "shared_trait"
   | "cheerful_chat"
@@ -157,20 +157,35 @@ export type RawRelationshipAffinityEvidenceType =
   | "value_conflict"
   | "hostility_or_value_denial";
 
-export interface RawRelationshipAffinityEvidence {
-  evidenceType: RawRelationshipAffinityEvidenceType;
+export type RawRelationshipReviewField =
+  | "affinity"
+  | "userIntroduction"
+  | "summary"
+  | "interactionStyle";
+
+export interface RawRelationshipReviewPatch {
+  affinity?: number;
+  userIntroduction?: string | null;
+  summary?: string | null;
+  interactionStyle?: string | null;
+}
+
+export interface RawRelationshipReviewEvidence {
+  evidenceType: RawRelationshipReviewEvidenceType;
   content: string;
   reason: string;
   sourceMessageIds: string[];
   confidence: number;
+  affectsFields?: RawRelationshipReviewField[];
   traitKey?: string;
   severity?: "low" | "medium" | "high";
 }
 
-export interface RawRelationshipAffinityOutput {
+export interface RawRelationshipReviewOutput {
   summary: string;
   confidence: number;
-  evidences: RawRelationshipAffinityEvidence[];
+  proposedPatch?: RawRelationshipReviewPatch;
+  evidences: RawRelationshipReviewEvidence[];
   openQuestions?: string[];
 }
 

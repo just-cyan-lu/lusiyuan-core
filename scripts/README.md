@@ -154,7 +154,7 @@ npm run dream:run
 npm run dream:run -- --user-id=<userId>
 ```
 
-这个脚本会写入 Dream job、daily note、signals、diary、consolidation report、提案等数据，也可能触发关系好感度整理和运行态摘要更新。
+这个脚本会写入 Dream job、daily note、signals、diary、consolidation report、提案等数据，也可能触发关系复盘和运行态摘要更新。
 
 ### `inspect-dream-job.ts`
 

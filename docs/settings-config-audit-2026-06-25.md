@@ -56,12 +56,12 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - Dream 阶段和提案类型开关：删除，`DREAM_ENABLED=true` 时固定完整运行 Daily Note、Dream Signal、Dream Diary、Deep Sleep，并生成待审核提案。
 - `DREAM_LOCK_TTL_MINUTES`：删除配置项；Dream 使用不可过期运行锁防并发，拿不到锁时本次运行返回 `running` 并跳过，等待下次 cron 继续。
 
-## 已处理：关系好感度入口
+## 已处理：关系复盘入口
 
 - 关系模块已从“熟悉度、信任度、亲近感、关系张力”四维分数收敛为单一 `affinity`（好感度）。
 - 当前聊天不再靠关键词自动升降关系，也删除了 `RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS` 两个设置项。
-- 设计已收敛到 `docs/relationship-affinity-and-runtime-energy-2026-06-29.md`：Dream 关系整理器根据真诚、同频、关心、价值冲突等证据调整 affinity，第一版直接静默应用，但保留完整 proposal/evidence 记录。
-- 写入入口仍统一使用 `relationshipStateService.applyAffinityPatch(...)`，便于 admin 审计、导出和后续训练数据整理。
+- 设计已收敛到 `docs/relationship-affinity-and-runtime-energy-2026-06-29.md`：Dream 关系复盘根据真诚、同频、关心、价值冲突等证据一次性维护好感度、用户介绍、关系摘要和互动风格。
+- 写入入口统一使用 `relationshipStateService.applyRelationshipReviewProposal(...)`；身份关闭“允许 Dream 自动维护”时，复盘进入 admin 的“待确认的关系复盘”。
 
 ## 已处理：聊天上下文结构
 

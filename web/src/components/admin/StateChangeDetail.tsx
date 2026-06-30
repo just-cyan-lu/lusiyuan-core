@@ -177,7 +177,7 @@ function patchFieldLabel(key: string): string {
     counts: "统计",
     signal: "信号",
     proposedPatch: "LLM 提议",
-    lastRelationshipReview: "最近关系整理",
+    lastRelationshipReview: "最近关系复盘",
     stateImpact: "状态影响",
     metadataPatch: "内在详情补丁",
     reason: "原因",

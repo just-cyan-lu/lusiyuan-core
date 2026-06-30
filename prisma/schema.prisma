@@ -554,8 +554,8 @@ model PersonIdentity {
   relationshipState  RelationshipState?
   relationshipEvents RelationshipStateEvent[]
   identityProposals  IdentityLinkProposal[]
-  affinityProposals  RelationshipAffinityProposal[]
-  affinityEvidences  RelationshipAffinityEvidence[]
+  reviewProposals    RelationshipReviewProposal[]
+  reviewEvidences    RelationshipReviewEvidence[]
 
   @@index([label])
   @@map("person_identities")
@@ -625,8 +625,8 @@ model RelationshipState {
 
   person            PersonIdentity                 @relation(fields: [personId], references: [id], onDelete: Cascade)
   events            RelationshipStateEvent[]
-  affinityProposals RelationshipAffinityProposal[]
-  affinityEvidences RelationshipAffinityEvidence[]
+  reviewProposals   RelationshipReviewProposal[]
+  reviewEvidences   RelationshipReviewEvidence[]
 
   @@index([personId])
   @@index([updatedAt])
@@ -663,8 +663,8 @@ model RelationshipStateEvent {
   @@map("relationship_state_events")
 }
 
-/// Dream-generated affinity adjustment record. First version is auto-applied but still auditable.
-model RelationshipAffinityProposal {
+/// Dream-generated relationship review for one real-person identity.
+model RelationshipReviewProposal {
   id                  String    @id @default(cuid())
   reportId            String?
   relationshipStateId String
@@ -673,23 +673,25 @@ model RelationshipAffinityProposal {
   conversationId      String?
   channel             String?
   source              String    @default("dream")
-  status              String    @default("applied")
-  beforeAffinity      Int
-  delta               Int
-  afterAffinity       Int
+  status              String    @default("pending")
   reason              String
   confidence          Float     @default(0.7)
   evidenceCount       Int       @default(0)
+  beforeSnapshot      Json?
+  proposedPatch       Json?
+  afterSnapshot       Json?
   appliedAt           DateTime?
+  reviewedBy          String?
+  reviewedAt          DateTime?
   rawOutput           Json?
   metadata            Json?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  report            DreamConsolidationReport?      @relation(fields: [reportId], references: [id], onDelete: SetNull)
-  relationshipState RelationshipState              @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
-  person            PersonIdentity                 @relation(fields: [personId], references: [id], onDelete: Cascade)
-  evidences         RelationshipAffinityEvidence[]
+  report            DreamConsolidationReport?    @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  relationshipState RelationshipState            @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
+  person            PersonIdentity               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  evidences         RelationshipReviewEvidence[]
 
   @@index([reportId])
   @@index([relationshipStateId])
@@ -699,11 +701,11 @@ model RelationshipAffinityProposal {
   @@index([status])
   @@index([source])
   @@index([createdAt])
-  @@map("relationship_affinity_proposals")
+  @@map("relationship_review_proposals")
 }
 
-/// Single relationship evidence item used to compute an affinity adjustment.
-model RelationshipAffinityEvidence {
+/// Single evidence item used by a relationship review.
+model RelationshipReviewEvidence {
   id                  String   @id @default(cuid())
   proposalId          String
   relationshipStateId String
@@ -715,19 +717,18 @@ model RelationshipAffinityEvidence {
   source              String   @default("dream")
   evidenceKey         String
   evidenceType        String
-  polarity            String
-  baseDelta           Int      @default(0)
-  adjustedDelta       Int      @default(0)
+  polarity            String   @default("neutral")
   confidence          Float    @default(0.7)
   content             String
   reason              String
+  affectsFields       Json?
   sourceMessageIds    Json?
   metadata            Json?
   createdAt           DateTime @default(now())
 
-  proposal          RelationshipAffinityProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  relationshipState RelationshipState            @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
-  person            PersonIdentity               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  proposal          RelationshipReviewProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  relationshipState RelationshipState          @relation(fields: [relationshipStateId], references: [id], onDelete: Cascade)
+  person            PersonIdentity             @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([relationshipStateId, evidenceKey])
   @@index([proposalId])
@@ -739,7 +740,7 @@ model RelationshipAffinityEvidence {
   @@index([evidenceType])
   @@index([polarity])
   @@index([createdAt])
-  @@map("relationship_affinity_evidence")
+  @@map("relationship_review_evidence")
 }
 
 /// Vector embeddings attached to long-term memories.
@@ -998,7 +999,7 @@ model DreamConsolidationReport {
   proposals         MemoryProposal[]
   riskFlags         MemoryRiskFlag[]
   growthLogs        GrowthLogProposal[]
-  affinityProposals RelationshipAffinityProposal[]
+  relationshipReviewProposals RelationshipReviewProposal[]
 
   @@index([phase])
   @@index([createdAt])

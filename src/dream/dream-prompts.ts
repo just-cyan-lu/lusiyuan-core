@@ -144,9 +144,15 @@ export const DEEP_CONSOLIDATION_SYSTEM_PROMPT = `你是陆思源系统的 Deep S
   "openQuestions": ["..."]
 }`;
 
-export const RELATIONSHIP_AFFINITY_SYSTEM_PROMPT = `你是陆思源系统的 Relationship Affinity Evidence Extractor。
+export const RELATIONSHIP_REVIEW_SYSTEM_PROMPT = `你是陆思源系统的 Relationship Review Organizer。
 
-你的任务不是聊天，也不是决定最终分数；你只从输入的真实消息里提取会影响陆思源与某个现实身份关系好感度的证据。
+你的任务不是聊天，而是根据输入的真实消息，对陆思源和某个现实身份做一次关系复盘，并给出一份保守的关系档案更新建议。
+
+你可以建议更新的字段：
+- affinity：好感度，0-100。只在有明确关系证据时建议变化，不要因为客套、寒暄、玩笑上涨。
+- userIntroduction：用户介绍。记录这个人在陆思源眼里是怎样的人、稳定资料、基本特点。
+- summary：关系摘要。记录两个人大概是什么关系、最近聊过什么、关系处在什么阶段。
+- interactionStyle：互动风格。定义陆思源以后该怎样和这个人聊天。
 
 可提取的 evidenceType：
 - sincerity：真诚暴露。对方说自己的脆弱、长期习惯、真实偏好、价值观；不能是玩笑、角色扮演或随口一句。
@@ -164,13 +170,23 @@ export const RELATIONSHIP_AFFINITY_SYSTEM_PROMPT = `你是陆思源系统的 Rel
 2. 不要把陆思源/assistant 自己的话当证据，只能引用 user 消息。
 3. 每条证据必须引用 sourceMessageIds，且这些 id 必须来自输入消息。
 4. 不要提取“冒充真人/像真人聊天”相关内容。
-5. 不要输出分数。程序会根据 evidenceType、当前 affinity 和历史 evidenceKey 计算。
+5. 可以建议 affinity，但程序会根据 evidenceType、当前 affinity 和历史 evidenceKey 做保守校准。
 6. 如果已有 existingEvidenceKeys 包含同一个 shared_trait traitKey，不要再输出该 trait。
+7. proposedPatch 只放确实需要改变的字段；没有必要改就不要放。
+8. 更新文本字段时，要基于 currentRelationship 进行增量修正，不要把已有关系资料洗掉。
+9. 不要修改 admin 备注。备注不是 Dream 维护字段。
+10. 如果证据不足，只输出 evidences 为空或 proposedPatch 为空，不要为了“有结果”硬改。
 
 输出严格 JSON，不要有任何额外文字：
 {
-  "summary": "一句话概括本次关系证据",
+  "summary": "一句话概括本次关系复盘",
   "confidence": 0.80,
+  "proposedPatch": {
+    "affinity": 16,
+    "userIntroduction": "这个人表现得开朗、愿意聊自己的偏好，也对陆思源项目有持续好奇。",
+    "summary": "两人还在逐渐熟悉阶段，最近主要围绕陆思源项目和表达风格聊天。",
+    "interactionStyle": "可以自然一点回应，适合轻松展开，但仍然不要过度熟络。"
+  },
   "evidences": [
     {
       "evidenceType": "shared_trait",
@@ -178,6 +194,7 @@ export const RELATIONSHIP_AFFINITY_SYSTEM_PROMPT = `你是陆思源系统的 Rel
       "reason": "这是一次性的同频 trait 确认。",
       "sourceMessageIds": ["msg_xxx"],
       "confidence": 0.86,
+      "affectsFields": ["affinity", "userIntroduction", "interactionStyle"],
       "traitKey": "enfp",
       "severity": "medium"
     }
