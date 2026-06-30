@@ -1,9 +1,7 @@
 import type {
-  RuntimeEvent,
   RuntimeSourceMessage,
   RuntimeStateEventSourcesResponse,
 } from "../../api/lusiyuan-api";
-import { RawJsonDetails } from "./AdminDetailPrimitives";
 import {
   formatAdminDate,
   shortAdminId,
@@ -13,14 +11,12 @@ interface RuntimeStateSourceMaterialsProps {
   detail: RuntimeStateEventSourcesResponse | null;
   loading: boolean;
   error: string | null;
-  runtimeEventTypeLabel: (eventType: string) => string;
 }
 
 export function RuntimeStateSourceMaterials({
   detail,
   loading,
   error,
-  runtimeEventTypeLabel,
 }: RuntimeStateSourceMaterialsProps) {
   if (loading) {
     return (
@@ -54,31 +50,13 @@ export function RuntimeStateSourceMaterials({
           <h4 className="mt-1 text-lg font-semibold text-[var(--ls-ink-strong)]">这次变化参考了什么</h4>
         </div>
         <div className="rounded-full border border-[var(--ls-border-cold)] bg-white px-3 py-1 text-xs text-[var(--ls-ink-soft)]">
-          {detail.runtimeEvents.length} 个事件 / {detail.messages.length} 条消息
+          {detail.messages.length} 条消息
         </div>
       </div>
 
       <MissingSources
-        runtimeEventIds={detail.missingRuntimeEventIds}
         messageIds={detail.missingMessageIds}
       />
-
-      <section className="mt-5">
-        <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">运行事件来源</div>
-        <div className="mt-3 grid gap-3">
-          {detail.runtimeEvents.length > 0 ? (
-            detail.runtimeEvents.map((event) => (
-              <RuntimeEventSourceCard
-                key={event.id}
-                event={event}
-                runtimeEventTypeLabel={runtimeEventTypeLabel}
-              />
-            ))
-          ) : (
-            <EmptySource text="这次状态变化没有记录运行事件来源。" />
-          )}
-        </div>
-      </section>
 
       <section className="mt-5">
         <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">消息来源</div>
@@ -92,44 +70,6 @@ export function RuntimeStateSourceMaterials({
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-function RuntimeEventSourceCard({
-  event,
-  runtimeEventTypeLabel,
-}: {
-  event: RuntimeEvent;
-  runtimeEventTypeLabel: (eventType: string) => string;
-}) {
-  return (
-    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
-            {runtimeEventTypeLabel(event.eventType)}
-          </div>
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
-            <span>{event.source}</span>
-            <span>{event.status}</span>
-            <span>重要度 {event.importance}</span>
-            <span>ID {shortAdminId(event.id)}</span>
-          </div>
-        </div>
-        <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
-          {formatAdminDate(event.createdAt)}
-        </div>
-      </div>
-      <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-strong)]">{event.summary}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <SourceSignal label="心情" value={event.moodSignal} />
-        <SourceSignal label="精力" value={event.energySignal} />
-      </div>
-      <div className="mt-3 grid gap-2">
-        <RawJsonDetails title="stateImpact" value={event.stateImpact} />
-        <RawJsonDetails title="payload" value={event.payload} />
-      </div>
     </div>
   );
 }
@@ -169,19 +109,14 @@ function MessageSourceCard({ message }: { message: RuntimeSourceMessage }) {
 }
 
 function MissingSources({
-  runtimeEventIds,
   messageIds,
 }: {
-  runtimeEventIds: string[];
   messageIds: string[];
 }) {
-  if (runtimeEventIds.length === 0 && messageIds.length === 0) return null;
+  if (messageIds.length === 0) return null;
 
   return (
     <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-panel-cold)] px-4 py-3 text-xs leading-6 text-[var(--ls-warning-text)]">
-      {runtimeEventIds.length > 0 ? (
-        <div>缺失运行事件：{runtimeEventIds.map(shortAdminId).join(" / ")}</div>
-      ) : null}
       {messageIds.length > 0 ? (
         <div>缺失消息：{messageIds.map(shortAdminId).join(" / ")}</div>
       ) : null}
@@ -194,14 +129,6 @@ function EmptySource({ text }: { text: string }) {
     <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 text-sm text-[var(--ls-ink-soft)]">
       {text}
     </div>
-  );
-}
-
-function SourceSignal({ label, value }: { label: string; value: string | null }) {
-  return (
-    <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-1 text-xs text-[var(--ls-ink-strong)]">
-      {label}：{value ?? "暂无"}
-    </span>
   );
 }
 

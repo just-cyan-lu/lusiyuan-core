@@ -229,8 +229,7 @@ LLM 提炼表达经验，程序保存并建立向量索引
 - `chat_profiles/`：稳定聊天投影。
 - `runtime/default_state.md`：默认状态种子。
 - `persona-projection.ts`：Prompt Compiler 雏形。
-- `RuntimeState`：保存全局心情、精力、压力、当前目标、最近关注和正在做的事。
-- `RuntimeEvent`：保存聊天、复盘、梦境、自启动检查这些“发生过的事”。
+- `RuntimeState`：保存全局心力、状态标签、最近状态说明和结构化 metadata。
 - `RuntimeStateEvent`：只保存真正写入 RuntimeState 的状态变化记录。
 - `PersonIdentity` / `IdentityLink`：把渠道账号绑定到现实身份，绑定后共享关系状态。
 - `IdentityLinkProposal`：系统怀疑两个渠道账号可能是同一个人，但等待 admin 审核。
@@ -251,25 +250,19 @@ LLM 提炼表达经验，程序保存并建立向量索引
 ↓
 保存回复
 ↓
-写 RuntimeEvent：记录这轮聊天发生了什么
-↓
 写 RelationshipStateEvent：记录这轮聊天里的关系信号
 ↓
 如果关系信号达到阈值，或 admin 手动复盘：更新这个现实身份的 RelationshipState
 ↓
 如果消息或显示名像已有身份，写 IdentityLinkProposal，等待 admin 审核
 ↓
-如果不是 owner：不改 RuntimeState，等待复盘或梦境整理
-↓
-如果是 owner 且允许自动校准：按 rules / llm 更新 RuntimeState
-↓
-写 RuntimeStateEvent
+不改 RuntimeState；Dream 或自主检查在自己的时间窗口里决定是否写 RuntimeStateEvent
 ```
 
-写 RuntimeStateEvent 时会顺手记录来源。单轮 owner 对话会记录对应的聊天事件和消息；Reflection / Dream 这种整理型入口会记录它们实际看过的多条消息；autonomy tick 如果因为连续聊天变累，会记录最近一批聊天事件。
+写 RuntimeStateEvent 时会顺手记录来源消息。Dream 会记录它实际整理过的多条消息；autonomy tick 如果因为连续聊天变累，会记录最近一批用户消息。
 
-admin 里点开某次 RuntimeStateEvent 后，会按这些来源 ID 读取对应的 RuntimeEvent 和 Message，直接显示状态变化背后的材料。
+admin 里点开某次 RuntimeStateEvent 后，会按这些来源 ID 读取对应 Message，直接显示状态变化背后的材料。
 
-Reflection 完成后也会写 RuntimeEvent，并在允许自动校准时更新 RuntimeState。Dream Cycle 完成后同理。autonomy tick 会根据时间流逝和聊天密度判断：长时间没人聊会更想说话，连续聊天太多会变累。
+Dream Cycle 完成后会在允许自动校准时更新 RuntimeState。autonomy tick 会直接统计最近用户消息数量：聊天较少时恢复心力并尝试推进闲时任务，连续聊天太多时降低心力并暂停闲时任务。
 
 如果策略是 `llm`，LLM 只负责提议；程序会限制可写字段、文本长度、数值范围和单次变化幅度。下一步才是把 RelationshipState 接入更深的 Reflection 总结，以及更细的长期目标、自我叙事拆分。

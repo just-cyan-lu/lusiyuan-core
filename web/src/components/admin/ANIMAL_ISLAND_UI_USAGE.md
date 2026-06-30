@@ -381,10 +381,9 @@ const [status, setStatus] = useState("all");
 复杂详情页优先复用：
 
 - `AdminDetailPrimitives.tsx`
-- `RuntimeEventDetail.tsx`
 - `StateChangeDetail.tsx`
 
-这符合项目规则：`RuntimeEventDetail` 解释“发生了什么、有没有资格影响长期状态”，`StateChangeDetail` 解释“最终写入后，状态实际改了什么”，两者共享 admin 详情展示语言。
+这符合项目规则：`StateChangeDetail` 解释“最终写入后，状态实际改了什么”，并复用 admin 详情展示语言。
 
 ## Loading / Phone / Wallet / Footer / Divider
 
@@ -524,4 +523,3 @@ pnpm test
 ```
 
 除非用户允许，不要为了视觉检查随手启动新的 dev server；如果启动了，结束前要明确关闭。
-

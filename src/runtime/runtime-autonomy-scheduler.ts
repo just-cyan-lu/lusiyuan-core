@@ -29,7 +29,7 @@ export function startRuntimeAutonomyScheduler(logger?: {
       try {
         const result = await runtimeStateService.runAutonomyTick();
         logger?.info(
-          `[RuntimeAutonomy] Completed: state=${result.state.id}, event=${result.event.id}`
+          `[RuntimeAutonomy] Completed: state=${result.state.id}`
         );
       } catch (err) {
         logger?.error("[RuntimeAutonomy] Failed to run autonomy tick", err);

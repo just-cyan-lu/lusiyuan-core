@@ -393,7 +393,6 @@ const databaseDataTables = [
   "memories",
   "runtime_state_events",
   "runtime_states",
-  "runtime_events",
   "identity_link_proposals",
   "relationship_review_evidence",
   "relationship_review_proposals",
@@ -1200,13 +1199,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/v1/admin/runtime/state", async (_request, reply) => {
-    const [state, events, runtimeEvents, autonomousTasks] = await Promise.all([
+    const [state, events, autonomousTasks] = await Promise.all([
       runtimeStateService.getOrCreate(),
       runtimeStateService.listEvents(12),
-      runtimeStateService.listRuntimeEvents(12),
       autonomousTaskService.listTasks({ limit: 20 }),
     ]);
-    return reply.send({ state, events, runtimeEvents, autonomousTasks });
+    return reply.send({ state, events, autonomousTasks });
   });
 
   app.patch("/v1/admin/runtime/state", async (request, reply) => {
@@ -1217,22 +1215,20 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       source: "admin",
       summary: cleanString(body.summary) ?? "Admin 手动更新运行态。",
     });
-    const [events, runtimeEvents, autonomousTasks] = await Promise.all([
+    const [events, autonomousTasks] = await Promise.all([
       runtimeStateService.listEvents(12),
-      runtimeStateService.listRuntimeEvents(12),
       autonomousTaskService.listTasks({ limit: 20 }),
     ]);
-    return reply.send({ state, events, runtimeEvents, autonomousTasks });
+    return reply.send({ state, events, autonomousTasks });
   });
 
   app.post("/v1/admin/runtime/state/reset", async (_request, reply) => {
     const state = await runtimeStateService.reset("admin");
-    const [events, runtimeEvents, autonomousTasks] = await Promise.all([
+    const [events, autonomousTasks] = await Promise.all([
       runtimeStateService.listEvents(12),
-      runtimeStateService.listRuntimeEvents(12),
       autonomousTaskService.listTasks({ limit: 20 }),
     ]);
-    return reply.send({ state, events, runtimeEvents, autonomousTasks });
+    return reply.send({ state, events, autonomousTasks });
   });
 
   app.get("/v1/admin/runtime/state/events", async (request, reply) => {
@@ -1248,26 +1244,15 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send(sources);
   });
 
-  app.get("/v1/admin/runtime/events", async (request, reply) => {
-    const query = request.query as { limit?: string };
-    const runtimeEvents = await runtimeStateService.listRuntimeEvents(
-      clampLimit(query.limit, 30)
-    );
-    return reply.send({ runtimeEvents });
-  });
-
   app.post("/v1/admin/runtime/autonomy/tick", async (_request, reply) => {
     const result = await runtimeStateService.runAutonomyTick();
-    const [events, runtimeEvents, autonomousTasks] = await Promise.all([
+    const [events, autonomousTasks] = await Promise.all([
       runtimeStateService.listEvents(12),
-      runtimeStateService.listRuntimeEvents(12),
       autonomousTaskService.listTasks({ limit: 20 }),
     ]);
     return reply.send({
       state: result.state,
-      event: result.event,
       events,
-      runtimeEvents,
       autonomousTasks,
       idleTaskRun: result.idleTaskRun,
     });

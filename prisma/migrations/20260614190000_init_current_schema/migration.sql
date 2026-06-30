@@ -143,28 +143,6 @@ CREATE TABLE "runtime_state_events" (
 );
 
 -- CreateTable
-CREATE TABLE "runtime_events" (
-    "id" TEXT NOT NULL,
-    "eventType" TEXT NOT NULL,
-    "source" TEXT NOT NULL,
-    "summary" TEXT NOT NULL,
-    "importance" INTEGER NOT NULL DEFAULT 30,
-    "topic" TEXT,
-    "moodSignal" TEXT,
-    "energySignal" TEXT,
-    "stateImpact" JSONB,
-    "payload" JSONB,
-    "userId" TEXT,
-    "conversationId" TEXT,
-    "messageId" TEXT,
-    "channel" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'observed',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "runtime_events_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "person_identities" (
     "id" TEXT NOT NULL,
     "label" TEXT,
@@ -574,24 +552,6 @@ CREATE INDEX "runtime_state_events_source_idx" ON "runtime_state_events"("source
 
 -- CreateIndex
 CREATE INDEX "runtime_state_events_createdAt_idx" ON "runtime_state_events"("createdAt");
-
--- CreateIndex
-CREATE INDEX "runtime_events_eventType_idx" ON "runtime_events"("eventType");
-
--- CreateIndex
-CREATE INDEX "runtime_events_source_idx" ON "runtime_events"("source");
-
--- CreateIndex
-CREATE INDEX "runtime_events_status_idx" ON "runtime_events"("status");
-
--- CreateIndex
-CREATE INDEX "runtime_events_userId_idx" ON "runtime_events"("userId");
-
--- CreateIndex
-CREATE INDEX "runtime_events_conversationId_idx" ON "runtime_events"("conversationId");
-
--- CreateIndex
-CREATE INDEX "runtime_events_createdAt_idx" ON "runtime_events"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "person_identities_label_idx" ON "person_identities"("label");
