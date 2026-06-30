@@ -3,7 +3,10 @@
 import { Prisma, type RelationshipState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
-import { relationshipStateService } from "../runtime/relationship-state.service.js";
+import {
+  relationshipAutoUpdateEnabled,
+  relationshipStateService,
+} from "../runtime/relationship-state.service.js";
 import { throwIfTaskCancelled } from "../runtime/running-task-registry.js";
 import { RELATIONSHIP_AFFINITY_SYSTEM_PROMPT } from "./dream-prompts.js";
 import type {
@@ -416,9 +419,12 @@ export class DreamRelationshipAffinityOrganizer {
       -10,
       10
     );
+    const autoUpdateEnabled = relationshipAutoUpdateEnabled(input.group.relationship.metadata);
     const afterAffinity = clampInt(input.group.relationship.affinity + delta, 0, 100);
     const groupInfo = groupSummary(input.group);
-    const reason = buildProposalReason(raw, evidences);
+    const reason = autoUpdateEnabled
+      ? buildProposalReason(raw, evidences)
+      : `已记录关系证据，但这个身份关闭了 Dream 自动维护：${buildProposalReason(raw, evidences)}`;
 
     const proposal = await prisma.relationshipAffinityProposal.create({
       data: {
@@ -429,7 +435,7 @@ export class DreamRelationshipAffinityOrganizer {
         conversationId: groupInfo.conversationId ?? null,
         channel: groupInfo.channel ?? null,
         source: "dream",
-        status: delta === 0 ? "observed" : "applied",
+        status: delta === 0 ? "observed" : autoUpdateEnabled ? "applied" : "blocked_by_settings",
         beforeAffinity: input.group.relationship.affinity,
         delta,
         afterAffinity,
@@ -469,7 +475,7 @@ export class DreamRelationshipAffinityOrganizer {
       include: { evidences: true },
     });
 
-    if (delta !== 0) {
+    if (autoUpdateEnabled && delta !== 0) {
       await relationshipStateService.applyAffinityPatch({
         relationshipId: input.group.relationship.id,
         source: "dream",
@@ -494,8 +500,8 @@ export class DreamRelationshipAffinityOrganizer {
     return {
       proposalCount: 1,
       evidenceCount: proposal.evidences.length,
-      appliedCount: delta === 0 ? 0 : 1,
-      totalDelta: delta,
+      appliedCount: autoUpdateEnabled && delta !== 0 ? 1 : 0,
+      totalDelta: autoUpdateEnabled ? delta : 0,
     };
   }
 }

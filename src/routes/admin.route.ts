@@ -625,21 +625,6 @@ async function resolveMemoryOwnerId(
   return user.id;
 }
 
-async function resolveUserInternalId(inputUserId: unknown): Promise<string> {
-  const userId = cleanString(inputUserId);
-  if (!userId) throw routeError("user_id is required", 400);
-
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ id: userId }, { externalId: userId }],
-    },
-    select: { id: true },
-  });
-
-  if (!user) throw routeError("User not found", 404);
-  return user.id;
-}
-
 function messagePreview(content: string, max = 96): string {
   const normalized = content.replace(/\s+/g, " ").trim();
   return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
@@ -723,6 +708,7 @@ async function listWebChatConversations(limit: number) {
 }
 
 async function listConversationPeople(input: { query?: string; limit?: number }) {
+  await relationshipStateService.ensureRelationshipRecordsForUsers();
   const q = cleanString(input.query);
   const people = await prisma.personIdentity.findMany({
     where: q
@@ -1380,11 +1366,76 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
   app.get("/v1/admin/relationships", async (request, reply) => {
     const query = request.query as { limit?: string; q?: string };
+    await relationshipStateService.ensureRelationshipRecordsForUsers();
     const relationships = await relationshipStateService.list(
       clampLimit(query.limit, 80),
       query.q
     );
     return reply.send({ relationships });
+  });
+
+  app.post("/v1/admin/relationships/merge", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const sourceRelationshipId = cleanString(body.source_relationship_id);
+    const targetRelationshipId = cleanString(body.target_relationship_id);
+    if (!sourceRelationshipId || !targetRelationshipId) {
+      throw routeError("source_relationship_id and target_relationship_id are required", 400);
+    }
+    await relationshipStateService.mergeRelationships({
+      sourceRelationshipId,
+      targetRelationshipId,
+      source: "admin_identity_merge",
+      reviewedBy: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(targetRelationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.post("/v1/admin/relationships/:relationshipId/split", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const rawUserIds = Array.isArray(body.user_ids) ? body.user_ids : [];
+    const userIds = rawUserIds
+      .map((value) => cleanString(value))
+      .filter((value): value is string => Boolean(value));
+    const newAffinity = body.new_affinity === undefined
+      ? undefined
+      : boundedNumber(body.new_affinity, 10, 0, 100);
+    const created = await relationshipStateService.splitRelationshipIdentity({
+      relationshipId,
+      userIds,
+      newLabel: cleanString(body.new_label),
+      newAffinity,
+      source: "admin_identity_split",
+      reviewedBy: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(created.id, 20);
+    return reply.send(detail);
+  });
+
+  app.patch("/v1/admin/relationships/:relationshipId/person", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    await relationshipStateService.updateIdentityLabel({
+      relationshipId,
+      label: cleanNullableString(body.label) ?? null,
+      source: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.patch("/v1/admin/relationships/:relationshipId/users/:userId", async (request, reply) => {
+    const { relationshipId, userId } = request.params as { relationshipId: string; userId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    await relationshipStateService.updateIdentityUserDisplayName({
+      relationshipId,
+      userId,
+      displayName: cleanNullableString(body.display_name) ?? null,
+      source: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
   });
 
   app.get("/v1/admin/relationships/:relationshipId", async (request, reply) => {
@@ -1405,19 +1456,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       eventType: "manual_update",
       source: "admin",
       summary: cleanString(body.eventSummary) ?? "Admin 手动调整关系状态。",
-    });
-    const detail = await relationshipStateService.getDetail(relationshipId, 20);
-    return reply.send(detail);
-  });
-
-  app.post("/v1/admin/relationships/:relationshipId/link-user", async (request, reply) => {
-    const { relationshipId } = request.params as { relationshipId: string };
-    const body = (request.body ?? {}) as Record<string, unknown>;
-    await relationshipStateService.linkUserToPerson({
-      relationshipId,
-      userId: await resolveUserInternalId(body.user_id),
-      source: "admin_manual",
-      verifiedBy: cleanString(body.verified_by) ?? "admin",
     });
     const detail = await relationshipStateService.getDetail(relationshipId, 20);
     return reply.send(detail);

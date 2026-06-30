@@ -244,6 +244,7 @@ export interface RelationshipState {
   person?: PersonIdentity;
   relationshipLabel: string;
   affinity: number;
+  userIntroduction: string | null;
   interactionStyle: string | null;
   summary: string | null;
   recentSignal: string | null;
@@ -466,10 +467,12 @@ export interface RelationshipUpdateInput {
   relationshipId: string;
   relationshipLabel?: string;
   affinity?: number;
+  userIntroduction?: string | null;
   interactionStyle?: string | null;
   summary?: string | null;
   recentSignal?: string | null;
   statusNote?: string | null;
+  metadata?: unknown;
   eventSummary?: string;
 }
 
@@ -1413,6 +1416,83 @@ export async function fetchRelationshipDetail(input: {
   return parseJsonResponse<RelationshipDetailResponse>(response, "无法读取关系详情");
 }
 
+export async function mergeRelationshipIdentities(input: {
+  token: string;
+  sourceRelationshipId: string;
+  targetRelationshipId: string;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/merge`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source_relationship_id: input.sourceRelationshipId,
+      target_relationship_id: input.targetRelationshipId,
+    }),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "合并身份失败");
+}
+
+export async function splitRelationshipIdentity(input: {
+  token: string;
+  relationshipId: string;
+  userIds: string[];
+  newLabel?: string;
+  newAffinity?: number;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/split`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      user_ids: input.userIds,
+      new_label: input.newLabel,
+      new_affinity: input.newAffinity,
+    }),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "拆分身份失败");
+}
+
+export async function updateRelationshipIdentityLabel(input: {
+  token: string;
+  relationshipId: string;
+  label: string | null;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/person`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ label: input.label }),
+  });
+  return parseJsonResponse<RelationshipDetailResponse>(response, "修改身份名称失败");
+}
+
+export async function updateRelationshipUserDisplayName(input: {
+  token: string;
+  relationshipId: string;
+  userId: string;
+  displayName: string | null;
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/users/${input.userId}`,
+    {
+      method: "PATCH",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ display_name: input.displayName }),
+    }
+  );
+  return parseJsonResponse<RelationshipDetailResponse>(response, "修改渠道昵称失败");
+}
+
 export async function updateRelationshipState(
   input: RelationshipUpdateInput
 ): Promise<RelationshipDetailResponse> {
@@ -1426,22 +1506,6 @@ export async function updateRelationshipState(
     body: JSON.stringify(body),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "保存关系状态失败");
-}
-
-export async function linkRelationshipUser(input: {
-  token: string;
-  relationshipId: string;
-  userId: string;
-}): Promise<RelationshipDetailResponse> {
-  const response = await fetch(`${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/link-user`, {
-    method: "POST",
-    headers: {
-      ...adminHeaders(input.token),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ user_id: input.userId }),
-  });
-  return parseJsonResponse<RelationshipDetailResponse>(response, "绑定用户身份失败");
 }
 
 export async function fetchIdentityLinkProposals(input: {

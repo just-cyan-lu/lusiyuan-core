@@ -5,6 +5,7 @@ import { isOwnerExternalId, ownerExternalIds } from "../core/owner-identity.js";
 export interface RelationshipStatePatch {
   relationshipLabel?: string;
   affinity?: number;
+  userIntroduction?: string | null;
   interactionStyle?: string | null;
   summary?: string | null;
   recentSignal?: string | null;
@@ -79,6 +80,7 @@ interface IdentityCandidateMatch {
 const defaultRelationshipState = {
   relationshipLabel: "刚认识",
   affinity: 10,
+  userIntroduction: "还没有足够资料，只知道这是一个刚开始和思源接触的人。",
   interactionStyle: "慢热但不冷淡，先保持自然、礼貌和稳定。",
   summary: "还没有形成明确关系，只按当下对话慢慢认识。",
   recentSignal: "等待更多真实互动。",
@@ -136,12 +138,18 @@ export function relationshipLabelFromAffinity(affinity: number): string {
   return "刚认识";
 }
 
+export function relationshipAutoUpdateEnabled(metadata: Prisma.JsonValue | null): boolean {
+  const value = readRecord(metadata).autoUpdateEnabled;
+  return typeof value === "boolean" ? value : true;
+}
+
 function snapshotRelationshipState(state: RelationshipState): Prisma.InputJsonObject {
   return {
     id: state.id,
     personId: state.personId,
     relationshipLabel: state.relationshipLabel,
     affinity: state.affinity,
+    userIntroduction: state.userIntroduction,
     interactionStyle: state.interactionStyle,
     summary: state.summary,
     recentSignal: state.recentSignal,
@@ -163,6 +171,9 @@ function normalizePatch(patch: RelationshipStatePatch): Prisma.RelationshipState
     if (patch.relationshipLabel === undefined) {
       data.relationshipLabel = relationshipLabelFromAffinity(affinity);
     }
+  }
+  if (patch.userIntroduction !== undefined) {
+    data.userIntroduction = cleanText(patch.userIntroduction, 420);
   }
   if (patch.interactionStyle !== undefined) {
     data.interactionStyle = cleanText(patch.interactionStyle, 220);
@@ -190,6 +201,7 @@ function patchToJson(patch: RelationshipStatePatch): Prisma.InputJsonObject {
   const json: Record<string, Prisma.InputJsonValue | null> = {};
   if (patch.relationshipLabel !== undefined) json.relationshipLabel = patch.relationshipLabel;
   if (patch.affinity !== undefined) json.affinity = patch.affinity;
+  if (patch.userIntroduction !== undefined) json.userIntroduction = patch.userIntroduction;
   if (patch.interactionStyle !== undefined) json.interactionStyle = patch.interactionStyle;
   if (patch.summary !== undefined) json.summary = patch.summary;
   if (patch.recentSignal !== undefined) json.recentSignal = patch.recentSignal;
@@ -204,6 +216,12 @@ function patchToJson(patch: RelationshipStatePatch): Prisma.InputJsonObject {
     json.lastInteractionAt = patch.lastInteractionAt?.toISOString() ?? null;
   }
   return json as Prisma.InputJsonObject;
+}
+
+function latestDate(...values: Array<Date | null | undefined>): Date | null {
+  return values
+    .filter((value): value is Date => Boolean(value))
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 }
 
 function normalizeIdentityToken(value: string): string {
@@ -456,6 +474,32 @@ export const relationshipStateService = {
     });
   },
 
+  async ensureRelationshipRecordsForUsers(limit = 500): Promise<number> {
+    const users = await prisma.user.findMany({
+      where: { identityLink: { is: null } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: clampInt(limit, 1, 2_000),
+    });
+
+    for (const user of users) {
+      await this.getOrCreate(user.id);
+    }
+
+    const people = await prisma.personIdentity.findMany({
+      where: { relationshipState: { is: null } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: clampInt(limit, 1, 2_000),
+    });
+
+    for (const person of people) {
+      await this.getOrCreateForPerson(person.id);
+    }
+
+    return users.length + people.length;
+  },
+
   async list(limit = 80, search?: string) {
     const q = cleanText(search, 80);
     return prisma.relationshipState.findMany({
@@ -518,7 +562,7 @@ export const relationshipStateService = {
   },
 
   async getDetail(relationshipId: string, limit = 20) {
-    const relationship = await prisma.relationshipState.findUniqueOrThrow({
+    const relationship = await prisma.relationshipState.findUnique({
       where: { id: relationshipId },
       include: {
         person: {
@@ -533,6 +577,9 @@ export const relationshipStateService = {
         },
       },
     });
+    if (!relationship) {
+      throw serviceError("Relationship not found", 404);
+    }
     const [events, affinityProposals] = await Promise.all([
       this.listEvents(relationshipId, limit),
       prisma.relationshipAffinityProposal.findMany({
@@ -577,143 +624,503 @@ export const relationshipStateService = {
     });
   },
 
-  async linkUserToPerson(input: {
-    relationshipId: string;
-    userId: string;
+  async mergeRelationships(input: {
+    sourceRelationshipId: string;
+    targetRelationshipId: string;
     source?: string;
-    verifiedBy?: string;
+    reviewedBy?: string;
   }): Promise<RelationshipState> {
-    const target = await prisma.relationshipState.findUniqueOrThrow({
-      where: { id: input.relationshipId },
+    if (input.sourceRelationshipId === input.targetRelationshipId) {
+      throw serviceError("不能合并同一个身份。", 400);
+    }
+
+    const [sourceState, targetState] = await Promise.all([
+      prisma.relationshipState.findUnique({
+        where: { id: input.sourceRelationshipId },
+        include: {
+          person: {
+            include: {
+              identityLinks: {
+                include: {
+                  user: { select: { id: true, externalId: true, displayName: true } },
+                },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          },
+        },
+      }),
+      prisma.relationshipState.findUnique({
+        where: { id: input.targetRelationshipId },
+        include: {
+          person: {
+            include: {
+              identityLinks: {
+                include: {
+                  user: { select: { id: true, externalId: true, displayName: true } },
+                },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (!sourceState) throw serviceError("Source relationship not found", 404);
+    if (!targetState) throw serviceError("Target relationship not found", 404);
+    if (sourceState.personId === targetState.personId) return targetState;
+
+    return prisma.$transaction(async (tx) => {
+      const source = input.source ?? "admin_identity_merge";
+      const affinity = Math.max(targetState.affinity, sourceState.affinity);
+      const sourceLabel =
+        sourceState.person.label ??
+        sourceState.person.identityLinks[0]?.user.displayName ??
+        sourceState.person.identityLinks[0]?.user.externalId ??
+        sourceState.personId;
+      const targetLabel =
+        targetState.person.label ??
+        targetState.person.identityLinks[0]?.user.displayName ??
+        targetState.person.identityLinks[0]?.user.externalId ??
+        targetState.personId;
+      const patch: RelationshipStatePatch = {
+        affinity,
+        relationshipLabel: relationshipLabelFromAffinity(affinity),
+        summary: [
+          targetState.summary,
+          sourceState.summary,
+          `已由 admin 确认「${sourceLabel}」和「${targetLabel}」是同一个身份，并合并关系状态。`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        recentSignal: "admin 手动合并了两个身份，后续多个渠道共享这一份关系。",
+        statusNote: "由身份合并产生；好感度保留合并前更高的一侧。",
+        lastInteractionAt: latestDate(targetState.lastInteractionAt, sourceState.lastInteractionAt),
+        metadata: metadataWith(targetState.metadata, {
+          lastIdentityMerge: {
+            at: new Date().toISOString(),
+            sourcePersonId: sourceState.personId,
+            sourceRelationshipId: sourceState.id,
+            targetPersonId: targetState.personId,
+            targetRelationshipId: targetState.id,
+            sourceAffinity: sourceState.affinity,
+            targetAffinity: targetState.affinity,
+            mergedAffinity: affinity,
+            source,
+          },
+        }),
+      };
+
+      const updatedTarget = await tx.relationshipState.update({
+        where: { id: targetState.id },
+        data: normalizePatch(patch),
+      });
+
+      await tx.identityLink.updateMany({
+        where: { personId: sourceState.personId },
+        data: {
+          personId: targetState.personId,
+          source,
+          verifiedBy: input.reviewedBy ?? "admin",
+        },
+      });
+      await tx.relationshipStateEvent.updateMany({
+        where: { relationshipStateId: sourceState.id },
+        data: {
+          relationshipStateId: targetState.id,
+          personId: targetState.personId,
+        },
+      });
+      await tx.relationshipAffinityProposal.updateMany({
+        where: { relationshipStateId: sourceState.id },
+        data: {
+          relationshipStateId: targetState.id,
+          personId: targetState.personId,
+        },
+      });
+
+      const sourceEvidences = await tx.relationshipAffinityEvidence.findMany({
+        where: { relationshipStateId: sourceState.id },
+        select: { id: true, evidenceKey: true },
+      });
+      const targetEvidenceKeys = new Set(
+        (
+          await tx.relationshipAffinityEvidence.findMany({
+            where: { relationshipStateId: targetState.id },
+            select: { evidenceKey: true },
+          })
+        ).map((evidence) => evidence.evidenceKey)
+      );
+      for (const evidence of sourceEvidences) {
+        const evidenceKey = targetEvidenceKeys.has(evidence.evidenceKey)
+          ? `${evidence.evidenceKey}:merged:${evidence.id}`
+          : evidence.evidenceKey;
+        targetEvidenceKeys.add(evidenceKey);
+        await tx.relationshipAffinityEvidence.update({
+          where: { id: evidence.id },
+          data: {
+            relationshipStateId: targetState.id,
+            personId: targetState.personId,
+            evidenceKey,
+          },
+        });
+      }
+
+      await tx.identityLinkProposal.updateMany({
+        where: { targetPersonId: sourceState.personId },
+        data: {
+          targetPersonId: targetState.personId,
+        },
+      });
+      await tx.relationshipState.delete({ where: { id: sourceState.id } });
+      await tx.personIdentity.delete({ where: { id: sourceState.personId } });
+      await tx.relationshipStateEvent.create({
+        data: {
+          relationshipStateId: updatedTarget.id,
+          personId: updatedTarget.personId,
+          eventType: "identity_merge",
+          source,
+          summary: `Admin 确认「${sourceLabel}」和「${targetLabel}」是同一个身份，合并关系状态。`,
+          patch: patchToJson(patch),
+          before: {
+            target: snapshotRelationshipState(targetState),
+            source: snapshotRelationshipState(sourceState),
+          },
+          after: snapshotRelationshipState(updatedTarget),
+        },
+      });
+
+      return updatedTarget;
     });
-    const sourceLink = await prisma.identityLink.findUnique({
-      where: { userId: input.userId },
+  },
+
+  async splitRelationshipIdentity(input: {
+    relationshipId: string;
+    userIds: string[];
+    newLabel?: string;
+    newAffinity?: number;
+    source?: string;
+    reviewedBy?: string;
+  }): Promise<RelationshipState> {
+    const userIds = Array.from(new Set(input.userIds.map((id) => id.trim()).filter(Boolean)));
+    if (userIds.length === 0) {
+      throw serviceError("至少选择一个渠道账号。", 400);
+    }
+
+    const sourceState = await prisma.relationshipState.findUnique({
+      where: { id: input.relationshipId },
       include: {
         person: {
           include: {
-            relationshipState: true,
-            identityLinks: { select: { id: true } },
+            identityLinks: {
+              include: {
+                user: { select: { id: true, externalId: true, displayName: true } },
+              },
+              orderBy: { createdAt: "asc" },
+            },
           },
         },
       },
     });
 
-    if (sourceLink?.personId === target.personId) return target;
+    if (!sourceState) throw serviceError("Relationship not found", 404);
+
+    const linksToMove = sourceState.person.identityLinks.filter((link) =>
+      userIds.includes(link.userId)
+    );
+    if (linksToMove.length !== userIds.length) {
+      throw serviceError("只能拆分当前身份下的渠道账号。", 400);
+    }
+    if (linksToMove.length >= sourceState.person.identityLinks.length) {
+      throw serviceError("原身份至少要保留一个渠道账号。", 400);
+    }
+
+    const source = input.source ?? "admin_identity_split";
+    const reviewer = input.reviewedBy ?? "admin";
+    const now = new Date();
+    const sourceLabel =
+      sourceState.person.label ??
+      sourceState.person.identityLinks[0]?.user.displayName ??
+      sourceState.person.identityLinks[0]?.user.externalId ??
+      sourceState.personId;
+    const movedUsers = linksToMove.map((link) => ({
+      id: link.user.id,
+      externalId: link.user.externalId,
+      displayName: link.user.displayName,
+    }));
+    const movedUserNames = movedUsers.map((user) => user.displayName ?? user.externalId);
+    const newLabel =
+      cleanText(input.newLabel, 60) ??
+      movedUsers[0]?.displayName ??
+      movedUsers[0]?.externalId ??
+      "拆分出的身份";
+    const affinity = input.newAffinity !== undefined
+      ? boundedNumber(input.newAffinity, sourceState.affinity)
+      : sourceState.affinity;
 
     return prisma.$transaction(async (tx) => {
-      let updatedTarget = target;
-      const source = input.source ?? "admin_manual";
+      const latestMovedMessage = await tx.message.findFirst({
+        where: {
+          conversation: {
+            userId: { in: userIds },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      const splitMetadata: Prisma.InputJsonObject = {
+        at: now.toISOString(),
+        source,
+        reviewedBy: reviewer,
+        sourcePersonId: sourceState.personId,
+        sourceRelationshipId: sourceState.id,
+        movedUsers,
+      };
 
-      if (!sourceLink) {
-        await tx.identityLink.create({
+      const newPerson = await tx.personIdentity.create({
+        data: {
+          label: newLabel,
+          note: `由「${sourceLabel}」拆分出的身份。`,
+        },
+      });
+      const newState = await tx.relationshipState.create({
+        data: {
+          personId: newPerson.id,
+          relationshipLabel: relationshipLabelFromAffinity(affinity),
+          affinity,
+          userIntroduction: sourceState.userIntroduction,
+          interactionStyle: sourceState.interactionStyle,
+          summary: `从「${sourceLabel}」拆分出来的身份，包含渠道账号：${movedUserNames.join(" / ")}。`,
+          recentSignal: "admin 手动拆分了身份，后续这些渠道账号单独维护关系。",
+          statusNote: "由身份拆分产生；好感度先继承原身份，可在详情页手动调整。",
+          lastInteractionAt: latestMovedMessage?.createdAt ?? sourceState.lastInteractionAt,
+          metadata: {
+            splitFrom: splitMetadata,
+          },
+        },
+      });
+
+      await tx.identityLink.updateMany({
+        where: {
+          id: { in: linksToMove.map((link) => link.id) },
+        },
+        data: {
+          personId: newPerson.id,
+          source,
+          verifiedBy: reviewer,
+        },
+      });
+
+      await tx.relationshipStateEvent.updateMany({
+        where: {
+          relationshipStateId: sourceState.id,
+          userId: { in: userIds },
+        },
+        data: {
+          relationshipStateId: newState.id,
+          personId: newPerson.id,
+        },
+      });
+
+      const proposalRows = await tx.relationshipAffinityProposal.findMany({
+        where: {
+          relationshipStateId: sourceState.id,
+          userId: { in: userIds },
+        },
+        select: { id: true },
+      });
+      const proposalIds = proposalRows.map((proposal) => proposal.id);
+      if (proposalIds.length > 0) {
+        await tx.relationshipAffinityProposal.updateMany({
+          where: { id: { in: proposalIds } },
           data: {
-            personId: target.personId,
-            userId: input.userId,
-            source,
-            verifiedBy: input.verifiedBy,
+            relationshipStateId: newState.id,
+            personId: newPerson.id,
           },
         });
-        await tx.relationshipStateEvent.create({
+        await tx.relationshipAffinityEvidence.updateMany({
+          where: { proposalId: { in: proposalIds } },
           data: {
-            relationshipStateId: target.id,
-            personId: target.personId,
-            userId: input.userId,
-            eventType: "identity_link_added",
-            source,
-            summary: "Admin 把一个渠道账号绑定到当前现实身份。",
-            before: snapshotRelationshipState(target),
-            after: snapshotRelationshipState(target),
+            relationshipStateId: newState.id,
+            personId: newPerson.id,
           },
         });
-      } else {
-        const sourceState = sourceLink.person.relationshipState;
-        const sourceLinkCount = sourceLink.person.identityLinks.length;
-
-        if (sourceState && sourceLinkCount <= 1) {
-          const affinity = Math.max(target.affinity, sourceState.affinity);
-          const patch: RelationshipStatePatch = {
-            affinity,
-            relationshipLabel: relationshipLabelFromAffinity(affinity),
-            summary: [
-              target.summary,
-              sourceState.summary,
-              "已由 admin 确认跨渠道身份为同一个人，并合并关系状态。",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-            recentSignal: "admin 手动绑定了另一个渠道账号，关系状态已合并。",
-            statusNote: "由身份绑定合并关系状态；后续多个渠道会共享这一份关系。",
-            metadata: metadataWith(target.metadata, {
-              lastIdentityMerge: {
-                at: new Date().toISOString(),
-                sourcePersonId: sourceLink.personId,
-                linkedUserId: input.userId,
-                source,
-              },
-            }),
-          };
-
-          updatedTarget = await tx.relationshipState.update({
-            where: { id: target.id },
-            data: normalizePatch(patch),
-          });
-          await tx.relationshipStateEvent.updateMany({
-            where: { relationshipStateId: sourceState.id },
-            data: {
-              relationshipStateId: target.id,
-              personId: target.personId,
-            },
-          });
-          await tx.relationshipState.delete({ where: { id: sourceState.id } });
-          await tx.relationshipStateEvent.create({
-            data: {
-              relationshipStateId: updatedTarget.id,
-              personId: updatedTarget.personId,
-              userId: input.userId,
-              eventType: "identity_merge",
-              source,
-              summary: "Admin 确认跨渠道同一人，合并关系状态。",
-              patch: patchToJson(patch),
-              before: snapshotRelationshipState(target),
-              after: snapshotRelationshipState(updatedTarget),
-            },
-          });
-        } else {
-          await tx.relationshipStateEvent.create({
-            data: {
-              relationshipStateId: target.id,
-              personId: target.personId,
-              userId: input.userId,
-              eventType: "identity_link_added",
-              source,
-              summary: "Admin 把一个渠道账号绑定到当前现实身份。",
-              before: snapshotRelationshipState(target),
-              after: snapshotRelationshipState(target),
-            },
-          });
-        }
-
-        await tx.identityLink.update({
-          where: { userId: input.userId },
-          data: {
-            personId: target.personId,
-            source,
-            verifiedBy: input.verifiedBy,
-          },
-        });
-
-        const remainingLinks = await tx.identityLink.count({
-          where: { personId: sourceLink.personId },
-        });
-        const remainingState = await tx.relationshipState.count({
-          where: { personId: sourceLink.personId },
-        });
-        if (remainingLinks === 0 && remainingState === 0) {
-          await tx.personIdentity.delete({ where: { id: sourceLink.personId } });
-        }
       }
 
-      return updatedTarget;
+      await tx.identityLinkProposal.updateMany({
+        where: { targetUserId: { in: userIds } },
+        data: { targetPersonId: newPerson.id },
+      });
+      await tx.identityLinkProposal.updateMany({
+        where: {
+          sourceUserId: { in: userIds },
+          targetPersonId: sourceState.personId,
+          status: "pending",
+        },
+        data: {
+          status: "superseded",
+          reviewedBy: reviewer,
+          reviewedAt: now,
+        },
+      });
+
+      const sourcePatch: RelationshipStatePatch = {
+        recentSignal: `admin 将 ${movedUserNames.join(" / ")} 拆分为新的身份。`,
+        statusNote: "身份拆分后，原身份保留剩余渠道账号；好感度未自动变化。",
+        metadata: metadataWith(sourceState.metadata, {
+          lastIdentitySplit: {
+            ...splitMetadata,
+            newPersonId: newPerson.id,
+            newRelationshipId: newState.id,
+          },
+        }),
+      };
+      const updatedSource = await tx.relationshipState.update({
+        where: { id: sourceState.id },
+        data: normalizePatch(sourcePatch),
+      });
+
+      await tx.relationshipStateEvent.create({
+        data: {
+          relationshipStateId: updatedSource.id,
+          personId: updatedSource.personId,
+          eventType: "identity_split",
+          source,
+          summary: `Admin 将 ${movedUserNames.join(" / ")} 从「${sourceLabel}」拆分为新的身份「${newLabel}」。`,
+          patch: patchToJson(sourcePatch),
+          before: snapshotRelationshipState(sourceState),
+          after: snapshotRelationshipState(updatedSource),
+        },
+      });
+      await tx.relationshipStateEvent.create({
+        data: {
+          relationshipStateId: newState.id,
+          personId: newState.personId,
+          userId: movedUsers[0]?.id,
+          eventType: "identity_split",
+          source,
+          summary: `由「${sourceLabel}」拆分创建，包含渠道账号：${movedUserNames.join(" / ")}。`,
+          patch: {
+            movedUserIds: userIds,
+            movedUsers,
+            affinity,
+            relationshipLabel: newState.relationshipLabel,
+          },
+          before: {
+            source: snapshotRelationshipState(sourceState),
+          },
+          after: snapshotRelationshipState(newState),
+        },
+      });
+
+      return newState;
+    });
+  },
+
+  async updateIdentityLabel(input: {
+    relationshipId: string;
+    label: string | null;
+    source?: string;
+  }): Promise<RelationshipState> {
+    const before = await prisma.relationshipState.findUnique({
+      where: { id: input.relationshipId },
+      include: { person: true },
+    });
+    if (!before) throw serviceError("Relationship not found", 404);
+
+    const label = cleanText(input.label, 60);
+    return prisma.$transaction(async (tx) => {
+      const person = await tx.personIdentity.update({
+        where: { id: before.personId },
+        data: { label: label ?? null },
+      });
+      const updated = await tx.relationshipState.findUniqueOrThrow({
+        where: { id: before.id },
+      });
+      await tx.relationshipStateEvent.create({
+        data: {
+          relationshipStateId: updated.id,
+          personId: updated.personId,
+          eventType: "identity_name_update",
+          source: input.source ?? "admin",
+          summary: `Admin 将身份名称改为「${person.label ?? "未命名身份"}」。`,
+          patch: {
+            personLabel: person.label,
+          },
+          before: {
+            ...snapshotRelationshipState(before),
+            personLabel: before.person.label,
+          },
+          after: {
+            ...snapshotRelationshipState(updated),
+            personLabel: person.label,
+          },
+        },
+      });
+      return updated;
+    });
+  },
+
+  async updateIdentityUserDisplayName(input: {
+    relationshipId: string;
+    userId: string;
+    displayName: string | null;
+    source?: string;
+  }): Promise<RelationshipState> {
+    const relationship = await prisma.relationshipState.findUnique({
+      where: { id: input.relationshipId },
+      include: {
+        person: {
+          include: {
+            identityLinks: {
+              include: {
+                user: { select: { id: true, externalId: true, displayName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!relationship) throw serviceError("Relationship not found", 404);
+
+    const link = relationship.person.identityLinks.find((item) => item.userId === input.userId);
+    if (!link) throw serviceError("只能修改当前身份下的渠道账号。", 400);
+
+    const displayName = cleanText(input.displayName, 80);
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: input.userId },
+        data: { displayName: displayName ?? null },
+        select: { id: true, externalId: true, displayName: true },
+      });
+      const updated = await tx.relationshipState.findUniqueOrThrow({
+        where: { id: relationship.id },
+      });
+      await tx.relationshipStateEvent.create({
+        data: {
+          relationshipStateId: updated.id,
+          personId: updated.personId,
+          userId: user.id,
+          eventType: "channel_user_name_update",
+          source: input.source ?? "admin",
+          summary: `Admin 将渠道账号「${user.externalId}」的显示名改为「${user.displayName ?? "未命名用户"}」。`,
+          patch: {
+            userId: user.id,
+            externalId: user.externalId,
+            displayName: user.displayName,
+          },
+          before: {
+            ...snapshotRelationshipState(relationship),
+            user: link.user,
+          },
+          after: {
+            ...snapshotRelationshipState(updated),
+            user,
+          },
+        },
+      });
+      return updated;
     });
   },
 
@@ -728,12 +1135,15 @@ export const relationshipStateService = {
     const reviewer = input.reviewedBy ?? "admin";
     const reviewedAt = new Date();
     const targetState = await this.getOrCreateForPerson(proposal.targetPersonId);
-    const relationship = await this.linkUserToPerson({
-      relationshipId: targetState.id,
-      userId: proposal.sourceUserId,
-      source: "identity_proposal_approved",
-      verifiedBy: reviewer,
-    });
+    const sourceState = await this.getOrCreate(proposal.sourceUserId);
+    const relationship = sourceState.id === targetState.id
+      ? targetState
+      : await this.mergeRelationships({
+          sourceRelationshipId: sourceState.id,
+          targetRelationshipId: targetState.id,
+          source: "identity_proposal_approved",
+          reviewedBy: reviewer,
+        });
 
     const [reviewedProposal] = await prisma.$transaction([
       prisma.identityLinkProposal.update({
@@ -843,6 +1253,9 @@ export const relationshipStateService = {
     const before = await prisma.relationshipState.findUniqueOrThrow({
       where: { id: input.relationshipId },
     });
+    if (input.source === "dream" && !relationshipAutoUpdateEnabled(before.metadata)) {
+      return before;
+    }
     const nextAffinity = input.affinity !== undefined
       ? boundedNumber(input.affinity, before.affinity)
       : clampInt(before.affinity + boundedNumber(input.delta ?? 0, 0, -100, 100), 0, 100);
@@ -1001,10 +1414,9 @@ export const relationshipStateService = {
       "",
       `- 关系标签：${state.relationshipLabel}`,
       `- 好感度：${state.affinity}/100`,
+      `- 用户介绍：${state.userIntroduction ?? "还没有足够资料。"}`,
       `- 互动风格：${state.interactionStyle ?? "自然、礼貌、慢热但不冷淡。"}`,
       `- 关系摘要：${state.summary ?? "还没有形成明确关系。"}`,
-      `- 最近信号：${state.recentSignal ?? "暂无。"}`,
-      state.statusNote ? `- 备注：${state.statusNote}` : "",
       "",
       "这只描述陆思源和当前用户之间的关系，不代表陆思源对所有人的整体状态。",
     ]
@@ -1029,6 +1441,9 @@ export function relationshipPatchFromAdminBody(
     ) {
       patch.relationshipLabel = relationshipLabelFromAffinity(patch.affinity);
     }
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "userIntroduction")) {
+    patch.userIntroduction = cleanText(body.userIntroduction, 420);
   }
   if (Object.prototype.hasOwnProperty.call(body, "interactionStyle")) {
     patch.interactionStyle = cleanText(body.interactionStyle, 220);

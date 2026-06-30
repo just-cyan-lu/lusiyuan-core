@@ -27,12 +27,14 @@ export function AdminSelect({
   placeholder,
   className,
 }: AdminSelectProps) {
+  const handleChange = onChange ?? (() => undefined);
+
   return (
     <label className={`admin-select-below block w-full ${className ?? ""}`.trim()}>
       <Select
         options={options}
-        value={value}
-        onChange={onChange}
+        value={value ?? ""}
+        onChange={handleChange}
         aria-label={ariaLabel}
         disabled={disabled}
         placeholder={placeholder}
