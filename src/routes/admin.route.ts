@@ -395,8 +395,8 @@ const databaseDataTables = [
   "runtime_states",
   "runtime_events",
   "identity_link_proposals",
-  "relationship_affinity_evidence",
-  "relationship_affinity_proposals",
+  "relationship_review_evidence",
+  "relationship_review_proposals",
   "relationship_state_events",
   "relationship_states",
   "identity_links",
@@ -1465,6 +1465,27 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const { relationshipId } = request.params as { relationshipId: string };
     await relationshipStateService.reset(relationshipId, "admin");
     const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
+  app.post("/v1/admin/relationship-review-proposals/:proposalId/apply", async (request, reply) => {
+    const { proposalId } = request.params as { proposalId: string };
+    const updated = await relationshipStateService.applyRelationshipReviewProposal({
+      proposalId,
+      reviewedBy: "admin",
+      source: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(updated.id, 20);
+    return reply.send(detail);
+  });
+
+  app.post("/v1/admin/relationship-review-proposals/:proposalId/reject", async (request, reply) => {
+    const { proposalId } = request.params as { proposalId: string };
+    const proposal = await relationshipStateService.rejectRelationshipReviewProposal({
+      proposalId,
+      reviewedBy: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(proposal.relationshipStateId, 20);
     return reply.send(detail);
   });
 

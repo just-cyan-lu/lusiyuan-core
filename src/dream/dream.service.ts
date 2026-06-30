@@ -8,7 +8,7 @@ import { dailyNoteService } from "./daily-note.service.js";
 import { dreamSignalExtractor } from "./dream-signal-extractor.js";
 import { dreamDiaryWriter } from "./dream-diary-writer.js";
 import { dreamConsolidator } from "./dream-consolidator.js";
-import { dreamRelationshipAffinityOrganizer } from "./dream-relationship-affinity-organizer.js";
+import { dreamRelationshipReviewOrganizer } from "./dream-relationship-review-organizer.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import {
   isTaskCancellationError,
@@ -180,9 +180,9 @@ export class DreamService {
       });
       throwIfTaskCancelled(signal);
 
-      // ── Phase 6: Relationship Affinity — evidence-based auto update ───────
-      await this.setPhase(jobId, "relationship_affinity");
-      const relationshipAffinity = await dreamRelationshipAffinityOrganizer.organize({
+      // ── Phase 6: Relationship Review — per-person relationship profile update
+      await this.setPhase(jobId, "relationship_review");
+      const relationshipReview = await dreamRelationshipReviewOrganizer.organize({
         context,
         reportId: consolidation.report.id,
         jobId,
@@ -203,7 +203,7 @@ export class DreamService {
           diaryEntryId: diaryEntry?.id,
           signalCount: signals.length,
           proposalCount: (consolidation?.memoryProposals.length ?? 0) +
-            relationshipAffinity.proposalCount,
+            relationshipReview.proposalCount,
           riskCount: consolidation?.riskFlags.length ?? 0,
           userId,
           conversationId,
@@ -221,7 +221,7 @@ export class DreamService {
         diaryEntryId: diaryEntry?.id,
         signalCount: signals.length,
         proposalCount: (consolidation?.memoryProposals.length ?? 0) +
-          relationshipAffinity.proposalCount,
+          relationshipReview.proposalCount,
         riskCount: consolidation?.riskFlags.length ?? 0,
       };
     } catch (err) {

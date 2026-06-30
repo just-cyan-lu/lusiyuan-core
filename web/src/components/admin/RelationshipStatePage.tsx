@@ -2,19 +2,21 @@ import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "r
 import { Button } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
+  applyRelationshipReviewProposal,
   approveIdentityLinkProposal,
   fetchIdentityLinkProposals,
   fetchRelationshipDetail,
   fetchRelationships,
   mergeRelationshipIdentities,
   rejectIdentityLinkProposal,
+  rejectRelationshipReviewProposal,
   resetRelationshipState,
   splitRelationshipIdentity,
   updateRelationshipIdentityLabel,
   updateRelationshipUserDisplayName,
   updateRelationshipState,
   type IdentityLinkProposal,
-  type RelationshipAffinityProposal,
+  type RelationshipReviewProposal,
   type RelationshipState,
   type RelationshipStateEvent,
 } from "../../api/lusiyuan-api";
@@ -31,7 +33,7 @@ interface RelationshipStatePageProps {
 interface PageState {
   relationships: RelationshipState[];
   proposals: IdentityLinkProposal[];
-  affinityProposals: RelationshipAffinityProposal[];
+  reviewProposals: RelationshipReviewProposal[];
   selected: RelationshipState | null;
   events: RelationshipStateEvent[];
   loading: boolean;
@@ -174,6 +176,48 @@ function proposalEvidenceText(proposal: IdentityLinkProposal): string {
     .join(" · ");
 }
 
+function readableReviewValue(value: unknown): string {
+  if (value === null) return "清空";
+  if (value === undefined) return "未设置";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function reviewPatchEntries(patch: unknown): Array<{ key: string; label: string; value: string }> {
+  const record = metadataRecord(patch);
+  const preferred = ["userIntroduction", "summary", "interactionStyle", "affinity", "relationshipLabel"];
+  const keys = [
+    ...preferred.filter((key) => Object.prototype.hasOwnProperty.call(record, key)),
+    ...Object.keys(record).filter((key) => !preferred.includes(key)),
+  ];
+  return keys.map((key) => ({
+    key,
+    label: relationshipFieldLabels[key] ?? key,
+    value: readableReviewValue(record[key]),
+  }));
+}
+
+function reviewStatusLabel(status: string): string {
+  if (status === "pending") return "待确认";
+  if (status === "applied") return "已应用";
+  if (status === "rejected") return "已忽略";
+  if (status === "observed") return "仅记录";
+  return status;
+}
+
+function proposalEvidenceSummary(proposal: RelationshipReviewProposal): string {
+  if (!proposal.evidences?.length) return "暂无证据明细。";
+  return proposal.evidences
+    .slice(0, 3)
+    .map((evidence) => `${relationshipFieldLabels[evidence.evidenceType] ?? evidence.evidenceType}：${evidence.content}`)
+    .join(" / ");
+}
+
 function formFromRelationship(relationship: RelationshipState): RelationshipForm {
   return {
     relationshipLabel: relationship.relationshipLabel,
@@ -188,6 +232,7 @@ function formFromRelationship(relationship: RelationshipState): RelationshipForm
 
 function eventTypeLabel(type: string): string {
   if (type === "affinity_update") return "好感度变化";
+  if (type === "relationship_review") return "关系复盘";
   if (type === "manual_update") return "手动调整";
   if (type === "reset") return "重置";
   if (type === "identity_merge") return "身份合并";
@@ -212,7 +257,18 @@ const relationshipFieldLabels: Record<string, string> = {
   delta: "变化量",
   evidence: "证据",
   lastAffinityPatch: "最近好感度调整",
+  lastRelationshipReview: "最近关系复盘",
+  proposedPatch: "建议改动",
   reason: "原因",
+  sincerity: "真诚表达",
+  shared_trait: "同频特质",
+  cheerful_chat: "愉快聊天",
+  caring_for_lusiyuan: "关心思源",
+  gentle_kindness: "温柔体贴",
+  project_interest: "项目兴趣",
+  project_contribution: "项目贡献",
+  value_conflict: "价值冲突",
+  hostility_or_value_denial: "否定/敌意",
   personLabel: "身份名称",
   displayName: "渠道昵称",
   externalId: "渠道外部 ID",
@@ -237,11 +293,10 @@ export function RelationshipStatePage({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [form, setForm] = useState<RelationshipForm | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [pageState, setPageState] = useState<PageState>({
     relationships: [],
     proposals: [],
-    affinityProposals: [],
+    reviewProposals: [],
     selected: null,
     events: [],
     loading: false,
@@ -255,7 +310,7 @@ export function RelationshipStatePage({
       setPageState({
         relationships: [],
         proposals: [],
-        affinityProposals: [],
+        reviewProposals: [],
         selected: null,
         events: [],
         loading: false,
@@ -283,7 +338,7 @@ export function RelationshipStatePage({
       ]);
       const selectedId = preferredId ?? selectedRelationshipId ?? null;
       let events: RelationshipStateEvent[] = [];
-      let affinityProposals: RelationshipAffinityProposal[] = [];
+      let reviewProposals: RelationshipReviewProposal[] = [];
       let detailRelationship: RelationshipState | null = null;
       if (selectedId) {
         try {
@@ -293,7 +348,7 @@ export function RelationshipStatePage({
           });
           detailRelationship = detail.relationship;
           events = detail.events;
-          affinityProposals = detail.affinityProposals ?? [];
+          reviewProposals = detail.reviewProposals ?? [];
         } catch (error) {
           if (!isMissingRelationshipError(error)) throw error;
           setPageState((current) => ({
@@ -302,7 +357,7 @@ export function RelationshipStatePage({
             proposals: proposalData.proposals,
             selected: null,
             events: [],
-            affinityProposals: [],
+            reviewProposals: [],
             loading: false,
             error: null,
             message: "这条关系记录已经不存在，已回到关系列表。",
@@ -319,7 +374,7 @@ export function RelationshipStatePage({
         proposals: proposalData.proposals,
         selected: detailRelationship,
         events,
-        affinityProposals,
+        reviewProposals,
         loading: false,
         error: null,
       }));
@@ -346,7 +401,7 @@ export function RelationshipStatePage({
         ...current,
         selected: detail.relationship,
         events: detail.events,
-        affinityProposals: detail.affinityProposals ?? [],
+        reviewProposals: detail.reviewProposals ?? [],
         loading: false,
         error: null,
         message: null,
@@ -374,22 +429,6 @@ export function RelationshipStatePage({
     );
   }, [pageState.selected, form]);
 
-  const eventTypeOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const event of pageState.events) {
-      counts.set(event.eventType, (counts.get(event.eventType) ?? 0) + 1);
-    }
-    return [
-      { type: "all", label: "全部", count: pageState.events.length },
-      { type: "affinity_update", label: "好感度变化", count: counts.get("affinity_update") ?? 0 },
-      ...Array.from(counts.entries()).map(([type, count]) => ({
-        type,
-        label: eventTypeLabel(type),
-        count,
-      })).filter((option) => option.type !== "affinity_update"),
-    ];
-  }, [pageState.events]);
-
   const relationshipSelectOptions = useMemo(
     () =>
       pageState.relationships.map((relationship) => ({
@@ -399,26 +438,7 @@ export function RelationshipStatePage({
     [pageState.relationships]
   );
 
-  const filteredEvents = useMemo(
-    () =>
-      eventTypeFilter === "all"
-        ? pageState.events
-        : pageState.events.filter((event) => event.eventType === eventTypeFilter),
-    [eventTypeFilter, pageState.events]
-  );
-
-  const groupedEvents = useMemo(() => {
-    const groups = new Map<string, RelationshipStateEvent[]>();
-    for (const event of filteredEvents) {
-      const group = groups.get(event.eventType) ?? [];
-      group.push(event);
-      groups.set(event.eventType, group);
-    }
-    return Array.from(groups.entries()).map(([type, events]) => ({ type, events }));
-  }, [filteredEvents]);
-
   useEffect(() => {
-    setEventTypeFilter("all");
     setSplitUserIds([]);
     setSplitLabel("");
     setSplitAffinity("");
@@ -426,13 +446,18 @@ export function RelationshipStatePage({
 
   useEffect(() => {
     setSelectedEventId((current) =>
-      filteredEvents.find((event) => event.id === current)?.id ?? filteredEvents[0]?.id ?? null
+      pageState.events.find((event) => event.id === current)?.id ?? pageState.events[0]?.id ?? null
     );
-  }, [filteredEvents]);
+  }, [pageState.events]);
 
   const selectedEvent = useMemo(
-    () => filteredEvents.find((event) => event.id === selectedEventId) ?? filteredEvents[0] ?? null,
-    [filteredEvents, selectedEventId]
+    () => pageState.events.find((event) => event.id === selectedEventId) ?? pageState.events[0] ?? null,
+    [pageState.events, selectedEventId]
+  );
+
+  const pendingReviewProposals = useMemo(
+    () => pageState.reviewProposals.filter((proposal) => proposal.status === "pending"),
+    [pageState.reviewProposals]
   );
 
   async function saveRelationship() {
@@ -458,7 +483,7 @@ export function RelationshipStatePage({
         ),
         selected: detail.relationship,
         events: detail.events,
-        affinityProposals: detail.affinityProposals ?? [],
+        reviewProposals: detail.reviewProposals ?? [],
         saving: false,
         message: "关系状态已保存。",
       }));
@@ -496,7 +521,7 @@ export function RelationshipStatePage({
         ),
         selected: detail.relationship,
         events: detail.events,
-        affinityProposals: detail.affinityProposals ?? [],
+        reviewProposals: detail.reviewProposals ?? [],
         saving: false,
         message: "关系状态已重置。",
       }));
@@ -544,6 +569,42 @@ export function RelationshipStatePage({
     }
   }
 
+  async function reviewRelationshipProposal(proposalId: string, action: "apply" | "reject") {
+    if (!adminToken) return;
+    const confirmed =
+      action === "apply"
+        ? window.confirm("确认应用这次关系复盘吗？应用后会改写这个身份的关系档案。")
+        : true;
+    if (!confirmed) return;
+
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail =
+        action === "apply"
+          ? await applyRelationshipReviewProposal({ token: adminToken, proposalId })
+          : await rejectRelationshipReviewProposal({ token: adminToken, proposalId });
+      setPageState((current) => ({
+        ...current,
+        relationships: current.relationships.map((relationship) =>
+          relationship.id === detail.relationship.id ? detail.relationship : relationship
+        ),
+        selected: detail.relationship,
+        events: detail.events,
+        reviewProposals: detail.reviewProposals ?? [],
+        saving: false,
+        error: null,
+        message: action === "apply" ? "关系复盘已应用。" : "这次关系复盘已忽略。",
+      }));
+      setForm(formFromRelationship(detail.relationship));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
   async function mergeSelectedRelationships() {
     if (!adminToken || !mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId) return;
     const source = pageState.relationships.find((relationship) => relationship.id === mergeSourceId);
@@ -568,7 +629,7 @@ export function RelationshipStatePage({
         relationships: list.relationships,
         selected: null,
         events: [],
-        affinityProposals: detail.affinityProposals ?? [],
+        reviewProposals: detail.reviewProposals ?? [],
         saving: false,
         message: `已把「${sourceLabel}」合并到「${targetLabel}」。`,
         error: null,
@@ -633,7 +694,7 @@ export function RelationshipStatePage({
         ...current,
         selected: detail.relationship,
         events: detail.events,
-        affinityProposals: detail.affinityProposals ?? [],
+        reviewProposals: detail.reviewProposals ?? [],
         saving: false,
         error: null,
         message: "身份已拆分，已切到新身份详情。",
@@ -686,7 +747,7 @@ export function RelationshipStatePage({
         ),
         selected: detail.relationship,
         events: detail.events,
-        affinityProposals: detail.affinityProposals ?? [],
+        reviewProposals: detail.reviewProposals ?? [],
         saving: false,
         error: null,
         message: editNameDialog.type === "person" ? "身份名称已更新。" : "渠道昵称已更新。",
@@ -982,10 +1043,98 @@ export function RelationshipStatePage({
                 </div>
               </div>
             </div>
-          </section>
+	          </section>
 
-          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+	          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+	            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+	              <div>
+	                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">待确认的关系复盘</h3>
+	                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+	                  这里放 Dream 已经想好、但因为关闭自动维护而没有写入的关系档案建议。应用后会进入下面的关系变更记录。
+	                </p>
+	              </div>
+	              <div className="rounded-full bg-[var(--ls-panel-soft)] px-3 py-1 text-xs font-medium text-[var(--ls-ink-soft)]">
+	                {pendingReviewProposals.length} 条待确认
+	              </div>
+	            </div>
+	            <div className="mt-4 grid gap-3">
+	              {pendingReviewProposals.length > 0 ? (
+	                pendingReviewProposals.map((proposal) => {
+	                  const patchEntries = reviewPatchEntries(proposal.proposedPatch);
+	                  return (
+	                    <div
+	                      key={proposal.id}
+	                      className="grid gap-4 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-4 lg:grid-cols-[1fr_auto]"
+	                    >
+	                      <div className="min-w-0">
+	                        <div className="flex flex-wrap items-center gap-2">
+	                          <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">
+	                            {reviewStatusLabel(proposal.status)}
+	                          </span>
+	                          <span className="rounded-full border border-[var(--ls-border-cold)] bg-white px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
+	                            {Math.round(proposal.confidence * 100)}%
+	                          </span>
+	                          <span className="text-xs text-[var(--ls-ink-soft)]">
+	                            {formatDate(proposal.createdAt)}
+	                          </span>
+	                        </div>
+	                        <div className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">
+	                          {proposal.reason}
+	                        </div>
+	                        <div className="mt-3 grid gap-2">
+	                          {patchEntries.length > 0 ? (
+	                            patchEntries.map((entry) => (
+	                              <div
+	                                key={entry.key}
+	                                className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-2"
+	                              >
+	                                <div className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">
+	                                  {entry.label}
+	                                </div>
+	                                <div className="mt-1 break-words text-sm leading-6 text-[var(--ls-ink-strong)]">
+	                                  {entry.value}
+	                                </div>
+	                              </div>
+	                            ))
+	                          ) : (
+	                            <div className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-2 text-sm text-[var(--ls-ink-soft)]">
+	                              这次复盘没有建议改动，只记录观察。
+	                            </div>
+	                          )}
+	                        </div>
+	                        <div className="mt-3 text-xs leading-6 text-[var(--ls-ink-soft)]">
+	                          证据：{proposalEvidenceSummary(proposal)}
+	                        </div>
+	                      </div>
+	                      <div className="flex items-center gap-2 lg:justify-end">
+	                        <Button
+	                          type="primary"
+	                          disabled={pageState.saving}
+	                          onClick={() => void reviewRelationshipProposal(proposal.id, "apply")}
+	                        >
+	                          应用
+	                        </Button>
+	                        <Button
+	                          type="default"
+	                          disabled={pageState.saving}
+	                          onClick={() => void reviewRelationshipProposal(proposal.id, "reject")}
+	                        >
+	                          忽略
+	                        </Button>
+	                      </div>
+	                    </div>
+	                  );
+	                })
+	              ) : (
+	                <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
+	                  暂无待确认的关系复盘。开启自动维护时，Dream 会直接写入并出现在关系变更里。
+	                </div>
+	              )}
+	            </div>
+	          </section>
+
+	          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+	            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">详细信息</h3>
                 <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
@@ -1196,84 +1345,50 @@ export function RelationshipStatePage({
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">关系变更</h3>
-                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
-                  最近 20 条程序或 admin 写入记录。左侧按类型筛选，摘要完整展示，不再混成一串。
-                </p>
-              </div>
+	                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">关系变更</h3>
+	                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+	                  最近 20 条程序或 admin 写入记录。按时间展示，每条点开后查看实际改了哪些字段。
+	                </p>
+	              </div>
               <div className="rounded-full bg-[var(--ls-panel-soft)] px-3 py-1 text-xs font-medium text-[var(--ls-ink-soft)]">
-                {pageState.events.length} 条记录
-              </div>
-            </div>
-            {eventTypeOptions.length > 1 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {eventTypeOptions.map((option) => (
-                  <button
-                    key={option.type}
-                    type="button"
-                    onClick={() => setEventTypeFilter(option.type)}
-                    className={`admin-pill-button rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      eventTypeFilter === option.type ? "is-active" : ""
-                    }`}
-                  >
-                    {option.label} {option.count}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.95fr)]">
-              {pageState.events.length > 0 ? (
-                <>
-                  <div className="grid gap-4 self-start">
-                    {groupedEvents.length > 0 ? (
-                      groupedEvents.map((group) => (
-                        <div
-                          key={group.type}
-                          className="overflow-hidden rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)]"
-                        >
-                          <div className="flex items-center justify-between gap-3 border-b border-[var(--ls-border)] bg-white px-4 py-3">
-                            <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
-                              {eventTypeLabel(group.type)}
-                            </div>
-                            <div className="rounded-full bg-[var(--ls-panel-soft)] px-2.5 py-1 text-xs text-[var(--ls-ink-soft)]">
-                              {group.events.length} 条
-                            </div>
-                          </div>
-                          <div className="divide-y divide-[var(--ls-border)]">
-                            {group.events.map((event) => {
-                              const active = selectedEvent?.id === event.id;
-                              return (
-                                <button
-                                  key={event.id}
-                                  type="button"
-                                  onClick={() => setSelectedEventId(event.id)}
-                                  className={`admin-layout-button w-full px-4 py-3 text-left transition ${
-                                    active ? "is-active" : ""
-                                  }`}
-                                >
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
-                                    <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
-                                      {event.source ?? "unknown"}
-                                    </span>
-                                    {event.channel && <span>渠道：{event.channel}</span>}
-                                    <span>{formatDate(event.createdAt)}</span>
-                                  </div>
-                                  <div className="mt-2 break-words text-sm leading-6 text-[var(--ls-ink-strong)]">
-                                    {event.summary || "这条记录没有摘要。"}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
-                        当前筛选下没有关系变更。
-                      </div>
-                    )}
-                  </div>
-                  <StateChangeDetail
+	                {pageState.events.length} 条记录
+	              </div>
+	            </div>
+	            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.95fr)]">
+	              {pageState.events.length > 0 ? (
+	                <>
+	                  <div className="overflow-hidden rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] self-start">
+	                    <div className="divide-y divide-[var(--ls-border)]">
+	                      {pageState.events.map((event) => {
+	                        const active = selectedEvent?.id === event.id;
+	                        return (
+	                          <button
+	                            key={event.id}
+	                            type="button"
+	                            onClick={() => setSelectedEventId(event.id)}
+	                            className={`admin-layout-button w-full px-4 py-3 text-left transition ${
+	                              active ? "is-active" : ""
+	                            }`}
+	                          >
+	                            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
+	                              <span className="rounded-full border border-[var(--ls-border-cold)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
+	                                {eventTypeLabel(event.eventType)}
+	                              </span>
+	                              <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
+	                                {event.source ?? "unknown"}
+	                              </span>
+	                              {event.channel && <span>渠道：{event.channel}</span>}
+	                              <span>{formatDate(event.createdAt)}</span>
+	                            </div>
+	                            <div className="mt-2 break-words text-sm leading-6 text-[var(--ls-ink-strong)]">
+	                              {event.summary || "这条记录没有摘要。"}
+	                            </div>
+	                          </button>
+	                        );
+	                      })}
+	                    </div>
+	                  </div>
+	                  <StateChangeDetail
                     event={selectedEvent}
                     eventTypeLabel={eventTypeLabel}
                     fieldLabels={relationshipFieldLabels}

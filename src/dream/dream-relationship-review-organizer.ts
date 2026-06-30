@@ -1,27 +1,30 @@
-// dream-relationship-affinity-organizer.ts — extract relationship evidence and apply affinity patches
+// dream-relationship-review-organizer.ts — review relationship state as one coherent profile patch
 
 import { Prisma, type RelationshipState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
 import {
   relationshipAutoUpdateEnabled,
+  relationshipLabelFromAffinity,
   relationshipStateService,
 } from "../runtime/relationship-state.service.js";
 import { throwIfTaskCancelled } from "../runtime/running-task-registry.js";
-import { RELATIONSHIP_AFFINITY_SYSTEM_PROMPT } from "./dream-prompts.js";
+import { RELATIONSHIP_REVIEW_SYSTEM_PROMPT } from "./dream-prompts.js";
 import type {
   DreamContext,
   DreamSourceMessage,
-  RawRelationshipAffinityEvidence,
-  RawRelationshipAffinityEvidenceType,
-  RawRelationshipAffinityOutput,
+  RawRelationshipReviewEvidence,
+  RawRelationshipReviewEvidenceType,
+  RawRelationshipReviewField,
+  RawRelationshipReviewOutput,
 } from "./dream.types.js";
 
-export interface DreamRelationshipAffinityResult {
+export interface DreamRelationshipReviewResult {
   proposalCount: number;
   evidenceCount: number;
   appliedCount: number;
-  totalDelta: number;
+  pendingCount: number;
+  totalAffinityDelta: number;
 }
 
 interface RelationshipMessageGroup {
@@ -30,21 +33,22 @@ interface RelationshipMessageGroup {
   messages: DreamSourceMessage[];
 }
 
-interface NormalizedAffinityEvidence {
+interface NormalizedRelationshipEvidence {
   evidenceKey: string;
-  evidenceType: RawRelationshipAffinityEvidenceType;
-  polarity: "positive" | "negative";
+  evidenceType: RawRelationshipReviewEvidenceType;
+  polarity: "positive" | "negative" | "neutral";
   baseDelta: number;
   adjustedDelta: number;
   confidence: number;
   content: string;
   reason: string;
+  affectsFields: RawRelationshipReviewField[];
   sourceMessageIds: string[];
   messageId?: string;
   metadata: Prisma.InputJsonObject;
 }
 
-const evidenceTypes = new Set<RawRelationshipAffinityEvidenceType>([
+const evidenceTypes = new Set<RawRelationshipReviewEvidenceType>([
   "sincerity",
   "shared_trait",
   "cheerful_chat",
@@ -56,6 +60,13 @@ const evidenceTypes = new Set<RawRelationshipAffinityEvidenceType>([
   "hostility_or_value_denial",
 ]);
 
+const reviewFields = new Set<RawRelationshipReviewField>([
+  "affinity",
+  "userIntroduction",
+  "summary",
+  "interactionStyle",
+]);
+
 function clampInt(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.round(value), min), max);
 }
@@ -64,7 +75,7 @@ function cleanText(value: unknown, maxChars: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  return trimmed.length > maxChars ? `${trimmed.slice(0, maxChars - 1)}…` : trimmed;
+  return trimmed.length > maxChars ? `${trimmed.slice(0, maxChars - 1)}...` : trimmed;
 }
 
 function cleanConfidence(value: unknown): number {
@@ -82,8 +93,8 @@ function normalizeKeyPart(value: string): string {
 }
 
 function severityPenalty(
-  type: RawRelationshipAffinityEvidenceType,
-  severity: RawRelationshipAffinityEvidence["severity"]
+  type: RawRelationshipReviewEvidenceType,
+  severity: RawRelationshipReviewEvidence["severity"]
 ): number {
   const level = severity ?? "medium";
   if (type === "value_conflict") {
@@ -97,9 +108,9 @@ function severityPenalty(
 }
 
 function baseDeltaForEvidence(
-  type: RawRelationshipAffinityEvidenceType,
+  type: RawRelationshipReviewEvidenceType,
   affinity: number,
-  severity: RawRelationshipAffinityEvidence["severity"]
+  severity: RawRelationshipReviewEvidence["severity"]
 ): number {
   switch (type) {
     case "sincerity":
@@ -137,7 +148,7 @@ function adjustPositiveDelta(baseDelta: number, affinity: number): number {
 }
 
 function sourceMessageIdsFromEvidence(
-  evidence: RawRelationshipAffinityEvidence,
+  evidence: RawRelationshipReviewEvidence,
   validUserMessageIds: Set<string>
 ): string[] {
   if (!Array.isArray(evidence.sourceMessageIds)) return [];
@@ -152,7 +163,7 @@ function sourceMessageIdsFromEvidence(
 }
 
 function evidenceKeyFor(
-  evidence: RawRelationshipAffinityEvidence,
+  evidence: RawRelationshipReviewEvidence,
   sourceMessageIds: string[]
 ): string | null {
   if (evidence.evidenceType === "shared_trait") {
@@ -166,20 +177,25 @@ function evidenceKeyFor(
   return `${evidence.evidenceType}:${sourceKey}`;
 }
 
-function buildProposalReason(raw: RawRelationshipAffinityOutput, evidences: NormalizedAffinityEvidence[]): string {
-  const summary = cleanText(raw.summary, 160);
-  if (summary) return summary;
-  return evidences
-    .slice(0, 3)
-    .map((evidence) => evidence.reason)
-    .filter(Boolean)
-    .join("；") || "Dream 根据关系证据调整好感度。";
+function affectsFieldsFromEvidence(
+  evidence: RawRelationshipReviewEvidence,
+  baseDelta: number
+): RawRelationshipReviewField[] {
+  const fields = Array.isArray(evidence.affectsFields)
+    ? evidence.affectsFields.filter((field): field is RawRelationshipReviewField =>
+        reviewFields.has(field as RawRelationshipReviewField)
+      )
+    : [];
+
+  if (fields.length > 0) return Array.from(new Set(fields));
+  if (baseDelta !== 0) return ["affinity"];
+  return ["summary"];
 }
 
 function applyCaps(
   affinity: number,
-  evidences: Omit<NormalizedAffinityEvidence, "adjustedDelta">[]
-): NormalizedAffinityEvidence[] {
+  evidences: Omit<NormalizedRelationshipEvidence, "adjustedDelta">[]
+): NormalizedRelationshipEvidence[] {
   const positiveCap = positiveCapForAffinity(affinity);
   let positiveTotal = 0;
   let negativeTotal = 0;
@@ -201,13 +217,13 @@ function applyCaps(
 }
 
 function normalizeEvidences(input: {
-  raw: RawRelationshipAffinityOutput;
+  raw: RawRelationshipReviewOutput;
   affinity: number;
   existingEvidenceKeys: Set<string>;
   validUserMessageIds: Set<string>;
-}): NormalizedAffinityEvidence[] {
+}): NormalizedRelationshipEvidence[] {
   const seen = new Set<string>();
-  const candidates: Omit<NormalizedAffinityEvidence, "adjustedDelta">[] = [];
+  const candidates: Omit<NormalizedRelationshipEvidence, "adjustedDelta">[] = [];
 
   for (const rawEvidence of Array.isArray(input.raw.evidences) ? input.raw.evidences : []) {
     if (!evidenceTypes.has(rawEvidence.evidenceType)) continue;
@@ -227,17 +243,18 @@ function normalizeEvidences(input: {
       input.affinity,
       rawEvidence.severity
     );
-    if (baseDelta === 0) continue;
+    const affectsFields = affectsFieldsFromEvidence(rawEvidence, baseDelta);
 
     seen.add(evidenceKey);
     candidates.push({
       evidenceKey,
       evidenceType: rawEvidence.evidenceType,
-      polarity: baseDelta > 0 ? "positive" : "negative",
+      polarity: baseDelta > 0 ? "positive" : baseDelta < 0 ? "negative" : "neutral",
       baseDelta,
       confidence: cleanConfidence(rawEvidence.confidence),
       content,
       reason,
+      affectsFields,
       sourceMessageIds,
       messageId: sourceMessageIds[0],
       metadata: {
@@ -288,8 +305,9 @@ function buildUserContent(input: {
         personId: relationship.personId,
         relationshipLabel: relationship.relationshipLabel,
         affinity: relationship.affinity,
+        userIntroduction: relationship.userIntroduction,
         summary: relationship.summary,
-        recentSignal: relationship.recentSignal,
+        interactionStyle: relationship.interactionStyle,
       },
       existingEvidenceKeys: input.existingEvidenceKeys,
       messages,
@@ -299,18 +317,102 @@ function buildUserContent(input: {
   );
 }
 
-export class DreamRelationshipAffinityOrganizer {
+function cleanPatchText(value: unknown, maxChars: number): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return cleanText(value, maxChars);
+}
+
+function normalizedPatch(input: {
+  raw: RawRelationshipReviewOutput;
+  relationship: RelationshipState;
+  evidences: NormalizedRelationshipEvidence[];
+}): Prisma.InputJsonObject {
+  const rawPatch = input.raw.proposedPatch ?? {};
+  const json: Record<string, Prisma.InputJsonValue | null> = {};
+  const delta = clampInt(
+    input.evidences.reduce((sum, evidence) => sum + evidence.adjustedDelta, 0),
+    -10,
+    10
+  );
+  const nextAffinity = clampInt(input.relationship.affinity + delta, 0, 100);
+
+  if (nextAffinity !== input.relationship.affinity) {
+    json.affinity = nextAffinity;
+    json.relationshipLabel = relationshipLabelFromAffinity(nextAffinity);
+  }
+
+  const userIntroduction = cleanPatchText(rawPatch.userIntroduction, 420);
+  if (
+    userIntroduction !== undefined &&
+    userIntroduction !== input.relationship.userIntroduction
+  ) {
+    json.userIntroduction = userIntroduction;
+  }
+
+  const summary = cleanPatchText(rawPatch.summary, 320);
+  if (summary !== undefined && summary !== input.relationship.summary) {
+    json.summary = summary;
+  }
+
+  const interactionStyle = cleanPatchText(rawPatch.interactionStyle, 220);
+  if (
+    interactionStyle !== undefined &&
+    interactionStyle !== input.relationship.interactionStyle
+  ) {
+    json.interactionStyle = interactionStyle;
+  }
+
+  return json as Prisma.InputJsonObject;
+}
+
+function snapshotRelationshipState(state: RelationshipState): Prisma.InputJsonObject {
+  return {
+    id: state.id,
+    personId: state.personId,
+    relationshipLabel: state.relationshipLabel,
+    affinity: state.affinity,
+    userIntroduction: state.userIntroduction,
+    interactionStyle: state.interactionStyle,
+    summary: state.summary,
+    recentSignal: state.recentSignal,
+    statusNote: state.statusNote,
+    lastInteractionAt: state.lastInteractionAt?.toISOString() ?? null,
+    updatedAt: state.updatedAt.toISOString(),
+  };
+}
+
+function previewAfterPatch(
+  relationship: RelationshipState,
+  patch: Prisma.InputJsonObject
+): Prisma.InputJsonObject {
+  return {
+    ...snapshotRelationshipState(relationship),
+    ...patch,
+  };
+}
+
+function hasPatch(patch: Prisma.InputJsonObject): boolean {
+  return Object.keys(patch).length > 0;
+}
+
+function buildProposalReason(raw: RawRelationshipReviewOutput): string {
+  return cleanText(raw.summary, 180) ?? "Dream 根据这段时间的互动完成了一次关系复盘。";
+}
+
+export class DreamRelationshipReviewOrganizer {
   async organize(input: {
     context: DreamContext;
     reportId?: string;
     jobId?: string;
     signal?: AbortSignal;
-  }): Promise<DreamRelationshipAffinityResult> {
+  }): Promise<DreamRelationshipReviewResult> {
     const groups = await this.groupMessagesByRelationship(input.context);
     let proposalCount = 0;
     let evidenceCount = 0;
     let appliedCount = 0;
-    let totalDelta = 0;
+    let pendingCount = 0;
+    let totalAffinityDelta = 0;
 
     for (const group of groups) {
       throwIfTaskCancelled(input.signal);
@@ -323,10 +425,11 @@ export class DreamRelationshipAffinityOrganizer {
       proposalCount += result.proposalCount;
       evidenceCount += result.evidenceCount;
       appliedCount += result.appliedCount;
-      totalDelta += result.totalDelta;
+      pendingCount += result.pendingCount;
+      totalAffinityDelta += result.totalAffinityDelta;
     }
 
-    return { proposalCount, evidenceCount, appliedCount, totalDelta };
+    return { proposalCount, evidenceCount, appliedCount, pendingCount, totalAffinityDelta };
   }
 
   private async groupMessagesByRelationship(context: DreamContext): Promise<RelationshipMessageGroup[]> {
@@ -369,18 +472,18 @@ export class DreamRelationshipAffinityOrganizer {
     reportId?: string;
     jobId?: string;
     signal?: AbortSignal;
-  }): Promise<DreamRelationshipAffinityResult> {
+  }): Promise<DreamRelationshipReviewResult> {
     const userMessageIds = new Set(
       input.group.messages
         .filter((message) => message.role === "user")
         .map((message) => message.id)
     );
     if (userMessageIds.size === 0) {
-      return { proposalCount: 0, evidenceCount: 0, appliedCount: 0, totalDelta: 0 };
+      return { proposalCount: 0, evidenceCount: 0, appliedCount: 0, pendingCount: 0, totalAffinityDelta: 0 };
     }
 
     const existingEvidenceKeys = new Set(
-      await prisma.relationshipAffinityEvidence
+      await prisma.relationshipReviewEvidence
         .findMany({
           where: { relationshipStateId: input.group.relationship.id },
           select: { evidenceKey: true },
@@ -388,9 +491,9 @@ export class DreamRelationshipAffinityOrganizer {
         .then((rows) => rows.map((row) => row.evidenceKey))
     );
 
-    const raw = await modelProvider.chatJson<RawRelationshipAffinityOutput>(
+    const raw = await modelProvider.chatJson<RawRelationshipReviewOutput>(
       [
-        { role: "system", content: RELATIONSHIP_AFFINITY_SYSTEM_PROMPT },
+        { role: "system", content: RELATIONSHIP_REVIEW_SYSTEM_PROMPT },
         {
           role: "user",
           content: buildUserContent({
@@ -409,24 +512,24 @@ export class DreamRelationshipAffinityOrganizer {
       existingEvidenceKeys,
       validUserMessageIds: userMessageIds,
     });
+    const patch = normalizedPatch({
+      raw,
+      relationship: input.group.relationship,
+      evidences,
+    });
 
-    if (evidences.length === 0) {
-      return { proposalCount: 0, evidenceCount: 0, appliedCount: 0, totalDelta: 0 };
+    if (!hasPatch(patch) && evidences.length === 0) {
+      return { proposalCount: 0, evidenceCount: 0, appliedCount: 0, pendingCount: 0, totalAffinityDelta: 0 };
     }
 
-    const delta = clampInt(
-      evidences.reduce((sum, evidence) => sum + evidence.adjustedDelta, 0),
-      -10,
-      10
-    );
     const autoUpdateEnabled = relationshipAutoUpdateEnabled(input.group.relationship.metadata);
-    const afterAffinity = clampInt(input.group.relationship.affinity + delta, 0, 100);
     const groupInfo = groupSummary(input.group);
-    const reason = autoUpdateEnabled
-      ? buildProposalReason(raw, evidences)
-      : `已记录关系证据，但这个身份关闭了 Dream 自动维护：${buildProposalReason(raw, evidences)}`;
+    const reason = buildProposalReason(raw);
+    const status = hasPatch(patch) ? "pending" : "observed";
+    const beforeAffinity = input.group.relationship.affinity;
+    const afterAffinity = typeof patch.affinity === "number" ? patch.affinity : beforeAffinity;
 
-    const proposal = await prisma.relationshipAffinityProposal.create({
+    const proposal = await prisma.relationshipReviewProposal.create({
       data: {
         reportId: input.reportId ?? null,
         relationshipStateId: input.group.relationship.id,
@@ -435,20 +538,25 @@ export class DreamRelationshipAffinityOrganizer {
         conversationId: groupInfo.conversationId ?? null,
         channel: groupInfo.channel ?? null,
         source: "dream",
-        status: delta === 0 ? "observed" : autoUpdateEnabled ? "applied" : "blocked_by_settings",
-        beforeAffinity: input.group.relationship.affinity,
-        delta,
-        afterAffinity,
+        status,
         reason,
         confidence: cleanConfidence(raw.confidence),
         evidenceCount: evidences.length,
-        appliedAt: delta === 0 ? null : new Date(),
+        beforeSnapshot: snapshotRelationshipState(input.group.relationship),
+        proposedPatch: patch,
+        afterSnapshot: previewAfterPatch(input.group.relationship, patch),
         rawOutput: raw as unknown as Prisma.InputJsonValue,
         metadata: {
           jobId: input.jobId ?? null,
-          positiveCap: positiveCapForAffinity(input.group.relationship.affinity),
-          existingEvidenceKeyCount: existingEvidenceKeys.size,
+          autoUpdateEnabled,
           openQuestions: Array.isArray(raw.openQuestions) ? raw.openQuestions : [],
+          affinity: {
+            before: beforeAffinity,
+            after: afterAffinity,
+            delta: afterAffinity - beforeAffinity,
+            positiveCap: positiveCapForAffinity(beforeAffinity),
+            existingEvidenceKeyCount: existingEvidenceKeys.size,
+          },
         },
         evidences: {
           create: evidences.map((evidence) => ({
@@ -462,48 +570,45 @@ export class DreamRelationshipAffinityOrganizer {
             evidenceKey: evidence.evidenceKey,
             evidenceType: evidence.evidenceType,
             polarity: evidence.polarity,
-            baseDelta: evidence.baseDelta,
-            adjustedDelta: evidence.adjustedDelta,
             confidence: evidence.confidence,
             content: evidence.content,
             reason: evidence.reason,
+            affectsFields: evidence.affectsFields,
             sourceMessageIds: evidence.sourceMessageIds,
-            metadata: evidence.metadata,
+            metadata: {
+              ...evidence.metadata,
+              baseDelta: evidence.baseDelta,
+              adjustedDelta: evidence.adjustedDelta,
+            },
           })),
         },
       },
       include: { evidences: true },
     });
 
-    if (autoUpdateEnabled && delta !== 0) {
-      await relationshipStateService.applyAffinityPatch({
-        relationshipId: input.group.relationship.id,
+    let appliedCount = 0;
+    let pendingCount = status === "pending" ? 1 : 0;
+    let totalAffinityDelta = 0;
+
+    if (autoUpdateEnabled && status === "pending") {
+      await relationshipStateService.applyRelationshipReviewProposal({
+        proposalId: proposal.id,
+        reviewedBy: "dream",
         source: "dream",
-        reason,
-        delta,
-        userId: groupInfo.userId,
-        conversationId: groupInfo.conversationId,
-        messageId: proposal.evidences[0]?.messageId ?? undefined,
-        channel: groupInfo.channel,
-        evidence: {
-          proposalId: proposal.id,
-          reportId: input.reportId ?? null,
-          jobId: input.jobId ?? null,
-          evidenceIds: proposal.evidences.map((evidence) => evidence.id),
-          evidenceKeys: proposal.evidences.map((evidence) => evidence.evidenceKey),
-          beforeAffinity: input.group.relationship.affinity,
-          afterAffinity,
-        },
       });
+      appliedCount = 1;
+      pendingCount = 0;
+      totalAffinityDelta = afterAffinity - beforeAffinity;
     }
 
     return {
       proposalCount: 1,
       evidenceCount: proposal.evidences.length,
-      appliedCount: autoUpdateEnabled && delta !== 0 ? 1 : 0,
-      totalDelta: autoUpdateEnabled ? delta : 0,
+      appliedCount,
+      pendingCount,
+      totalAffinityDelta,
     };
   }
 }
 
-export const dreamRelationshipAffinityOrganizer = new DreamRelationshipAffinityOrganizer();
+export const dreamRelationshipReviewOrganizer = new DreamRelationshipReviewOrganizer();

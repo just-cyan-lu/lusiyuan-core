@@ -36,19 +36,6 @@ interface ApplyRelationshipPatchInput {
   channel?: string;
 }
 
-interface ApplyRelationshipAffinityInput {
-  relationshipId: string;
-  source: "dream" | "admin" | "manual" | string;
-  reason: string;
-  delta?: number;
-  affinity?: number;
-  userId?: string;
-  conversationId?: string;
-  messageId?: string;
-  channel?: string;
-  evidence?: Prisma.InputJsonValue;
-}
-
 interface ObserveIdentitySignalInput {
   userId: string;
   conversationId: string;
@@ -216,6 +203,47 @@ function patchToJson(patch: RelationshipStatePatch): Prisma.InputJsonObject {
     json.lastInteractionAt = patch.lastInteractionAt?.toISOString() ?? null;
   }
   return json as Prisma.InputJsonObject;
+}
+
+function patchFromJsonForState(
+  state: RelationshipState,
+  value: unknown
+): RelationshipStatePatch {
+  const input = readRecord(value);
+  const patch: RelationshipStatePatch = {};
+
+  if (Object.prototype.hasOwnProperty.call(input, "relationshipLabel")) {
+    patch.relationshipLabel = cleanText(input.relationshipLabel, 60) ?? state.relationshipLabel;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "affinity")) {
+    patch.affinity = boundedNumber(input.affinity, state.affinity);
+    if (
+      !Object.prototype.hasOwnProperty.call(input, "relationshipLabel") ||
+      patch.relationshipLabel === state.relationshipLabel
+    ) {
+      patch.relationshipLabel = relationshipLabelFromAffinity(patch.affinity);
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "userIntroduction")) {
+    patch.userIntroduction = cleanText(input.userIntroduction, 420);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "interactionStyle")) {
+    patch.interactionStyle = cleanText(input.interactionStyle, 220);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "summary")) {
+    patch.summary = cleanText(input.summary, 320);
+  }
+  return patch;
+}
+
+function patchHasCoreChanges(state: RelationshipState, patch: RelationshipStatePatch): boolean {
+  return (
+    (patch.relationshipLabel !== undefined && patch.relationshipLabel !== state.relationshipLabel) ||
+    (patch.affinity !== undefined && patch.affinity !== state.affinity) ||
+    (patch.userIntroduction !== undefined && patch.userIntroduction !== state.userIntroduction) ||
+    (patch.interactionStyle !== undefined && patch.interactionStyle !== state.interactionStyle) ||
+    (patch.summary !== undefined && patch.summary !== state.summary)
+  );
 }
 
 function latestDate(...values: Array<Date | null | undefined>): Date | null {
@@ -580,9 +608,9 @@ export const relationshipStateService = {
     if (!relationship) {
       throw serviceError("Relationship not found", 404);
     }
-    const [events, affinityProposals] = await Promise.all([
+    const [events, reviewProposals] = await Promise.all([
       this.listEvents(relationshipId, limit),
-      prisma.relationshipAffinityProposal.findMany({
+      prisma.relationshipReviewProposal.findMany({
         where: { relationshipStateId: relationshipId },
         orderBy: { createdAt: "desc" },
         take: clampInt(limit, 1, 100),
@@ -593,7 +621,7 @@ export const relationshipStateService = {
         },
       }),
     ]);
-    return { relationship, events, affinityProposals };
+    return { relationship, events, reviewProposals };
   },
 
   async listIdentityLinkProposals(status = "pending", limit = 50) {
@@ -732,7 +760,7 @@ export const relationshipStateService = {
           personId: targetState.personId,
         },
       });
-      await tx.relationshipAffinityProposal.updateMany({
+      await tx.relationshipReviewProposal.updateMany({
         where: { relationshipStateId: sourceState.id },
         data: {
           relationshipStateId: targetState.id,
@@ -740,13 +768,13 @@ export const relationshipStateService = {
         },
       });
 
-      const sourceEvidences = await tx.relationshipAffinityEvidence.findMany({
+      const sourceEvidences = await tx.relationshipReviewEvidence.findMany({
         where: { relationshipStateId: sourceState.id },
         select: { id: true, evidenceKey: true },
       });
       const targetEvidenceKeys = new Set(
         (
-          await tx.relationshipAffinityEvidence.findMany({
+          await tx.relationshipReviewEvidence.findMany({
             where: { relationshipStateId: targetState.id },
             select: { evidenceKey: true },
           })
@@ -757,7 +785,7 @@ export const relationshipStateService = {
           ? `${evidence.evidenceKey}:merged:${evidence.id}`
           : evidence.evidenceKey;
         targetEvidenceKeys.add(evidenceKey);
-        await tx.relationshipAffinityEvidence.update({
+        await tx.relationshipReviewEvidence.update({
           where: { id: evidence.id },
           data: {
             relationshipStateId: targetState.id,
@@ -923,7 +951,7 @@ export const relationshipStateService = {
         },
       });
 
-      const proposalRows = await tx.relationshipAffinityProposal.findMany({
+      const proposalRows = await tx.relationshipReviewProposal.findMany({
         where: {
           relationshipStateId: sourceState.id,
           userId: { in: userIds },
@@ -932,14 +960,14 @@ export const relationshipStateService = {
       });
       const proposalIds = proposalRows.map((proposal) => proposal.id);
       if (proposalIds.length > 0) {
-        await tx.relationshipAffinityProposal.updateMany({
+        await tx.relationshipReviewProposal.updateMany({
           where: { id: { in: proposalIds } },
           data: {
             relationshipStateId: newState.id,
             personId: newPerson.id,
           },
         });
-        await tx.relationshipAffinityEvidence.updateMany({
+        await tx.relationshipReviewEvidence.updateMany({
           where: { proposalId: { in: proposalIds } },
           data: {
             relationshipStateId: newState.id,
@@ -1249,45 +1277,112 @@ export const relationshipStateService = {
     });
   },
 
-  async applyAffinityPatch(input: ApplyRelationshipAffinityInput): Promise<RelationshipState> {
-    const before = await prisma.relationshipState.findUniqueOrThrow({
-      where: { id: input.relationshipId },
+  async applyRelationshipReviewProposal(input: {
+    proposalId: string;
+    reviewedBy?: string;
+    source?: string;
+  }): Promise<RelationshipState> {
+    const proposal = await prisma.relationshipReviewProposal.findUnique({
+      where: { id: input.proposalId },
     });
-    if (input.source === "dream" && !relationshipAutoUpdateEnabled(before.metadata)) {
+    if (!proposal) throw serviceError("Relationship review proposal not found", 404);
+    if (proposal.status !== "pending") {
+      throw serviceError("Relationship review proposal is not pending", 409);
+    }
+
+    const before = await prisma.relationshipState.findUniqueOrThrow({
+      where: { id: proposal.relationshipStateId },
+    });
+    const proposalPatch = patchFromJsonForState(before, proposal.proposedPatch);
+    const source = input.source ?? proposal.source ?? "dream";
+    const reviewedBy = input.reviewedBy ?? (source === "dream" ? "dream" : "admin");
+
+    if (!patchHasCoreChanges(before, proposalPatch)) {
+      await prisma.relationshipReviewProposal.update({
+        where: { id: proposal.id },
+        data: {
+          status: "observed",
+          reviewedBy,
+          reviewedAt: new Date(),
+          afterSnapshot: snapshotRelationshipState(before),
+        },
+      });
       return before;
     }
-    const nextAffinity = input.affinity !== undefined
-      ? boundedNumber(input.affinity, before.affinity)
-      : clampInt(before.affinity + boundedNumber(input.delta ?? 0, 0, -100, 100), 0, 100);
+
+    const nextAffinity = proposalPatch.affinity ?? before.affinity;
     const delta = nextAffinity - before.affinity;
     const patch: RelationshipStatePatch = {
-      affinity: nextAffinity,
+      ...proposalPatch,
       relationshipLabel: relationshipLabelFromAffinity(nextAffinity),
-      recentSignal: input.reason,
-      statusNote: `由 ${input.source} 调整好感度。`,
+      recentSignal: proposal.reason,
+      statusNote: `由 ${source} 关系复盘调整。`,
       lastInteractionAt: new Date(),
       metadata: metadataWith(before.metadata, {
-        lastAffinityPatch: {
+        lastRelationshipReview: {
           at: new Date().toISOString(),
-          source: input.source,
-          reason: input.reason,
-          delta,
-          affinity: nextAffinity,
-          evidence: input.evidence ?? null,
+          source,
+          proposalSource: proposal.source,
+          proposalId: proposal.id,
+          reportId: proposal.reportId ?? null,
+          reason: proposal.reason,
+          affinityDelta: delta,
+          proposedPatch: proposal.proposedPatch as Prisma.InputJsonValue,
         },
       }),
     };
 
-    return this.applyPatch({
-      relationshipId: input.relationshipId,
+    const updated = await this.applyPatch({
+      relationshipId: proposal.relationshipStateId,
       patch,
-      eventType: "affinity_update",
-      source: input.source,
-      summary: `好感度 ${delta >= 0 ? "+" : ""}${delta}：${input.reason}`,
-      userId: input.userId,
-      conversationId: input.conversationId,
-      messageId: input.messageId,
-      channel: input.channel,
+      eventType: "relationship_review",
+      source,
+      summary: delta === 0
+        ? `关系复盘：${proposal.reason}`
+        : `关系复盘，好感度 ${delta >= 0 ? "+" : ""}${delta}：${proposal.reason}`,
+      userId: proposal.userId ?? undefined,
+      conversationId: proposal.conversationId ?? undefined,
+      channel: proposal.channel ?? undefined,
+    });
+
+    await prisma.relationshipReviewProposal.update({
+      where: { id: proposal.id },
+      data: {
+        status: "applied",
+        appliedAt: new Date(),
+        reviewedBy,
+        reviewedAt: new Date(),
+        afterSnapshot: snapshotRelationshipState(updated),
+      },
+    });
+
+    return updated;
+  },
+
+  async rejectRelationshipReviewProposal(input: {
+    proposalId: string;
+    reviewedBy?: string;
+  }) {
+    const proposal = await prisma.relationshipReviewProposal.findUnique({
+      where: { id: input.proposalId },
+    });
+    if (!proposal) throw serviceError("Relationship review proposal not found", 404);
+    if (proposal.status !== "pending") {
+      throw serviceError("Relationship review proposal is not pending", 409);
+    }
+
+    return prisma.relationshipReviewProposal.update({
+      where: { id: proposal.id },
+      data: {
+        status: "rejected",
+        reviewedBy: input.reviewedBy ?? "admin",
+        reviewedAt: new Date(),
+      },
+      include: {
+        evidences: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
   },
 

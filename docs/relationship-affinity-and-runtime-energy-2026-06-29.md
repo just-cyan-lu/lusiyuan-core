@@ -1,8 +1,8 @@
-# 关系好感度与运行态心力设计
+# 关系复盘、好感度与运行态心力设计
 
 这个文档记录 2026-06-29 这一轮设计结论，后续实现和审计以这里为准。
 
-## 关系好感度
+## 关系复盘与好感度
 
 `affinity` 只表示陆思源和某个现实身份之间的好感/熟悉程度。它不按聊天次数上涨，也不因为几句客套话飞升。
 
@@ -41,11 +41,12 @@
 
 ### 数据与入口
 
-- Dream 关系整理器按 `PersonIdentity` 分组整理证据。
+- Dream 关系复盘按 `PersonIdentity` 分组整理一段时间内的对话。
+- 每次复盘一次性产出整体 `proposedPatch`，覆盖 `affinity`、`userIntroduction`、`summary`、`interactionStyle` 中需要改变的字段。
 - 每条证据要保存 `evidenceKey`，同频 trait 用稳定 key 防重复加分。
-- 每次调整保存 `RelationshipAffinityProposal` 和 `RelationshipAffinityEvidence`。
-- 第一版不走人工审核，Dream 生成后直接静默应用，但必须保留完整证据、原始消息 id、原因、前后分数，方便 admin 审计和未来导出训练数据。
-- 实际写入仍统一走 `relationshipStateService.applyAffinityPatch(...)`。
+- 每次复盘保存 `RelationshipReviewProposal` 和 `RelationshipReviewEvidence`。
+- 如果该身份开启“允许 Dream 自动维护”，Dream 生成后自动应用；如果关闭，则进入 admin 的“待确认的关系复盘”。
+- 实际写入统一走 `relationshipStateService.applyRelationshipReviewProposal(...)`，并记录 `relationship_review` 关系变更事件。
 - 小红书、B 站、评论区等外部身份后续按 `platform + externalUserId` 先建 `User`，再由 admin 合并到同一个 `PersonIdentity`；关系值跟现实身份走。
 
 ## 运行态心力
