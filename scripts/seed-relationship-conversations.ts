@@ -251,17 +251,6 @@ async function clearPreviousSeedData(): Promise<void> {
     : [];
   const conversationIds = conversations.map((conversation) => conversation.id);
 
-  if (userIds.length > 0 || conversationIds.length > 0) {
-    await prisma.runtimeEvent.deleteMany({
-      where: {
-        OR: [
-          userIds.length > 0 ? { userId: { in: userIds } } : undefined,
-          conversationIds.length > 0 ? { conversationId: { in: conversationIds } } : undefined,
-        ].filter((item): item is NonNullable<typeof item> => Boolean(item)),
-      },
-    });
-  }
-
   if (conversationIds.length > 0) {
     await prisma.conversationContextSummary.deleteMany({
       where: { conversationId: { in: conversationIds } },
@@ -413,9 +402,8 @@ async function main(): Promise<void> {
         },
       });
 
-      const messageIds: string[] = [];
       for (const [index, [role, content]] of userFixture.messages.entries()) {
-        const message = await prisma.message.create({
+        await prisma.message.create({
           data: {
             conversationId: conversation.id,
             role,
@@ -431,37 +419,7 @@ async function main(): Promise<void> {
               : { seed: true },
           },
         });
-        messageIds.push(message.id);
       }
-
-      await prisma.runtimeEvent.create({
-        data: {
-          eventType: "chat_turn",
-          source: user.externalId === "web:owner" ? "owner_chat" : "chat",
-          summary: `测试对话：${fixture.label} 通过 ${channel} 和思源聊了 ${userFixture.messages.length} 条消息。`,
-          importance: user.externalId === "web:owner" ? 75 : 45,
-          topic: fixture.label === "Cyan / Owner" ? "运行态与自主任务设计" : "测试关系对话",
-          moodSignal: fixture.affinity >= 60 ? "warm" : "steady",
-          energySignal: fixture.label === "小雨" ? "soft_support" : "engaged",
-          stateImpact: {
-            canMutateRuntimeState: false,
-            mutationGate: "seed_observe_only",
-            sourceMessageIds: messageIds,
-          },
-          payload: {
-            seed: true,
-            seedKey: "relationship-conversation-fixtures-v1",
-            personLabel: fixture.label,
-            userExternalId: user.externalId,
-          },
-          userId: user.id,
-          conversationId: conversation.id,
-          messageId: messageIds.at(-1),
-          channel,
-          status: "observed",
-          createdAt: minutesAgo(8 + created.length),
-        },
-      });
 
       personUsers.push({
         id: user.id,
@@ -489,7 +447,6 @@ async function main(): Promise<void> {
     prisma.conversation.count(),
     prisma.message.count(),
     prisma.relationshipState.count(),
-    prisma.runtimeEvent.count(),
   ]);
 
   console.log(JSON.stringify({
@@ -501,7 +458,6 @@ async function main(): Promise<void> {
       conversations: counts[3],
       messages: counts[4],
       relationshipStates: counts[5],
-      runtimeEvents: counts[6],
     },
   }, null, 2));
 }

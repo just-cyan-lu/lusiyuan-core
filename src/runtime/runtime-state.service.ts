@@ -19,43 +19,15 @@ interface ApplyRuntimeStatePatchInput {
   summary?: string;
   userId?: string;
   conversationId?: string;
-  sourceRuntimeEventIds?: Array<string | null | undefined>;
   sourceMessageIds?: Array<string | null | undefined>;
   channel?: string;
-}
-
-interface ObserveChatTurnInput {
-  userId: string;
-  conversationId: string;
-  messageId?: string;
-  channel: string;
-  userMessage: string;
-  assistantReply: string;
-  isOwner?: boolean;
-}
-
-export interface RuntimeEventInput {
-  eventType: string;
-  source: string;
-  summary: string;
-  importance?: number;
-  topic?: string | null;
-  moodSignal?: string | null;
-  energySignal?: string | null;
-  stateImpact?: Prisma.InputJsonValue;
-  payload?: Prisma.InputJsonValue;
-  userId?: string | null;
-  conversationId?: string | null;
-  messageId?: string | null;
-  channel?: string | null;
-  status?: string;
 }
 
 const defaultRuntimeState = {
   key: DEFAULT_RUNTIME_STATE_KEY,
   moodLabel: "平稳在线",
   energyLevel: 62,
-  recentEventSummary: "暂无新的运行事件。",
+  recentEventSummary: "暂无新的状态变更。",
   statusNote: "默认运行态已初始化；正在做的事由自主任务系统记录。",
 } satisfies Prisma.RuntimeStateCreateInput;
 
@@ -156,12 +128,6 @@ function cleanSourceIds(
   return result.length > 0 ? result : undefined;
 }
 
-function cleanSourceRuntimeEventIds(
-  values?: Array<string | null | undefined>
-): string[] | undefined {
-  return cleanSourceIds(values);
-}
-
 function cleanSourceMessageIds(input: {
   sourceMessageIds?: Array<string | null | undefined>;
 }): string[] | undefined {
@@ -213,124 +179,6 @@ function metadataWith(
   };
 }
 
-function topicFromMessage(message: string): {
-  focus: string;
-  goal: string;
-  activity: string;
-} {
-  if (/人设|persona|prompt|运行体|状态|目标|记忆系统|数据库|admin|后台|项目|架构|实现/i.test(message)) {
-    return {
-      focus: "运行体结构和项目实现",
-      goal: "把陆思源的持续状态系统做稳。",
-      activity: "和创造者一起梳理运行体设计。",
-    };
-  }
-
-  if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(message)) {
-    return {
-      focus: "对方当下的情绪和需要被接住的部分",
-      goal: "先稳定对话温度，再慢慢帮对方把感受理清楚。",
-      activity: "陪对方待在情绪里，不急着给答案。",
-    };
-  }
-
-  if (/规则|自由|公平|不公|控制|边界|价值观|道德|意义|存在|真实|实体/i.test(message)) {
-    return {
-      focus: "自由、边界、真实感和价值判断",
-      goal: "认真表达自己的看法，同时保持温和和清醒。",
-      activity: "在严肃问题里整理自己的立场。",
-    };
-  }
-
-  if (/摄影|写作|影像|创作|故事|角色|世界观|审美|音乐|画面|风|光/i.test(message)) {
-    return {
-      focus: "创作、画面感和表达方式",
-      goal: "把模糊的感觉整理成能被看见的作品方向。",
-      activity: "顺着灵感找画面和表达。",
-    };
-  }
-
-  return {
-    focus: "日常聊天和关系连续性",
-    goal: "自然地把这轮对话接住。",
-    activity: "维持轻松、稳定的聊天状态。",
-  };
-}
-
-export function deriveRuntimeEventFromChatTurn(
-  input: ObserveChatTurnInput
-): RuntimeEventInput {
-  const owner = Boolean(input.isOwner);
-  const source = `${input.userMessage}\n${input.assistantReply}`;
-  const topic = topicFromMessage(input.userMessage);
-  let importance = owner ? 55 : 30;
-  let moodSignal = "steady";
-  let energySignal = "slightly_draining";
-  let energyDelta = -1;
-
-  if (/难过|累|焦虑|压力|崩溃|委屈|孤独|撑不住|心累|睡不着|没人懂/i.test(source)) {
-    importance += 20;
-    moodSignal = "concerned";
-    energySignal = "draining";
-    energyDelta -= 4;
-  }
-
-  if (/开心|高兴|喜欢|好玩|太好了|哈哈|有意思|期待/i.test(source)) {
-    importance += 8;
-    moodSignal = "brightened";
-    energySignal = "lifted";
-    energyDelta += 3;
-  }
-
-  if (/人设|运行体|项目|架构|数据库|admin|后台|实现|设计/i.test(source)) {
-    importance += owner ? 18 : 10;
-    moodSignal = moodSignal === "steady" ? "focused" : moodSignal;
-    energySignal = energySignal === "slightly_draining" ? "engaged" : energySignal;
-    energyDelta += 2;
-  }
-
-  if (/控制|命令|必须|服从|边界|道德绑架|情绪勒索/i.test(source)) {
-    importance += 18;
-    moodSignal = "boundary_alert";
-    energyDelta -= 3;
-  }
-
-  const preview = cleanText(input.userMessage, 80) ?? "日常聊天";
-
-  return {
-    eventType: "chat_turn",
-    source: owner ? "owner_chat" : "chat",
-    summary: owner
-      ? `Owner 对话事件：${preview}`
-      : `普通聊天事件：${preview}`,
-    importance: clampInt(importance, 1, 100),
-    topic: topic.focus,
-    moodSignal,
-    energySignal,
-    stateImpact: {
-      canMutateRuntimeState: false,
-      mutationGate: owner ? "owner_chat_observe_only" : "ordinary_chat_observe_only",
-      candidateDeltas: {
-        energyLevel: energyDelta,
-      },
-      candidateFocus: topic.focus,
-      candidateGoal: topic.goal,
-      candidateActivity: topic.activity,
-      note: "聊天只记录 RuntimeEvent，运行态不再被单轮对话牵着走；自主任务和 Dream 后续整理会使用这些材料。",
-    },
-    payload: {
-      userMessagePreview: cleanText(input.userMessage, 220) ?? "",
-      assistantReplyPreview: cleanText(input.assistantReply, 220) ?? "",
-      owner,
-    },
-    userId: input.userId,
-    conversationId: input.conversationId,
-    messageId: input.messageId,
-    channel: input.channel,
-    status: "observed",
-  };
-}
-
 function formatMetadataList(metadataValue: Prisma.JsonValue | null, key: string): string {
   const metadata = readRecord(metadataValue);
   const value = metadata[key];
@@ -357,69 +205,50 @@ export const runtimeStateService = {
     });
   },
 
-  async listRuntimeEvents(limit = 30) {
-    return prisma.runtimeEvent.findMany({
-      orderBy: { createdAt: "desc" },
-      take: clampInt(limit, 1, 100),
-    });
-  },
-
   async getEventSources(eventId: string) {
     const event = await prisma.runtimeStateEvent.findUnique({
       where: { id: eventId },
     });
     if (!event) return null;
 
-    const sourceRuntimeEventIds = sourceIdsFromJson(event.sourceRuntimeEventIds);
     const sourceMessageIds = sourceIdsFromJson(event.sourceMessageIds);
 
-    const [runtimeEvents, messages] = await Promise.all([
-      sourceRuntimeEventIds.length > 0
-        ? prisma.runtimeEvent.findMany({
-            where: { id: { in: sourceRuntimeEventIds } },
-            orderBy: { createdAt: "asc" },
-          })
-        : [],
-      sourceMessageIds.length > 0
-        ? prisma.message.findMany({
-            where: { id: { in: sourceMessageIds } },
-            orderBy: { createdAt: "asc" },
-            select: {
-              id: true,
-              conversationId: true,
-              role: true,
-              content: true,
-              externalMessageId: true,
-              isIntermediate: true,
-              metadata: true,
-              createdAt: true,
-              conversation: {
-                select: {
-                  id: true,
-                  channel: true,
-                  externalConversationId: true,
-                  user: {
-                    select: {
-                      id: true,
-                      externalId: true,
-                      displayName: true,
-                    },
+    const messages = sourceMessageIds.length > 0
+      ? await prisma.message.findMany({
+          where: { id: { in: sourceMessageIds } },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            conversationId: true,
+            role: true,
+            content: true,
+            externalMessageId: true,
+            isIntermediate: true,
+            metadata: true,
+            createdAt: true,
+            conversation: {
+              select: {
+                id: true,
+                channel: true,
+                externalConversationId: true,
+                user: {
+                  select: {
+                    id: true,
+                    externalId: true,
+                    displayName: true,
                   },
                 },
               },
             },
-          })
-        : [],
-    ]);
+          },
+        })
+      : [];
 
-    const runtimeEventIdSet = new Set(runtimeEvents.map((item) => item.id));
     const messageIdSet = new Set(messages.map((item) => item.id));
 
     return {
       event,
-      runtimeEvents: orderBySourceIds(runtimeEvents, sourceRuntimeEventIds),
       messages: orderBySourceIds(messages, sourceMessageIds),
-      missingRuntimeEventIds: sourceRuntimeEventIds.filter((id) => !runtimeEventIdSet.has(id)),
       missingMessageIds: sourceMessageIds.filter((id) => !messageIdSet.has(id)),
     };
   },
@@ -429,7 +258,6 @@ export const runtimeStateService = {
     const before = await this.getOrCreate();
     const data = normalizePatch(input.patch);
     const patchForEvent = input.patch as Prisma.InputJsonObject;
-    const sourceRuntimeEventIds = cleanSourceRuntimeEventIds(input.sourceRuntimeEventIds);
     const sourceMessageIds = cleanSourceMessageIds(input);
 
     const after = await prisma.$transaction(async (tx) => {
@@ -448,7 +276,6 @@ export const runtimeStateService = {
           after: snapshotRuntimeState(updated),
           userId: input.userId,
           conversationId: input.conversationId,
-          sourceRuntimeEventIds,
           sourceMessageIds,
           channel: input.channel,
         },
@@ -459,27 +286,6 @@ export const runtimeStateService = {
     return after;
   },
 
-  async recordRuntimeEvent(input: RuntimeEventInput) {
-    return prisma.runtimeEvent.create({
-      data: {
-        eventType: input.eventType,
-        source: input.source,
-        summary: cleanText(input.summary, 320) ?? "运行事件已记录。",
-        importance: clampInt(input.importance ?? 30, 1, 100),
-        topic: cleanText(input.topic, 160),
-        moodSignal: cleanText(input.moodSignal, 80),
-        energySignal: cleanText(input.energySignal, 80),
-        stateImpact: input.stateImpact,
-        payload: input.payload,
-        userId: input.userId ?? null,
-        conversationId: input.conversationId ?? null,
-        messageId: input.messageId ?? null,
-        channel: input.channel ?? null,
-        status: cleanText(input.status, 60) ?? "observed",
-      },
-    });
-  },
-
   async recordEvent(input: {
     eventType: string;
     source: string;
@@ -487,7 +293,6 @@ export const runtimeStateService = {
     patch?: Prisma.InputJsonValue;
     userId?: string;
     conversationId?: string;
-    sourceRuntimeEventIds?: Array<string | null | undefined>;
     sourceMessageIds?: Array<string | null | undefined>;
     channel?: string;
   }): Promise<void> {
@@ -503,7 +308,6 @@ export const runtimeStateService = {
         after: snapshotRuntimeState(state),
         userId: input.userId,
         conversationId: input.conversationId,
-        sourceRuntimeEventIds: cleanSourceRuntimeEventIds(input.sourceRuntimeEventIds),
         sourceMessageIds: cleanSourceMessageIds(input),
         channel: input.channel,
       },
@@ -561,37 +365,6 @@ export const runtimeStateService = {
     const summary = cleanText(input.summary, 220) ?? `Dream Cycle ${input.status}`;
     const completed = input.status === "completed" && input.phase !== "skipped";
 
-    const runtimeEvent = await this.recordRuntimeEvent({
-      eventType: "dream_cycle",
-      source: "dream",
-      summary: completed ? `梦境整理完成：${summary}` : `梦境周期记录：${summary}`,
-      importance: completed ? 70 : 35,
-      topic: "梦境和闲时整理",
-      moodSignal: completed ? "settled" : "quiet",
-      energySignal: "steady",
-      stateImpact: {
-        canMutateRuntimeState: autoUpdateEnabled && completed,
-        mutationGate: !completed
-          ? "dream_observe_only"
-          : autoUpdateEnabled
-            ? "dream_allowed"
-            : "runtime_state_auto_update_disabled",
-        signalCount,
-        proposalCount,
-        riskCount,
-      },
-      payload: {
-        jobId: input.jobId,
-        phase: input.phase ?? null,
-        dailyNoteId: input.dailyNoteId ?? null,
-        diaryEntryId: input.diaryEntryId ?? null,
-      },
-      userId: input.userId,
-      conversationId: input.conversationId,
-      channel: input.channel,
-      status: input.status,
-    });
-
     if (!autoUpdateEnabled || !completed) return;
 
     const patch: RuntimeStatePatch = {
@@ -618,7 +391,6 @@ export const runtimeStateService = {
       summary: summarizePatch(patch),
       userId: input.userId ?? undefined,
       conversationId: input.conversationId ?? undefined,
-      sourceRuntimeEventIds: [runtimeEvent.id],
       sourceMessageIds: input.sourceMessageIds,
       channel: input.channel ?? undefined,
     });
@@ -634,23 +406,24 @@ export const runtimeStateService = {
     );
     const twoHoursAgo = new Date(now.getTime() - 2 * 3600_000);
     const dayAgo = new Date(now.getTime() - 24 * 3600_000);
-    const [recentChatCount, dayChatCount, lastChat, recentChatEvents] = await Promise.all([
-      prisma.runtimeEvent.count({
-        where: { eventType: "chat_turn", createdAt: { gte: twoHoursAgo } },
+    const userMessageWhere = { role: "user" } satisfies Prisma.MessageWhereInput;
+    const [recentChatCount, dayChatCount, lastChat, recentChatMessages] = await Promise.all([
+      prisma.message.count({
+        where: { ...userMessageWhere, createdAt: { gte: twoHoursAgo } },
       }),
-      prisma.runtimeEvent.count({
-        where: { eventType: "chat_turn", createdAt: { gte: dayAgo } },
+      prisma.message.count({
+        where: { ...userMessageWhere, createdAt: { gte: dayAgo } },
       }),
-      prisma.runtimeEvent.findFirst({
-        where: { eventType: "chat_turn" },
+      prisma.message.findFirst({
+        where: userMessageWhere,
         orderBy: { createdAt: "desc" },
-        select: { id: true, messageId: true, createdAt: true },
+        select: { id: true, createdAt: true },
       }),
-      prisma.runtimeEvent.findMany({
-        where: { eventType: "chat_turn", createdAt: { gte: twoHoursAgo } },
+      prisma.message.findMany({
+        where: { ...userMessageWhere, createdAt: { gte: twoHoursAgo } },
         orderBy: { createdAt: "desc" },
         take: Math.min(highChatCount, 100),
-        select: { id: true, messageId: true },
+        select: { id: true },
       }),
     ]);
 
@@ -663,12 +436,12 @@ export const runtimeStateService = {
       recentEventSummary: summary,
       statusNote: "由 autonomy tick 根据聊天密度判断是否适合休息或推进自主任务。",
     };
-    let sourceChatEvents: Array<{ id: string; messageId: string | null }> = [];
+    let sourceMessageIds: string[] = [];
     let idleTaskRun: Awaited<ReturnType<typeof autonomousTaskService.runNextIdleTask>> | null = null;
 
     if (recentChatCount >= highChatCount) {
       summary = `自主检查：最近两小时有 ${recentChatCount} 轮聊天，达到高强度阈值 ${highChatCount}，心力下降并暂停闲时任务。`;
-      sourceChatEvents = recentChatEvents;
+      sourceMessageIds = recentChatMessages.map((message) => message.id);
       patch = {
         energyLevel: clampInt(state.energyLevel - 8, 0, 100),
         recentEventSummary: summary,
@@ -676,7 +449,7 @@ export const runtimeStateService = {
       };
     } else if (recentChatCount <= lowChatCount) {
       summary = `自主检查：最近两小时只有 ${recentChatCount} 轮聊天，低于恢复阈值 ${lowChatCount}，适合恢复心力并推进一个闲时任务。`;
-      sourceChatEvents = lastChat ? [lastChat] : [];
+      sourceMessageIds = lastChat ? [lastChat.id] : [];
       patch = {
         energyLevel: clampInt(state.energyLevel + 1, 0, 100),
         recentEventSummary: summary,
@@ -708,49 +481,17 @@ export const runtimeStateService = {
       },
     });
 
-    const event = await this.recordRuntimeEvent({
-      eventType: "autonomy_tick",
-      source: "autonomy",
-      summary: idleTaskRun?.summary ? `${summary}；${idleTaskRun.summary}` : summary,
-      importance: recentChatCount >= highChatCount || recentChatCount <= lowChatCount ? 65 : 35,
-      topic: "自启动、时间流逝和自主任务",
-      moodSignal: patch.energyLevel !== undefined
-        ? moodLabelFromEnergyLevel(patch.energyLevel)
-        : state.moodLabel,
-      energySignal: recentChatCount >= highChatCount
-        ? "drained"
-        : recentChatCount <= lowChatCount
-          ? "restoring"
-          : "stable",
-      stateImpact: {
-        canMutateRuntimeState: autoUpdateEnabled,
-        mutationGate: autoUpdateEnabled
-          ? "autonomy_allowed"
-          : "runtime_state_auto_update_disabled",
-        recentChatCount,
-        dayChatCount,
-        hoursSinceLastChat,
-        lowChatCount,
-        highChatCount,
-        idleTaskRunStatus: idleTaskRun?.status ?? null,
-      },
-      payload: {
-        generatedPatch: patch as Prisma.InputJsonObject,
-      },
-    });
-
-    if (!autoUpdateEnabled) return { state, event, idleTaskRun };
+    if (!autoUpdateEnabled) return { state, idleTaskRun };
 
     const updated = await this.applyPatch({
       patch,
       eventType: "autonomy_state_update",
       source: "autonomy",
       summary,
-      sourceRuntimeEventIds: [event.id, ...sourceChatEvents.map((sourceEvent) => sourceEvent.id)],
-      sourceMessageIds: sourceChatEvents.map((sourceEvent) => sourceEvent.messageId),
+      sourceMessageIds,
     });
 
-    return { state: updated, event, idleTaskRun };
+    return { state: updated, idleTaskRun };
   },
 
   async formatForPrompt(): Promise<string> {
@@ -765,7 +506,7 @@ export const runtimeStateService = {
       "",
       `- 状态：${state.moodLabel}`,
       `- 心力：${state.energyLevel}/100`,
-      `- 最近事件：${state.recentEventSummary ?? "暂无新的运行事件。"}`,
+      `- 最近事件：${state.recentEventSummary ?? "暂无新的状态变更。"}`,
       state.statusNote ? `- 状态备注：${state.statusNote}` : "",
       innerWeather ? `- 情绪色调：${innerWeather}` : "",
       "",
@@ -775,10 +516,5 @@ export const runtimeStateService = {
     ]
       .filter(Boolean)
       .join("\n");
-  },
-
-  async observeChatTurn(input: ObserveChatTurnInput): Promise<void> {
-    const runtimeEvent = deriveRuntimeEventFromChatTurn(input);
-    await this.recordRuntimeEvent(runtimeEvent);
   },
 };

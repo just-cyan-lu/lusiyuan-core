@@ -19,7 +19,6 @@ export interface StateChangeEventLike {
   after: unknown;
   userId?: string | null;
   conversationId?: string | null;
-  sourceRuntimeEventIds?: unknown;
   sourceMessageIds?: unknown;
   channel?: string | null;
   createdAt: string;
@@ -86,7 +85,6 @@ export function StateChangeDetail({
         <DetailInfoLine label="渠道" value={event.channel ?? "暂无"} />
         <DetailInfoLine label="用户" value={event.userId ?? "暂无"} />
         <DetailInfoLine label="会话" value={event.conversationId ?? "暂无"} />
-        <DetailInfoLine label="来源事件" value={sourceIdListText(event.sourceRuntimeEventIds)} />
         <DetailInfoLine label="来源消息" value={sourceIdListText(event.sourceMessageIds)} />
       </div>
 

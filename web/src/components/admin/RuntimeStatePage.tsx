@@ -10,13 +10,11 @@ import {
   updateAutonomousTask,
   updateRuntimeState,
   type AutonomousTask,
-  type RuntimeEvent,
   type RuntimeState,
   type RuntimeStateEvent,
   type RuntimeStateEventSourcesResponse,
   type RuntimeStateResponse,
 } from "../../api/lusiyuan-api";
-import { RuntimeEventDetail } from "./RuntimeEventDetail";
 import { StateChangeDetail } from "./StateChangeDetail";
 import { RuntimeStateSourceMaterials } from "./RuntimeStateSourceMaterials";
 
@@ -27,7 +25,6 @@ interface RuntimeStatePageProps {
 interface RuntimePageState {
   state: RuntimeState | null;
   events: RuntimeStateEvent[];
-  runtimeEvents: RuntimeEvent[];
   autonomousTasks: AutonomousTask[];
   sourceDetail: RuntimeStateEventSourcesResponse | null;
   sourceLoading: boolean;
@@ -107,7 +104,6 @@ function emptyPageState(): RuntimePageState {
   return {
     state: null,
     events: [],
-    runtimeEvents: [],
     autonomousTasks: [],
     sourceDetail: null,
     sourceLoading: false,
@@ -157,13 +153,6 @@ function eventTypeLabel(type: string): string {
   return type;
 }
 
-function runtimeEventTypeLabel(type: string): string {
-  if (type === "chat_turn") return "聊天事件";
-  if (type === "dream_cycle") return "梦境事件";
-  if (type === "autonomy_tick") return "自主检查";
-  return type;
-}
-
 function taskTypeLabel(type: string): string {
   return taskTypeOptions.find((item) => item.value === type)?.label ?? type;
 }
@@ -172,7 +161,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
   const [pageState, setPageState] = useState<RuntimePageState>(() => emptyPageState());
   const [form, setForm] = useState<RuntimeFormState | null>(null);
   const [taskForm, setTaskForm] = useState<TaskFormState>(() => emptyTaskForm());
-  const [selectedRuntimeEventId, setSelectedRuntimeEventId] = useState<string | null>(null);
   const [selectedStateEventId, setSelectedStateEventId] = useState<string | null>(null);
 
   function applyRuntimeResponse(data: RuntimeStateResponse, message?: string) {
@@ -180,7 +168,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       ...current,
       state: data.state,
       events: data.events,
-      runtimeEvents: data.runtimeEvents ?? [],
       autonomousTasks: data.autonomousTasks ?? current.autonomousTasks,
       loading: false,
       saving: false,
@@ -250,14 +237,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
   }, [pageState.events]);
 
   useEffect(() => {
-    setSelectedRuntimeEventId((current) =>
-      pageState.runtimeEvents.find((event) => event.id === current)?.id ??
-      pageState.runtimeEvents[0]?.id ??
-      null
-    );
-  }, [pageState.runtimeEvents]);
-
-  useEffect(() => {
     if (!adminToken || !selectedStateEventId) {
       setPageState((current) => ({
         ...current,
@@ -312,14 +291,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
       pageState.events[0] ??
       null,
     [pageState.events, selectedStateEventId]
-  );
-
-  const selectedRuntimeEvent = useMemo(
-    () =>
-      pageState.runtimeEvents.find((event) => event.id === selectedRuntimeEventId) ??
-      pageState.runtimeEvents[0] ??
-      null,
-    [pageState.runtimeEvents, selectedRuntimeEventId]
   );
 
   async function saveState() {
@@ -567,7 +538,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
               <div className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
                 <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">最近事件</div>
                 <p className="mt-2 text-sm leading-7 text-[var(--ls-ink-strong)]">
-                  {runtime.recentEventSummary || "暂无新的运行事件。"}
+                  {runtime.recentEventSummary || "暂无新的状态变更。"}
                 </p>
               </div>
 
@@ -683,65 +654,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">运行事件</h3>
-                <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
-                  最近 12 条经历和观察；聊天事件只作为材料，不直接改运行态。
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-              {pageState.runtimeEvents.length > 0 ? (
-                <>
-                  <div className="grid gap-3 self-start">
-                    {pageState.runtimeEvents.map((event) => {
-                      const active = selectedRuntimeEvent?.id === event.id;
-                      return (
-                        <button
-                          key={event.id}
-                          type="button"
-                          onClick={() => setSelectedRuntimeEventId(event.id)}
-                          className={`admin-layout-button grid w-full gap-3 rounded-lg border px-4 py-3 text-left transition md:grid-cols-[9rem_1fr_7rem_11rem] ${
-                            active ? "is-active" : ""
-                          }`}
-                        >
-                          <div>
-                            <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
-                              {runtimeEventTypeLabel(event.eventType)}
-                            </div>
-                            <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">
-                              {event.source ?? "unknown"}
-                            </div>
-                          </div>
-                          <div className="text-sm leading-6 text-[var(--ls-ink-strong)]">{event.summary}</div>
-                          <div className="text-xs leading-6 text-[var(--ls-ink-soft)]">
-                            <div>{event.topic ?? "暂无主题"}</div>
-                            <div>重要度 {event.importance}</div>
-                          </div>
-                          <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
-                            {formatDate(event.createdAt)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <RuntimeEventDetail
-                    event={selectedRuntimeEvent}
-                    stateEvents={pageState.events}
-                    runtimeEventTypeLabel={runtimeEventTypeLabel}
-                    stateEventTypeLabel={eventTypeLabel}
-                  />
-                </>
-              ) : (
-                <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-6 text-sm text-[var(--ls-ink-soft)] xl:col-span-2">
-                  暂无运行事件。
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
                 <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">状态变更</h3>
                 <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                   最近 12 条真正写入 RuntimeState 的变化；点开一条可以看为什么变、变了哪些字段。
@@ -790,7 +702,6 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
                       detail={pageState.sourceDetail}
                       loading={pageState.sourceLoading}
                       error={pageState.sourceError}
-                      runtimeEventTypeLabel={runtimeEventTypeLabel}
                     />
                   </div>
                 </>

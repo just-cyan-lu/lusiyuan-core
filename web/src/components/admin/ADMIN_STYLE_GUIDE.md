@@ -16,7 +16,7 @@
 - 外层使用 `AdminShell`，不要在页面里重新做全局导航或全局背景。
 - 页面主内容默认使用 `mx-auto max-w-7xl space-y-5`。
 - 顶部说明卡可用 `Card pattern="app-teal"` 或 `pattern="app-yellow"`。
-- 详情信息优先使用 `DetailInfoLine` 和 `RawJsonDetails`，让 RuntimeEventDetail / StateChangeDetail 继续共享展示语言。
+- 详情信息优先使用 `DetailInfoLine` 和 `RawJsonDetails`，让状态变更详情保持统一展示语言。
 
 ## 组件选择
 

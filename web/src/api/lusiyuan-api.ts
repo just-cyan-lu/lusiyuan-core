@@ -99,28 +99,8 @@ export interface RuntimeStateEvent {
   after: unknown;
   userId: string | null;
   conversationId: string | null;
-  sourceRuntimeEventIds: unknown;
   sourceMessageIds: unknown;
   channel: string | null;
-  createdAt: string;
-}
-
-export interface RuntimeEvent {
-  id: string;
-  eventType: string;
-  source: string;
-  summary: string;
-  importance: number;
-  topic: string | null;
-  moodSignal: string | null;
-  energySignal: string | null;
-  stateImpact: unknown;
-  payload: unknown;
-  userId: string | null;
-  conversationId: string | null;
-  messageId: string | null;
-  channel: string | null;
-  status: string;
   createdAt: string;
 }
 
@@ -148,7 +128,6 @@ export interface RuntimeSourceMessage {
 export interface RuntimeStateResponse {
   state: RuntimeState;
   events: RuntimeStateEvent[];
-  runtimeEvents: RuntimeEvent[];
   autonomousTasks?: AutonomousTask[];
   idleTaskRun?: AutonomousTaskRunResult | null;
 }
@@ -207,9 +186,7 @@ export interface AutonomousTaskRunResult {
 
 export interface RuntimeStateEventSourcesResponse {
   event: RuntimeStateEvent;
-  runtimeEvents: RuntimeEvent[];
   messages: RuntimeSourceMessage[];
-  missingRuntimeEventIds: string[];
   missingMessageIds: string[];
 }
 

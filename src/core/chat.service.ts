@@ -526,18 +526,6 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     throw new Error("Assistant reply was not recorded");
   }
 
-  runtimeStateService
-    .observeChatTurn({
-      userId: user.id,
-      conversationId: conversation.id,
-      messageId: assistantMessage.id,
-      channel: input.channel,
-      userMessage: input.message,
-      assistantReply: reply,
-      isOwner: owner,
-    })
-    .catch((err) => console.warn("[chat] runtime state update failed:", err));
-
   relationshipStateService
     .observeChatTurn({
       userId: user.id,

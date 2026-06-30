@@ -9,7 +9,7 @@
 ## 已完成
 
 - `runtime_states` 删除 `currentGoal`、`currentFocus`、`currentActivity`、`updateMode`、`updateStrategy`。
-- Owner 聊天不再自动写入运行态，只记录 `RuntimeEvent`，作为 Dream 或后续整理材料。
+- Owner 聊天不自动写入运行态；Dream 或关系整理需要时直接读取对应时间窗口内的聊天原文。
 - Dream 完成后只写整理摘要和元数据，不再简单给心力 `+4`。
 - 自启动检查保留心力调节：聊天太多时降心力，聊天较少时缓慢恢复。
 - 新增自主任务表：

@@ -10,7 +10,6 @@ import {
   type HealthStatus,
   type RelationshipListResponse,
   type RuntimeConfig,
-  type RuntimeEvent,
   type RuntimeProvider,
   type RuntimeState,
 } from "../../api/lusiyuan-api";
@@ -25,7 +24,6 @@ interface DashboardState {
   channels: ChannelStatus | null;
   runtime: RuntimeConfig | null;
   runtimeState: RuntimeState | null;
-  runtimeEvents: RuntimeEvent[];
   relationships: RelationshipListResponse | null;
   error: string | null;
   loading: boolean;
@@ -57,28 +55,6 @@ function weatherFromState(state: RuntimeState): { label: string; emoji: string; 
   if (state.energyLevel >= 70) return { label: "阳光明媚", emoji: "☀️", tone: "warm" };
   if (state.energyLevel < 30) return { label: "薄雾", emoji: "🌫️", tone: "cool" };
   return { label: "晴间多云", emoji: "⛅", tone: "neutral" };
-}
-
-function formatRelativeTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes} 分钟前`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} 天前`;
-  return date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
-}
-
-function moodSignalLabel(signal: string | null): { label: string; tone: "warm" | "cool" | "neutral" } {
-  if (!signal) return { label: "普通", tone: "neutral" };
-  if (signal.includes("bright") || signal.includes("lift")) return { label: "↗ 明亮", tone: "warm" };
-  if (signal.includes("drain")) return { label: "↘ 缓降", tone: "cool" };
-  return { label: signal, tone: "neutral" };
 }
 
 const dailyQuotes: Record<string, string[]> = {
@@ -115,7 +91,6 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
     channels: null,
     runtime: null,
     runtimeState: null,
-    runtimeEvents: [],
     relationships: null,
     error: null,
     loading: true,
@@ -143,7 +118,6 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
               channels,
               runtime,
               runtimeState: runtimeStateResponse?.state ?? null,
-              runtimeEvents: runtimeStateResponse?.runtimeEvents ?? [],
               relationships,
               error: null,
               loading: false,
@@ -155,7 +129,6 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
             channels,
             runtime: null,
             runtimeState: null,
-            runtimeEvents: [],
             relationships: null,
             error: null,
             loading: false,
@@ -293,59 +266,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                 label="自动校准"
                 enabled={Boolean(state.runtime?.features.runtimeStateAutoUpdate)}
               />
-              <InfoBlock>{state.runtimeState.recentEventSummary ?? "暂无新的运行事件。"}</InfoBlock>
-
-              {state.runtimeEvents.length > 0 && (
-                <div className="admin-island-row px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">
-                      最近岛上发生
-                    </div>
-                    <span className="text-[10px] font-bold text-[var(--ls-ink-faint)]">
-                      近 {state.runtimeEvents.length} 条
-                    </span>
-                  </div>
-                  <ul className="mt-3 grid gap-2">
-                    {state.runtimeEvents.slice(0, 3).map((event) => {
-                      const mood = moodSignalLabel(event.moodSignal);
-                      const toneBg =
-                        mood.tone === "warm"
-                          ? "var(--ls-mint-soft)"
-                          : mood.tone === "cool"
-                            ? "var(--ls-pink-soft)"
-                            : "var(--ls-panel-soft)";
-                      const toneText =
-                        mood.tone === "warm"
-                          ? "var(--ls-mint-text)"
-                          : mood.tone === "cool"
-                            ? "var(--ls-pink-text)"
-                            : "var(--ls-ink-soft)";
-                      return (
-                        <li
-                          key={event.id}
-                          className="flex items-start gap-3 rounded-2xl border border-[var(--ls-border)] bg-white/60 px-3 py-2.5"
-                        >
-                          <span
-                            className="mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-black"
-                            style={{ background: toneBg, color: toneText }}
-                          >
-                            {mood.label}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-xs font-semibold text-[var(--ls-ink)]">
-                              {event.summary}
-                            </div>
-                            <div className="mt-0.5 text-[10px] font-bold text-[var(--ls-ink-faint)]">
-                              {event.topic ?? "日常"} · {formatRelativeTime(event.createdAt)} ·{" "}
-                              {event.channel ?? "—"}
-                            </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
+              <InfoBlock>{state.runtimeState.recentEventSummary ?? "暂无新的状态变更。"}</InfoBlock>
             </div>
           ) : (
             <TokenHint />
@@ -532,7 +453,7 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
                     记忆沙滩
                   </div>
                   <div className="mt-1 text-sm font-bold text-[var(--ls-ink)]">
-                    今日访客留下 {state.runtimeEvents.length} 次足迹
+                    已整理 {state.relationships.relationships.length} 份关系档案
                   </div>
                 </div>
                 <span className="admin-island-sea-footprint" aria-hidden="true">
