@@ -83,13 +83,15 @@ export class DreamConsolidator {
       const mp = await prisma.memoryProposal.create({
         data: {
           reportId: report.id,
-          userId: ownership?.userId ?? null,
+          personId: null,
           conversationId: ownership?.conversationId ?? null,
           channel: ownership?.channel ?? null,
           proposalType: p.proposalType,
           targetMemoryId: p.targetMemoryId ?? null,
           scope: p.scope,
           type: p.type,
+          tier: p.tier ?? "short",
+          strength: p.strength ?? 1,
           content: p.content,
           summary: p.summary ?? null,
           tags: p.tags ?? [],

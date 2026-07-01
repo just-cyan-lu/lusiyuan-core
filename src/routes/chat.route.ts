@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { chat, runChatTask } from "../core/chat.service.js";
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
+import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { env } from "../utils/env.js";
 import {
@@ -258,9 +259,11 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: "User not found" });
       }
 
-      await memoryService.createMemories(user.id, [
+      const relationship = await relationshipStateService.getOrCreate(user.id);
+      await memoryService.createMemories(relationship.personId, [
         {
           type: body.type as MemoryType,
+          scope: "person",
           content: body.content,
           importance: body.importance ?? 5,
           source: "manual",

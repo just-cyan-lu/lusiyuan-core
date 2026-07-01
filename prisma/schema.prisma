@@ -19,7 +19,6 @@ model User {
   updatedAt   DateTime @updatedAt
 
   conversations             Conversation[]
-  memories                  Memory[]
   identityLink              IdentityLink?
   relationshipEvents        RelationshipStateEvent[]
   identityProposalsMade     IdentityLinkProposal[]   @relation("IdentityProposalSourceUser")
@@ -113,34 +112,47 @@ model ChannelEvent {
 
 /// Long-term memories used to personalize future replies.
 model Memory {
-  id             String    @id @default(cuid())
-  userId         String?
-  type           String
-  scope          String    @default("user")
-  content        String
-  summary        String?
-  importance     Int       @default(5)
-  confidence     Float     @default(0.8)
-  status         String    @default("active")
-  source         String?
-  tags           Json?
-  entities       Json?
-  channel        String?
-  conversationId String?
-  lastAccessedAt DateTime?
-  accessCount    Int       @default(0)
-  metadata       Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  personId              String?
+  type                  String
+  scope                 String    @default("person")
+  tier                  String    @default("short")
+  strength              Int       @default(1)
+  riskLevel             String    @default("low")
+  content               String
+  summary               String?
+  importance            Int       @default(5)
+  confidence            Float     @default(0.8)
+  status                String    @default("active")
+  source                String?
+  tags                  Json?
+  entities              Json?
+  channel               String?
+  conversationId        String?
+  sourceMessageIds      Json?
+  sourceConversationIds Json?
+  sourceUserIds         Json?
+  mentionDayKeys        Json?
+  lastMentionedAt       DateTime?
+  nextReviewAt          DateTime?
+  lastAccessedAt        DateTime?
+  accessCount           Int       @default(0)
+  metadata              Json?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  user       User?             @relation(fields: [userId], references: [id])
+  person     PersonIdentity?   @relation(fields: [personId], references: [id], onDelete: Cascade)
   embeddings MemoryEmbedding[]
 
-  @@index([userId])
+  @@index([personId])
   @@index([type])
+  @@index([tier])
+  @@index([riskLevel])
   @@index([importance])
   @@index([status, scope, type])
-  @@index([userId, status])
+  @@index([personId, status])
+  @@index([scope, status, tier])
+  @@index([lastMentionedAt])
   @@map("memories")
 }
 
@@ -418,19 +430,19 @@ model RuntimeState {
 
 /// Timeline of runtime state changes.
 model RuntimeStateEvent {
-  id                    String   @id @default(cuid())
-  runtimeStateId        String
-  eventType             String
-  source                String?
-  summary               String
-  patch                 Json?
-  before                Json?
-  after                 Json?
-  userId                String?
-  conversationId        String?
-  sourceMessageIds      Json?
-  channel               String?
-  createdAt             DateTime @default(now())
+  id               String   @id @default(cuid())
+  runtimeStateId   String
+  eventType        String
+  source           String?
+  summary          String
+  patch            Json?
+  before           Json?
+  after            Json?
+  userId           String?
+  conversationId   String?
+  sourceMessageIds Json?
+  channel          String?
+  createdAt        DateTime @default(now())
 
   runtimeState RuntimeState @relation(fields: [runtimeStateId], references: [id], onDelete: Cascade)
 
@@ -481,7 +493,7 @@ model AutonomousTaskRun {
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
 
-  task      AutonomousTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      AutonomousTask       @relation(fields: [taskId], references: [id], onDelete: Cascade)
   artifacts AutonomousArtifact[]
 
   @@index([taskId])
@@ -527,6 +539,8 @@ model PersonIdentity {
   identityProposals  IdentityLinkProposal[]
   reviewProposals    RelationshipReviewProposal[]
   reviewEvidences    RelationshipReviewEvidence[]
+  memories           Memory[]
+  memoryProposals    MemoryProposal[]
 
   @@index([label])
   @@map("person_identities")
@@ -594,10 +608,10 @@ model RelationshipState {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  person            PersonIdentity                 @relation(fields: [personId], references: [id], onDelete: Cascade)
-  events            RelationshipStateEvent[]
-  reviewProposals   RelationshipReviewProposal[]
-  reviewEvidences   RelationshipReviewEvidence[]
+  person          PersonIdentity               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  events          RelationshipStateEvent[]
+  reviewProposals RelationshipReviewProposal[]
+  reviewEvidences RelationshipReviewEvidence[]
 
   @@index([personId])
   @@index([updatedAt])
@@ -758,41 +772,47 @@ model MessageEmbedding {
 
 /// Proposed memory changes waiting for review or application.
 model MemoryProposal {
-  id               String    @id @default(cuid())
-  reportId         String
-  userId           String?
-  conversationId   String?
-  channel          String?
-  proposalType     String
-  targetMemoryId   String?
-  scope            String
-  type             String
-  content          String
-  summary          String?
-  tags             Json?
-  entities         Json?
-  reason           String
-  confidence       Float
-  riskLevel        String
-  status           String    @default("pending")
-  reviewedBy       String?
-  reviewedAt       DateTime?
-  appliedMemoryId  String?
-  sourceMessageIds Json?
-  metadata         Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  reportId              String
+  personId              String?
+  conversationId        String?
+  channel               String?
+  proposalType          String
+  targetMemoryId        String?
+  scope                 String
+  type                  String
+  tier                  String    @default("short")
+  strength              Int       @default(1)
+  content               String
+  summary               String?
+  tags                  Json?
+  entities              Json?
+  reason                String
+  confidence            Float
+  riskLevel             String
+  status                String    @default("pending")
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  appliedMemoryId       String?
+  sourceMessageIds      Json?
+  sourceConversationIds Json?
+  sourceUserIds         Json?
+  metadata              Json?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   report DreamConsolidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  person PersonIdentity?          @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
-  @@index([userId])
+  @@index([personId])
   @@index([conversationId])
   @@index([channel])
   @@index([status])
   @@index([proposalType])
   @@index([riskLevel])
   @@index([confidence])
+  @@index([scope, status])
   @@map("memory_change_proposals")
 }
 
@@ -966,10 +986,10 @@ model DreamConsolidationReport {
   metadata             Json?
   createdAt            DateTime @default(now())
 
-  job               DreamJob?                      @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  proposals         MemoryProposal[]
-  riskFlags         MemoryRiskFlag[]
-  growthLogs        GrowthLogProposal[]
+  job                         DreamJob?                    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  proposals                   MemoryProposal[]
+  riskFlags                   MemoryRiskFlag[]
+  growthLogs                  GrowthLogProposal[]
   relationshipReviewProposals RelationshipReviewProposal[]
 
   @@index([phase])

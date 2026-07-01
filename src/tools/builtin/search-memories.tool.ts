@@ -1,5 +1,6 @@
 import { memoryService } from "../../core/memory.service.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
+import { relationshipStateService } from "../../runtime/relationship-state.service.js";
 import { throwIfTaskCancelled } from "../../runtime/running-task-registry.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
@@ -26,16 +27,19 @@ async function handler(
 ): Promise<SearchMemoriesOutput> {
   const query = input.query.slice(0, 500);
   throwIfTaskCancelled(context.signal);
-  const budgeted = await memoryService.retrieveRelevantMemories(
-    context.userId,
-    query
-  );
+  const relationship = await relationshipStateService.getOrCreate(context.userId);
+  const budgeted = await memoryService.retrieveRelevantMemories({
+    personId: relationship.personId,
+    query,
+    channel: context.channel,
+    conversationId: context.conversationId,
+  });
   throwIfTaskCancelled(context.signal);
 
   return {
     memories: budgeted.slice(0, input.limit ?? 8).map((b) => ({
       id: b.memory.id,
-      scope: (b.memory as { scope?: string }).scope ?? "user",
+      scope: (b.memory as { scope?: string }).scope ?? "person",
       type: b.memory.type,
       content: b.memory.content,
       summary: (b.memory as { summary?: string | null }).summary,

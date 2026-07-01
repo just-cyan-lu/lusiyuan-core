@@ -13,7 +13,7 @@ import {
 import { StatusPill } from "./StatusPill";
 
 type MemoryStatusFilter = "active" | "archived" | "superseded" | "all";
-type MemoryScopeFilter = "all" | "user" | "global" | "project";
+type MemoryScopeFilter = "all" | "person" | "global" | "project" | "topic";
 type MemoryDatePreset = "all" | "7d" | "30d" | "90d" | "custom";
 type MemoryDateField = "createdAt" | "updatedAt" | "lastAccessedAt";
 type MemorySortKey =
@@ -29,14 +29,18 @@ type MemoryActivityMetric = "count" | "importance";
 interface MemoryLibraryPageProps {
   adminToken: string;
   focusMemoryId?: string | null;
+  focusPersonId?: string | null;
 }
 
 interface MemoryFormState {
   mode: "create" | "edit";
   memoryId: string | null;
-  userId: string;
+  personId: string;
   scope: string;
   type: string;
+  tier: string;
+  strength: string;
+  riskLevel: string;
   status: string;
   content: string;
   summary: string;
@@ -59,9 +63,10 @@ const statusOptions: Array<{ value: MemoryStatusFilter; label: string }> = [
 
 const scopeOptions: Array<{ value: MemoryScopeFilter; label: string }> = [
   { value: "all", label: "全部范围" },
-  { value: "user", label: "用户" },
+  { value: "person", label: "身份" },
   { value: "global", label: "全局" },
   { value: "project", label: "项目" },
+  { value: "topic", label: "话题" },
 ];
 
 const datePresetOptions: Array<{ value: MemoryDatePreset; label: string }> = [
@@ -93,17 +98,18 @@ const activityMetricOptions: Array<{ value: MemoryActivityMetric; label: string 
   { value: "importance", label: "重要度" },
 ];
 
-const editableScopes = ["user", "global", "project"];
+const editableScopes = ["person", "global", "project", "topic"];
 const editableStatuses = ["active", "archived", "superseded"];
+const editableTiers = ["short", "mid", "long"];
+const editableRisks = ["low", "medium", "high"];
 const canonicalMemoryTypes = [
-  "core",
+  "personal_fact",
   "user_preference",
+  "recurring_topic",
   "project_context",
-  "relationship",
   "growth_event",
-  "boundary",
   "technical_decision",
-  "fact",
+  "boundary",
   "persona_feedback",
   "other",
 ];
@@ -112,9 +118,12 @@ function emptyForm(): MemoryFormState {
   return {
     mode: "create",
     memoryId: null,
-    userId: "",
-    scope: "user",
+    personId: "",
+    scope: "person",
     type: "user_preference",
+    tier: "short",
+    strength: "1",
+    riskLevel: "low",
     status: "active",
     content: "",
     summary: "",
@@ -129,26 +138,34 @@ function emptyForm(): MemoryFormState {
   };
 }
 
-function requiresUser(scope: string): boolean {
-  return scope !== "global" && scope !== "project";
+function requiresPerson(scope: string): boolean {
+  return scope === "person";
 }
 
 function ownerLabel(memory: AdminMemory): string {
-  if (!memory.userId) return memory.scope === "global" ? "全局基础记忆" : "无绑定用户";
-  return memory.user?.displayName ?? memory.user?.externalId ?? memory.userId;
+  if (!memory.personId) return memory.scope === "global" ? "全局基础记忆" : "无绑定身份";
+  return memory.person?.label ?? firstPersonUserName(memory) ?? memory.personId;
 }
 
 function ownerInputValue(memory: AdminMemory): string {
-  return memory.user?.externalId ?? memory.userId ?? "";
+  return memory.person?.label ?? memory.personId ?? "";
+}
+
+function firstPersonUserName(memory: AdminMemory): string | null {
+  const user = memory.person?.identityLinks?.[0]?.user;
+  return user?.displayName ?? user?.externalId ?? null;
 }
 
 function formFromMemory(memory: AdminMemory): MemoryFormState {
   return {
     mode: "edit",
     memoryId: memory.id,
-    userId: ownerInputValue(memory),
+    personId: ownerInputValue(memory),
     scope: memory.scope,
     type: memory.type,
+    tier: memory.tier,
+    strength: String(memory.strength),
+    riskLevel: memory.riskLevel,
     status: memory.status,
     content: memory.content,
     summary: memory.summary ?? "",
@@ -171,8 +188,8 @@ function friendlyErrorMessage(error: unknown): string {
   if (message.includes("Unauthorized") || message.includes("401")) {
     return "Admin Token 不正确或未配置。";
   }
-  if (message.includes("User not found")) {
-    return "找不到这个用户。用户记忆需要填写 User externalId 或内部 id。";
+  if (message.includes("Person not found")) {
+    return "找不到这个身份。身份记忆可以填写 Person ID、身份名或渠道 externalId。";
   }
   return message || "操作失败";
 }
@@ -278,13 +295,13 @@ function mergeTypes(existing: string[], memories: AdminMemory[]): string[] {
   return Array.from(next).sort();
 }
 
-export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPageProps) {
+export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: MemoryLibraryPageProps) {
   const [statusFilter, setStatusFilter] = useState<MemoryStatusFilter>(
     focusMemoryId ? "all" : "active"
   );
   const [scopeFilter, setScopeFilter] = useState<MemoryScopeFilter>("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [userFilter, setUserFilter] = useState("");
+  const [personFilter, setPersonFilter] = useState(focusPersonId ?? "");
   const [query, setQuery] = useState(focusMemoryId ?? "");
   const [datePreset, setDatePreset] = useState<MemoryDatePreset>("all");
   const [fromDate, setFromDate] = useState("");
@@ -336,7 +353,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
       const [next, nextActivity] = await Promise.all([
         fetchAdminMemories({
           token: adminToken,
-          userId: userFilter.trim() || undefined,
+          personId: personFilter.trim() || undefined,
           status: statusFilter,
           scope: scopeFilter,
           type: typeFilter,
@@ -349,7 +366,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
         }),
         fetchAdminMemoryActivity({
           token: adminToken,
-          userId: userFilter.trim() || undefined,
+          personId: personFilter.trim() || undefined,
           status: statusFilter,
           scope: scopeFilter,
           type: typeFilter,
@@ -390,7 +407,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             status: statusFilter,
             scope: scopeFilter,
             type: typeFilter,
-            userId: userFilter.trim() || undefined,
+            personId: personFilter.trim() || undefined,
             query: query.trim() || undefined,
             from: dateRange.from,
             to: dateRange.to,
@@ -400,7 +417,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
           }),
           fetchAdminMemoryActivity({
             token: adminToken,
-            userId: userFilter.trim() || undefined,
+            personId: personFilter.trim() || undefined,
             status: statusFilter,
             scope: scopeFilter,
             type: typeFilter,
@@ -443,9 +460,13 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
     sortKey,
     statusFilter,
     typeFilter,
-    userFilter,
+    personFilter,
     query,
   ]);
+
+  useEffect(() => {
+    if (focusPersonId) setPersonFilter(focusPersonId);
+  }, [focusPersonId]);
 
   function selectActivityDay(day: string) {
     setDatePreset("custom");
@@ -477,16 +498,19 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
     try {
       if (!form.type.trim()) throw new Error("Type 不能为空");
       if (!form.content.trim()) throw new Error("Content 不能为空");
-      if (requiresUser(form.scope) && !form.userId.trim()) {
-        throw new Error("用户记忆需要填写 User ID");
+      if (requiresPerson(form.scope) && !form.personId.trim()) {
+        throw new Error("身份记忆需要填写 Person ID、身份名或渠道 externalId");
       }
 
       const input = {
         token: adminToken,
         memoryId: form.memoryId ?? undefined,
-        userId: requiresUser(form.scope) ? form.userId.trim() : null,
+        personId: requiresPerson(form.scope) ? form.personId.trim() : null,
         type: form.type.trim(),
         scope: form.scope,
+        tier: form.tier,
+        strength: numberValue(form.strength, 1),
+        riskLevel: form.riskLevel,
         content: form.content.trim(),
         summary: form.summary.trim() || null,
         importance: numberValue(form.importance, 5),
@@ -596,10 +620,10 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
             />
           </div>
           <FilterInput
-            label="User ID"
-            value={userFilter}
-            placeholder="externalId / id"
-            onChange={setUserFilter}
+            label="身份"
+            value={personFilter}
+            placeholder="Person ID / 身份名 / externalId"
+            onChange={setPersonFilter}
           />
           <FilterInput
             label="搜索"
@@ -713,7 +737,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId }: MemoryLibraryPa
           <div className="mb-3">
             <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">记忆列表</h3>
             <p className="mt-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
-              全局记忆会跨用户生效；用户记忆只在对应 userId 下参与检索。
+              全局/项目/话题记忆跨身份生效；身份记忆只在对应 PersonIdentity 下参与检索。
             </p>
           </div>
 
@@ -785,6 +809,9 @@ function MemoryListItem({
               {memory.scope}
             </span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
+              {memory.tier}
+            </span>
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
               {ownerLabel(memory)}
             </span>
           </div>
@@ -796,6 +823,10 @@ function MemoryListItem({
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
         <span>重要度 {memory.importance}</span>
+        <span>·</span>
+        <span>强度 {memory.strength}</span>
+        <span>·</span>
+        <span>风险 {memory.riskLevel}</span>
         <span>·</span>
         <span>置信度 {Math.round(memory.confidence * 100)}%</span>
         <span>·</span>
@@ -951,7 +982,7 @@ function MemoryEditor({
   onSubmit: () => void;
   onArchive: () => void;
 }) {
-  const userRequired = requiresUser(form.scope);
+  const personRequired = requiresPerson(form.scope);
   const editorRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const editableTypeOptions = useMemo(() => {
@@ -993,6 +1024,7 @@ function MemoryEditor({
       {selectedMemory && (
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <DetailRow label="Memory ID" value={selectedMemory.id} title={selectedMemory.id} />
+          <DetailRow label="Person" value={ownerLabel(selectedMemory)} title={selectedMemory.personId ?? "无"} />
           <DetailRow label="Created" value={formatDate(selectedMemory.createdAt)} title={selectedMemory.createdAt} />
           <DetailRow label="Updated" value={formatDate(selectedMemory.updatedAt)} title={selectedMemory.updatedAt} />
           <DetailRow label="Access" value={`${selectedMemory.accessCount} 次`} />
@@ -1020,19 +1052,19 @@ function MemoryEditor({
               onFormChange({
                 ...form,
                 scope,
-                userId: requiresUser(scope) ? form.userId : "",
+                personId: requiresPerson(scope) ? form.personId : "",
               });
             }}
             options={editableScopes.map((scope) => ({ key: scope, label: scope }))}
           />
         </div>
-        <Field label={userRequired ? "User ID" : "User ID（全局记忆不需要）"}>
+        <Field label={personRequired ? "身份" : "身份（非身份记忆不需要）"}>
           <AdminInput
-            value={form.userId}
-            onChange={(event) => update("userId", event.target.value)}
-            disabled={!userRequired}
-            placeholder="externalId / id"
-            aria-label="User ID"
+            value={form.personId}
+            onChange={(event) => update("personId", event.target.value)}
+            disabled={!personRequired}
+            placeholder="Person ID / 身份名 / externalId"
+            aria-label="身份"
           />
         </Field>
         <div className="block">
@@ -1045,6 +1077,26 @@ function MemoryEditor({
             options={editableStatuses.map((status) => ({ key: status, label: status }))}
           />
         </div>
+        <div className="block">
+          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Tier</span>
+          <AdminSelect
+            className="mt-1"
+            ariaLabel="Tier"
+            value={form.tier}
+            onChange={(value) => update("tier", value)}
+            options={editableTiers.map((tier) => ({ key: tier, label: tier }))}
+          />
+        </div>
+        <div className="block">
+          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Risk</span>
+          <AdminSelect
+            className="mt-1"
+            ariaLabel="Risk"
+            value={form.riskLevel}
+            onChange={(value) => update("riskLevel", value)}
+            options={editableRisks.map((risk) => ({ key: risk, label: risk }))}
+          />
+        </div>
         <Field label="Importance">
           <AdminInput
             type="number"
@@ -1053,6 +1105,16 @@ function MemoryEditor({
             value={form.importance}
             onChange={(event) => update("importance", event.target.value)}
             aria-label="Importance"
+          />
+        </Field>
+        <Field label="Strength">
+          <AdminInput
+            type="number"
+            min={1}
+            max={10}
+            value={form.strength}
+            onChange={(event) => update("strength", event.target.value)}
+            aria-label="Strength"
           />
         </Field>
         <Field label="Confidence">

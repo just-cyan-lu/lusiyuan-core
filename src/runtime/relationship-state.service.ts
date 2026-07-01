@@ -801,6 +801,14 @@ export const relationshipStateService = {
           targetPersonId: targetState.personId,
         },
       });
+      await tx.memory.updateMany({
+        where: { personId: sourceState.personId },
+        data: { personId: targetState.personId },
+      });
+      await tx.memoryProposal.updateMany({
+        where: { personId: sourceState.personId },
+        data: { personId: targetState.personId },
+      });
       await tx.relationshipState.delete({ where: { id: sourceState.id } });
       await tx.personIdentity.delete({ where: { id: sourceState.personId } });
       await tx.relationshipStateEvent.create({
@@ -939,6 +947,40 @@ export const relationshipStateService = {
           verifiedBy: reviewer,
         },
       });
+
+      const movedConversationIds = await tx.conversation
+        .findMany({
+          where: { userId: { in: userIds } },
+          select: { id: true },
+        })
+        .then((rows) => rows.map((row) => row.id));
+      const memoryMoveConditions: Prisma.MemoryWhereInput[] = [
+        ...(movedConversationIds.length > 0
+          ? [{ conversationId: { in: movedConversationIds } }]
+          : []),
+        ...userIds.map((userId) => ({ sourceUserIds: { array_contains: [userId] } })),
+      ];
+      if (memoryMoveConditions.length > 0) {
+        await tx.memory.updateMany({
+          where: {
+            personId: sourceState.personId,
+            OR: memoryMoveConditions,
+          },
+          data: { personId: newPerson.id },
+        });
+        await tx.memoryProposal.updateMany({
+          where: {
+            personId: sourceState.personId,
+            OR: [
+              ...(movedConversationIds.length > 0
+                ? [{ conversationId: { in: movedConversationIds } }]
+                : []),
+              ...userIds.map((userId) => ({ sourceUserIds: { array_contains: [userId] } })),
+            ],
+          },
+          data: { personId: newPerson.id },
+        });
+      }
 
       await tx.relationshipStateEvent.updateMany({
         where: {

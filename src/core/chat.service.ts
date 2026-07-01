@@ -225,10 +225,17 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   checkCancelled();
 
+  const relationshipRecord = await relationshipStateService.getOrCreate(user.id);
+
   const [persona, ownerProfile, memories, conversationContext, runtimeState, relationshipState] = await Promise.all([
     loadPersona(),
     owner ? loadOwnerProfile() : Promise.resolve(""),
-    memoryService.retrieveRelevantMemories(user.id, input.message),
+    memoryService.retrieveRelevantMemories({
+      personId: relationshipRecord.personId,
+      query: input.message,
+      channel: input.channel,
+      conversationId: conversation.id,
+    }),
     loadPromptConversationContext({
       userId: user.id,
       conversationId: conversation.id,

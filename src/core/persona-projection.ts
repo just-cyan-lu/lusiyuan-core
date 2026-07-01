@@ -96,7 +96,6 @@ export function buildPersonaProjection(
     runtimeState: buildRuntimeState(input.persona, input.runtimeState),
     relationshipContext: buildRelationshipContext(
       input.relationshipState,
-      input.memories,
       input.recentMessages
     ),
   };
@@ -136,15 +135,7 @@ export function selectChatProfile(input: BuildPersonaProjectionInput): string {
     return "close_friend";
   }
 
-  const hasCloseRelationship = input.memories.some((m) => {
-    const text = `${m.memory.type}\n${m.text}`;
-    return (
-      m.memory.type === "relationship" &&
-      /熟|亲近|信任|创造者|协作者|朋友|共同/i.test(text)
-    );
-  });
-
-  return hasCloseRelationship ? "close_friend" : DEFAULT_CHAT_PROFILE_ID;
+  return DEFAULT_CHAT_PROFILE_ID;
 }
 
 function buildCoreIdentity(persona: PersonaContent): string {
@@ -191,28 +182,17 @@ function buildRuntimeState(
 
 function buildRelationshipContext(
   relationshipState: string | undefined,
-  memories: BudgetedMemory[],
   recentMessages: PromptHistoryMessage[]
 ): string {
   const lines: string[] = [];
-  const relationshipMemories = memories.filter(
-    (m) => m.memory.type === "relationship"
-  );
 
   if (relationshipState?.trim()) {
     lines.push(truncate(relationshipState.trim(), 1100));
     lines.push("");
   }
 
-  if (relationshipMemories.length > 0) {
-    lines.push("## 关系记忆");
-    for (const memory of relationshipMemories.slice(0, 3)) {
-      lines.push(`- ${memory.text}`);
-    }
-  } else {
-    lines.push("## 关系记忆");
-    lines.push("- 暂无明确关系状态；按自然、礼貌、慢热但不冷淡的方式相处。");
-  }
+  lines.push("## 关系档案");
+  lines.push("- 关系信息只来自数据库关系状态；长期记忆只作为事实和偏好参考，不替代关系档案。");
 
   if (recentMessages.length > 2) {
     lines.push("");

@@ -849,18 +849,32 @@ export interface ToolCallLog {
   createdAt: string;
 }
 
-export interface AdminMemoryUser {
+export interface AdminMemoryLinkedUser {
   id: string;
   externalId: string;
   displayName: string | null;
 }
 
+export interface AdminMemoryPerson {
+  id: string;
+  label: string | null;
+  note: string | null;
+  identityLinks?: Array<{
+    id: string;
+    userId: string;
+    user: AdminMemoryLinkedUser;
+  }>;
+}
+
 export interface AdminMemory {
   id: string;
-  userId: string | null;
-  user?: AdminMemoryUser | null;
+  personId: string | null;
+  person?: AdminMemoryPerson | null;
   type: string;
   scope: string;
+  tier: string;
+  strength: number;
+  riskLevel: string;
   content: string;
   summary: string | null;
   importance: number;
@@ -871,6 +885,12 @@ export interface AdminMemory {
   entities: unknown;
   channel: string | null;
   conversationId: string | null;
+  sourceMessageIds: unknown;
+  sourceConversationIds: unknown;
+  sourceUserIds: unknown;
+  mentionDayKeys: unknown;
+  lastMentionedAt: string | null;
+  nextReviewAt: string | null;
   lastAccessedAt: string | null;
   accessCount: number;
   metadata: unknown;
@@ -896,9 +916,12 @@ export interface AdminMemoryActivity {
 export interface AdminMemoryWriteInput {
   token: string;
   memoryId?: string;
-  userId?: string | null;
+  personId?: string | null;
   type: string;
   scope: string;
+  tier?: string;
+  strength?: number;
+  riskLevel?: string;
   content: string;
   summary?: string | null;
   importance: number;
@@ -922,13 +945,15 @@ export type MemoryProposalStatus =
 export interface MemoryProposal {
   id: string;
   reportId: string;
-  userId: string | null;
+  personId: string | null;
   conversationId: string | null;
   channel: string | null;
   proposalType: string;
   targetMemoryId: string | null;
   scope: string;
   type: string;
+  tier: string;
+  strength: number;
   content: string;
   summary: string | null;
   tags: unknown;
@@ -941,6 +966,8 @@ export interface MemoryProposal {
   reviewedAt: string | null;
   appliedMemoryId: string | null;
   sourceMessageIds: unknown;
+  sourceConversationIds: unknown;
+  sourceUserIds: unknown;
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
@@ -2121,7 +2148,7 @@ export async function fetchToolCallLogs(input: {
 
 export async function fetchAdminMemories(input: {
   token: string;
-  userId?: string;
+  personId?: string;
   status?: string;
   scope?: string;
   type?: string;
@@ -2133,7 +2160,7 @@ export async function fetchAdminMemories(input: {
   limit?: number;
 }): Promise<AdminMemory[]> {
   const params = new URLSearchParams();
-  if (input.userId) params.set("user_id", input.userId);
+  if (input.personId) params.set("person_id", input.personId);
   if (input.status && input.status !== "all") params.set("status", input.status);
   if (input.scope && input.scope !== "all") params.set("scope", input.scope);
   if (input.type && input.type !== "all") params.set("type", input.type);
@@ -2157,7 +2184,7 @@ export async function fetchAdminMemories(input: {
 
 export async function fetchAdminMemoryActivity(input: {
   token: string;
-  userId?: string;
+  personId?: string;
   status?: string;
   scope?: string;
   type?: string;
@@ -2166,7 +2193,7 @@ export async function fetchAdminMemoryActivity(input: {
   metric?: string;
 }): Promise<AdminMemoryActivity> {
   const params = new URLSearchParams();
-  if (input.userId) params.set("user_id", input.userId);
+  if (input.personId) params.set("person_id", input.personId);
   if (input.status && input.status !== "all") params.set("status", input.status);
   if (input.scope && input.scope !== "all") params.set("scope", input.scope);
   if (input.type && input.type !== "all") params.set("type", input.type);
@@ -2186,9 +2213,12 @@ export async function fetchAdminMemoryActivity(input: {
 
 function adminMemoryBody(input: AdminMemoryWriteInput) {
   return {
-    user_id: input.userId,
+    person_id: input.personId,
     type: input.type,
     scope: input.scope,
+    tier: input.tier,
+    strength: input.strength,
+    risk_level: input.riskLevel,
     content: input.content,
     summary: input.summary,
     importance: input.importance,
@@ -2264,7 +2294,7 @@ export async function fetchMemoryProposals(input: {
   proposalType?: string;
   scope?: string;
   type?: string;
-  userId?: string;
+  personId?: string;
   reportId?: string;
   query?: string;
   from?: string;
@@ -2279,7 +2309,7 @@ export async function fetchMemoryProposals(input: {
   }
   if (input.scope && input.scope !== "all") params.set("scope", input.scope);
   if (input.type && input.type !== "all") params.set("type", input.type);
-  if (input.userId) params.set("user_id", input.userId);
+  if (input.personId) params.set("person_id", input.personId);
   if (input.reportId) params.set("report_id", input.reportId);
   if (input.query) params.set("q", input.query);
   if (input.from) params.set("from", input.from);

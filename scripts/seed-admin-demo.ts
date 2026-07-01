@@ -3,6 +3,7 @@ import { prisma } from "../src/db/prisma.js";
 
 const seed = {
   userId: "admin-demo-user",
+  personId: "admin-demo-person",
   conversationId: "admin-demo-conversation",
   dreamJobId: "admin-demo-dream-job",
   dailyNoteId: "admin-demo-daily-note",
@@ -79,6 +80,34 @@ async function main(): Promise<void> {
     },
   });
 
+  const person = await prisma.personIdentity.upsert({
+    where: { id: seed.personId },
+    update: {
+      label: "Admin Demo User",
+      note: "Seed demo identity",
+    },
+    create: {
+      id: seed.personId,
+      label: "Admin Demo User",
+      note: "Seed demo identity",
+    },
+  });
+
+  await prisma.identityLink.upsert({
+    where: { userId: user.id },
+    update: {
+      personId: person.id,
+      source: "admin_demo_seed",
+      verifiedBy: "seed",
+    },
+    create: {
+      personId: person.id,
+      userId: user.id,
+      source: "admin_demo_seed",
+      verifiedBy: "seed",
+    },
+  });
+
   const conversation = await prisma.conversation.upsert({
     where: { id: seed.conversationId },
     update: {
@@ -141,9 +170,12 @@ async function main(): Promise<void> {
   const targetMemory = await prisma.memory.create({
     data: {
       id: seed.targetMemoryId,
-      userId: user.id,
+      personId: person.id,
       type: "user_preference",
-      scope: "user",
+      scope: "person",
+      tier: "short",
+      strength: 1,
+      riskLevel: "low",
       content: "Seed demo: 用户偏好深色高对比控制台。",
       summary: "旧的界面偏好，需要被新提案更新。",
       importance: 5,
@@ -152,6 +184,9 @@ async function main(): Promise<void> {
       source: "admin_demo_seed",
       channel: "web",
       conversationId: conversation.id,
+      sourceMessageIds: [seed.messageIds[0]],
+      sourceConversationIds: [conversation.id],
+      sourceUserIds: [user.id],
       tags: ["admin", "ui"],
       metadata: { seed: "admin_demo" },
     },
@@ -160,9 +195,12 @@ async function main(): Promise<void> {
   await prisma.memory.create({
     data: {
       id: seed.globalMemoryId,
-      userId: null,
-      type: "core",
+      personId: null,
+      type: "project_context",
       scope: "global",
+      tier: "long",
+      strength: 3,
+      riskLevel: "medium",
       content: "Seed demo: 陆思源后台管理应保持浅色、清爽、低饱和，并优先呈现真实业务链路。",
       summary: "全局基础记忆示例：Admin 设计取向与开发原则。",
       importance: 7,
@@ -315,12 +353,14 @@ async function main(): Promise<void> {
       {
         id: seed.dreamProposalIds[0],
         reportId: consolidationReport.id,
-        userId: user.id,
+        personId: null,
         conversationId: conversation.id,
         channel: "web",
         proposalType: "create_memory",
-        scope: "user",
+        scope: "project",
         type: "project_context",
+        tier: "mid",
+        strength: 3,
         content:
           "Seed demo: Dream 识别到 Admin 平台正在从单一聊天入口扩展成完整管理台。",
         summary: "Dream 提案：Admin 平台阶段目标变化。",
@@ -331,18 +371,22 @@ async function main(): Promise<void> {
         riskLevel: "low",
         status: "pending",
         sourceMessageIds: [seed.messageIds[2]],
+        sourceConversationIds: [conversation.id],
+        sourceUserIds: [user.id],
         metadata: { seed: "admin_demo", source: "dream_deep_sleep" },
       },
       {
         id: seed.dreamProposalIds[1],
         reportId: consolidationReport.id,
-        userId: user.id,
+        personId: person.id,
         conversationId: conversation.id,
         channel: "web",
         proposalType: "update_memory",
         targetMemoryId: targetMemory.id,
-        scope: "user",
+        scope: "person",
         type: "user_preference",
+        tier: "short",
+        strength: 2,
         content:
           "Seed demo: 用户偏好浅色、低饱和、真实业务链路清楚的 Admin 控制台。",
         summary: "Dream 提案：更新 Admin 视觉与产品偏好。",
@@ -353,6 +397,8 @@ async function main(): Promise<void> {
         riskLevel: "medium",
         status: "pending",
         sourceMessageIds: [seed.messageIds[0], seed.messageIds[1]],
+        sourceConversationIds: [conversation.id],
+        sourceUserIds: [user.id],
         metadata: { seed: "admin_demo", source: "dream_deep_sleep" },
       },
     ],

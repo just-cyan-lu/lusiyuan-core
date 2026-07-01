@@ -35,7 +35,7 @@ export async function memoryProposalsRoute(app: FastifyInstance): Promise<void> 
 
   app.get("/v1/memory/proposals", async (request, reply) => {
     const query = request.query as {
-      user_id?: string;
+      person_id?: string;
       status?: string;
       risk_level?: string;
       proposal_type?: string;
@@ -51,7 +51,7 @@ export async function memoryProposalsRoute(app: FastifyInstance): Promise<void> 
     const proposals = await memoryProposalService.listProposals({
       status: query.status,
       reportId: query.report_id,
-      userId: query.user_id,
+      personId: query.person_id,
       riskLevel: query.risk_level,
       proposalType: query.proposal_type,
       scope: query.scope,

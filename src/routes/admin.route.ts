@@ -91,7 +91,7 @@ function clampLimit(value: unknown, fallback = 80): number {
 type MemoryDateField = "createdAt" | "updatedAt" | "lastAccessedAt";
 
 interface MemoryListQuery {
-  user_id?: string;
+  person_id?: string;
   status?: string;
   scope?: string;
   type?: string;
@@ -184,10 +184,10 @@ function runtimeStatePatchFromBody(body: Record<string, unknown>): RuntimeStateP
   return patch;
 }
 
-function memoryScope(value: unknown, fallback = "user"): string {
+function memoryScope(value: unknown, fallback = "person"): string {
   const scope = cleanString(value) ?? fallback;
-  if (scope !== "user" && scope !== "global" && scope !== "project") {
-    throw routeError("scope must be user, global, or project", 400);
+  if (!["person", "global", "project", "topic"].includes(scope)) {
+    throw routeError("scope must be person, global, project, or topic", 400);
   }
   return scope;
 }
@@ -197,6 +197,30 @@ function metadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
     ? (metadata as Prisma.JsonObject)
     : {};
 }
+
+const adminMemoryInclude = {
+  person: {
+    select: {
+      id: true,
+      label: true,
+      note: true,
+      identityLinks: {
+        select: {
+          id: true,
+          userId: true,
+          user: {
+            select: {
+              id: true,
+              externalId: true,
+              displayName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" as const },
+      },
+    },
+  },
+} satisfies Prisma.MemoryInclude;
 
 function parseDate(value: unknown): Date | undefined {
   const raw = cleanString(value);
@@ -336,33 +360,40 @@ async function buildMemoryWhere(
   if (scope && scope !== "all") where.scope = memoryScope(scope);
   if (type && type !== "all") where.type = type;
 
-  if (query.user_id) {
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ id: query.user_id }, { externalId: query.user_id }],
-      },
-      select: { id: true },
-    });
-    if (!user) throw routeError("User not found", 404);
-    where.userId = user.id;
+  if (query.person_id) {
+    const personId = await resolveMemoryPersonId(query.person_id, "person");
+    where.personId = personId ?? "__missing_person__";
   }
 
   if (search) {
     where.OR = [
       { id: { contains: search, mode: "insensitive" } },
-      { userId: { contains: search, mode: "insensitive" } },
+      { personId: { contains: search, mode: "insensitive" } },
       { content: { contains: search, mode: "insensitive" } },
       { summary: { contains: search, mode: "insensitive" } },
       { source: { contains: search, mode: "insensitive" } },
       { channel: { contains: search, mode: "insensitive" } },
       { conversationId: { contains: search, mode: "insensitive" } },
+      { tier: { contains: search, mode: "insensitive" } },
+      { riskLevel: { contains: search, mode: "insensitive" } },
       {
-        user: {
+        person: {
           is: {
             OR: [
               { id: { contains: search, mode: "insensitive" } },
-              { externalId: { contains: search, mode: "insensitive" } },
-              { displayName: { contains: search, mode: "insensitive" } },
+              { label: { contains: search, mode: "insensitive" } },
+              {
+                identityLinks: {
+                  some: {
+                    user: {
+                      OR: [
+                        { externalId: { contains: search, mode: "insensitive" } },
+                        { displayName: { contains: search, mode: "insensitive" } },
+                      ],
+                    },
+                  },
+                },
+              },
             ],
           },
         },
@@ -602,26 +633,47 @@ async function readEditableEnvConfig() {
   };
 }
 
-async function resolveMemoryOwnerId(
-  inputUserId: unknown,
+async function resolveMemoryPersonId(
+  inputPersonId: unknown,
   scope: string
 ): Promise<string | null> {
-  if (scope === "global" || scope === "project") return null;
+  if (scope !== "person") return null;
 
-  const userId = cleanString(inputUserId);
-  if (!userId) {
-    throw routeError("user_id is required for user-scoped memories", 400);
+  const value = cleanString(inputPersonId);
+  if (!value) {
+    throw routeError("person_id is required for person-scoped memories", 400);
   }
 
-  const user = await prisma.user.findFirst({
+  const person = await prisma.personIdentity.findFirst({
     where: {
-      OR: [{ id: userId }, { externalId: userId }],
+      OR: [
+        { id: value },
+        { label: value },
+        {
+          identityLinks: {
+            some: {
+              user: {
+                OR: [{ id: value }, { externalId: value }, { displayName: value }],
+              },
+            },
+          },
+        },
+      ],
     },
     select: { id: true },
   });
 
-  if (!user) throw routeError("User not found", 404);
-  return user.id;
+  if (person) return person.id;
+
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ id: value }, { externalId: value }, { displayName: value }] },
+    select: { id: true },
+  });
+  if (user) {
+    return (await relationshipStateService.getOrCreate(user.id)).personId;
+  }
+
+  throw routeError("Person not found", 404);
 }
 
 function messagePreview(content: string, max = 96): string {
@@ -1001,12 +1053,16 @@ async function getConversationMessages(conversationId: string, limit: number) {
   };
 }
 
-function shouldRegenerateEmbedding(data: Prisma.MemoryUpdateInput): boolean {
+function shouldRegenerateEmbedding(
+  data: Prisma.MemoryUpdateInput | Prisma.MemoryUncheckedUpdateInput
+): boolean {
   return Boolean(
     data.content !== undefined ||
       data.summary !== undefined ||
       data.type !== undefined ||
       data.scope !== undefined ||
+      data.tier !== undefined ||
+      data.riskLevel !== undefined ||
       data.tags !== undefined ||
       data.entities !== undefined
   );
@@ -2079,15 +2135,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
     const memories = await prisma.memory.findMany({
       where: await buildMemoryWhere(query),
-      include: {
-        user: {
-          select: {
-            id: true,
-            externalId: true,
-            displayName: true,
-          },
-        },
-      },
+      include: adminMemoryInclude,
       orderBy: memoryOrderBy(query.sort),
       take: clampLimit(query.limit),
     });
@@ -2144,9 +2192,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
   app.post("/v1/admin/memories", async (request, reply) => {
     const body = request.body as {
-      user_id?: string | null;
+      person_id?: string | null;
       type?: string;
       scope?: string;
+      tier?: string;
+      strength?: number;
+      risk_level?: string;
       content?: string;
       summary?: string | null;
       importance?: number;
@@ -2168,9 +2219,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
     const memory = await prisma.memory.create({
       data: {
-        userId: await resolveMemoryOwnerId(body.user_id, scope),
+        personId: await resolveMemoryPersonId(body.person_id, scope),
         type,
         scope,
+        tier: cleanString(body.tier) ?? "short",
+        strength: boundedNumber(body.strength, 1, 1, 10),
+        riskLevel: cleanString(body.risk_level) ?? "low",
         content,
         summary: cleanNullableString(body.summary) ?? null,
         importance: boundedNumber(body.importance, 5, 1, 10),
@@ -2183,9 +2237,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         conversationId: cleanNullableString(body.conversation_id) ?? null,
         metadata: jsonInput(body.metadata),
       },
-      include: {
-        user: { select: { id: true, externalId: true, displayName: true } },
-      },
+      include: adminMemoryInclude,
     });
 
     if (memory.status === "active" && runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
@@ -2200,9 +2252,12 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   app.patch("/v1/admin/memories/:memoryId", async (request, reply) => {
     const { memoryId } = request.params as { memoryId: string };
     const body = request.body as {
-      user_id?: string | null;
+      person_id?: string | null;
       type?: string;
       scope?: string;
+      tier?: string;
+      strength?: number;
+      risk_level?: string;
       content?: string;
       summary?: string | null;
       importance?: number;
@@ -2220,17 +2275,18 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       where: { id: memoryId },
     });
     const nextScope = memoryScope(body.scope, existing.scope);
-    const data: Prisma.MemoryUpdateInput = {};
+    const data: Prisma.MemoryUncheckedUpdateInput = {};
 
-    if (body.user_id !== undefined || body.scope !== undefined) {
-      data.user = {
-        disconnect: true,
-      };
-      const ownerId = await resolveMemoryOwnerId(body.user_id ?? existing.userId, nextScope);
-      if (ownerId) data.user = { connect: { id: ownerId } };
+    if (body.person_id !== undefined || body.scope !== undefined) {
+      data.personId = await resolveMemoryPersonId(body.person_id ?? existing.personId, nextScope);
     }
     if (body.type !== undefined) data.type = cleanString(body.type) ?? existing.type;
     if (body.scope !== undefined) data.scope = nextScope;
+    if (body.tier !== undefined) data.tier = cleanString(body.tier) ?? existing.tier;
+    if (body.strength !== undefined) {
+      data.strength = boundedNumber(body.strength, existing.strength, 1, 10);
+    }
+    if (body.risk_level !== undefined) data.riskLevel = cleanString(body.risk_level) ?? existing.riskLevel;
     if (body.content !== undefined) data.content = cleanString(body.content) ?? existing.content;
     if (body.summary !== undefined) data.summary = cleanNullableString(body.summary);
     if (body.importance !== undefined) {
@@ -2252,9 +2308,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const memory = await prisma.memory.update({
       where: { id: memoryId },
       data,
-      include: {
-        user: { select: { id: true, externalId: true, displayName: true } },
-      },
+      include: adminMemoryInclude,
     });
 
     if (
@@ -2286,9 +2340,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
           archivedAt: new Date().toISOString(),
         },
       },
-      include: {
-        user: { select: { id: true, externalId: true, displayName: true } },
-      },
+      include: adminMemoryInclude,
     });
 
     return reply.send({ memory });

@@ -9,12 +9,12 @@ export interface BudgetedMemory {
 }
 
 const TYPE_MAX: Record<string, number> = {
-  boundary: 3,
-  core: 3,
   technical_decision: 4,
   project_context: 4,
   user_preference: 3,
-  relationship: 2,
+  personal_fact: 3,
+  recurring_topic: 3,
+  boundary: 2,
   growth_event: 2,
 };
 
@@ -35,7 +35,7 @@ export function applyMemoryBudget(ranked: RetrievedMemory[]): BudgetedMemory[] {
 
     const m = item.memory as Memory & { summary?: string | null };
     const raw = m.summary ?? item.memory.content;
-    const text = raw.length > 200 ? raw.slice(0, 197) + "..." : raw;
+    const text = raw.length > 800 ? raw.slice(0, 797) + "..." : raw;
 
     if (totalChars + text.length > maxChars) break;
 

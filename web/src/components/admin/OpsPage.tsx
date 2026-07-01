@@ -945,7 +945,7 @@ function DeepSleepPanel({
           <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Deep Sleep</div>
           <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">深度整合结果</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--ls-ink-soft)]">
-            Deep Sleep 会把 Dream Signal 整合成正式提案和风险项，但不会直接写入长期记忆。
+            Deep Sleep 会把全局、项目、话题内容整理成待审核提案；个人记忆由按身份关系复盘自动写入并保留审计记录。
           </p>
         </div>
         <StatusPill active={!loading} label={loading ? "读取中" : `${detail?.reports.length ?? 0} 份报告`} />

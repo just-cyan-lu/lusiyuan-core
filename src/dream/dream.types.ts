@@ -38,6 +38,8 @@ export interface DreamSourceMessage {
 export interface DreamSourceMemory {
   id: string;
   type: string;
+  scope?: string;
+  tier?: string;
   content: string;
   importance: number;
   createdAt: Date;
@@ -111,6 +113,8 @@ export interface RawConsolidationProposal {
   targetMemoryId?: string;
   scope: string;
   type: string;
+  tier?: string;
+  strength?: number;
   content: string;
   summary?: string;
   tags?: string[];
@@ -181,11 +185,28 @@ export interface RawRelationshipReviewEvidence {
   severity?: "low" | "medium" | "high";
 }
 
+export interface RawRelationshipMemoryChange {
+  proposalType: "create_memory" | "update_memory" | "supersede_memory" | "archive_memory";
+  targetMemoryId?: string | null;
+  type: string;
+  tier?: "short" | "mid" | "long";
+  strength?: number;
+  content: string;
+  summary?: string | null;
+  tags?: string[];
+  entities?: string[];
+  reason: string;
+  confidence: number;
+  riskLevel?: DreamRiskLevel;
+  sourceMessageIds?: string[];
+}
+
 export interface RawRelationshipReviewOutput {
   summary: string;
   confidence: number;
   proposedPatch?: RawRelationshipReviewPatch;
   evidences: RawRelationshipReviewEvidence[];
+  memoryChanges?: RawRelationshipMemoryChange[];
   openQuestions?: string[];
 }
 

@@ -73,7 +73,7 @@ const proposalTypeOptions = [
   "archive_memory",
 ];
 
-const scopeOptions = ["all", "user", "global", "project"];
+const scopeOptions = ["all", "person", "global", "project", "topic"];
 
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -292,7 +292,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
     const confirmed = window.confirm(
       action === "approvePending"
         ? `确认批准当前筛选下 ${targets.length} 条待审核提案吗？批准不会直接写入记忆。`
-        : `确认应用当前筛选下 ${targets.length} 条已批准提案到各自用户记忆吗？`
+        : `确认应用当前筛选下 ${targets.length} 条已批准提案到各自身份记忆吗？`
     );
     if (!confirmed) return;
 
@@ -347,7 +347,7 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
             <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Memory Review</div>
             <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">记忆提案审核</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--ls-ink-soft)]">
-              逐条检查提案内容、理由、置信度和风险等级，再决定批准、拒绝或应用到长期记忆。长期测试时优先处理低风险、用户范围的提案。
+              逐条检查提案内容、理由、置信度和风险等级，再决定批准、拒绝或应用到长期记忆。个人记忆通常由 Dream 自动应用；全局记忆需要重点审核。
             </p>
           </div>
 
@@ -506,9 +506,9 @@ export function MemoryProposalsPage({ adminToken, onOpenMemory }: MemoryProposal
 
 function actionMessageFor(action: ProposalAction): string {
   if (action === "approve") return "提案已批准，但还没有写入记忆。";
-  if (action === "approveApply") return "提案已批准并应用到当前用户记忆。";
+  if (action === "approveApply") return "提案已批准并应用到当前身份记忆。";
   if (action === "reject") return "提案已拒绝。";
-  if (action === "apply") return "提案已应用到当前用户记忆。";
+  if (action === "apply") return "提案已应用到当前身份记忆。";
   if (action === "applyGlobal") return "提案已作为全局记忆应用。";
   return "提案已撤回。";
 }
@@ -545,7 +545,7 @@ function ProposalListItem({
               {proposalTypeLabels[proposal.proposalType] ?? proposal.proposalType}
             </span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
-              {proposal.scope}/{proposal.type}
+              {proposal.scope}/{proposal.tier}/{proposal.type}
             </span>
           </div>
           <p
@@ -619,7 +619,8 @@ function ProposalDetail({
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
         <Metric label="置信度" value={formatConfidence(proposal.confidence)} />
-        <Metric label="类型" value={`${proposal.scope}/${proposal.type}`} />
+        <Metric label="类型" value={`${proposal.scope}/${proposal.tier}/${proposal.type}`} />
+        <Metric label="强度" value={String(proposal.strength)} />
         <Metric label="创建时间" value={formatDate(proposal.createdAt)} title={proposal.createdAt} />
       </div>
 
@@ -649,7 +650,7 @@ function ProposalDetail({
       <div className="mt-5 grid gap-3 md:grid-cols-2">
         <DetailRow label="Proposal ID" value={shortId(proposal.id)} title={proposal.id} />
         <DetailRow label="Report ID" value={shortId(proposal.reportId)} title={proposal.reportId} />
-        <DetailRow label="User ID" value={shortId(proposal.userId)} title={fullValue(proposal.userId)} />
+        <DetailRow label="Person ID" value={shortId(proposal.personId)} title={fullValue(proposal.personId)} />
         <DetailRow
           label="Conversation"
           value={shortId(proposal.conversationId)}
@@ -686,7 +687,7 @@ function ProposalDetail({
       <div className="mt-5">
         <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-ink-soft)]">
           <span className="font-semibold text-[var(--ls-ink-strong)]">按钮说明：</span>
-          仅批准只是通过审核，不写入记忆；应用到当前用户会让这条记忆只对当前用户生效；全局应用会写成陆思源基础记忆，对所有用户生效；撤回会撤销批准或让已应用记忆失效。
+          仅批准只是通过审核，不写入记忆；应用到当前身份会让这条记忆只对这个身份生效；全局应用会写成陆思源基础记忆，对所有身份生效；撤回会撤销批准或让已应用记忆失效。
         </div>
       </div>
 
@@ -739,7 +740,7 @@ function ProposalDetail({
           onRunAction={onRunAction}
         />
         <ActionButton
-          label="应用到当前用户"
+          label="应用到当前身份"
           action="apply"
           proposal={proposal}
           busyAction={busyAction}

@@ -4,14 +4,18 @@ export function buildMemoryEmbeddingText(memory: Memory): string {
   const parts: string[] = [];
 
   parts.push(`type: ${memory.type}`);
-  parts.push(`scope: ${(memory as Memory & { scope?: string }).scope ?? "user"}`);
-  parts.push(`content: ${memory.content}`);
-
   const m = memory as Memory & {
+    scope?: string;
+    tier?: string;
+    riskLevel?: string;
     summary?: string | null;
     tags?: unknown;
     entities?: unknown;
   };
+  parts.push(`scope: ${m.scope ?? "person"}`);
+  parts.push(`tier: ${m.tier ?? "short"}`);
+  parts.push(`risk: ${m.riskLevel ?? "low"}`);
+  parts.push(`content: ${memory.content}`);
 
   if (m.summary) {
     parts.push(`summary: ${m.summary}`);

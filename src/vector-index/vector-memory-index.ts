@@ -14,7 +14,7 @@ export interface UpsertEmbeddingInput {
 
 export interface SearchSimilarInput {
   queryEmbedding: number[];
-  userId: string;
+  personId: string;
   provider: string;
   model: string;
   dimensions: number;
