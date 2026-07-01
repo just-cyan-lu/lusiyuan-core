@@ -95,15 +95,15 @@ test("selects creator mode for persona/runtime architecture questions", () => {
   );
 });
 
-test("uses relationship memories to select close friend projection", () => {
+test("does not use long-term memories as relationship profile", () => {
   assert.equal(
     selectChatProfile({
       persona,
-      memories: [budgetedMemory("relationship", "用户和陆思源已经很熟悉，也很信任彼此。")],
+      memories: [budgetedMemory("user_preference", "用户和陆思源聊过很多猫相关内容。")],
       recentMessages: [],
       userMessage: "今天吃什么呀",
     }),
-    "close_friend"
+    "default"
   );
 });
 
@@ -232,9 +232,12 @@ function budgetedMemory(type: string, text: string): BudgetedMemory {
     text,
     memory: {
       id: `memory-${type}`,
-      userId: "user-1",
+      personId: "person-1",
       type,
-      scope: "user",
+      scope: "person",
+      tier: "short",
+      strength: 1,
+      riskLevel: "low",
       content: text,
       summary: null,
       importance: 5,
@@ -245,6 +248,12 @@ function budgetedMemory(type: string, text: string): BudgetedMemory {
       entities: null,
       channel: null,
       conversationId: null,
+      sourceMessageIds: null,
+      sourceConversationIds: null,
+      sourceUserIds: null,
+      mentionDayKeys: null,
+      lastMentionedAt: null,
+      nextReviewAt: null,
       lastAccessedAt: null,
       accessCount: 0,
       metadata: null,

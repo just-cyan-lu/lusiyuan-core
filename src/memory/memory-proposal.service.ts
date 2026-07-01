@@ -2,15 +2,25 @@ import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
-  resolveMemoryProposalUserId,
-  type MemoryProposalUserLookup,
-} from "./memory-proposal-user-resolver.js";
+  resolveMemoryProposalPersonId,
+  type MemoryProposalPersonLookup,
+} from "./memory-proposal-person-resolver.js";
+import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import { Prisma } from "@prisma/client";
 import type { Memory, MemoryProposal } from "@prisma/client";
 
 type MemoryRollbackSnapshot = Pick<
   Memory,
-  "id" | "content" | "summary" | "confidence" | "tags" | "entities" | "status"
+  | "id"
+  | "content"
+  | "summary"
+  | "confidence"
+  | "tags"
+  | "entities"
+  | "status"
+  | "tier"
+  | "strength"
+  | "riskLevel"
 >;
 
 function metadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
@@ -38,6 +48,9 @@ function snapshotMemory(memory: MemoryRollbackSnapshot): Prisma.JsonObject {
     tags: memory.tags,
     entities: memory.entities,
     status: memory.status,
+    tier: memory.tier,
+    strength: memory.strength,
+    riskLevel: memory.riskLevel,
   } as Prisma.JsonObject;
 }
 
@@ -52,7 +65,7 @@ export class MemoryProposalService {
   async listProposals(opts: {
     status?: string;
     reportId?: string;
-    userId?: string;
+    personId?: string;
     riskLevel?: string;
     proposalType?: string;
     scope?: string;
@@ -67,7 +80,7 @@ export class MemoryProposalService {
       where: {
         ...(opts.status && opts.status !== "all" ? { status: opts.status } : {}),
         ...(opts.reportId ? { reportId: opts.reportId } : {}),
-        ...(opts.userId ? { userId: opts.userId } : {}),
+        ...(opts.personId ? { personId: opts.personId } : {}),
         ...(opts.riskLevel && opts.riskLevel !== "all" ? { riskLevel: opts.riskLevel } : {}),
         ...(opts.proposalType && opts.proposalType !== "all"
           ? { proposalType: opts.proposalType }
@@ -79,7 +92,7 @@ export class MemoryProposalService {
               OR: [
                 { id: { contains: q, mode: "insensitive" } },
                 { reportId: { contains: q, mode: "insensitive" } },
-                { userId: { contains: q, mode: "insensitive" } },
+                { personId: { contains: q, mode: "insensitive" } },
                 { content: { contains: q, mode: "insensitive" } },
                 { summary: { contains: q, mode: "insensitive" } },
                 { reason: { contains: q, mode: "insensitive" } },
@@ -204,9 +217,12 @@ class MemoryProposalApplyServiceImpl {
   async applyGlobal(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
     const memory = await prisma.memory.create({
       data: {
-        userId: null,
+        personId: null,
         type: proposal.type,
         scope: "global",
+        tier: proposal.tier,
+        strength: proposal.strength,
+        riskLevel: proposal.riskLevel,
         content: proposal.content,
         summary: proposal.summary ?? null,
         importance: Math.round(proposal.confidence * 10),
@@ -217,6 +233,9 @@ class MemoryProposalApplyServiceImpl {
         entities: proposal.entities ?? undefined,
         channel: proposal.channel ?? null,
         conversationId: proposal.conversationId ?? null,
+        sourceMessageIds: proposal.sourceMessageIds ?? undefined,
+        sourceConversationIds: proposal.sourceConversationIds ?? undefined,
+        sourceUserIds: proposal.sourceUserIds ?? undefined,
         metadata: {
           sourceProposalId: proposal.id,
           sourceReportId: proposal.reportId,
@@ -288,13 +307,16 @@ class MemoryProposalApplyServiceImpl {
   }
 
   private async applyCreate(proposal: MemoryProposal, reviewerId: string): Promise<MemoryProposal> {
-    const userId = await this.resolveMemoryUserId(proposal);
+    const personId = await this.resolveMemoryPersonId(proposal);
 
     const memory = await prisma.memory.create({
       data: {
-        userId,
+        personId,
         type: proposal.type,
         scope: proposal.scope,
+        tier: proposal.tier,
+        strength: proposal.strength,
+        riskLevel: proposal.riskLevel,
         content: proposal.content,
         summary: proposal.summary ?? null,
         importance: Math.round(proposal.confidence * 10),
@@ -305,10 +327,13 @@ class MemoryProposalApplyServiceImpl {
         entities: proposal.entities ?? undefined,
         channel: proposal.channel ?? null,
         conversationId: proposal.conversationId ?? null,
+        sourceMessageIds: proposal.sourceMessageIds ?? undefined,
+        sourceConversationIds: proposal.sourceConversationIds ?? undefined,
+        sourceUserIds: proposal.sourceUserIds ?? undefined,
         metadata: {
           sourceProposalId: proposal.id,
           sourceReportId: proposal.reportId,
-          applyMode: "user",
+          applyMode: proposal.scope,
         },
       },
     });
@@ -327,7 +352,7 @@ class MemoryProposalApplyServiceImpl {
         reviewedAt: new Date(),
         appliedMemoryId: memory.id,
         metadata: mergeMetadata(proposal, {
-          applyMode: "user",
+          applyMode: proposal.scope,
           rollback: {
             type: "create_memory",
             appliedMemoryId: memory.id,
@@ -349,9 +374,15 @@ class MemoryProposalApplyServiceImpl {
       data: {
         content: proposal.content,
         summary: proposal.summary ?? undefined,
+        tier: proposal.tier,
+        strength: proposal.strength,
+        riskLevel: proposal.riskLevel,
         confidence: proposal.confidence,
         tags: proposal.tags ?? undefined,
         entities: proposal.entities ?? undefined,
+        sourceMessageIds: proposal.sourceMessageIds ?? undefined,
+        sourceConversationIds: proposal.sourceConversationIds ?? undefined,
+        sourceUserIds: proposal.sourceUserIds ?? undefined,
       },
     });
 
@@ -369,7 +400,7 @@ class MemoryProposalApplyServiceImpl {
         reviewedAt: new Date(),
         appliedMemoryId: memory.id,
         metadata: mergeMetadata(proposal, {
-          applyMode: "user",
+          applyMode: proposal.scope,
           rollback: {
             type: "update_memory",
             targetMemory: snapshotMemory(before),
@@ -393,12 +424,15 @@ class MemoryProposalApplyServiceImpl {
 
     let newMemoryId: string | null = null;
     if (proposal.content) {
-      const userId = await this.resolveMemoryUserId(proposal);
+      const personId = await this.resolveMemoryPersonId(proposal);
       const newMemory = await prisma.memory.create({
         data: {
-          userId,
+          personId,
           type: proposal.type,
           scope: proposal.scope,
+          tier: proposal.tier,
+          strength: proposal.strength,
+          riskLevel: proposal.riskLevel,
           content: proposal.content,
           summary: proposal.summary ?? null,
           importance: Math.round(proposal.confidence * 10),
@@ -409,10 +443,13 @@ class MemoryProposalApplyServiceImpl {
           entities: proposal.entities ?? undefined,
           channel: proposal.channel ?? null,
           conversationId: proposal.conversationId ?? null,
+          sourceMessageIds: proposal.sourceMessageIds ?? undefined,
+          sourceConversationIds: proposal.sourceConversationIds ?? undefined,
+          sourceUserIds: proposal.sourceUserIds ?? undefined,
           metadata: {
             sourceProposalId: proposal.id,
             sourceReportId: proposal.reportId,
-            applyMode: "user",
+            applyMode: proposal.scope,
           },
         },
       });
@@ -432,7 +469,7 @@ class MemoryProposalApplyServiceImpl {
         reviewedAt: new Date(),
         appliedMemoryId: newMemoryId,
         metadata: mergeMetadata(proposal, {
-          applyMode: "user",
+          applyMode: proposal.scope,
           rollback: {
             type: "supersede_memory",
             targetMemory: snapshotMemory(before),
@@ -463,7 +500,7 @@ class MemoryProposalApplyServiceImpl {
         reviewedAt: new Date(),
         appliedMemoryId: proposal.targetMemoryId,
         metadata: mergeMetadata(proposal, {
-          applyMode: "user",
+          applyMode: proposal.scope,
           rollback: {
             type: "archive_memory",
             targetMemory: snapshotMemory(before),
@@ -535,29 +572,41 @@ class MemoryProposalApplyServiceImpl {
         tags: snapshot.tags ?? undefined,
         entities: snapshot.entities ?? undefined,
         status: typeof snapshot.status === "string" ? snapshot.status : "active",
+        tier: typeof snapshot.tier === "string" ? snapshot.tier : undefined,
+        strength: typeof snapshot.strength === "number" ? snapshot.strength : undefined,
+        riskLevel: typeof snapshot.riskLevel === "string" ? snapshot.riskLevel : undefined,
       },
     });
   }
 
-  private async resolveMemoryUserId(proposal: MemoryProposal): Promise<string | null> {
-    const lookup: MemoryProposalUserLookup = {
-      findTargetMemoryUserId: async (memoryId) => {
+  private async resolveMemoryPersonId(proposal: MemoryProposal): Promise<string | null> {
+    const lookup: MemoryProposalPersonLookup = {
+      findTargetMemoryPersonId: async (memoryId) => {
         const target = await prisma.memory.findUnique({
           where: { id: memoryId },
-          select: { userId: true },
+          select: { personId: true },
         });
-        return target?.userId ?? null;
+        return target?.personId ?? null;
       },
-      findSourceMessageUserId: async (messageIds) => {
+      findSourceMessagePersonId: async (messageIds) => {
         const sourceMessage = await prisma.message.findFirst({
           where: { id: { in: messageIds } },
           select: {
             conversation: {
-              select: { userId: true },
+              select: {
+                userId: true,
+                user: {
+                  select: {
+                    identityLink: { select: { personId: true } },
+                  },
+                },
+              },
             },
           },
         });
-        return sourceMessage?.conversation.userId ?? null;
+        if (!sourceMessage) return null;
+        return sourceMessage.conversation.user.identityLink?.personId ??
+          (await relationshipStateService.getOrCreate(sourceMessage.conversation.userId)).personId;
       },
       findReportJobScope: async (reportId) => {
         const report = await prisma.dreamConsolidationReport.findUnique({
@@ -573,16 +622,28 @@ class MemoryProposalApplyServiceImpl {
         });
         return report?.job ?? null;
       },
-      findUserInternalId: async (idOrExternalId) => {
+      findPersonId: async (id) => {
+        const person = await prisma.personIdentity.findUnique({
+          where: { id },
+          select: { id: true },
+        });
+        return person?.id ?? null;
+      },
+      findUserPersonId: async (idOrExternalId) => {
         const user = await prisma.user.findFirst({
           where: {
             OR: [{ id: idOrExternalId }, { externalId: idOrExternalId }],
           },
-          select: { id: true },
+          select: {
+            id: true,
+            identityLink: { select: { personId: true } },
+          },
         });
-        return user?.id ?? null;
+        if (!user) return null;
+        return user.identityLink?.personId ??
+          (await relationshipStateService.getOrCreate(user.id)).personId;
       },
-      findConversationUserId: async (idOrExternalId) => {
+      findConversationPersonId: async (idOrExternalId) => {
         const conversation = await prisma.conversation.findFirst({
           where: {
             OR: [
@@ -590,13 +651,22 @@ class MemoryProposalApplyServiceImpl {
               { externalConversationId: idOrExternalId },
             ],
           },
-          select: { userId: true },
+          select: {
+            userId: true,
+            user: {
+              select: {
+                identityLink: { select: { personId: true } },
+              },
+            },
+          },
         });
-        return conversation?.userId ?? null;
+        if (!conversation) return null;
+        return conversation.user.identityLink?.personId ??
+          (await relationshipStateService.getOrCreate(conversation.userId)).personId;
       },
     };
 
-    return resolveMemoryProposalUserId(proposal, lookup);
+    return resolveMemoryProposalPersonId(proposal, lookup);
   }
 }
 

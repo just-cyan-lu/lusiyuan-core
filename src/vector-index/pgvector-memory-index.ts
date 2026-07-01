@@ -35,7 +35,7 @@ export class PgVectorMemoryIndex implements VectorMemoryIndex {
   }
 
   async searchSimilarMemories(input: SearchSimilarInput): Promise<SimilarMemoryResult[]> {
-    const { queryEmbedding, userId, provider, model, dimensions, topK } = input;
+    const { queryEmbedding, personId, provider, model, dimensions, topK } = input;
     const vectorLiteral = `[${queryEmbedding.join(",")}]`;
 
     const rows = await prisma.$queryRaw<Array<{ memory_id: string; score: number }>>`
@@ -50,8 +50,8 @@ export class PgVectorMemoryIndex implements VectorMemoryIndex {
         AND me."dimensions" = ${dimensions}
         AND m."status"      = 'active'
         AND (
-          (m."userId" IS NULL AND m."scope" IN ('project', 'global'))
-          OR m."userId" = ${userId}
+          (m."personId" IS NULL AND m."scope" IN ('project', 'global', 'topic'))
+          OR (m."personId" = ${personId} AND m."scope" = 'person')
         )
       ORDER BY me."embedding" <=> ${vectorLiteral}::vector
       LIMIT ${topK}

@@ -28,6 +28,7 @@ interface RelationshipStatePageProps {
   onOpenRelationship?: (relationshipId: string) => void;
   onBackToRelationshipList?: () => void;
   onOpenConversationPerson?: (personId: string) => void;
+  onOpenMemoryPerson?: (personId: string) => void;
 }
 
 interface PageState {
@@ -281,6 +282,7 @@ export function RelationshipStatePage({
   onOpenRelationship,
   onBackToRelationshipList,
   onOpenConversationPerson,
+  onOpenMemoryPerson,
 }: RelationshipStatePageProps) {
   const [query, setQuery] = useState("");
   const [mergeSourceId, setMergeSourceId] = useState("");
@@ -1031,6 +1033,16 @@ export function RelationshipStatePage({
                   }}
                 >
                   查看对话记录
+                </Button>
+                <Button
+                  type="default"
+                  onClick={() => {
+                    if (pageState.selected?.personId) {
+                      onOpenMemoryPerson?.(pageState.selected.personId);
+                    }
+                  }}
+                >
+                  查看记忆
                 </Button>
                 <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm text-[var(--ls-ink-strong)]">
                   <div className="text-xs text-[var(--ls-ink-soft)]">好感度</div>

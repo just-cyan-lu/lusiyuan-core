@@ -1,6 +1,11 @@
 import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
-import { retrieveMemories } from "./memory-retrieval.service.js";
+import {
+  retrieveMemories,
+  retrieveMemoriesWithoutEmbedding,
+  type MemoryRetrievalInput,
+} from "./memory-retrieval.service.js";
+import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import { pgVectorMemoryIndex } from "../vector-index/pgvector-memory-index.js";
 import { buildMemoryEmbeddingText } from "../embeddings/embedding-text.js";
@@ -10,49 +15,34 @@ import type { NewMemory } from "../types/memory.js";
 import type { BudgetedMemory } from "./memory-budget.js";
 
 export interface MemoryService {
-  searchRelevantMemories(userId: string, query: string): Promise<Memory[]>;
-  retrieveRelevantMemories(userId: string, query: string): Promise<BudgetedMemory[]>;
-  createMemories(userId: string, memories: NewMemory[]): Promise<void>;
+  retrieveRelevantMemories(input: MemoryRetrievalInput): Promise<BudgetedMemory[]>;
+  createMemories(personId: string, memories: NewMemory[]): Promise<Memory[]>;
+  listPersonMemories(personId: string): Promise<Memory[]>;
   listUserMemories(userId: string): Promise<Memory[]>;
   generateAndStoreEmbedding(memory: Memory): Promise<void>;
 }
 
 class PrismaMemoryService implements MemoryService {
-  async searchRelevantMemories(userId: string, _query: string): Promise<Memory[]> {
-    return prisma.memory.findMany({
-      where: {
-        status: "active",
-        OR: [
-          { userId },
-          { userId: null, scope: { in: ["project", "global"] } },
-        ],
-      },
-      orderBy: [{ importance: "desc" }, { updatedAt: "desc" }],
-      take: 8,
-    });
-  }
-
-  async retrieveRelevantMemories(userId: string, query: string): Promise<BudgetedMemory[]> {
+  async retrieveRelevantMemories(input: MemoryRetrievalInput): Promise<BudgetedMemory[]> {
     if (!runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
-      const memories = await this.searchRelevantMemories(userId, query);
-      return memories.map((m) => ({
-        memory: m,
-        finalScore: m.importance / 10,
-        text: m.content,
-      }));
+      return retrieveMemoriesWithoutEmbedding(input);
     }
-    return retrieveMemories({ userId, query });
+    return retrieveMemories(input);
   }
 
-  async createMemories(userId: string, memories: NewMemory[]): Promise<void> {
-    if (memories.length === 0) return;
+  async createMemories(personId: string, memories: NewMemory[]): Promise<Memory[]> {
+    if (memories.length === 0) return [];
 
+    const created: Memory[] = [];
     for (const m of memories) {
-      const created = await prisma.memory.create({
+      const memory = await prisma.memory.create({
         data: {
-          userId,
+          personId,
           type: m.type,
-          scope: m.scope ?? "user",
+          scope: m.scope ?? "person",
+          tier: m.tier ?? "short",
+          strength: m.strength ?? 1,
+          riskLevel: m.riskLevel ?? "low",
           content: m.content,
           summary: m.summary ?? null,
           importance: m.importance,
@@ -63,22 +53,36 @@ class PrismaMemoryService implements MemoryService {
           entities: m.entities ?? undefined,
           channel: m.channel ?? null,
           conversationId: m.conversationId ?? null,
+          sourceMessageIds: m.sourceMessageIds ?? undefined,
+          sourceConversationIds: m.sourceConversationIds ?? undefined,
+          sourceUserIds: m.sourceUserIds ?? undefined,
+          mentionDayKeys: m.mentionDayKeys ?? undefined,
+          lastMentionedAt: m.lastMentionedAt ?? null,
+          nextReviewAt: m.nextReviewAt ?? null,
         },
       });
+      created.push(memory);
 
       if (runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
-        this.generateAndStoreEmbedding(created).catch((err) =>
+        this.generateAndStoreEmbedding(memory).catch((err) =>
           console.warn("Background embedding write failed:", err)
         );
       }
     }
+
+    return created;
+  }
+
+  async listPersonMemories(personId: string): Promise<Memory[]> {
+    return prisma.memory.findMany({
+      where: { personId },
+      orderBy: [{ tier: "desc" }, { importance: "desc" }, { updatedAt: "desc" }],
+    });
   }
 
   async listUserMemories(userId: string): Promise<Memory[]> {
-    return prisma.memory.findMany({
-      where: { userId },
-      orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
-    });
+    const relationship = await relationshipStateService.getOrCreate(userId);
+    return this.listPersonMemories(relationship.personId);
   }
 
   async generateAndStoreEmbedding(memory: Memory): Promise<void> {

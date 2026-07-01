@@ -127,19 +127,30 @@ export class DreamContextBuilder {
     if (userId) {
       const user = await prisma.user.findFirst({
         where: { OR: [{ id: userId }, { externalId: userId }] },
+        select: { identityLink: { select: { personId: true } } },
       });
-      where.userId = user ? user.id : "__missing_user__";
+      where.personId = user?.identityLink?.personId ?? "__missing_person__";
     }
 
     const rows = await prisma.memory.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      select: { id: true, type: true, content: true, importance: true, createdAt: true },
+      select: {
+        id: true,
+        type: true,
+        scope: true,
+        tier: true,
+        content: true,
+        importance: true,
+        createdAt: true,
+      },
     });
 
     return rows.map((r) => ({
       id: r.id,
       type: r.type,
+      scope: r.scope,
+      tier: r.tier,
       content: r.content,
       importance: r.importance,
       createdAt: r.createdAt,

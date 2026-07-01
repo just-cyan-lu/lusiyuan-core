@@ -66,6 +66,7 @@ interface AdminRoute {
   skillId?: string;
   relationshipId?: string;
   conversationPersonId?: string;
+  memoryPersonId?: string;
 }
 
 function PageLoading() {
@@ -129,6 +130,10 @@ function readRouteFromLocation(): AdminRoute {
   }
   return {
     section: sections.includes(value as AdminSection) ? (value as AdminSection) : "overview",
+    memoryPersonId:
+      value === "memory"
+        ? new URLSearchParams(window.location.search).get("person") ?? undefined
+        : undefined,
   };
 }
 
@@ -177,6 +182,11 @@ export default function App() {
     setRoute({ section: "conversations", conversationPersonId: personId });
   }, []);
 
+  const handleOpenMemoryPerson = useCallback((personId: string) => {
+    window.history.pushState(null, "", `/admin/memory?person=${encodeURIComponent(personId)}`);
+    setRoute({ section: "memory", memoryPersonId: personId });
+  }, []);
+
   function handleAdminTokenChange(token: string) {
     setAdminToken(token);
     setStoredAdminToken(token);
@@ -203,6 +213,7 @@ export default function App() {
           onOpenRelationship={handleOpenRelationship}
           onBackToRelationshipList={handleOpenRelationshipList}
           onOpenConversationPerson={handleOpenConversationPerson}
+          onOpenMemoryPerson={handleOpenMemoryPerson}
         />
       );
     }
@@ -219,7 +230,7 @@ export default function App() {
     }
 
     if (route.section === "memory") {
-      return <MemoryAdminPage adminToken={adminToken} />;
+      return <MemoryAdminPage adminToken={adminToken} focusPersonId={route.memoryPersonId} />;
     }
 
     if (route.section === "skills") {
