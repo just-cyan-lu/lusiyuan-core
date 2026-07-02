@@ -887,6 +887,13 @@ export interface AdminMemory {
   updatedAt: string;
 }
 
+export interface AdminMemoryEvidence {
+  memory: AdminMemory;
+  messages: RuntimeSourceMessage[];
+  missingMessageIds: string[];
+  mentionDayKeys: string[];
+}
+
 export interface AdminMemoryActivityDay {
   date: string;
   count: number;
@@ -2146,6 +2153,20 @@ export async function fetchAdminMemoryActivity(input: {
   return parseJsonResponse<AdminMemoryActivity>(
     response,
     "无法读取记忆活跃统计"
+  );
+}
+
+export async function fetchAdminMemoryEvidence(input: {
+  token: string;
+  memoryId: string;
+}): Promise<AdminMemoryEvidence> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/memories/${encodeURIComponent(input.memoryId)}/evidence`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<AdminMemoryEvidence>(
+    response,
+    "无法读取记忆证据"
   );
 }
 

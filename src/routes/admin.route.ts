@@ -301,6 +301,33 @@ function memoryDateField(value: unknown, fallback: MemoryDateField): MemoryDateF
   throw routeError("date_field must be createdAt, updatedAt, or lastAccessedAt", 400);
 }
 
+function stringArrayFromJson(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function orderByIds<T extends { id: string }>(items: T[], ids: string[]): T[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const ordered: T[] = [];
+  const seen = new Set<string>();
+  for (const id of ids) {
+    const item = byId.get(id);
+    if (!item || seen.has(id)) continue;
+    ordered.push(item);
+    seen.add(id);
+  }
+  return ordered.concat(items.filter((item) => !seen.has(item.id)));
+}
+
 function applyMemoryDateRange(
   where: Prisma.MemoryWhereInput,
   field: MemoryDateField,
@@ -2162,6 +2189,53 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       peakCount: activity.reduce((peak, day) => Math.max(peak, day.count), 0),
       metric: "count",
       dateField: field,
+    });
+  });
+
+  app.get("/v1/admin/memories/:memoryId/evidence", async (request, reply) => {
+    const { memoryId } = request.params as { memoryId: string };
+    const memory = await prisma.memory.findUniqueOrThrow({
+      where: { id: memoryId },
+      include: adminMemoryInclude,
+    });
+    const sourceMessageIds = stringArrayFromJson(memory.sourceMessageIds);
+    const messages = sourceMessageIds.length > 0
+      ? await prisma.message.findMany({
+          where: { id: { in: sourceMessageIds } },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            conversationId: true,
+            role: true,
+            content: true,
+            externalMessageId: true,
+            isIntermediate: true,
+            metadata: true,
+            createdAt: true,
+            conversation: {
+              select: {
+                id: true,
+                channel: true,
+                externalConversationId: true,
+                user: {
+                  select: {
+                    id: true,
+                    externalId: true,
+                    displayName: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : [];
+    const messageIdSet = new Set(messages.map((message) => message.id));
+
+    return reply.send({
+      memory,
+      messages: orderByIds(messages, sourceMessageIds),
+      missingMessageIds: sourceMessageIds.filter((id) => !messageIdSet.has(id)),
+      mentionDayKeys: stringArrayFromJson(memory.mentionDayKeys),
     });
   });
 

@@ -5,10 +5,13 @@ import {
   archiveAdminMemory,
   createAdminMemory,
   fetchAdminMemoryActivity,
+  fetchAdminMemoryEvidence,
   fetchAdminMemories,
   updateAdminMemory,
   type AdminMemoryActivity,
   type AdminMemory,
+  type AdminMemoryEvidence,
+  type RuntimeSourceMessage,
 } from "../../api/lusiyuan-api";
 import { StatusPill } from "./StatusPill";
 
@@ -269,6 +272,9 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [createFocusSignal, setCreateFocusSignal] = useState(0);
+  const [evidence, setEvidence] = useState<AdminMemoryEvidence | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
 
   const selectedMemory = useMemo(
     () => memories.find((memory) => memory.id === selectedId) ?? null,
@@ -413,6 +419,43 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
   useEffect(() => {
     if (focusPersonId) setPersonFilter(focusPersonId);
   }, [focusPersonId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEvidence() {
+      if (!adminToken || !selectedId) {
+        setEvidence(null);
+        setEvidenceError(null);
+        setEvidenceLoading(false);
+        return;
+      }
+
+      setEvidenceLoading(true);
+      setEvidenceError(null);
+      setEvidence(null);
+      try {
+        const next = await fetchAdminMemoryEvidence({
+          token: adminToken,
+          memoryId: selectedId,
+        });
+        if (cancelled) return;
+        setEvidence(next);
+      } catch (err) {
+        if (!cancelled) {
+          setEvidence(null);
+          setEvidenceError(friendlyErrorMessage(err));
+        }
+      } finally {
+        if (!cancelled) setEvidenceLoading(false);
+      }
+    }
+
+    void loadEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminToken, selectedId]);
 
   function selectActivityDay(day: string) {
     setDatePreset("custom");
@@ -687,6 +730,9 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
         <MemoryEditor
           form={form}
           selectedMemory={selectedMemory}
+          evidence={evidence}
+          evidenceLoading={evidenceLoading}
+          evidenceError={evidenceError}
           saving={saving}
           focusSignal={createFocusSignal}
           actionError={actionError}
@@ -871,6 +917,9 @@ function MemoryActivityHeatmap({
 function MemoryEditor({
   form,
   selectedMemory,
+  evidence,
+  evidenceLoading,
+  evidenceError,
   saving,
   focusSignal,
   actionError,
@@ -882,6 +931,9 @@ function MemoryEditor({
 }: {
   form: MemoryFormState;
   selectedMemory: AdminMemory | null;
+  evidence: AdminMemoryEvidence | null;
+  evidenceLoading: boolean;
+  evidenceError: string | null;
   saving: boolean;
   focusSignal: number;
   actionError: string | null;
@@ -939,9 +991,24 @@ function MemoryEditor({
           <DetailRow label="Access" value={`${selectedMemory.accessCount} 次`} />
           <DetailRow label="Tier Mentions" value={`${selectedMemory.tierMentionCount} 次`} />
           <DetailRow
+            label="Last Mentioned"
+            value={formatDate(selectedMemory.lastMentionedAt)}
+            title={selectedMemory.lastMentionedAt ?? "无"}
+          />
+          <DetailRow
             label="Tier Entered"
             value={formatDate(selectedMemory.tierEnteredAt)}
             title={selectedMemory.tierEnteredAt ?? "无"}
+          />
+          <DetailRow
+            label="Mention Days"
+            value={`${toTextList(selectedMemory.mentionDayKeys).length} 天`}
+            title={toTextList(selectedMemory.mentionDayKeys).join(" / ") || "无"}
+          />
+          <DetailRow
+            label="Source Messages"
+            value={`${toTextList(selectedMemory.sourceMessageIds).length} 条`}
+            title={toTextList(selectedMemory.sourceMessageIds).join(" / ") || "无"}
           />
         </div>
       )}
@@ -1048,7 +1115,14 @@ function MemoryEditor({
         )}
       </div>
 
-      {selectedMemory && <SourceMessageBlock value={selectedMemory.sourceMessageIds} />}
+      {selectedMemory && (
+        <MemoryEvidencePanel
+          memory={selectedMemory}
+          evidence={evidence}
+          loading={evidenceLoading}
+          error={evidenceError}
+        />
+      )}
     </div>
   );
 }
@@ -1116,24 +1190,179 @@ function DetailRow({ label, value, title }: { label: string; value: string; titl
   );
 }
 
-function SourceMessageBlock({ value }: { value: unknown }) {
-  const ids = toTextList(value);
-  if (ids.length === 0) return null;
+function MemoryEvidencePanel({
+  memory,
+  evidence,
+  loading,
+  error,
+}: {
+  memory: AdminMemory;
+  evidence: AdminMemoryEvidence | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  const sourceIds = toTextList(memory.sourceMessageIds);
+  const mentionDays = evidence?.mentionDayKeys?.length
+    ? evidence.mentionDayKeys
+    : toTextList(memory.mentionDayKeys);
 
   return (
-    <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-white p-4">
-      <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">来源消息</h4>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {ids.map((id) => (
-          <span
-            key={id}
-            title={id}
-            className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 font-mono text-xs text-[var(--ls-ink-soft)]"
-          >
-            {shortId(id)}
-          </span>
-        ))}
+    <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">Evidence Trail</div>
+          <h4 className="mt-1 text-lg font-semibold text-[var(--ls-ink-strong)]">记忆证据链</h4>
+          <p className="mt-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
+            这里展示这条记忆记录过哪些来源消息，以及哪些日期被 Dream 判断为有效提及。
+          </p>
+        </div>
+        <div className="rounded-full border border-[var(--ls-border)] bg-white px-3 py-1 text-xs text-[var(--ls-ink-soft)]">
+          {loading ? "读取中" : `${evidence?.messages.length ?? 0} 条消息`}
+        </div>
       </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <EvidenceStat
+          label="最后有效提及"
+          value={formatDate(memory.lastMentionedAt)}
+          title={memory.lastMentionedAt ?? "无"}
+        />
+        <EvidenceStat
+          label="有效提及日期"
+          value={`${mentionDays.length} 天`}
+          title={mentionDays.join(" / ") || "无"}
+        />
+        <EvidenceStat
+          label="来源消息"
+          value={`${sourceIds.length} 条`}
+          title={sourceIds.join(" / ") || "无"}
+        />
+      </div>
+
+      {mentionDays.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">有效提及日期</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {mentionDays.map((day) => (
+              <span
+                key={day}
+                className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-mono text-xs text-[var(--ls-ink-soft)]"
+              >
+                {day}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sourceIds.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">来源消息 ID</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {sourceIds.map((id) => (
+              <span
+                key={id}
+                title={id}
+                className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-mono text-xs text-[var(--ls-ink-soft)]"
+              >
+                {shortId(id)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="mt-4 rounded-lg border border-[var(--ls-border)] bg-white px-4 py-6 text-sm text-[var(--ls-ink-soft)]">
+          正在读取来源消息…
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm leading-6 text-[var(--ls-warning-text)]">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          <MissingEvidenceSources messageIds={evidence?.missingMessageIds ?? []} />
+          <div className="mt-4">
+            <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">消息内容</div>
+            <div className="mt-3 grid gap-3">
+              {evidence && evidence.messages.length > 0 ? (
+                evidence.messages.map((message) => (
+                  <EvidenceMessageCard key={message.id} message={message} />
+                ))
+              ) : (
+                <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-5 text-sm text-[var(--ls-ink-soft)]">
+                  这条记忆暂时没有可展示的来源消息。手动新增的记忆可能只有提及日期，没有消息证据。
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
+}
+
+function EvidenceStat({ label, value, title }: { label: string; value: string; title?: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-3 py-2">
+      <div className="text-[11px] text-[var(--ls-ink-soft)]">{label}</div>
+      <div className="mt-1 truncate text-sm font-medium text-[var(--ls-ink-strong)]" title={title ?? value}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MissingEvidenceSources({ messageIds }: { messageIds: string[] }) {
+  if (messageIds.length === 0) return null;
+  return (
+    <div className="mt-4 rounded-lg border border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-xs leading-6 text-[var(--ls-warning-text)]">
+      缺失消息：{messageIds.map(shortId).join(" / ")}
+    </div>
+  );
+}
+
+function EvidenceMessageCard({ message }: { message: RuntimeSourceMessage }) {
+  const user = message.conversation.user;
+  const displayName = user.displayName || user.externalId;
+
+  return (
+    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-[var(--ls-ink-strong)]">
+            {roleLabel(message.role)} · {displayName}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--ls-ink-soft)]">
+            <span>{message.conversation.channel}</span>
+            <span>会话 {shortId(message.conversation.externalConversationId)}</span>
+            <span>消息 {shortId(message.id)}</span>
+            {message.externalMessageId ? <span>外部 {shortId(message.externalMessageId)}</span> : null}
+            {message.isIntermediate ? <span>中间消息</span> : null}
+          </div>
+        </div>
+        <div className="text-xs text-[var(--ls-ink-soft)] md:text-right">
+          {formatDate(message.createdAt)}
+        </div>
+      </div>
+      <div className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-3 py-2 text-sm leading-7 text-[var(--ls-ink-strong)]">
+        {message.content}
+      </div>
+    </div>
+  );
+}
+
+function roleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    user: "用户",
+    assistant: "思源",
+    system: "系统",
+    tool: "工具",
+  };
+  return labels[role] ?? role;
 }
