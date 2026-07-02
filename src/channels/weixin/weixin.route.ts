@@ -7,16 +7,68 @@ import type { WeixinIncomingBody } from "./weixin.types.js";
 
 const weixinBodySchema = {
   type: "object",
-  required: ["external_user_id", "external_conversation_id", "text"],
+  required: ["text"],
   properties: {
     external_user_id: { type: "string", minLength: 1 },
     external_conversation_id: { type: "string", minLength: 1 },
     external_message_id: { type: "string" },
+    client_message_id: { type: "string" },
+    sender_name: { type: "string" },
+    conversation_name: { type: "string" },
     display_name: { type: "string" },
+    captured_at: { type: "string" },
     text: { type: "string", minLength: 1 },
     raw: {},
   },
 } as const;
+
+function cleanName(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function nameExternalId(name: string): string {
+  return `name:${name}`;
+}
+
+function rawEventFromBody(body: WeixinIncomingBody): Record<string, unknown> {
+  const raw = body.raw && typeof body.raw === "object" && !Array.isArray(body.raw)
+    ? body.raw as Record<string, unknown>
+    : {};
+  return {
+    ...raw,
+    sender_name: cleanName(body.sender_name) ?? null,
+    conversation_name: cleanName(body.conversation_name) ?? null,
+    captured_at: cleanName(body.captured_at) ?? null,
+    client_message_id: cleanName(body.client_message_id) ?? null,
+  };
+}
+
+export function normalizeWeixinIncomingBody(body: WeixinIncomingBody) {
+  const senderName = cleanName(body.sender_name);
+  const conversationName = cleanName(body.conversation_name) ?? senderName;
+  const externalUserId = cleanName(body.external_user_id) ?? (senderName ? nameExternalId(senderName) : undefined);
+  if (!externalUserId) {
+    throw new Error("external_user_id or sender_name is required");
+  }
+
+  const externalConversationId =
+    cleanName(body.external_conversation_id) ??
+    (conversationName ? nameExternalId(conversationName) : externalUserId);
+  const externalMessageId = cleanName(body.external_message_id) ?? cleanName(body.client_message_id);
+  const displayName = cleanName(body.display_name) ?? senderName ?? cleanName(body.external_user_id);
+
+  return {
+    user_id: `weixin:${externalUserId}`,
+    channel: "weixin" as const,
+    conversation_id: `weixin:${externalConversationId}`,
+    message: body.text,
+    external_message_id: externalMessageId,
+    display_name: displayName,
+    raw_event: rawEventFromBody(body),
+  };
+}
 
 export async function weixinRoute(app: FastifyInstance): Promise<void> {
   app.post(
@@ -35,15 +87,7 @@ export async function weixinRoute(app: FastifyInstance): Promise<void> {
       const body = request.body as WeixinIncomingBody;
 
       try {
-        const result = await runChatTask({
-          user_id: `weixin:${body.external_user_id}`,
-          channel: "weixin",
-          conversation_id: `weixin:${body.external_conversation_id}`,
-          message: body.text,
-          external_message_id: body.external_message_id,
-          display_name: body.display_name,
-          raw_event: body.raw,
-        });
+        const result = await runChatTask(normalizeWeixinIncomingBody(body));
 
         if (result.duplicated) {
           return reply.send({ reply: "", duplicated: true });

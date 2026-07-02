@@ -57,6 +57,8 @@ X-Lusiyuan-Channel-Secret: your-secret-here
 
 **请求 Body：**
 
+稳定 id 模式：
+
 ```json
 {
   "external_user_id": "wx_user_001",
@@ -67,6 +69,20 @@ X-Lusiyuan-Channel-Secret: your-secret-here
   "raw": {}
 }
 ```
+
+只有微信联系人名字时，也可以使用名字模式：
+
+```json
+{
+  "sender_name": "用户昵称",
+  "conversation_name": "用户昵称",
+  "client_message_id": "wx_msg_001",
+  "text": "你是谁？",
+  "raw": {}
+}
+```
+
+名字模式会把用户写成 `weixin:name:<用户昵称>`，并自动进入关系/身份系统，后续可以在 Admin 里合并身份。
 
 **响应：**
 
@@ -100,7 +116,7 @@ OpenClaw 侧需要把微信消息转发到 Core API。
 ```
 收到微信消息
   ↓
-提取 external_user_id、external_conversation_id、external_message_id、text
+提取稳定 id 字段，或提取 sender_name、conversation_name、client_message_id、text
   ↓
 POST 到 http://your-server:64100/v1/channels/weixin/incoming（带 secret header）
   ↓
@@ -117,7 +133,7 @@ POST 到 http://your-server:64100/v1/channels/weixin/incoming（带 secret heade
 - 检查请求 Header 中 `X-Lusiyuan-Channel-Secret` 是否与 `.env` 中的 `WEIXIN_BRIDGE_SECRET` 一致
 
 **Q: 返回 400 Bad Request**
-- 检查请求 Body 中是否包含 `external_user_id`、`external_conversation_id`、`text` 三个必填字段
+- 检查请求 Body 中是否包含 `text`，并且至少有 `external_user_id` 或 `sender_name` 其中一个
 
 **Q: 不想用 OpenClaw，能直接调吗？**
 - 可以，任何可以发 HTTP POST 请求的工具都可以调这个接口，只要带上正确的 secret。
