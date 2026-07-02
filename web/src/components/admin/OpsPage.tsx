@@ -150,32 +150,13 @@ function toTextList(value: unknown): string[] {
   return [JSON.stringify(value)];
 }
 
-function proposalMemoryMeta(proposal: {
+function memoryMeta(memory: {
   id: string;
-  targetMemoryId: string | null;
-  appliedMemoryId: string | null;
-  confidence: number;
   status: string;
+  tier: string;
+  tierMentionCount: number;
 }): string {
-  const target = proposal.targetMemoryId
-    ? `Target ${shortId(proposal.targetMemoryId)}`
-    : "Target 无";
-  const applied = proposal.appliedMemoryId
-    ? `Applied ${shortId(proposal.appliedMemoryId)}`
-    : "Applied 未生成";
-  return `${formatPercent(proposal.confidence)} · ${proposal.status} · ${target} · ${applied} · P ${shortId(proposal.id)}`;
-}
-
-function proposalMemoryMetaTitle(proposal: {
-  id: string;
-  targetMemoryId: string | null;
-  appliedMemoryId: string | null;
-}): string {
-  return [
-    `Proposal ID: ${proposal.id}`,
-    `Target Memory ID: ${proposal.targetMemoryId ?? "无"}`,
-    `Applied Memory ID: ${proposal.appliedMemoryId ?? "未生成"}`,
-  ].join(" · ");
+  return `${memory.status} · ${memory.tier} · 本层提及 ${memory.tierMentionCount} · M ${shortId(memory.id)}`;
 }
 
 function jobCount(job: DreamJob | null, key: keyof NonNullable<DreamJob["_count"]>): number {
@@ -422,7 +403,7 @@ export function DreamPage({ adminToken }: OpsPageProps) {
         return next;
       });
       setActionMessage(
-        `Dream 已完成：${result.signalCount} 个 signal，${result.proposalCount} 条提案，${result.riskCount} 个风险项。`
+        `Dream 已完成：${result.signalCount} 个 signal，${result.proposalCount} 条变更，${result.riskCount} 个风险项。`
       );
       await loadDream();
       await loadDeepSleep(result.jobId);
@@ -976,15 +957,15 @@ function DeepSleepPanel({
           </div>
 
           <SectionList
-            title="本轮记忆提案"
-            emptyText="Deep Sleep 没有生成记忆提案。"
-            items={detail?.proposals ?? []}
-            renderItem={(proposal) => (
+            title="本轮写入记忆"
+            emptyText="Deep Sleep 没有写入记忆。"
+            items={detail?.memories ?? []}
+            renderItem={(memory) => (
               <CompactItem
-                title={`${proposal.proposalType} · ${proposal.scope}/${proposal.type}`}
-                body={proposal.summary || proposal.content}
-                meta={proposalMemoryMeta(proposal)}
-                metaTitle={proposalMemoryMetaTitle(proposal)}
+                title={`${memory.scope}/${memory.type}`}
+                body={memory.summary || memory.content}
+                meta={memoryMeta(memory)}
+                metaTitle={`Memory ID: ${memory.id}`}
               />
             )}
           />

@@ -873,27 +873,16 @@ export interface AdminMemory {
   type: string;
   scope: string;
   tier: string;
-  strength: number;
-  riskLevel: string;
+  tierMentionCount: number;
+  tierEnteredAt: string | null;
   content: string;
   summary: string | null;
-  importance: number;
-  confidence: number;
   status: string;
-  source: string | null;
-  tags: unknown;
-  entities: unknown;
-  channel: string | null;
-  conversationId: string | null;
   sourceMessageIds: unknown;
-  sourceConversationIds: unknown;
-  sourceUserIds: unknown;
   mentionDayKeys: unknown;
   lastMentionedAt: string | null;
-  nextReviewAt: string | null;
   lastAccessedAt: string | null;
   accessCount: number;
-  metadata: unknown;
   createdAt: string;
   updatedAt: string;
 }
@@ -901,14 +890,12 @@ export interface AdminMemory {
 export interface AdminMemoryActivityDay {
   date: string;
   count: number;
-  importance: number;
 }
 
 export interface AdminMemoryActivity {
   days: AdminMemoryActivityDay[];
   totalCount: number;
   peakCount: number;
-  peakImportance: number;
   metric: string;
   dateField: string;
 }
@@ -920,57 +907,9 @@ export interface AdminMemoryWriteInput {
   type: string;
   scope: string;
   tier?: string;
-  strength?: number;
-  riskLevel?: string;
   content: string;
   summary?: string | null;
-  importance: number;
-  confidence: number;
   status?: string;
-  source?: string | null;
-  tags?: unknown;
-  entities?: unknown;
-  channel?: string | null;
-  conversationId?: string | null;
-  metadata?: unknown;
-}
-
-export type MemoryProposalStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "applied"
-  | "ignored";
-
-export interface MemoryProposal {
-  id: string;
-  reportId: string;
-  personId: string | null;
-  conversationId: string | null;
-  channel: string | null;
-  proposalType: string;
-  targetMemoryId: string | null;
-  scope: string;
-  type: string;
-  tier: string;
-  strength: number;
-  content: string;
-  summary: string | null;
-  tags: unknown;
-  entities: unknown;
-  reason: string;
-  confidence: number;
-  riskLevel: "low" | "medium" | "high" | string;
-  status: MemoryProposalStatus | string;
-  reviewedBy: string | null;
-  reviewedAt: string | null;
-  appliedMemoryId: string | null;
-  sourceMessageIds: unknown;
-  sourceConversationIds: unknown;
-  sourceUserIds: unknown;
-  metadata: unknown;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface MemoryRiskFlag {
@@ -1107,7 +1046,6 @@ export interface DreamConsolidationReport {
   promotedCount: number;
   rejectedCount: number;
   riskCount: number;
-  generatedProposalIds: unknown;
   rawOutput: unknown;
   metadata: unknown;
   createdAt: string;
@@ -1115,7 +1053,7 @@ export interface DreamConsolidationReport {
 
 export interface DreamDeepSleepDetail {
   reports: DreamConsolidationReport[];
-  proposals: MemoryProposal[];
+  memories: AdminMemory[];
   riskFlags: MemoryRiskFlag[];
   growthLogs: GrowthLogProposal[];
 }
@@ -2217,19 +2155,9 @@ function adminMemoryBody(input: AdminMemoryWriteInput) {
     type: input.type,
     scope: input.scope,
     tier: input.tier,
-    strength: input.strength,
-    risk_level: input.riskLevel,
     content: input.content,
     summary: input.summary,
-    importance: input.importance,
-    confidence: input.confidence,
     status: input.status,
-    source: input.source,
-    tags: input.tags,
-    entities: input.entities,
-    channel: input.channel,
-    conversation_id: input.conversationId,
-    metadata: input.metadata,
   };
 }
 
@@ -2285,165 +2213,6 @@ export async function archiveAdminMemory(input: {
     "归档记忆失败"
   );
   return data.memory;
-}
-
-export async function fetchMemoryProposals(input: {
-  token: string;
-  status?: string;
-  riskLevel?: string;
-  proposalType?: string;
-  scope?: string;
-  type?: string;
-  personId?: string;
-  reportId?: string;
-  query?: string;
-  from?: string;
-  to?: string;
-  limit?: number;
-}): Promise<MemoryProposal[]> {
-  const params = new URLSearchParams();
-  if (input.status && input.status !== "all") params.set("status", input.status);
-  if (input.riskLevel && input.riskLevel !== "all") params.set("risk_level", input.riskLevel);
-  if (input.proposalType && input.proposalType !== "all") {
-    params.set("proposal_type", input.proposalType);
-  }
-  if (input.scope && input.scope !== "all") params.set("scope", input.scope);
-  if (input.type && input.type !== "all") params.set("type", input.type);
-  if (input.personId) params.set("person_id", input.personId);
-  if (input.reportId) params.set("report_id", input.reportId);
-  if (input.query) params.set("q", input.query);
-  if (input.from) params.set("from", input.from);
-  if (input.to) params.set("to", input.to);
-  if (input.limit) params.set("limit", String(input.limit));
-
-  const response = await fetch(
-    `${API_BASE_URL}/v1/memory/proposals?${params.toString()}`,
-    { headers: adminHeaders(input.token) }
-  );
-  const data = await parseJsonResponse<{ proposals: MemoryProposal[] }>(
-    response,
-    "无法读取记忆提案"
-  );
-  return data.proposals ?? [];
-}
-
-export async function approveMemoryProposal(input: {
-  token: string;
-  proposalId: string;
-  reviewerId?: string;
-}): Promise<MemoryProposal> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/approve`,
-    {
-      method: "POST",
-      headers: {
-        ...adminHeaders(input.token),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
-    }
-  );
-  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
-    response,
-    "批准提案失败"
-  );
-  return data.proposal;
-}
-
-export async function rejectMemoryProposal(input: {
-  token: string;
-  proposalId: string;
-  reason?: string;
-  reviewerId?: string;
-}): Promise<MemoryProposal> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/reject`,
-    {
-      method: "POST",
-      headers: {
-        ...adminHeaders(input.token),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: input.reviewerId ?? "admin:web",
-        reason: input.reason,
-      }),
-    }
-  );
-  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
-    response,
-    "拒绝提案失败"
-  );
-  return data.proposal;
-}
-
-export async function applyMemoryProposal(input: {
-  token: string;
-  proposalId: string;
-  reviewerId?: string;
-}): Promise<MemoryProposal> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/apply`,
-    {
-      method: "POST",
-      headers: {
-        ...adminHeaders(input.token),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
-    }
-  );
-  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
-    response,
-    "应用提案失败"
-  );
-  return data.proposal;
-}
-
-export async function applyMemoryProposalGlobally(input: {
-  token: string;
-  proposalId: string;
-  reviewerId?: string;
-}): Promise<MemoryProposal> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/apply-global`,
-    {
-      method: "POST",
-      headers: {
-        ...adminHeaders(input.token),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
-    }
-  );
-  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
-    response,
-    "全局应用提案失败"
-  );
-  return data.proposal;
-}
-
-export async function revokeMemoryProposal(input: {
-  token: string;
-  proposalId: string;
-  reviewerId?: string;
-}): Promise<MemoryProposal> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/memory/proposals/${encodeURIComponent(input.proposalId)}/revoke`,
-    {
-      method: "POST",
-      headers: {
-        ...adminHeaders(input.token),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_id: input.reviewerId ?? "admin:web" }),
-    }
-  );
-  const data = await parseJsonResponse<{ proposal: MemoryProposal }>(
-    response,
-    "撤回提案失败"
-  );
-  return data.proposal;
 }
 
 export async function fetchMemoryRisks(input: {

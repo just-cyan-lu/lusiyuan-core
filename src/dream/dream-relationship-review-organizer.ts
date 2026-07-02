@@ -5,6 +5,11 @@ import { prisma } from "../db/prisma.js";
 import { modelProvider } from "../core/model-provider.js";
 import { memoryService } from "../core/memory.service.js";
 import {
+  buildMemoryAgingPatch,
+  buildMemoryReinforcement,
+  dayKeyFromDate,
+} from "../memory/memory-lifecycle.js";
+import {
   relationshipAutoUpdateEnabled,
   relationshipLabelFromAffinity,
   relationshipStateService,
@@ -55,15 +60,8 @@ interface NormalizedRelationshipMemoryChange {
   proposalType: RawRelationshipMemoryChange["proposalType"];
   targetMemoryId?: string | null;
   type: string;
-  tier: "short" | "mid" | "long";
-  strength: number;
-  riskLevel: "low" | "medium" | "high";
   content: string;
   summary?: string | null;
-  tags: string[];
-  entities: string[];
-  reason: string;
-  confidence: number;
   sourceMessageIds: string[];
 }
 
@@ -86,15 +84,19 @@ const reviewFields = new Set<RawRelationshipReviewField>([
   "interactionStyle",
 ]);
 
-const memoryProposalTypes = new Set<RawRelationshipMemoryChange["proposalType"]>([
+const memoryChangeTypes = new Set<RawRelationshipMemoryChange["proposalType"]>([
   "create_memory",
   "update_memory",
   "supersede_memory",
   "archive_memory",
 ]);
 
-const memoryTiers = new Set(["short", "mid", "long"]);
-const riskLevels = new Set(["low", "medium", "high"]);
+const memoryTierRank: Record<string, number> = {
+  temp: 0,
+  short: 1,
+  mid: 2,
+  long: 3,
+};
 
 function clampInt(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.round(value), min), max);
@@ -176,19 +178,26 @@ function adjustPositiveDelta(baseDelta: number, affinity: number): number {
   return baseDelta;
 }
 
-function sourceMessageIdsFromEvidence(
-  evidence: RawRelationshipReviewEvidence,
+function sourceMessageIdsFromList(
+  value: unknown,
   validUserMessageIds: Set<string>
 ): string[] {
-  if (!Array.isArray(evidence.sourceMessageIds)) return [];
+  if (!Array.isArray(value)) return [];
   const ids: string[] = [];
   const seen = new Set<string>();
-  for (const id of evidence.sourceMessageIds) {
+  for (const id of value) {
     if (typeof id !== "string" || !validUserMessageIds.has(id) || seen.has(id)) continue;
     seen.add(id);
     ids.push(id);
   }
   return ids;
+}
+
+function sourceMessageIdsFromEvidence(
+  evidence: RawRelationshipReviewEvidence,
+  validUserMessageIds: Set<string>
+): string[] {
+  return sourceMessageIdsFromList(evidence.sourceMessageIds, validUserMessageIds);
 }
 
 function evidenceKeyFor(
@@ -297,27 +306,12 @@ function normalizeEvidences(input: {
   return applyCaps(input.affinity, candidates);
 }
 
-function textList(value: unknown, maxItems = 12): string[] {
-  if (!Array.isArray(value)) return [];
-  const result: string[] = [];
-  for (const item of value) {
-    const text = cleanText(item, 80);
-    if (text) result.push(text);
-    if (result.length >= maxItems) break;
-  }
-  return Array.from(new Set(result));
-}
-
-function normalizeMemoryTier(value: unknown): "short" | "mid" | "long" {
-  return typeof value === "string" && memoryTiers.has(value)
-    ? (value as "short" | "mid" | "long")
-    : "short";
-}
-
-function normalizeRiskLevel(value: unknown): "low" | "medium" | "high" {
-  return typeof value === "string" && riskLevels.has(value)
-    ? (value as "low" | "medium" | "high")
-    : "low";
+function sortMemoriesForReview(memories: Memory[]): Memory[] {
+  return memories.sort((a, b) => {
+    const tierDelta = (memoryTierRank[b.tier] ?? 0) - (memoryTierRank[a.tier] ?? 0);
+    if (tierDelta !== 0) return tierDelta;
+    return b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
 }
 
 function normalizeMemoryChanges(input: {
@@ -330,11 +324,11 @@ function normalizeMemoryChanges(input: {
   const seen = new Set<string>();
 
   for (const rawChange of Array.isArray(input.raw.memoryChanges) ? input.raw.memoryChanges : []) {
-    if (!memoryProposalTypes.has(rawChange.proposalType)) continue;
+    if (!memoryChangeTypes.has(rawChange.proposalType)) continue;
     if (rawChange.type === "relationship" || rawChange.type === "core") continue;
 
-    const sourceMessageIds = sourceMessageIdsFromEvidence(
-      { ...rawChange, evidenceType: "sincerity" } as RawRelationshipReviewEvidence,
+    const sourceMessageIds = sourceMessageIdsFromList(
+      rawChange.sourceMessageIds,
       input.validUserMessageIds
     );
     if (sourceMessageIds.length === 0) continue;
@@ -348,8 +342,7 @@ function normalizeMemoryChanges(input: {
     }
 
     const content = cleanText(rawChange.content, 1000);
-    const reason = cleanText(rawChange.reason, 320);
-    if (!content || !reason) continue;
+    if (!content) continue;
 
     const key = [
       rawChange.proposalType,
@@ -365,38 +358,13 @@ function normalizeMemoryChanges(input: {
       proposalType: rawChange.proposalType,
       targetMemoryId: targetMemoryId ?? null,
       type: cleanText(rawChange.type, 80) ?? "personal_fact",
-      tier: normalizeMemoryTier(rawChange.tier),
-      strength: clampInt(rawChange.strength ?? 1, 1, 10),
-      riskLevel: normalizeRiskLevel(rawChange.riskLevel),
       content,
       summary: cleanPatchText(rawChange.summary, 240) ?? null,
-      tags: textList(rawChange.tags),
-      entities: textList(rawChange.entities),
-      reason,
-      confidence: cleanConfidence(rawChange.confidence),
       sourceMessageIds,
     });
   }
 
   return changes;
-}
-
-function memorySnapshot(memory: Memory): Prisma.InputJsonObject {
-  return {
-    id: memory.id,
-    personId: memory.personId,
-    scope: memory.scope,
-    type: memory.type,
-    tier: memory.tier,
-    strength: memory.strength,
-    riskLevel: memory.riskLevel,
-    content: memory.content,
-    summary: memory.summary,
-    confidence: memory.confidence,
-    status: memory.status,
-    tags: memory.tags,
-    entities: memory.entities,
-  };
 }
 
 function mergeStringArrays(...values: Array<unknown>): string[] {
@@ -414,19 +382,11 @@ function sourceInfoForChange(
   group: RelationshipMessageGroup,
   sourceMessageIds: string[]
 ): {
-  sourceConversationIds: string[];
-  sourceUserIds: string[];
   mentionDayKeys: string[];
   lastMentionedAt: Date | null;
 } {
   const sourceIdSet = new Set(sourceMessageIds);
   const messages = group.messages.filter((message) => sourceIdSet.has(message.id));
-  const sourceConversationIds = Array.from(
-    new Set(messages.map((message) => message.conversationId).filter((id): id is string => Boolean(id)))
-  );
-  const sourceUserIds = Array.from(
-    new Set(messages.map((message) => message.userId).filter((id): id is string => Boolean(id)))
-  );
   const mentionDayKeys = Array.from(
     new Set(messages.map((message) => message.createdAt.toISOString().slice(0, 10)))
   );
@@ -434,7 +394,20 @@ function sourceInfoForChange(
     if (!latest || message.createdAt > latest) return message.createdAt;
     return latest;
   }, null);
-  return { sourceConversationIds, sourceUserIds, mentionDayKeys, lastMentionedAt };
+  return { mentionDayKeys, lastMentionedAt };
+}
+
+function activeDayCountAfter(dayKeys: string[], date: Date | null | undefined): number {
+  if (!date) return 0;
+  const startDayKey = dayKeyFromDate(date);
+  return dayKeys.filter((dayKey) => dayKey > startDayKey).length;
+}
+
+function latestActivityStart(memory: Pick<Memory, "lastMentionedAt" | "tierEnteredAt" | "createdAt">): Date {
+  const candidates = [memory.lastMentionedAt, memory.tierEnteredAt, memory.createdAt].filter(
+    (date): date is Date => Boolean(date)
+  );
+  return candidates.reduce((latest, date) => (date > latest ? date : latest), memory.createdAt);
 }
 
 function groupSummary(group: RelationshipMessageGroup): {
@@ -472,12 +445,10 @@ function buildUserContent(input: {
     type: memory.type,
     scope: memory.scope,
     tier: memory.tier,
-    strength: memory.strength,
-    riskLevel: memory.riskLevel,
+    tierMentionCount: memory.tierMentionCount,
+    tierEnteredAt: memory.tierEnteredAt?.toISOString() ?? null,
     content: memory.content,
     summary: memory.summary,
-    tags: memory.tags,
-    entities: memory.entities,
     lastMentionedAt: memory.lastMentionedAt?.toISOString() ?? null,
     updatedAt: memory.updatedAt.toISOString(),
   }));
@@ -683,15 +654,19 @@ export class DreamRelationshipReviewOrganizer {
       };
     }
 
-    const [currentMemories, existingEvidenceKeys] = await Promise.all([
+    const lifecycleReviewCount = await this.reviewDueMemories({
+      personId: input.group.relationship.personId,
+    });
+
+    const [currentMemoriesRaw, existingEvidenceKeys] = await Promise.all([
       prisma.memory.findMany({
         where: {
           personId: input.group.relationship.personId,
           scope: "person",
           status: "active",
         },
-        orderBy: [{ tier: "desc" }, { importance: "desc" }, { updatedAt: "desc" }],
-        take: 40,
+        orderBy: [{ updatedAt: "desc" }],
+        take: 80,
       }),
       prisma.relationshipReviewEvidence
         .findMany({
@@ -700,6 +675,7 @@ export class DreamRelationshipReviewOrganizer {
         })
         .then((rows) => new Set(rows.map((row) => row.evidenceKey))),
     ]);
+    const currentMemories = sortMemoriesForReview(currentMemoriesRaw).slice(0, 40);
 
     const raw = await modelProvider.chatJson<RawRelationshipReviewOutput>(
       [
@@ -734,13 +710,18 @@ export class DreamRelationshipReviewOrganizer {
       currentMemories,
     });
 
-    if (!hasPatch(patch) && evidences.length === 0 && memoryChanges.length === 0) {
+    if (
+      !hasPatch(patch) &&
+      evidences.length === 0 &&
+      memoryChanges.length === 0 &&
+      lifecycleReviewCount === 0
+    ) {
       return {
-        proposalCount: 0,
+        proposalCount: lifecycleReviewCount,
         evidenceCount: 0,
         appliedCount: 0,
         pendingCount: 0,
-        memoryChangeCount: 0,
+        memoryChangeCount: lifecycleReviewCount,
         totalAffinityDelta: 0,
       };
     }
@@ -832,23 +813,20 @@ export class DreamRelationshipReviewOrganizer {
       }
     }
 
-    const appliedMemoryProposalIds = input.reportId
-      ? await this.applyMemoryChanges({
-          changes: memoryChanges,
-          group: input.group,
-          reportId: input.reportId,
-          jobId: input.jobId,
-          relationshipReviewProposalId: relationshipProposalId,
-          groupInfo,
-        })
-      : [];
+    const appliedMemoryCount = await this.applyMemoryChanges({
+      changes: memoryChanges,
+      group: input.group,
+    });
 
     return {
-      proposalCount: (relationshipProposalId ? 1 : 0) + appliedMemoryProposalIds.length,
+      proposalCount:
+        (relationshipProposalId ? 1 : 0) +
+        appliedMemoryCount +
+        lifecycleReviewCount,
       evidenceCount: relationshipEvidenceCount,
       appliedCount,
       pendingCount,
-      memoryChangeCount: appliedMemoryProposalIds.length,
+      memoryChangeCount: appliedMemoryCount + lifecycleReviewCount,
       totalAffinityDelta,
     };
   }
@@ -856,134 +834,146 @@ export class DreamRelationshipReviewOrganizer {
   private async applyMemoryChanges(input: {
     changes: NormalizedRelationshipMemoryChange[];
     group: RelationshipMessageGroup;
-    reportId: string;
-    jobId?: string;
-    relationshipReviewProposalId?: string | null;
-    groupInfo: ReturnType<typeof groupSummary>;
-  }): Promise<string[]> {
-    const proposalIds: string[] = [];
+  }): Promise<number> {
+    let appliedCount = 0;
 
     for (const change of input.changes) {
       const result = await this.applyMemoryChange({
         change,
         group: input.group,
-        reportId: input.reportId,
-        jobId: input.jobId,
-        relationshipReviewProposalId: input.relationshipReviewProposalId,
-        groupInfo: input.groupInfo,
       });
-      if (result.proposalId) proposalIds.push(result.proposalId);
-      if (result.memory) {
+      if (result.changed) appliedCount += 1;
+      if (result.memory?.status === "active") {
         memoryService.generateAndStoreEmbedding(result.memory).catch((err) =>
           console.warn("[dream] personal memory embedding failed:", err)
         );
       }
     }
 
-    return proposalIds;
+    return appliedCount;
+  }
+
+  private async activeChatDayKeysForPerson(personId: string, after: Date | null): Promise<string[]> {
+    const links = await prisma.identityLink.findMany({
+      where: { personId },
+      select: { userId: true },
+    });
+    const userIds = links.map((link) => link.userId);
+    if (userIds.length === 0) return [];
+
+    const where: Prisma.MessageWhereInput = {
+      role: "user",
+      conversation: { userId: { in: userIds } },
+    };
+    if (after) where.createdAt = { gt: after };
+
+    const rows = await prisma.message.findMany({
+      where,
+      select: { createdAt: true },
+      orderBy: { createdAt: "asc" },
+      take: 5000,
+    });
+
+    return Array.from(new Set(rows.map((row) => dayKeyFromDate(row.createdAt)))).sort();
+  }
+
+  private async reviewDueMemories(input: {
+    personId: string;
+  }): Promise<number> {
+    const now = new Date();
+    const dueMemories = await prisma.memory.findMany({
+      where: {
+        personId: input.personId,
+        scope: "person",
+        status: "active",
+      },
+      orderBy: [{ updatedAt: "desc" }],
+      take: 500,
+    });
+    const earliestActivityStart = dueMemories.reduce<Date | null>((earliest, memory) => {
+      const start = latestActivityStart(memory);
+      if (!earliest || start < earliest) return start;
+      return earliest;
+    }, null);
+    const activeDayKeys = await this.activeChatDayKeysForPerson(
+      input.personId,
+      earliestActivityStart
+    );
+
+    let appliedCount = 0;
+    for (const memory of dueMemories) {
+      const activeDayCountSinceWindowStart = activeDayCountAfter(
+        activeDayKeys,
+        latestActivityStart(memory)
+      );
+      const patch = buildMemoryAgingPatch(memory, {
+        now,
+        activeDayCountSinceWindowStart,
+      });
+      if (!patch) continue;
+
+      const data: Prisma.MemoryUncheckedUpdateInput = {};
+      if (patch.tier !== undefined) data.tier = patch.tier;
+      if (patch.tierMentionCount !== undefined) {
+        data.tierMentionCount = patch.tierMentionCount;
+      }
+      if (patch.tierEnteredAt !== undefined) data.tierEnteredAt = patch.tierEnteredAt;
+      if (patch.status !== undefined) data.status = patch.status;
+      const hasMeaningfulChange = Object.keys(data).length > 0;
+      if (!hasMeaningfulChange) continue;
+
+      const updated = await prisma.memory.update({
+        where: { id: memory.id },
+        data,
+      });
+      appliedCount += 1;
+
+      if (updated.status === "active" && patch.tier !== undefined) {
+        memoryService.generateAndStoreEmbedding(updated).catch((err) =>
+          console.warn("[dream] memory lifecycle embedding failed:", err)
+        );
+      }
+    }
+
+    return appliedCount;
   }
 
   private async applyMemoryChange(input: {
     change: NormalizedRelationshipMemoryChange;
     group: RelationshipMessageGroup;
-    reportId: string;
-    jobId?: string;
-    relationshipReviewProposalId?: string | null;
-    groupInfo: ReturnType<typeof groupSummary>;
-  }): Promise<{ proposalId: string | null; memory: Memory | null }> {
-    const { change, group, reportId, jobId, relationshipReviewProposalId, groupInfo } = input;
+  }): Promise<{ memory: Memory | null; changed: boolean }> {
+    const { change, group } = input;
     const sourceInfo = sourceInfoForChange(group, change.sourceMessageIds);
     const now = new Date();
 
     return prisma.$transaction(async (tx) => {
-      const baseProposalData = {
-        reportId,
-        personId: group.relationship.personId,
-        conversationId: groupInfo.conversationId ?? null,
-        channel: groupInfo.channel ?? null,
-        proposalType: change.proposalType,
-        targetMemoryId: change.targetMemoryId ?? null,
-        scope: "person",
-        type: change.type,
-        tier: change.tier,
-        strength: change.strength,
-        content: change.content,
-        summary: change.summary ?? null,
-        tags: change.tags,
-        entities: change.entities,
-        reason: change.reason,
-        confidence: change.confidence,
-        riskLevel: change.riskLevel,
-        status: "applied",
-        reviewedBy: "dream",
-        reviewedAt: now,
-        sourceMessageIds: change.sourceMessageIds,
-        sourceConversationIds: sourceInfo.sourceConversationIds,
-        sourceUserIds: sourceInfo.sourceUserIds,
-        metadata: {
-          autoApplied: true,
-          jobId: jobId ?? null,
-          relationshipReviewProposalId: relationshipReviewProposalId ?? null,
-        },
-      } satisfies Prisma.MemoryProposalUncheckedCreateInput;
-
       if (change.proposalType === "create_memory") {
+        const lifecycle = buildMemoryReinforcement({
+          scope: "person",
+          sourceDayKeys: sourceInfo.mentionDayKeys,
+          lastMentionedAt: sourceInfo.lastMentionedAt,
+          now,
+        });
         const memory = await tx.memory.create({
           data: {
             personId: group.relationship.personId,
             scope: "person",
             type: change.type,
-            tier: change.tier,
-            strength: change.strength,
-            riskLevel: change.riskLevel,
+            tier: lifecycle.tier,
+            tierMentionCount: lifecycle.tierMentionCount,
+            tierEnteredAt: lifecycle.tierEnteredAt,
             content: change.content,
             summary: change.summary ?? null,
-            importance: Math.max(1, Math.min(10, Math.round(change.confidence * 10))),
-            confidence: change.confidence,
             status: "active",
-            source: "dream_relationship_review",
-            tags: change.tags,
-            entities: change.entities,
-            channel: groupInfo.channel ?? null,
-            conversationId: groupInfo.conversationId ?? null,
             sourceMessageIds: change.sourceMessageIds,
-            sourceConversationIds: sourceInfo.sourceConversationIds,
-            sourceUserIds: sourceInfo.sourceUserIds,
-            mentionDayKeys: sourceInfo.mentionDayKeys,
-            lastMentionedAt: sourceInfo.lastMentionedAt,
-            metadata: {
-              autoApplied: true,
-              jobId: jobId ?? null,
-              relationshipReviewProposalId: relationshipReviewProposalId ?? null,
-              reason: change.reason,
-            },
+            mentionDayKeys: lifecycle.mentionDayKeys,
+            lastMentionedAt: lifecycle.lastMentionedAt,
           },
         });
-        const proposal = await tx.memoryProposal.create({
-          data: {
-            ...baseProposalData,
-            appliedMemoryId: memory.id,
-            metadata: {
-              ...(baseProposalData.metadata as Prisma.InputJsonObject),
-              rollback: { type: "create_memory", appliedMemoryId: memory.id },
-            },
-          },
-        });
-        const updated = await tx.memory.update({
-          where: { id: memory.id },
-          data: {
-            metadata: {
-              ...(memory.metadata && typeof memory.metadata === "object" && !Array.isArray(memory.metadata)
-                ? (memory.metadata as Prisma.JsonObject)
-                : {}),
-              sourceProposalId: proposal.id,
-            },
-          },
-        });
-        return { proposalId: proposal.id, memory: updated };
+        return { memory, changed: true };
       }
 
-      if (!change.targetMemoryId) return { proposalId: null, memory: null };
+      if (!change.targetMemoryId) return { memory: null, changed: false };
       const target = await tx.memory.findFirst({
         where: {
           id: change.targetMemoryId,
@@ -991,24 +981,14 @@ export class DreamRelationshipReviewOrganizer {
           scope: "person",
         },
       });
-      if (!target) return { proposalId: null, memory: null };
+      if (!target) return { memory: null, changed: false };
 
       if (change.proposalType === "archive_memory") {
-        const archived = await tx.memory.update({
+        const memory = await tx.memory.update({
           where: { id: target.id },
           data: { status: "archived" },
         });
-        const proposal = await tx.memoryProposal.create({
-          data: {
-            ...baseProposalData,
-            appliedMemoryId: archived.id,
-            metadata: {
-              ...(baseProposalData.metadata as Prisma.InputJsonObject),
-              rollback: { type: "archive_memory", targetMemory: memorySnapshot(target) },
-            },
-          },
-        });
-        return { proposalId: proposal.id, memory: null };
+        return { memory, changed: true };
       }
 
       if (change.proposalType === "supersede_memory") {
@@ -1016,106 +996,53 @@ export class DreamRelationshipReviewOrganizer {
           where: { id: target.id },
           data: { status: "superseded" },
         });
+        const lifecycle = buildMemoryReinforcement({
+          scope: "person",
+          sourceDayKeys: sourceInfo.mentionDayKeys,
+          lastMentionedAt: sourceInfo.lastMentionedAt,
+          now,
+        });
         const memory = await tx.memory.create({
           data: {
             personId: group.relationship.personId,
             scope: "person",
             type: change.type,
-            tier: change.tier,
-            strength: change.strength,
-            riskLevel: change.riskLevel,
+            tier: lifecycle.tier,
+            tierMentionCount: lifecycle.tierMentionCount,
+            tierEnteredAt: lifecycle.tierEnteredAt,
             content: change.content,
             summary: change.summary ?? null,
-            importance: Math.max(1, Math.min(10, Math.round(change.confidence * 10))),
-            confidence: change.confidence,
             status: "active",
-            source: "dream_relationship_review",
-            tags: change.tags,
-            entities: change.entities,
-            channel: groupInfo.channel ?? null,
-            conversationId: groupInfo.conversationId ?? null,
             sourceMessageIds: change.sourceMessageIds,
-            sourceConversationIds: sourceInfo.sourceConversationIds,
-            sourceUserIds: sourceInfo.sourceUserIds,
-            mentionDayKeys: sourceInfo.mentionDayKeys,
-            lastMentionedAt: sourceInfo.lastMentionedAt,
-            metadata: {
-              autoApplied: true,
-              jobId: jobId ?? null,
-              relationshipReviewProposalId: relationshipReviewProposalId ?? null,
-              supersedesMemoryId: target.id,
-              reason: change.reason,
-            },
+            mentionDayKeys: lifecycle.mentionDayKeys,
+            lastMentionedAt: lifecycle.lastMentionedAt,
           },
         });
-        const proposal = await tx.memoryProposal.create({
-          data: {
-            ...baseProposalData,
-            appliedMemoryId: memory.id,
-            metadata: {
-              ...(baseProposalData.metadata as Prisma.InputJsonObject),
-              rollback: {
-                type: "supersede_memory",
-                targetMemory: memorySnapshot(target),
-                appliedMemoryId: memory.id,
-              },
-            },
-          },
-        });
-        const updated = await tx.memory.update({
-          where: { id: memory.id },
-          data: {
-            metadata: {
-              ...(memory.metadata && typeof memory.metadata === "object" && !Array.isArray(memory.metadata)
-                ? (memory.metadata as Prisma.JsonObject)
-                : {}),
-              sourceProposalId: proposal.id,
-            },
-          },
-        });
-        return { proposalId: proposal.id, memory: updated };
+        return { memory, changed: true };
       }
 
+      const lifecycle = buildMemoryReinforcement({
+        existing: target,
+        scope: "person",
+        sourceDayKeys: sourceInfo.mentionDayKeys,
+        lastMentionedAt: sourceInfo.lastMentionedAt,
+        now,
+      });
       const updated = await tx.memory.update({
         where: { id: target.id },
         data: {
           type: change.type,
-          tier: change.tier,
-          strength: Math.max(target.strength, change.strength),
-          riskLevel: change.riskLevel,
+          tier: lifecycle.tier,
+          tierMentionCount: lifecycle.tierMentionCount,
+          tierEnteredAt: lifecycle.tierEnteredAt,
           content: change.content,
           summary: change.summary ?? null,
-          confidence: change.confidence,
-          tags: change.tags,
-          entities: change.entities,
           sourceMessageIds: mergeStringArrays(target.sourceMessageIds, change.sourceMessageIds),
-          sourceConversationIds: mergeStringArrays(
-            target.sourceConversationIds,
-            sourceInfo.sourceConversationIds
-          ),
-          sourceUserIds: mergeStringArrays(target.sourceUserIds, sourceInfo.sourceUserIds),
-          mentionDayKeys: mergeStringArrays(target.mentionDayKeys, sourceInfo.mentionDayKeys),
-          lastMentionedAt: sourceInfo.lastMentionedAt ?? target.lastMentionedAt,
-          metadata: {
-            ...(target.metadata && typeof target.metadata === "object" && !Array.isArray(target.metadata)
-              ? (target.metadata as Prisma.JsonObject)
-              : {}),
-            lastDreamUpdateAt: now.toISOString(),
-            lastDreamReason: change.reason,
-          },
+          mentionDayKeys: lifecycle.mentionDayKeys,
+          lastMentionedAt: lifecycle.lastMentionedAt,
         },
       });
-      const proposal = await tx.memoryProposal.create({
-        data: {
-          ...baseProposalData,
-          appliedMemoryId: updated.id,
-          metadata: {
-            ...(baseProposalData.metadata as Prisma.InputJsonObject),
-            rollback: { type: "update_memory", targetMemory: memorySnapshot(target) },
-          },
-        },
-      });
-      return { proposalId: proposal.id, memory: updated };
+      return { memory: updated, changed: true };
     });
   }
 }

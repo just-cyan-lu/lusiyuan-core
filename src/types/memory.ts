@@ -10,32 +10,21 @@ export type MemoryType =
 
 export type MemoryScope = "person" | "project" | "global" | "topic";
 export type MemoryStatus = "active" | "archived" | "superseded" | "rejected";
-export type MemoryTier = "short" | "mid" | "long";
-export type MemoryRiskLevel = "low" | "medium" | "high";
+export type MemoryTier = "temp" | "short" | "mid" | "long";
 
 export interface NewMemory {
   type: MemoryType;
   scope?: MemoryScope;
   personId?: string | null;
   tier?: MemoryTier;
-  strength?: number;
-  riskLevel?: MemoryRiskLevel;
+  tierMentionCount?: number;
+  tierEnteredAt?: Date;
   content: string;
   summary?: string;
-  importance: number;
-  confidence?: number;
   status?: MemoryStatus;
-  source?: string;
-  tags?: string[];
-  entities?: string[];
-  channel?: string;
-  conversationId?: string;
   sourceMessageIds?: string[];
-  sourceConversationIds?: string[];
-  sourceUserIds?: string[];
   mentionDayKeys?: string[];
   lastMentionedAt?: Date;
-  nextReviewAt?: Date;
 }
 
 export type { Memory } from "@prisma/client";

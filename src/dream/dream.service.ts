@@ -14,7 +14,6 @@ import {
   isTaskCancellationError,
   throwIfTaskCancelled,
 } from "../runtime/running-task-registry.js";
-import type { MemoryProposalOwnership } from "../memory/memory-proposal-ownership.js";
 import type {
   CreateDreamJobInput,
   RunDailyDreamInput,
@@ -164,18 +163,11 @@ export class DreamService {
       // ── Phase 5: Deep Sleep — Consolidation ──────────────────────────────
       await this.setPhase(jobId, "deep_sleep");
 
-      const ownership = await this.resolveProposalOwnership({
-        userId,
-        conversationId,
-        channel,
-      });
-
       const consolidation = await dreamConsolidator.consolidate({
         signals,
         dailyNote,
         diaryEntry,
         jobId,
-        ownership,
         signal,
       });
       throwIfTaskCancelled(signal);
@@ -202,7 +194,7 @@ export class DreamService {
           dailyNoteId: dailyNote.id,
           diaryEntryId: diaryEntry?.id,
           signalCount: signals.length,
-          proposalCount: (consolidation?.memoryProposals.length ?? 0) +
+          proposalCount: (consolidation?.memories.length ?? 0) +
             relationshipReview.proposalCount,
           riskCount: consolidation?.riskFlags.length ?? 0,
           userId,
@@ -220,7 +212,7 @@ export class DreamService {
         dailyNoteId: dailyNote.id,
         diaryEntryId: diaryEntry?.id,
         signalCount: signals.length,
-        proposalCount: (consolidation?.memoryProposals.length ?? 0) +
+        proposalCount: (consolidation?.memories.length ?? 0) +
           relationshipReview.proposalCount,
         riskCount: consolidation?.riskFlags.length ?? 0,
       };
@@ -291,45 +283,6 @@ export class DreamService {
       proposalCount: 0,
       riskCount: 0,
     };
-  }
-
-  private async resolveProposalOwnership(input: {
-    userId?: string;
-    conversationId?: string;
-    channel?: string;
-  }): Promise<MemoryProposalOwnership> {
-    let userId: string | null = null;
-    let conversationId: string | null = null;
-    let channel: string | null = input.channel ?? null;
-
-    if (input.conversationId) {
-      const conversation = await prisma.conversation.findFirst({
-        where: {
-          OR: [
-            { id: input.conversationId },
-            { externalConversationId: input.conversationId },
-          ],
-        },
-        select: { id: true, userId: true, channel: true },
-      });
-      if (conversation) {
-        conversationId = conversation.id;
-        userId = conversation.userId;
-        channel = channel ?? conversation.channel;
-      }
-    }
-
-    if (!userId && input.userId) {
-      const user = await prisma.user.findFirst({
-        where: {
-          OR: [{ id: input.userId }, { externalId: input.userId }],
-        },
-        select: { id: true },
-      });
-      userId = user?.id ?? null;
-    }
-
-    return { userId, conversationId, channel };
   }
 
   async getDreamReport(jobId: string) {

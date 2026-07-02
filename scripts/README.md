@@ -9,12 +9,11 @@
 | 脚本 | 常用命令 | 会写数据库 | 用途 |
 | --- | --- | --- | --- |
 | `seed-relationship-conversations.ts` | `npm run seed:relationships` | 是 | 创建关系/身份/对话测试数据。会先清掉自己创建的那批测试数据再重建。 |
-| `seed-admin-demo.ts` | `npm run seed:admin` | 是 | 创建 Admin 演示数据，包含用户、消息、记忆、Dream、记忆提案等。 |
+| `seed-admin-demo.ts` | `npm run seed:admin` | 是 | 创建 Admin 演示数据，包含用户、消息、记忆和 Dream 产物。 |
 | `ensure-pgvector-indexes.ts` | `npm run db:push` 后自动跑 | 是 | 确保 pgvector 扩展和 HNSW 索引存在。 |
 | `backfill-memory-embeddings.ts` | `npm run embeddings:backfill` | 是 | 给已有长期记忆补 embedding。 |
 | `backfill-message-embeddings.ts` | `npm run context:index -- 500` | 是 | 给历史聊天消息补 embedding，用于旧原文召回。 |
 | `inspect-memory-retrieval.ts` | `npm run embeddings:inspect -- "问题" <userId>` | 否 | 调试某个用户的记忆检索结果。 |
-| `apply-memory-proposals.ts` | `npm run memory:apply-proposals -- --proposal=<id>` | 是 | 应用记忆提案；也可批量应用已批准提案。 |
 | `run-dream.ts` | `npm run dream:run` | 是 | 手动触发一次 Dream Cycle。 |
 | `inspect-dream-job.ts` | `npm run dream:inspect -- --latest` | 否 | 查看 Dream Job、daily note、signals、diary、report 和 morning brief。 |
 | `inspect-dream-diary.ts` | `npm run dream:diary -- --limit=5` | 否 | 查看 Dream Diary。 |
@@ -64,7 +63,6 @@ npm run seed:relationships
 - demo conversation 和消息。
 - user/global memory。
 - Dream job、daily note、signals、diary、consolidation report。
-- memory proposals。
 
 命令：
 
@@ -153,7 +151,7 @@ npm run dream:run
 npm run dream:run -- --user-id=<userId>
 ```
 
-这个脚本会写入 Dream job、daily note、signals、diary、consolidation report、提案等数据，也可能触发关系复盘和运行态摘要更新。
+这个脚本会写入 Dream job、daily note、signals、diary、consolidation report、记忆、成长记录和风险项，也可能触发关系复盘和运行态摘要更新。
 
 ### `inspect-dream-job.ts`
 
@@ -198,38 +196,6 @@ npm run dream:cleanup-locks
 ```
 
 只有在开发测试时 Dream 锁卡住、或者确认没有 Dream 正在跑时才用。它会删除所有 Dream 锁。
-
-## 记忆提案
-
-### `apply-memory-proposals.ts`
-
-应用记忆提案。
-
-查看待处理提案：
-
-```bash
-npm run memory:apply-proposals
-```
-
-应用单条：
-
-```bash
-npm run memory:apply-proposals -- --proposal=<proposalId>
-```
-
-应用所有已批准提案：
-
-```bash
-npm run memory:apply-proposals -- --approved
-```
-
-指定 reviewer：
-
-```bash
-npm run memory:apply-proposals -- --proposal=<proposalId> --reviewer=<name>
-```
-
-这个脚本会改写记忆和提案状态。
 
 ## 工具与渠道
 

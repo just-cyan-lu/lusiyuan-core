@@ -24,7 +24,6 @@
     "embeddings:inspect": "tsx scripts/inspect-memory-retrieval.ts",
     "context:index": "tsx scripts/backfill-message-embeddings.ts",
     "tools:inspect": "tsx scripts/inspect-tools.ts",
-    "memory:apply-proposals": "tsx scripts/apply-memory-proposals.ts",
     "dream:run": "tsx scripts/run-dream.ts",
     "dream:inspect": "tsx scripts/inspect-dream-job.ts",
     "dream:diary": "tsx scripts/inspect-dream-diary.ts",

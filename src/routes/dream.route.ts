@@ -167,14 +167,22 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
     });
 
     const reportIds = reports.map((report) => report.id);
+    const memoryIds = Array.from(new Set(reports.flatMap((report) => {
+      const metadata = report.metadata;
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
+      const ids = (metadata as Record<string, unknown>).generatedMemoryIds;
+      return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+    })));
 
-    const [proposals, riskFlags, growthLogs] =
+    const [memories, riskFlags, growthLogs] =
       reportIds.length > 0
         ? await Promise.all([
-            prisma.memoryProposal.findMany({
-              where: { reportId: { in: reportIds } },
-              orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
-            }),
+            memoryIds.length > 0
+              ? prisma.memory.findMany({
+                  where: { id: { in: memoryIds } },
+                  orderBy: [{ updatedAt: "desc" }],
+                })
+              : Promise.resolve([]),
             prisma.memoryRiskFlag.findMany({
               where: { reportId: { in: reportIds } },
               orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
@@ -186,7 +194,26 @@ export async function dreamRoute(app: FastifyInstance): Promise<void> {
           ])
         : [[], [], []];
 
-    return reply.send({ reports, proposals, riskFlags, growthLogs });
+    return reply.send({ reports, memories, riskFlags, growthLogs });
+  });
+
+  app.get("/v1/memory/risks", async (request, reply) => {
+    const query = request.query as {
+      status?: string;
+      limit?: string;
+      from?: string;
+      to?: string;
+    };
+    const range = dateRange(query.from, query.to);
+    const risks = await prisma.memoryRiskFlag.findMany({
+      where: {
+        ...(query.status && query.status !== "all" ? { status: query.status } : {}),
+        ...(range ? { createdAt: range } : {}),
+      },
+      orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
+      take: parseLimit(query.limit, 50),
+    });
+    return reply.send({ risks });
   });
 
   // GET /v1/dream/daily-notes — list daily notes

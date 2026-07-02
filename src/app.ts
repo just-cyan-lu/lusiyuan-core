@@ -9,7 +9,6 @@ import { chatRoute } from "./routes/chat.route.js";
 import { channelsRoute } from "./routes/channels.route.js";
 import { weixinRoute } from "./channels/weixin/weixin.route.js";
 import { toolsRoute } from "./routes/tools.route.js";
-import { memoryProposalsRoute } from "./routes/memory-proposals.route.js";
 import { dreamRoute } from "./routes/dream.route.js";
 import { adminRoute } from "./routes/admin.route.js";
 import { webSearchRoute } from "./routes/web-search.route.js";
@@ -57,7 +56,6 @@ export function buildApp() {
   void app.register(channelsRoute);
   void app.register(weixinRoute);
   void app.register(toolsRoute);
-  void app.register(memoryProposalsRoute);
   void app.register(dreamRoute);
   void app.register(adminRoute);
   void app.register(webSearchRoute);

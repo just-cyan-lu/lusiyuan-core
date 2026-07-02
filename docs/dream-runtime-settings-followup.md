@@ -15,13 +15,13 @@
 ## 本轮已删除
 
 - `REFLECTION_OWNER_ONLY`：Reflection 路由已经统一要求 admin auth，没有业务代码读取这个开关。
-- `DREAM_AUTO_APPLY`：Dream 当前只生成 pending proposal，没有自动应用逻辑；保留这个开关会误导为 Dream 已支持自动写入。
+- `DREAM_AUTO_APPLY`：Dream 当前只生成 pending 产物，没有自动应用逻辑；保留这个开关会误导为 Dream 已支持自动写入。
 - `DREAM_AUTO_RUN`：Dream 只保留总开关；`DREAM_ENABLED=true` 时按 `DREAM_CRON` 自动运行，不再需要第二个自动运行开关。
 - `DREAM_TIMEZONE`：使用服务器本地时间解释 `DREAM_CRON`。
 - `DREAM_DEFAULT_LOOKBACK_HOURS`、`DREAM_MAX_LOOKBACK_DAYS`、`DREAM_MIN_SOURCE_EVENTS`、`DREAM_MAX_MESSAGES`、`DREAM_MAX_TOOL_CALLS`、`DREAM_MAX_REFLECTION_REPORTS`、`DREAM_MAX_MEMORY_PROPOSALS`：连续区间完整读取后不再需要。
 - `DREAM_MIN_CONFIDENCE`、`DREAM_MIN_EVIDENCE_COUNT`、`DREAM_MAX_PROPOSALS_PER_RUN`、`DREAM_DIARY_MAX_CHARS`、`DREAM_DIARY_VISIBILITY`：避免通过配置提前丢弃或截断 Dream 训练材料。
-- `DREAM_REDACT_PRIVATE_DATA`：Dream 产物只在 admin 查看，暂时不做手机号、邮箱等隐私脱敏，也不因为疑似隐私内容丢弃 signal/proposal。
-- `DREAM_LIGHT_ENABLED`、`DREAM_REM_ENABLED`、`DREAM_DEEP_ENABLED`、`DREAM_DIARY_ENABLED`、`DREAM_ALLOW_MEMORY_PROPOSALS`、`DREAM_ALLOW_GROWTH_LOG_PROPOSALS`：删除细分开关，`DREAM_ENABLED=true` 时固定完整运行 Dream 并生成日记、记忆提案、成长记录提案、风险项。
+- `DREAM_REDACT_PRIVATE_DATA`：Dream 产物只在 admin 查看，暂时不做手机号、邮箱等隐私脱敏，也不因为疑似隐私内容丢弃 signal/产物。
+- `DREAM_LIGHT_ENABLED`、`DREAM_REM_ENABLED`、`DREAM_DEEP_ENABLED`、`DREAM_DIARY_ENABLED`、`DREAM_ALLOW_MEMORY_PROPOSALS`、`DREAM_ALLOW_GROWTH_LOG_PROPOSALS`：删除细分开关，`DREAM_ENABLED=true` 时固定完整运行 Dream 并生成日记、记忆、成长记录提案、风险项。
 - `DREAM_LOCK_TTL_MINUTES`：删除配置项。Dream 运行锁不再由设置页控制；如果已有 Dream 正在运行，本次触发直接返回 `running` 并跳过，等待下一次触发。
 
 ## 后续原则

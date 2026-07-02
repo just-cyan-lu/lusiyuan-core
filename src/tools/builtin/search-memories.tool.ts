@@ -17,7 +17,6 @@ interface SearchMemoriesOutput {
     type: string;
     content: string;
     summary?: string | null;
-    importance: number;
   }>;
 }
 
@@ -31,8 +30,6 @@ async function handler(
   const budgeted = await memoryService.retrieveRelevantMemories({
     personId: relationship.personId,
     query,
-    channel: context.channel,
-    conversationId: context.conversationId,
   });
   throwIfTaskCancelled(context.signal);
 
@@ -43,7 +40,6 @@ async function handler(
       type: b.memory.type,
       content: b.memory.content,
       summary: (b.memory as { summary?: string | null }).summary,
-      importance: b.memory.importance,
     })),
   };
 }
