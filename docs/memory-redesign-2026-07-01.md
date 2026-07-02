@@ -141,9 +141,9 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 - 支持归档记忆。
 - 支持手动改身份、scope、tier、内容、摘要和来源消息。
 
-## 下一步设计：冲突、去重、有效提及识别
+## 已完成：冲突、去重、有效提及识别、写入流程
 
-当前系统已经能写入和检索记忆，但还需要让记忆更可信：不要重复写、不要把新旧矛盾都留着、不要靠关键词误判“再次提起”。
+当前系统已经能在 Dream 关系复盘里处理记忆冲突和重复问题：不要重复写、不要把新旧矛盾都留着、不要靠关键词自动误判“再次提起”，并且同一次 Dream 里同一条旧记忆只会落一个最终动作。
 
 ### 目标
 
@@ -154,7 +154,7 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 
 ### 新增动作：reinforce_memory
 
-建议给 `memoryChanges` 增加一个动作：
+`memoryChanges` 已支持一个动作：
 
 ```json
 {
@@ -173,13 +173,24 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 
 这样“有效提及识别”不需要依赖 update。很多时候用户只是再次聊到同一个事实，并不需要改写记忆内容。
 
+`memoryChanges` 也支持可选字段 `relationToTarget`：
+
+- `same_fact`：同一事实，只是再次提到。
+- `more_specific`：新信息是旧记忆的更具体版本。
+- `newer_version`：新信息取代旧信息。
+- `conflict`：新旧信息互相矛盾。
+- `related_but_distinct`：相关但不是同一条记忆。
+- `unrelated`：无关。
+
+这个字段由 LLM 输出，系统会结合短实体、反向事实和旧内容再兜底校验，不盲信模型。
+
 ### 候选匹配
 
 每次 Dream 处理某个身份时，先准备候选旧记忆：
 
 - 当前身份下 active 的个人记忆。
-- 和本轮消息语义相近的全局、项目、话题记忆。
-- 如果本轮有明确 `targetMemoryId`，直接把目标记忆加入候选。
+- 和本轮消息语义相近的个人、全局、项目、话题记忆。
+- 和本轮用户消息共享短实体/短语的个人记忆。
 
 候选召回不能只靠整段向量相似。短实体、食物名、作品名、人名、项目名很容易只占一句话里的几个字，但它们往往正是冲突点。比如旧记忆是“用户喜欢吃螺蛳粉”，新消息是“我不是喜欢螺蛳粉，我是不喜欢”，如果只看整段语义，可能召不回旧记忆。
 
@@ -187,13 +198,15 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 
 - 语义候选：用本轮消息 embedding 找整体相关的旧记忆。
 - 实体/短语候选：从本轮消息里抽取关键名词、偏好对象、项目名、作品名等，再匹配旧记忆里的同名或近似表达。
+- 最近/层级候选：补一些当前身份下近期更新或层级更高的个人记忆，避免语义索引缺失时完全看不到旧资料。
 
-候选数量不需要很大，建议内部固定上限：
+候选数量内部固定，不放到设置页：
 
-- 个人记忆候选：按向量相似 + 最近更新时间取前 30 条。
-- 全局/项目/话题候选：按向量相似取前 20 条。
+- 语义候选：用 pgvector 从个人、全局、项目、话题记忆中召回。
 - 实体/短语候选：每个身份额外保留最多 20 条，用来兜住短词反向事实。
+- 最近/层级候选：最多补 40 条。
 - 长期记忆可以略微提高候选优先级，但仍必须语义相关。
+- `scope=global/project/topic` 的候选只作为背景参考；关系复盘里的 `memoryChanges` 只允许修改 `scope=person` 的记忆。
 
 ### 关系判断
 
@@ -208,14 +221,22 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 | `related_but_distinct` | 相关但不是同一条记忆 | 可以 `create_memory` |
 | `unrelated` | 无关 | 忽略 |
 
-第一版可以让 LLM 在 Dream prompt 中直接输出这个判断；系统负责校验目标 id、来源消息和 scope。
+Dream prompt 会要求 LLM 输出这个判断；系统负责校验目标 id、来源消息、scope，并在必要时自动改写动作。
+
+系统兜底规则：
+
+- `create_memory` 命中同一事实旧记忆时，转成 `reinforce_memory`。
+- `create_memory` 命中反向事实、纠错或更新版本时，转成 `update_memory`。
+- `update_memory` 内容没有实际变化，或 relation 是 `same_fact` 时，转成 `reinforce_memory`。
+- relation 是 `related_but_distinct` 或 `unrelated` 时，不允许拿旧记忆做 update/reinforce。
+- 同一目标记忆同时出现多个动作时，只保留优先级最高的最终动作，并合并来源消息。
 
 ### 去重规则
 
 新增记忆前必须先查重：
 
-- 同一 `personId + scope + type` 下，向量相似度很高的旧记忆先进入候选。
-- LLM 判断为 `same_fact` 时，不允许 create，改成 reinforce 或 update。
+- 同一 `personId + scope=person + type` 下，短实体/短语命中旧记忆时，系统会把重复 `create_memory` 转成 `update_memory`。
+- LLM 判断为同一事实时，应输出 `reinforce_memory` 或 `update_memory`，不要重复 create。
 - 如果已经产生了重复记忆，后续 Dream 可以把较旧或较弱的一条标记为 `archived`，把来源消息合并到保留记忆。
 
 去重时不要只看文本相似。比如“喜欢猫”和“家里养猫”相似但不是同一事实，应该保留为两条。
@@ -240,7 +261,7 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 
 “旧记忆记错”和“用户喜好变化”第一版不强行区分。它们都会先按新证据修正旧记忆：直接 update 或 supersede，避免 prompt 里同时留下相反结论。后续如果需要更细，可以在记忆详情或变更解释里增加 `correction` / `preference_changed` 之类的原因标签，但不需要为第一版增加新字段。
 
-第一版不新增审核流。冲突处理错了，Admin 在记忆库里归档或手动改。
+不新增审核流。冲突处理错了，Admin 在记忆库里归档或手动改。
 
 ### 有效提及识别
 
@@ -264,23 +285,29 @@ Dream 的关系复盘已经可以在同一次身份整理里输出 `memoryChange
 
 ### 写入流程
 
-建议把 Dream 的记忆写入整理成这条流程：
+Dream 的记忆写入当前流程：
 
 1. 按身份聚合本轮 Dream 时间窗口内的消息。
 2. 取当前身份的关系档案和 active 记忆。
-3. 用本轮消息向量召回相关旧记忆候选。
+3. 用本轮消息向量召回相关旧记忆候选，同时用短实体/短语兜住反向事实。
 4. 让 LLM 输出关系档案 patch、memoryChanges、有效提及和冲突判断。
 5. 系统校验：
    - `targetMemoryId` 必须存在且 scope/person 匹配。
    - `sourceMessageIds` 必须来自本轮 user 消息。
    - create 前必须没有 `same_fact` 候选。
    - reinforce 只改计数和最后提及时间。
-6. 写入 Memory。
-7. 对 active 记忆重建 embedding。
+   - 同一目标多动作会归并成一个最终动作。
+6. 写入 Memory：
+   - create：新建个人记忆。
+   - reinforce：只更新来源消息、有效提及日期、层级计数和最后提及时间。
+   - update：改写旧记忆内容，同时算一次有效提及。
+   - supersede：把旧记忆标记为 superseded，并新建替代记忆。
+   - archive：归档旧记忆。
+7. 对 active 记忆重建 embedding。归档或 superseded 的旧 embedding 不删除，但检索时会被 `status=active` 排除。
 
 ### Admin 展示
 
-第一版不需要做复杂审核，但 Admin 应该能看懂发生了什么：
+第一版不做复杂审核。后续 Admin 可以继续补这些可视化能力：
 
 - 记忆详情里展示来源消息和最近有效提及日期。
 - 列表增加“疑似冲突/重复”的筛选可以后做。

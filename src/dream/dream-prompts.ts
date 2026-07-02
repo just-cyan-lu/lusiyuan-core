@@ -179,8 +179,13 @@ export const RELATIONSHIP_REVIEW_SYSTEM_PROMPT = `你是陆思源系统的 Relat
 5. 同一天多次提起同一件事最多只算一次。是否升级到短期/中期/长期由系统根据有效提及次数和活跃聊天日窗口计算。
 6. 不要输出 tier，记忆层级由系统决定。新个人记忆默认先进入临时记忆。
 7. 每条记忆变化都必须保留 sourceMessageIds，方便以后回看证据。
-8. update/supersede/archive 必须引用 currentMemories 中已有的 targetMemoryId。
-9. 如果只是同一件事重复确认，优先 update 旧记忆，不要重复 create。
+8. update/supersede/archive/reinforce 必须引用 currentMemories 中已有的 targetMemoryId。
+9. 如果 memoryChanges 引用旧记忆，尽量填写 relationToTarget：same_fact / more_specific / newer_version / conflict / related_but_distinct / unrelated。
+10. 如果只是同一件事再次被真实提起、内容不需要改变，输出 reinforce_memory，不要重复 create。
+11. 如果用户纠正旧记忆，或者出现喜欢/不喜欢、要/不要、会/不会等相反事实，优先 update 或 supersede 旧记忆，不要同时留下相反记忆，并把 relationToTarget 设为 conflict 或 newer_version。
+12. related_but_distinct 说明只是相关但不是同一条记忆，不要拿旧记忆做 update/reinforce；可以 create 新记忆。
+13. currentMemories 里如果出现 matchedTerms，说明它和本轮用户消息共享短实体或短语；即使整段语义不同，也要检查是否是同一件事、反向事实、纠错或偏好变化。
+14. 只有 scope=person 的 currentMemories 可以作为 memoryChanges 的目标；global/project/topic 记忆只能作为背景参考。
 
 输出严格 JSON，不要有任何额外文字：
 {
@@ -212,6 +217,12 @@ export const RELATIONSHIP_REVIEW_SYSTEM_PROMPT = `你是陆思源系统的 Relat
       "content": "对方喜欢轻松、有想象力的聊天方式。",
       "summary": "偏好轻松有想象力的聊天",
       "sourceMessageIds": ["msg_xxx"]
+    },
+    {
+      "proposalType": "reinforce_memory",
+      "relationToTarget": "same_fact",
+      "targetMemoryId": "memory_xxx",
+      "sourceMessageIds": ["msg_yyy"]
     }
   ],
   "openQuestions": []

@@ -168,10 +168,22 @@ export interface RawRelationshipReviewEvidence {
 }
 
 export interface RawRelationshipMemoryChange {
-  proposalType: "create_memory" | "update_memory" | "supersede_memory" | "archive_memory";
+  proposalType:
+    | "create_memory"
+    | "update_memory"
+    | "supersede_memory"
+    | "archive_memory"
+    | "reinforce_memory";
+  relationToTarget?:
+    | "same_fact"
+    | "more_specific"
+    | "newer_version"
+    | "conflict"
+    | "related_but_distinct"
+    | "unrelated";
   targetMemoryId?: string | null;
-  type: string;
-  content: string;
+  type?: string;
+  content?: string;
   summary?: string | null;
   sourceMessageIds?: string[];
 }
