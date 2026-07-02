@@ -2,6 +2,7 @@
 
 import { Prisma, type Memory, type RelationshipState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
+import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import { modelProvider } from "../core/model-provider.js";
 import { memoryService } from "../core/memory.service.js";
 import {
@@ -15,6 +16,7 @@ import {
   relationshipStateService,
 } from "../runtime/relationship-state.service.js";
 import { throwIfTaskCancelled } from "../runtime/running-task-registry.js";
+import { pgVectorMemoryIndex } from "../vector-index/pgvector-memory-index.js";
 import { RELATIONSHIP_REVIEW_SYSTEM_PROMPT } from "./dream-prompts.js";
 import type {
   DreamContext,
@@ -58,12 +60,33 @@ interface NormalizedRelationshipEvidence {
 
 interface NormalizedRelationshipMemoryChange {
   proposalType: RawRelationshipMemoryChange["proposalType"];
+  relationToTarget?: MemoryRelation;
   targetMemoryId?: string | null;
-  type: string;
-  content: string;
+  type?: string;
+  content?: string;
   summary?: string | null;
   sourceMessageIds: string[];
 }
+
+type MemoryRelation = NonNullable<RawRelationshipMemoryChange["relationToTarget"]>;
+type MemoryPolarity = "positive" | "negative" | "unknown";
+
+export interface MemoryCandidateTerms {
+  terms: Set<string>;
+  rareTerms: Set<string>;
+}
+
+const REVIEW_MEMORY_BASE_LIMIT = 40;
+const REVIEW_MEMORY_CANDIDATE_LIMIT = 60;
+const REVIEW_MEMORY_PHRASE_LIMIT = 20;
+const REVIEW_MEMORY_RAW_BASE_LIMIT = 80;
+const REVIEW_MEMORY_RAW_PHRASE_LIMIT = 160;
+const REVIEW_MEMORY_RAW_SEMANTIC_LIMIT = 80;
+const REVIEW_MEMORY_DB_PHRASE_TERMS = 120;
+const REVIEW_MEMORY_PHRASE_TERMS_PER_MESSAGE = 20;
+const REVIEW_MEMORY_SEMANTIC_MIN_SCORE = 0.24;
+const REVIEW_MEMORY_GLOBAL_SEMANTIC_MIN_SCORE = 0.32;
+const GLOBAL_MEMORY_SCOPES = ["project", "global", "topic"];
 
 const evidenceTypes = new Set<RawRelationshipReviewEvidenceType>([
   "sincerity",
@@ -89,6 +112,16 @@ const memoryChangeTypes = new Set<RawRelationshipMemoryChange["proposalType"]>([
   "update_memory",
   "supersede_memory",
   "archive_memory",
+  "reinforce_memory",
+]);
+
+const memoryRelationTypes = new Set<MemoryRelation>([
+  "same_fact",
+  "more_specific",
+  "newer_version",
+  "conflict",
+  "related_but_distinct",
+  "unrelated",
 ]);
 
 const memoryTierRank: Record<string, number> = {
@@ -121,6 +154,277 @@ function normalizeKeyPart(value: string): string {
     .replace(/[\s"'“”‘’`，,。.!！?？:：；;、()（）[\]【】<>《》]+/gu, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 80);
+}
+
+function normalizedSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\s"'“”‘’`，,。.!！?？:：；;、()（）[\]【】<>《》]+/gu, "");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function addTerm(target: Set<string>, value: string): void {
+  const term = normalizedSearchText(value);
+  if (term.length >= 2 && term.length <= 24) target.add(term);
+}
+
+function chineseNgrams(value: string): string[] {
+  const result: string[] = [];
+  for (let size = 2; size <= 8; size += 1) {
+    for (let index = 0; index + size <= value.length; index += 1) {
+      result.push(value.slice(index, index + size));
+    }
+  }
+  return result;
+}
+
+function focusedMemoryTerms(text: string): string[] {
+  const result = new Set<string>();
+  const pattern =
+    /(?:不喜欢|喜欢|讨厌|不讨厌|爱吃|爱看|爱玩|爱听|想吃|想看|想玩|关注|养|正在做|在做|项目叫|名字叫|叫做)([\p{Script=Han}a-zA-Z0-9_-]{2,16})/gu;
+  for (const match of text.matchAll(pattern)) {
+    const raw = match[1];
+    addTerm(result, raw);
+    const withoutLeadingVerb = raw.replace(/^(吃|看|玩|听|读|写|做|用|买|养)/u, "");
+    if (withoutLeadingVerb !== raw) addTerm(result, withoutLeadingVerb);
+  }
+  return Array.from(result);
+}
+
+export function extractMemoryCandidateTermsFromText(text: string): MemoryCandidateTerms {
+  const terms = new Set<string>();
+  const rareTerms = new Set<string>();
+
+  for (const term of focusedMemoryTerms(text)) {
+    addTerm(terms, term);
+    if (term.length >= 3) addTerm(rareTerms, term);
+  }
+
+  for (const match of text.matchAll(/[a-zA-Z0-9][a-zA-Z0-9_-]{1,31}/g)) {
+    addTerm(terms, match[0]);
+    if (match[0].length >= 3) addTerm(rareTerms, match[0]);
+  }
+
+  for (const match of text.matchAll(/[\p{Script=Han}]{2,24}/gu)) {
+    for (const term of chineseNgrams(match[0])) {
+      addTerm(terms, term);
+      if (term.length >= 3) addTerm(rareTerms, term);
+    }
+  }
+
+  return { terms, rareTerms };
+}
+
+function mergeCandidateTerms(values: MemoryCandidateTerms[]): MemoryCandidateTerms {
+  const terms = new Set<string>();
+  const rareTerms = new Set<string>();
+  for (const value of values) {
+    for (const term of value.terms) terms.add(term);
+    for (const term of value.rareTerms) rareTerms.add(term);
+  }
+  return { terms, rareTerms };
+}
+
+function memoryText(memory: Pick<Memory, "content" | "summary" | "type">): string {
+  return normalizedSearchText([memory.content, memory.summary, memory.type].filter(Boolean).join("\n"));
+}
+
+function cleanMemoryRelation(value: unknown): MemoryRelation | undefined {
+  return typeof value === "string" && memoryRelationTypes.has(value as MemoryRelation)
+    ? (value as MemoryRelation)
+    : undefined;
+}
+
+function hasCorrectionCue(text: string): boolean {
+  return /不对|记错|纠正|不是|其实|改一下|说错|误会/u.test(text);
+}
+
+function polarityForTerm(text: string, term: string): MemoryPolarity {
+  const normalized = normalizedSearchText(text);
+  const escaped = escapeRegExp(term);
+  const negativePatterns = [
+    `不喜欢.{0,12}${escaped}`,
+    `不是.{0,16}喜欢.{0,12}${escaped}`,
+    `讨厌.{0,12}${escaped}`,
+    `不想.{0,12}${escaped}`,
+    `不要.{0,12}${escaped}`,
+    `不会.{0,12}${escaped}`,
+    `不再.{0,12}${escaped}`,
+    `${escaped}.{0,12}不喜欢`,
+    `${escaped}.{0,12}讨厌`,
+  ];
+  if (negativePatterns.some((pattern) => new RegExp(pattern, "u").test(normalized))) {
+    return "negative";
+  }
+
+  const positivePatterns = [
+    `喜欢.{0,12}${escaped}`,
+    `爱(?:吃|看|玩|听)?.{0,12}${escaped}`,
+    `想(?:吃|看|玩|听|要)?.{0,12}${escaped}`,
+    `会.{0,12}${escaped}`,
+    `正在.{0,12}${escaped}`,
+    `在做.{0,12}${escaped}`,
+  ];
+  if (positivePatterns.some((pattern) => new RegExp(pattern, "u").test(normalized))) {
+    return "positive";
+  }
+
+  return "unknown";
+}
+
+function polarityForTerms(text: string, terms: string[]): MemoryPolarity {
+  let positive = false;
+  let negative = false;
+  for (const term of terms) {
+    const polarity = polarityForTerm(text, term);
+    if (polarity === "positive") positive = true;
+    if (polarity === "negative") negative = true;
+  }
+  if (negative) return "negative";
+  if (positive) return "positive";
+  return "unknown";
+}
+
+function meaningfullySameMemoryContent(
+  nextContent: string,
+  existing: Pick<Memory, "content" | "summary">
+): boolean {
+  const next = normalizedSearchText(nextContent);
+  const current = normalizedSearchText(existing.content);
+  const currentSummary = existing.summary ? normalizedSearchText(existing.summary) : "";
+  return next === current || (currentSummary.length >= 8 && next === currentSummary);
+}
+
+function inferMemoryRelation(input: {
+  content: string;
+  summary?: string | null;
+  type: string;
+  memory: Memory;
+  relationHint?: MemoryRelation;
+}): { relation: MemoryRelation; matches: string[] } | null {
+  const terms = extractMemoryCandidateTermsFromText(
+    [input.content, input.summary ?? "", input.type].join("\n")
+  );
+  const matches = matchedMemoryTerms(input.memory, terms.rareTerms);
+  if (matches.length === 0) return null;
+
+  const oldPolarity = polarityForTerms(input.memory.content, matches);
+  const newPolarity = polarityForTerms(input.content, matches);
+  if (
+    oldPolarity !== "unknown" &&
+    newPolarity !== "unknown" &&
+    oldPolarity !== newPolarity
+  ) {
+    return { relation: "conflict", matches };
+  }
+
+  if (input.relationHint && input.relationHint !== "unrelated") {
+    return { relation: input.relationHint, matches };
+  }
+
+  if (meaningfullySameMemoryContent(input.content, input.memory)) {
+    return { relation: "same_fact", matches };
+  }
+
+  if (hasCorrectionCue(input.content)) {
+    return { relation: "newer_version", matches };
+  }
+
+  if (
+    oldPolarity !== "unknown" &&
+    newPolarity !== "unknown" &&
+    oldPolarity === newPolarity
+  ) {
+    return normalizedSearchText(input.content).length > normalizedSearchText(input.memory.content).length + 16
+      ? { relation: "more_specific", matches }
+      : { relation: "same_fact", matches };
+  }
+
+  return { relation: "related_but_distinct", matches };
+}
+
+export function matchedMemoryTerms(
+  memory: Pick<Memory, "content" | "summary" | "type">,
+  terms: Set<string>
+): string[] {
+  const text = memoryText(memory);
+  const matches: string[] = [];
+  for (const term of terms) {
+    if (text.includes(term)) matches.push(term);
+  }
+  return matches.sort((a, b) => b.length - a.length || a.localeCompare(b)).slice(0, 12);
+}
+
+function candidateTermsForMessages(messages: DreamSourceMessage[]): MemoryCandidateTerms {
+  return mergeCandidateTerms(
+    messages
+      .filter((message) => message.role === "user")
+      .map((message) => extractMemoryCandidateTermsFromText(message.content))
+  );
+}
+
+export function phraseSearchTermsForMessages(messages: DreamSourceMessage[]): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const message of messages.filter((item) => item.role === "user")) {
+    let perMessageCount = 0;
+    const terms = extractMemoryCandidateTermsFromText(message.content);
+    for (const term of terms.rareTerms) {
+      if (term.length < 3 || seen.has(term)) continue;
+      seen.add(term);
+      result.push(term);
+      perMessageCount += 1;
+      if (
+        perMessageCount >= REVIEW_MEMORY_PHRASE_TERMS_PER_MESSAGE ||
+        result.length >= REVIEW_MEMORY_DB_PHRASE_TERMS
+      ) {
+        break;
+      }
+    }
+    if (result.length >= REVIEW_MEMORY_DB_PHRASE_TERMS) break;
+  }
+
+  return result;
+}
+
+export function selectMemoriesForRelationshipReview(
+  memories: Memory[],
+  messages: DreamSourceMessage[]
+): Memory[] {
+  const candidateTerms = candidateTermsForMessages(messages);
+  const phraseMatches = memories
+    .map((memory) => ({
+      memory,
+      matches: matchedMemoryTerms(memory, candidateTerms.rareTerms),
+    }))
+    .filter((item) => item.matches.length > 0)
+    .sort((a, b) => {
+      const matchDelta = b.matches.join("").length - a.matches.join("").length;
+      if (matchDelta !== 0) return matchDelta;
+      const tierDelta = (memoryTierRank[b.memory.tier] ?? 0) - (memoryTierRank[a.memory.tier] ?? 0);
+      if (tierDelta !== 0) return tierDelta;
+      return b.memory.updatedAt.getTime() - a.memory.updatedAt.getTime();
+    })
+    .slice(0, REVIEW_MEMORY_PHRASE_LIMIT)
+    .map((item) => item.memory);
+
+  const result: Memory[] = [];
+  const seen = new Set<string>();
+  const add = (memory: Memory) => {
+    if (seen.has(memory.id) || result.length >= REVIEW_MEMORY_CANDIDATE_LIMIT) return;
+    seen.add(memory.id);
+    result.push(memory);
+  };
+
+  for (const memory of phraseMatches) add(memory);
+  for (const memory of memories.slice(0, REVIEW_MEMORY_BASE_LIMIT)) add(memory);
+  for (const memory of sortMemoriesForReview([...memories]).slice(0, REVIEW_MEMORY_BASE_LIMIT)) add(memory);
+
+  return result;
 }
 
 function severityPenalty(
@@ -314,18 +618,41 @@ function sortMemoriesForReview(memories: Memory[]): Memory[] {
   });
 }
 
-function normalizeMemoryChanges(input: {
+function memoryReviewSemanticThreshold(memory: Memory): number {
+  return memory.scope === "person"
+    ? REVIEW_MEMORY_SEMANTIC_MIN_SCORE
+    : REVIEW_MEMORY_GLOBAL_SEMANTIC_MIN_SCORE;
+}
+
+function buildMemoryReviewQuery(messages: DreamSourceMessage[]): string {
+  return messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 6000);
+}
+
+export function normalizeMemoryChanges(input: {
   raw: RawRelationshipReviewOutput;
   validUserMessageIds: Set<string>;
   currentMemories: Memory[];
 }): NormalizedRelationshipMemoryChange[] {
-  const currentMemoryIds = new Set(input.currentMemories.map((memory) => memory.id));
+  const currentMemoryById = new Map(
+    input.currentMemories
+      .filter((memory) => memory.scope === "person" && memory.personId)
+      .map((memory) => [memory.id, memory])
+  );
+  const currentMemoryIds = new Set(currentMemoryById.keys());
   const changes: NormalizedRelationshipMemoryChange[] = [];
   const seen = new Set<string>();
 
   for (const rawChange of Array.isArray(input.raw.memoryChanges) ? input.raw.memoryChanges : []) {
     if (!memoryChangeTypes.has(rawChange.proposalType)) continue;
     if (rawChange.type === "relationship" || rawChange.type === "core") continue;
+
+    const relationHint = cleanMemoryRelation(rawChange.relationToTarget);
+    if (relationHint === "unrelated") continue;
 
     const sourceMessageIds = sourceMessageIdsFromList(
       rawChange.sourceMessageIds,
@@ -334,37 +661,198 @@ function normalizeMemoryChanges(input: {
     if (sourceMessageIds.length === 0) continue;
 
     const targetMemoryId = cleanText(rawChange.targetMemoryId, 120);
+    const isCreate = rawChange.proposalType === "create_memory";
+    if (!isCreate && (!targetMemoryId || !currentMemoryIds.has(targetMemoryId))) continue;
+
+    const content = cleanText(rawChange.content, 1000);
     if (
-      rawChange.proposalType !== "create_memory" &&
-      (!targetMemoryId || !currentMemoryIds.has(targetMemoryId))
+      (rawChange.proposalType === "create_memory" ||
+        rawChange.proposalType === "update_memory" ||
+        rawChange.proposalType === "supersede_memory") &&
+      !content
     ) {
       continue;
     }
 
-    const content = cleanText(rawChange.content, 1000);
-    if (!content) continue;
+    let proposalType = rawChange.proposalType;
+    let finalTargetMemoryId = targetMemoryId ?? null;
+    const type = cleanText(rawChange.type, 80) ?? "personal_fact";
+    let relationToTarget: MemoryRelation | undefined = relationHint;
+
+    if (proposalType === "create_memory" && content) {
+      const duplicateTarget = findCreateDuplicateTarget({
+        content,
+        summary: rawChange.summary,
+        type,
+        currentMemories: input.currentMemories,
+      });
+      if (duplicateTarget) {
+        relationToTarget = duplicateTarget.relation;
+        proposalType =
+          duplicateTarget.relation === "same_fact" ? "reinforce_memory" : "update_memory";
+        finalTargetMemoryId = duplicateTarget.id;
+      }
+    } else if (targetMemoryId && content) {
+      const target = currentMemoryById.get(targetMemoryId);
+      if (target) {
+        const inferred = inferMemoryRelation({
+          content,
+          summary: rawChange.summary,
+          type,
+          memory: target,
+          relationHint,
+        });
+        relationToTarget = inferred?.relation ?? relationToTarget;
+        if (relationToTarget === "related_but_distinct") continue;
+        if (
+          proposalType === "update_memory" &&
+          (relationToTarget === "same_fact" || meaningfullySameMemoryContent(content, target))
+        ) {
+          proposalType = "reinforce_memory";
+        }
+      }
+    } else if (
+      proposalType === "reinforce_memory" &&
+      (relationHint === "conflict" ||
+        relationHint === "more_specific" ||
+        relationHint === "newer_version" ||
+        relationHint === "related_but_distinct")
+    ) {
+      continue;
+    }
 
     const key = [
-      rawChange.proposalType,
-      targetMemoryId ?? "new",
-      normalizeKeyPart(rawChange.type),
-      normalizeKeyPart(content.slice(0, 120)),
+      proposalType,
+      finalTargetMemoryId ?? "new",
+      normalizeKeyPart(type),
+      normalizeKeyPart((content ?? "").slice(0, 120)),
       sourceMessageIds.slice().sort().join(","),
     ].join(":");
     if (seen.has(key)) continue;
     seen.add(key);
 
     changes.push({
-      proposalType: rawChange.proposalType,
-      targetMemoryId: targetMemoryId ?? null,
-      type: cleanText(rawChange.type, 80) ?? "personal_fact",
-      content,
-      summary: cleanPatchText(rawChange.summary, 240) ?? null,
+      proposalType,
+      relationToTarget,
+      targetMemoryId: finalTargetMemoryId,
+      type,
+      content:
+        proposalType === "archive_memory" || proposalType === "reinforce_memory"
+          ? undefined
+          : content ?? undefined,
+      summary:
+        proposalType === "archive_memory" || proposalType === "reinforce_memory"
+          ? null
+          : cleanPatchText(rawChange.summary, 240) ?? null,
       sourceMessageIds,
     });
   }
 
-  return changes;
+  return coalesceMemoryChanges(changes);
+}
+
+function findCreateDuplicateTarget(input: {
+  content: string;
+  summary?: string | null;
+  type: string;
+  currentMemories: Memory[];
+}): { id: string; relation: MemoryRelation } | null {
+  const candidates = input.currentMemories
+    .filter((memory) => memory.scope === "person" && memory.type === input.type)
+    .map((memory) => {
+      const inferred = inferMemoryRelation({
+        content: input.content,
+        summary: input.summary,
+        type: input.type,
+        memory,
+      });
+      return inferred ? { memory, ...inferred } : null;
+    })
+    .filter((item): item is { memory: Memory; relation: MemoryRelation; matches: string[] } =>
+      Boolean(item)
+    )
+    .filter((item) => item.relation !== "related_but_distinct" && item.relation !== "unrelated")
+    .sort((a, b) => {
+      const matchDelta = b.matches.join("").length - a.matches.join("").length;
+      if (matchDelta !== 0) return matchDelta;
+      const tierDelta = (memoryTierRank[b.memory.tier] ?? 0) - (memoryTierRank[a.memory.tier] ?? 0);
+      if (tierDelta !== 0) return tierDelta;
+      return b.memory.updatedAt.getTime() - a.memory.updatedAt.getTime();
+    });
+
+  const target = candidates[0];
+  return target ? { id: target.memory.id, relation: target.relation } : null;
+}
+
+function memoryChangePriority(change: NormalizedRelationshipMemoryChange): number {
+  switch (change.proposalType) {
+    case "supersede_memory":
+      return 5;
+    case "update_memory":
+      return 4;
+    case "archive_memory":
+      return 3;
+    case "reinforce_memory":
+      return 2;
+    case "create_memory":
+      return 1;
+  }
+}
+
+function mergeMemoryChanges(
+  current: NormalizedRelationshipMemoryChange,
+  next: NormalizedRelationshipMemoryChange
+): NormalizedRelationshipMemoryChange {
+  const currentPriority = memoryChangePriority(current);
+  const nextPriority = memoryChangePriority(next);
+  const winner = nextPriority > currentPriority ? next : current;
+  const loser = winner === next ? current : next;
+  return {
+    ...winner,
+    sourceMessageIds: mergeStringArrays(current.sourceMessageIds, next.sourceMessageIds),
+    relationToTarget: winner.relationToTarget ?? loser.relationToTarget,
+  };
+}
+
+function coalesceMemoryChanges(
+  changes: NormalizedRelationshipMemoryChange[]
+): NormalizedRelationshipMemoryChange[] {
+  const byTarget = new Map<string, NormalizedRelationshipMemoryChange>();
+  const creates = new Map<string, NormalizedRelationshipMemoryChange>();
+  const orderedTargetKeys: string[] = [];
+  const orderedCreateKeys: string[] = [];
+
+  for (const change of changes) {
+    if (change.proposalType === "create_memory") {
+      const key = [
+        normalizeKeyPart(change.type ?? "personal_fact"),
+        normalizeKeyPart((change.content ?? "").slice(0, 180)),
+      ].join(":");
+      const existing = creates.get(key);
+      if (existing) {
+        creates.set(key, mergeMemoryChanges(existing, change));
+      } else {
+        creates.set(key, change);
+        orderedCreateKeys.push(key);
+      }
+      continue;
+    }
+
+    const targetKey = change.targetMemoryId;
+    if (!targetKey) continue;
+    const existing = byTarget.get(targetKey);
+    if (existing) {
+      byTarget.set(targetKey, mergeMemoryChanges(existing, change));
+    } else {
+      byTarget.set(targetKey, change);
+      orderedTargetKeys.push(targetKey);
+    }
+  }
+
+  return [
+    ...orderedTargetKeys.map((key) => byTarget.get(key)).filter((item): item is NormalizedRelationshipMemoryChange => Boolean(item)),
+    ...orderedCreateKeys.map((key) => creates.get(key)).filter((item): item is NormalizedRelationshipMemoryChange => Boolean(item)),
+  ];
 }
 
 function mergeStringArrays(...values: Array<unknown>): string[] {
@@ -431,6 +919,7 @@ function buildUserContent(input: {
   currentMemories: Memory[];
 }): string {
   const relationship = input.group.relationship;
+  const candidateTerms = candidateTermsForMessages(input.group.messages);
   const messages = input.group.messages.map((message) => ({
     id: message.id,
     role: message.role,
@@ -449,6 +938,7 @@ function buildUserContent(input: {
     tierEnteredAt: memory.tierEnteredAt?.toISOString() ?? null,
     content: memory.content,
     summary: memory.summary,
+    matchedTerms: matchedMemoryTerms(memory, candidateTerms.rareTerms),
     lastMentionedAt: memory.lastMentionedAt?.toISOString() ?? null,
     updatedAt: memory.updatedAt.toISOString(),
   }));
@@ -465,6 +955,8 @@ function buildUserContent(input: {
         interactionStyle: relationship.interactionStyle,
       },
       existingEvidenceKeys: input.existingEvidenceKeys,
+      memoryCandidateHint:
+        "currentMemories 已包含 semantic、tier/recent 候选，也包含和本轮用户消息有短实体/短语重合的候选。matchedTerms 命中时要特别检查喜欢/不喜欢、纠正、否定等反向事实。只有 scope=person 的记忆可以作为 memoryChanges 的目标，global/project/topic 只能参考。",
       currentMemories,
       messages,
     },
@@ -659,15 +1151,7 @@ export class DreamRelationshipReviewOrganizer {
     });
 
     const [currentMemoriesRaw, existingEvidenceKeys] = await Promise.all([
-      prisma.memory.findMany({
-        where: {
-          personId: input.group.relationship.personId,
-          scope: "person",
-          status: "active",
-        },
-        orderBy: [{ updatedAt: "desc" }],
-        take: 80,
-      }),
+      this.fetchMemoryCandidatesForReview(input.group),
       prisma.relationshipReviewEvidence
         .findMany({
           where: { relationshipStateId: input.group.relationship.id },
@@ -675,7 +1159,10 @@ export class DreamRelationshipReviewOrganizer {
         })
         .then((rows) => new Set(rows.map((row) => row.evidenceKey))),
     ]);
-    const currentMemories = sortMemoriesForReview(currentMemoriesRaw).slice(0, 40);
+    const currentMemories = selectMemoriesForRelationshipReview(
+      currentMemoriesRaw,
+      input.group.messages
+    );
 
     const raw = await modelProvider.chatJson<RawRelationshipReviewOutput>(
       [
@@ -831,6 +1318,98 @@ export class DreamRelationshipReviewOrganizer {
     };
   }
 
+  private async fetchMemoryCandidatesForReview(group: RelationshipMessageGroup): Promise<Memory[]> {
+    const whereBase: Prisma.MemoryWhereInput = {
+      personId: group.relationship.personId,
+      scope: "person",
+      status: "active",
+    };
+    const phraseTerms = phraseSearchTermsForMessages(group.messages);
+    const phraseWhere: Prisma.MemoryWhereInput[] = phraseTerms.flatMap((term) => [
+      { content: { contains: term, mode: "insensitive" } },
+      { summary: { contains: term, mode: "insensitive" } },
+    ]);
+
+    const [baseMemories, phraseMemories, semanticMemories] = await Promise.all([
+      prisma.memory.findMany({
+        where: whereBase,
+        orderBy: [{ updatedAt: "desc" }],
+        take: REVIEW_MEMORY_RAW_BASE_LIMIT,
+      }),
+      phraseWhere.length > 0
+        ? prisma.memory.findMany({
+            where: {
+              ...whereBase,
+              OR: phraseWhere,
+            },
+            orderBy: [{ updatedAt: "desc" }],
+            take: REVIEW_MEMORY_RAW_PHRASE_LIMIT,
+          })
+        : Promise.resolve([]),
+      this.fetchSemanticMemoryCandidatesForReview(group),
+    ]);
+
+    const memories: Memory[] = [];
+    const seen = new Set<string>();
+    for (const memory of [...phraseMemories, ...semanticMemories, ...baseMemories]) {
+      if (seen.has(memory.id)) continue;
+      seen.add(memory.id);
+      memories.push(memory);
+    }
+    return memories;
+  }
+
+  private async fetchSemanticMemoryCandidatesForReview(
+    group: RelationshipMessageGroup
+  ): Promise<Memory[]> {
+    const query = buildMemoryReviewQuery(group.messages);
+    if (!query) return [];
+
+    try {
+      const queryEmbedding = await embeddingProvider.embedText(query);
+      const results = await pgVectorMemoryIndex.searchSimilarMemories({
+        queryEmbedding,
+        personId: group.relationship.personId,
+        provider: embeddingProvider.providerName,
+        model: embeddingProvider.model,
+        dimensions: embeddingProvider.dimensions,
+        topK: REVIEW_MEMORY_RAW_SEMANTIC_LIMIT,
+      });
+      const scoreById = new Map(results.map((result) => [result.memoryId, result.score]));
+      const ids = results.map((result) => result.memoryId);
+      if (ids.length === 0) return [];
+
+      const memories = await prisma.memory.findMany({
+        where: {
+          id: { in: ids },
+          status: "active",
+          OR: [
+            {
+              personId: group.relationship.personId,
+              scope: "person",
+            },
+            {
+              personId: null,
+              scope: { in: GLOBAL_MEMORY_SCOPES },
+            },
+          ],
+        },
+      });
+      const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
+
+      return ids
+        .map((id) => memoryById.get(id))
+        .filter((memory): memory is Memory => Boolean(memory))
+        .filter((memory) => {
+          const score = scoreById.get(memory.id) ?? 0;
+          return score >= memoryReviewSemanticThreshold(memory);
+        });
+    } catch (err) {
+      console.warn("[dream] semantic memory candidate recall failed:", err);
+      return [];
+    }
+  }
+
   private async applyMemoryChanges(input: {
     changes: NormalizedRelationshipMemoryChange[];
     group: RelationshipMessageGroup;
@@ -948,6 +1527,7 @@ export class DreamRelationshipReviewOrganizer {
 
     return prisma.$transaction(async (tx) => {
       if (change.proposalType === "create_memory") {
+        if (!change.content) return { memory: null, changed: false };
         const lifecycle = buildMemoryReinforcement({
           scope: "person",
           sourceDayKeys: sourceInfo.mentionDayKeys,
@@ -958,7 +1538,7 @@ export class DreamRelationshipReviewOrganizer {
           data: {
             personId: group.relationship.personId,
             scope: "person",
-            type: change.type,
+            type: change.type ?? "personal_fact",
             tier: lifecycle.tier,
             tierMentionCount: lifecycle.tierMentionCount,
             tierEnteredAt: lifecycle.tierEnteredAt,
@@ -991,7 +1571,30 @@ export class DreamRelationshipReviewOrganizer {
         return { memory, changed: true };
       }
 
+      if (change.proposalType === "reinforce_memory") {
+        const lifecycle = buildMemoryReinforcement({
+          existing: target,
+          scope: "person",
+          sourceDayKeys: sourceInfo.mentionDayKeys,
+          lastMentionedAt: sourceInfo.lastMentionedAt,
+          now,
+        });
+        const memory = await tx.memory.update({
+          where: { id: target.id },
+          data: {
+            tier: lifecycle.tier,
+            tierMentionCount: lifecycle.tierMentionCount,
+            tierEnteredAt: lifecycle.tierEnteredAt,
+            sourceMessageIds: mergeStringArrays(target.sourceMessageIds, change.sourceMessageIds),
+            mentionDayKeys: lifecycle.mentionDayKeys,
+            lastMentionedAt: lifecycle.lastMentionedAt,
+          },
+        });
+        return { memory, changed: true };
+      }
+
       if (change.proposalType === "supersede_memory") {
+        if (!change.content) return { memory: null, changed: false };
         await tx.memory.update({
           where: { id: target.id },
           data: { status: "superseded" },
@@ -1006,7 +1609,7 @@ export class DreamRelationshipReviewOrganizer {
           data: {
             personId: group.relationship.personId,
             scope: "person",
-            type: change.type,
+            type: change.type ?? target.type,
             tier: lifecycle.tier,
             tierMentionCount: lifecycle.tierMentionCount,
             tierEnteredAt: lifecycle.tierEnteredAt,
@@ -1028,10 +1631,11 @@ export class DreamRelationshipReviewOrganizer {
         lastMentionedAt: sourceInfo.lastMentionedAt,
         now,
       });
+      if (!change.content) return { memory: null, changed: false };
       const updated = await tx.memory.update({
         where: { id: target.id },
         data: {
-          type: change.type,
+          type: change.type ?? target.type,
           tier: lifecycle.tier,
           tierMentionCount: lifecycle.tierMentionCount,
           tierEnteredAt: lifecycle.tierEnteredAt,
