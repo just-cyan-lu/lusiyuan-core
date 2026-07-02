@@ -2,7 +2,6 @@ import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   retrieveMemories,
-  retrieveMemoriesWithoutEmbedding,
   type MemoryRetrievalInput,
 } from "./memory-retrieval.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
@@ -10,9 +9,17 @@ import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.
 import { pgVectorMemoryIndex } from "../vector-index/pgvector-memory-index.js";
 import { buildMemoryEmbeddingText } from "../embeddings/embedding-text.js";
 import { createMemoryContentHash } from "../embeddings/content-hash.js";
+import { buildMemoryReinforcement } from "../memory/memory-lifecycle.js";
 import type { Memory } from "@prisma/client";
 import type { NewMemory } from "../types/memory.js";
 import type { BudgetedMemory } from "./memory-budget.js";
+
+const memoryTierRank: Record<string, number> = {
+  temp: 0,
+  short: 1,
+  mid: 2,
+  long: 3,
+};
 
 export interface MemoryService {
   retrieveRelevantMemories(input: MemoryRetrievalInput): Promise<BudgetedMemory[]>;
@@ -25,7 +32,7 @@ export interface MemoryService {
 class PrismaMemoryService implements MemoryService {
   async retrieveRelevantMemories(input: MemoryRetrievalInput): Promise<BudgetedMemory[]> {
     if (!runtimeConfig.MEMORY_RETRIEVAL_ENABLED) {
-      return retrieveMemoriesWithoutEmbedding(input);
+      return [];
     }
     return retrieveMemories(input);
   }
@@ -35,30 +42,32 @@ class PrismaMemoryService implements MemoryService {
 
     const created: Memory[] = [];
     for (const m of memories) {
+      const now = new Date();
+      const lifecycle = buildMemoryReinforcement({
+        scope: m.scope ?? "person",
+        proposedTier: m.tier,
+        sourceDayKeys:
+          m.mentionDayKeys ??
+          (m.lastMentionedAt
+            ? [m.lastMentionedAt.toISOString().slice(0, 10)]
+            : [now.toISOString().slice(0, 10)]),
+        lastMentionedAt: m.lastMentionedAt ?? now,
+        now,
+      });
       const memory = await prisma.memory.create({
         data: {
           personId,
           type: m.type,
           scope: m.scope ?? "person",
-          tier: m.tier ?? "short",
-          strength: m.strength ?? 1,
-          riskLevel: m.riskLevel ?? "low",
+          tier: lifecycle.tier,
+          tierMentionCount: m.tierMentionCount ?? lifecycle.tierMentionCount,
+          tierEnteredAt: m.tierEnteredAt ?? lifecycle.tierEnteredAt,
           content: m.content,
           summary: m.summary ?? null,
-          importance: m.importance,
-          confidence: m.confidence ?? 0.8,
           status: m.status ?? "active",
-          source: m.source ?? null,
-          tags: m.tags ?? undefined,
-          entities: m.entities ?? undefined,
-          channel: m.channel ?? null,
-          conversationId: m.conversationId ?? null,
           sourceMessageIds: m.sourceMessageIds ?? undefined,
-          sourceConversationIds: m.sourceConversationIds ?? undefined,
-          sourceUserIds: m.sourceUserIds ?? undefined,
-          mentionDayKeys: m.mentionDayKeys ?? undefined,
-          lastMentionedAt: m.lastMentionedAt ?? null,
-          nextReviewAt: m.nextReviewAt ?? null,
+          mentionDayKeys: lifecycle.mentionDayKeys,
+          lastMentionedAt: lifecycle.lastMentionedAt,
         },
       });
       created.push(memory);
@@ -74,9 +83,14 @@ class PrismaMemoryService implements MemoryService {
   }
 
   async listPersonMemories(personId: string): Promise<Memory[]> {
-    return prisma.memory.findMany({
+    const memories = await prisma.memory.findMany({
       where: { personId },
-      orderBy: [{ tier: "desc" }, { importance: "desc" }, { updatedAt: "desc" }],
+      orderBy: [{ updatedAt: "desc" }],
+    });
+    return memories.sort((a, b) => {
+      const tierDelta = (memoryTierRank[b.tier] ?? 0) - (memoryTierRank[a.tier] ?? 0);
+      if (tierDelta !== 0) return tierDelta;
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
     });
   }
 

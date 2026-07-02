@@ -57,7 +57,7 @@
   | 4 | `5b646fa` | PlatformsPage | 1 (删本地 SelectInput) |
   | 5 | `d4a9e6e` | ConfigCenterPage | 3 |
   | 6 | `6ec176f` | OpsPage | 3 |
-  | 7 | `04542c1` | MemoryProposalsPage | 3 (删本地 FilterSelect) |
+  | 7 | `04542c1` | 旧记忆审核页 | 3 (删本地 FilterSelect) |
   | 8 | `a233381` | MemoryLibraryPage | 10 (删本地 FilterSelect) |
   | 9 | `932d52a` | SkillsAdminPage | 2 |
   | 10a | `1aa0e2d` | ToolsAdminPage filter | 6 |
@@ -97,7 +97,7 @@
 - **背景**：`title=` 原生属性延迟 ~1.5s、样式丑、不支持多行，UI 库 `Tooltip` 支持 `variant="island"` 直接套动森气泡。
 - **实际范围**（`grep -rnE 'title=\{'`）：**79 个 dynamic + 60 个 literal**，分布：
   - OpsPage 33（多 PanelHeader 标题 + truncated 文本）
-  - MemoryProposalsPage 14（DetailRow + metric 的 truncated id）
+  - 旧记忆审核页 14（DetailRow + metric 的 truncated id）
   - ToolsAdminPage 10
   - MemoryLibraryPage 9
   - ConfigCenterPage 8
@@ -131,7 +131,7 @@
   | 6 | `f4c078d` | PlatformsPage | 2（post.alt 编辑器 + LabeledInput wrapper） |
   | 7 | `38ed387` | SkillsAdminPage | 2（小红书 maxReplyChars + LabeledInput wrapper） |
   | 8 | `060fc62` | RelationshipStatePage | 3（搜索 + 绑定渠道 + 关系标签，type="range" 滑块保留） |
-  | 9 | `51f8de1` | RuntimeStatePage + MemoryProposalsPage | 1 + 1（RuntimeStateForm moodLabel + MemoryProposalsPage 搜索框） |
+  | 9 | `51f8de1` | RuntimeStatePage + 旧记忆审核页 | 1 + 1（RuntimeStateForm moodLabel + 旧记忆审核页 搜索框） |
   | 10 | `a03cbf5` | MemoryLibraryPage | FilterInput wrapper 内部 input 改 AdminInput（4 处调用） |
 
   **合计 33 处 input 替换** + 2 处 type fix = **13 个 commit**

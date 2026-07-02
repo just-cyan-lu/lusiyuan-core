@@ -71,14 +71,6 @@ export class DailyNoteService {
       lines.push("");
     }
 
-    if (context.memoryProposals.length > 0) {
-      lines.push(`## 最近记忆提案（${context.memoryProposals.length} 条）`);
-      for (const p of context.memoryProposals.slice(0, 10)) {
-        lines.push(`[${p.proposalType}/${p.status}] ${p.content.slice(0, 150)}`);
-      }
-      lines.push("");
-    }
-
     return lines.join("\n");
   }
 }

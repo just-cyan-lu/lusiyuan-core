@@ -2,7 +2,7 @@
 
 ## 概述
 
-反思代理（Reflection Agent）是一个离线分析系统，定期或按需读取历史对话，通过模型分析生成**记忆提案**。所有提案需要 owner 审核后才能写入长期记忆，系统本身不会自动修改任何数据。
+反思代理（Reflection Agent）是一个离线分析系统，定期或按需读取历史对话，通过模型分析生成**记忆变更建议**。所有提案需要 owner 审核后才能写入长期记忆，系统本身不会自动修改任何数据。
 
 核心设计原则：**提案制，不自动写入**。
 
@@ -21,7 +21,7 @@ runReflectionAnalysis → modelProvider.chatJson()
     ↓
 ReflectionPolicy → 过滤低置信度 / 违禁内容 / 高风险提案
     ↓
-ReflectionReport + MemoryProposal[] + ReflectionRiskFlag[] + GrowthLogProposal[]（DB）
+ReflectionReport + MemoryChange[] + ReflectionRiskFlag[] + GrowthLogProposal[]（DB）
     ↓
 owner 通过 HTTP 接口 或 CLI 审核提案
     ↓
@@ -36,7 +36,7 @@ ReflectionProposalService.applyProposal() → 写入 Memory 表
 |------|------|
 | `ReflectionJob` | 每次反思任务的执行记录 |
 | `ReflectionReport` | 模型输出的分析报告（1:1 对应 Job） |
-| `MemoryProposal` | 记忆提案（create / update / supersede / archive） |
+| `MemoryChange` | 记忆变更建议（create / update / supersede / archive） |
 | `ReflectionRiskFlag` | 风险标记（边界侵蚀、身份混淆等） |
 | `GrowthLogProposal` | 成长日志提案（待 owner 确认后写入） |
 

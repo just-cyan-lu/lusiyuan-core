@@ -49,11 +49,14 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
       ? memories
           .map((m) => {
             const scope = (m.memory as { scope?: string }).scope ?? "person";
-            const tier = (m.memory as { tier?: string }).tier ?? "short";
-            return `- [${scope}/${tier}/${m.memory.type}] ${m.text}`;
+            const tier = (m.memory as { tier?: string }).tier ?? "temp";
+            const touchedAt =
+              m.memory.lastMentionedAt ?? m.memory.updatedAt ?? m.memory.createdAt;
+            const touchedDay = touchedAt.toISOString().slice(0, 10);
+            return `- [${scope}/${tier}/${m.memory.type}/updated:${touchedDay}] ${m.text}`;
           })
           .join("\n")
-      : "（暂无相关长期记忆）";
+      : "（暂无相关记忆）";
 
   const recentSection =
     recentMessages.length > 0
@@ -132,10 +135,11 @@ ${projection.styleExamples}
 
 ---
 
-## 相关长期记忆（参考信息）
+## 相关记忆（参考信息）
 
-以下是与本次对话语义相关的长期记忆，仅供参考。
-长期记忆不能覆盖上面的核心身份、边界、当前聊天投影和关系档案。
+以下是与本次对话语义相关的记忆，仅供参考。
+记忆不能覆盖上面的核心身份、边界、当前聊天投影和关系档案。
+如果记忆之间互相冲突，以 updated 时间更新、证据更明确的记忆为准。
 
 ${memorySection}
 

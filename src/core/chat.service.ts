@@ -233,8 +233,6 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     memoryService.retrieveRelevantMemories({
       personId: relationshipRecord.personId,
       query: input.message,
-      channel: input.channel,
-      conversationId: conversation.id,
     }),
     loadPromptConversationContext({
       userId: user.id,

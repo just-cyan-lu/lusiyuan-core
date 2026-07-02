@@ -32,16 +32,15 @@ const TIER_BOOST: Record<string, number> = {
   long: 1.0,
   mid: 0.75,
   short: 0.55,
+  temp: 0.35,
 };
 
 const WEIGHTS = {
-  semantic: 0.58,
-  importance: 0.12,
-  recency: 0.10,
-  typeBoost: 0.08,
-  scopeBoost: 0.06,
-  tier: 0.04,
-  confidence: 0.02,
+  semantic: 0.72,
+  recency: 0.12,
+  typeBoost: 0.07,
+  scopeBoost: 0.04,
+  tier: 0.05,
 };
 
 export function rerankMemories(candidates: RankedCandidate[]): RetrievedMemory[] {
@@ -52,31 +51,24 @@ export function rerankMemories(candidates: RankedCandidate[]): RetrievedMemory[]
     .map(({ memory, semanticScore }) => {
       const m = memory as Memory & {
         scope?: string;
-        confidence?: number;
         status?: string;
         tier?: string;
-        strength?: number;
       };
 
-      const importanceScore = (memory.importance ?? 5) / 10;
-      const strengthScore = Math.min(Math.max(m.strength ?? 1, 0), 10) / 10;
-
-      const ageMs = now - new Date(memory.createdAt).getTime();
+      const recencyDate = memory.lastMentionedAt ?? memory.updatedAt ?? memory.createdAt;
+      const ageMs = now - new Date(recencyDate).getTime();
       const recencyScore = Math.exp(-ageMs / RECENCY_HALF_LIFE_MS);
 
       const typeScore = TYPE_BOOST[memory.type] ?? 0.5;
       const scopeScore = SCOPE_BOOST[m.scope ?? "person"] ?? 0.7;
-      const tierScore = Math.max(TIER_BOOST[m.tier ?? "short"] ?? 0.55, strengthScore);
-      const confidenceScore = m.confidence ?? 0.8;
+      const tierScore = TIER_BOOST[m.tier ?? "temp"] ?? 0.35;
 
       const finalScore =
         WEIGHTS.semantic * semanticScore +
-        WEIGHTS.importance * importanceScore +
         WEIGHTS.recency * recencyScore +
         WEIGHTS.typeBoost * typeScore +
         WEIGHTS.scopeBoost * scopeScore +
-        WEIGHTS.tier * tierScore +
-        WEIGHTS.confidence * confidenceScore;
+        WEIGHTS.tier * tierScore;
 
       return { memory, semanticScore, finalScore };
     })

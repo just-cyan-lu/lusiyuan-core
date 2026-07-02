@@ -4,6 +4,7 @@ import { runtimeConfig, runtimeSettingsService } from "../config/runtime-setting
 import { requireAdminAuth } from "./admin-auth.js";
 import { prisma } from "../db/prisma.js";
 import { memoryService } from "../core/memory.service.js";
+import { buildMemoryReinforcement } from "../memory/memory-lifecycle.js";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
@@ -192,12 +193,6 @@ function memoryScope(value: unknown, fallback = "person"): string {
   return scope;
 }
 
-function metadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
-  return metadata && typeof metadata === "object" && !Array.isArray(metadata)
-    ? (metadata as Prisma.JsonObject)
-    : {};
-}
-
 const adminMemoryInclude = {
   person: {
     select: {
@@ -325,20 +320,14 @@ function applyMemoryDateRange(
 function memoryOrderBy(value: unknown): Prisma.MemoryOrderByWithRelationInput[] {
   switch (cleanString(value) ?? "updated_desc") {
     case "created_desc":
-      return [{ createdAt: "desc" }, { importance: "desc" }];
-    case "importance_desc":
-      return [{ importance: "desc" }, { updatedAt: "desc" }];
-    case "confidence_desc":
-      return [{ confidence: "desc" }, { updatedAt: "desc" }];
+      return [{ createdAt: "desc" }];
     case "access_desc":
       return [{ accessCount: "desc" }, { updatedAt: "desc" }];
     case "stale_access":
       return [{ lastAccessedAt: "asc" }, { updatedAt: "asc" }];
-    case "review_focus":
-      return [{ importance: "desc" }, { confidence: "asc" }, { updatedAt: "desc" }];
     case "updated_desc":
     default:
-      return [{ updatedAt: "desc" }, { importance: "desc" }];
+      return [{ updatedAt: "desc" }];
   }
 }
 
@@ -371,11 +360,7 @@ async function buildMemoryWhere(
       { personId: { contains: search, mode: "insensitive" } },
       { content: { contains: search, mode: "insensitive" } },
       { summary: { contains: search, mode: "insensitive" } },
-      { source: { contains: search, mode: "insensitive" } },
-      { channel: { contains: search, mode: "insensitive" } },
-      { conversationId: { contains: search, mode: "insensitive" } },
       { tier: { contains: search, mode: "insensitive" } },
-      { riskLevel: { contains: search, mode: "insensitive" } },
       {
         person: {
           is: {
@@ -431,7 +416,6 @@ const databaseDataTables = [
   "relationship_states",
   "identity_links",
   "person_identities",
-  "memory_change_proposals",
   "memory_risk_flags",
   "growth_log_proposals",
   "dream_daily_notes",
@@ -1061,10 +1045,7 @@ function shouldRegenerateEmbedding(
       data.summary !== undefined ||
       data.type !== undefined ||
       data.scope !== undefined ||
-      data.tier !== undefined ||
-      data.riskLevel !== undefined ||
-      data.tags !== undefined ||
-      data.entities !== undefined
+      data.tier !== undefined
   );
 }
 
@@ -2158,18 +2139,16 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         createdAt: true,
         updatedAt: true,
         lastAccessedAt: true,
-        importance: true,
       },
     });
 
-    const days = new Map<string, { count: number; importance: number }>();
+    const days = new Map<string, { count: number }>();
     for (const row of rows) {
       const date = row[field];
       if (!date) continue;
       const key = dateKey(date);
-      const current = days.get(key) ?? { count: 0, importance: 0 };
+      const current = days.get(key) ?? { count: 0 };
       current.count += 1;
-      current.importance += row.importance;
       days.set(key, current);
     }
 
@@ -2181,11 +2160,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       days: activity,
       totalCount: rows.length,
       peakCount: activity.reduce((peak, day) => Math.max(peak, day.count), 0),
-      peakImportance: activity.reduce(
-        (peak, day) => Math.max(peak, day.importance),
-        0
-      ),
-      metric: cleanString(query.metric) ?? "count",
+      metric: "count",
       dateField: field,
     });
   });
@@ -2196,19 +2171,9 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       type?: string;
       scope?: string;
       tier?: string;
-      strength?: number;
-      risk_level?: string;
       content?: string;
       summary?: string | null;
-      importance?: number;
-      confidence?: number;
       status?: string;
-      source?: string | null;
-      tags?: unknown;
-      entities?: unknown;
-      channel?: string | null;
-      conversation_id?: string | null;
-      metadata?: unknown;
     };
 
     const type = cleanString(body.type);
@@ -2217,25 +2182,29 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     if (!type) throw routeError("type is required", 400);
     if (!content) throw routeError("content is required", 400);
 
+    const now = new Date();
+    const lifecycle = buildMemoryReinforcement({
+      scope,
+      proposedTier: body.tier,
+      forceTier: body.tier !== undefined,
+      sourceDayKeys: [now.toISOString().slice(0, 10)],
+      lastMentionedAt: now,
+      now,
+    });
+
     const memory = await prisma.memory.create({
       data: {
         personId: await resolveMemoryPersonId(body.person_id, scope),
         type,
         scope,
-        tier: cleanString(body.tier) ?? "short",
-        strength: boundedNumber(body.strength, 1, 1, 10),
-        riskLevel: cleanString(body.risk_level) ?? "low",
+        tier: lifecycle.tier,
+        tierMentionCount: lifecycle.tierMentionCount,
+        tierEnteredAt: lifecycle.tierEnteredAt,
         content,
         summary: cleanNullableString(body.summary) ?? null,
-        importance: boundedNumber(body.importance, 5, 1, 10),
-        confidence: boundedNumber(body.confidence, 0.8, 0, 1),
         status: cleanString(body.status) ?? "active",
-        source: cleanNullableString(body.source) ?? "admin_manual",
-        tags: jsonInput(body.tags),
-        entities: jsonInput(body.entities),
-        channel: cleanNullableString(body.channel) ?? null,
-        conversationId: cleanNullableString(body.conversation_id) ?? null,
-        metadata: jsonInput(body.metadata),
+        mentionDayKeys: lifecycle.mentionDayKeys,
+        lastMentionedAt: lifecycle.lastMentionedAt,
       },
       include: adminMemoryInclude,
     });
@@ -2256,19 +2225,9 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       type?: string;
       scope?: string;
       tier?: string;
-      strength?: number;
-      risk_level?: string;
       content?: string;
       summary?: string | null;
-      importance?: number;
-      confidence?: number;
       status?: string;
-      source?: string | null;
-      tags?: unknown;
-      entities?: unknown;
-      channel?: string | null;
-      conversation_id?: string | null;
-      metadata?: unknown;
     };
 
     const existing = await prisma.memory.findUniqueOrThrow({
@@ -2282,28 +2241,22 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     }
     if (body.type !== undefined) data.type = cleanString(body.type) ?? existing.type;
     if (body.scope !== undefined) data.scope = nextScope;
-    if (body.tier !== undefined) data.tier = cleanString(body.tier) ?? existing.tier;
-    if (body.strength !== undefined) {
-      data.strength = boundedNumber(body.strength, existing.strength, 1, 10);
+    if (body.tier !== undefined || body.scope !== undefined) {
+      const lifecycle = buildMemoryReinforcement({
+        existing,
+        scope: nextScope,
+        proposedTier: body.tier ?? existing.tier,
+        forceTier: body.tier !== undefined,
+        sourceDayKeys: [],
+        now: new Date(),
+      });
+      data.tier = lifecycle.tier;
+      data.tierMentionCount = lifecycle.tierMentionCount;
+      data.tierEnteredAt = lifecycle.tierEnteredAt;
     }
-    if (body.risk_level !== undefined) data.riskLevel = cleanString(body.risk_level) ?? existing.riskLevel;
     if (body.content !== undefined) data.content = cleanString(body.content) ?? existing.content;
     if (body.summary !== undefined) data.summary = cleanNullableString(body.summary);
-    if (body.importance !== undefined) {
-      data.importance = boundedNumber(body.importance, existing.importance, 1, 10);
-    }
-    if (body.confidence !== undefined) {
-      data.confidence = boundedNumber(body.confidence, existing.confidence, 0, 1);
-    }
     if (body.status !== undefined) data.status = cleanString(body.status) ?? existing.status;
-    if (body.source !== undefined) data.source = cleanNullableString(body.source);
-    if (body.tags !== undefined) data.tags = jsonInput(body.tags);
-    if (body.entities !== undefined) data.entities = jsonInput(body.entities);
-    if (body.channel !== undefined) data.channel = cleanNullableString(body.channel);
-    if (body.conversation_id !== undefined) {
-      data.conversationId = cleanNullableString(body.conversation_id);
-    }
-    if (body.metadata !== undefined) data.metadata = jsonInput(body.metadata);
 
     const memory = await prisma.memory.update({
       where: { id: memoryId },
@@ -2326,19 +2279,10 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
   app.delete("/v1/admin/memories/:memoryId", async (request, reply) => {
     const { memoryId } = request.params as { memoryId: string };
-    const existing = await prisma.memory.findUniqueOrThrow({
-      where: { id: memoryId },
-      select: { metadata: true },
-    });
     const memory = await prisma.memory.update({
       where: { id: memoryId },
       data: {
         status: "archived",
-        metadata: {
-          ...metadataObject(existing.metadata),
-          archivedBy: "admin",
-          archivedAt: new Date().toISOString(),
-        },
       },
       include: adminMemoryInclude,
     });

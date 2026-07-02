@@ -38,7 +38,7 @@ export class MorningBriefService {
       `- ${job.dailyNotes.length} 篇 Daily Note`,
       `- ${job.diaryEntries.length} 篇 Dream Diary`,
       `- ${job.signals.length} 个 Dream Signal`,
-      `- ${proposalCount} 条 MemoryProposal`,
+      `- ${proposalCount} 条记忆/关系变更`,
       `- ${riskCount} 个风险标记`,
     ].join("\n");
 

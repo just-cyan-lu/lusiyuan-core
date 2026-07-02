@@ -16,10 +16,6 @@ const seed = {
   consolidationReportId: "admin-demo-dream-report",
   dreamRiskFlagId: "admin-demo-dream-risk",
   dreamGrowthLogId: "admin-demo-dream-growth-log",
-  dreamProposalIds: [
-    "admin-demo-dream-proposal-create",
-    "admin-demo-dream-proposal-update",
-  ],
   targetMemoryId: "admin-demo-target-memory",
   globalMemoryId: "admin-demo-global-memory",
   messageIds: [
@@ -30,10 +26,6 @@ const seed = {
 } as const;
 
 async function cleanupPreviousSeed(): Promise<void> {
-  await prisma.memoryProposal.deleteMany({
-    where: { id: { in: [...seed.dreamProposalIds] } },
-  });
-
   await prisma.dreamConsolidationReport.deleteMany({
     where: { id: seed.consolidationReportId },
   });
@@ -141,7 +133,7 @@ async function main(): Promise<void> {
     {
       id: seed.messageIds[2],
       role: "user",
-      content: "后续 Admin 平台先接记忆提案审核，单条操作就好。",
+      content: "后续 Admin 平台先把记忆库管理做好，单条操作就好。",
       externalMessageId: "admin-demo-external-message-3",
     },
   ];
@@ -167,28 +159,19 @@ async function main(): Promise<void> {
     });
   }
 
-  const targetMemory = await prisma.memory.create({
+  await prisma.memory.create({
     data: {
       id: seed.targetMemoryId,
       personId: person.id,
       type: "user_preference",
       scope: "person",
       tier: "short",
-      strength: 1,
-      riskLevel: "low",
-      content: "Seed demo: 用户偏好深色高对比控制台。",
-      summary: "旧的界面偏好，需要被新提案更新。",
-      importance: 5,
-      confidence: 0.72,
+      content: "Seed demo: 用户偏好浅色、低饱和、真实业务链路清楚的 Admin 控制台。",
+      summary: "Dream 已整理出的 Admin 视觉与产品偏好。",
       status: "active",
-      source: "admin_demo_seed",
-      channel: "web",
-      conversationId: conversation.id,
       sourceMessageIds: [seed.messageIds[0]],
-      sourceConversationIds: [conversation.id],
-      sourceUserIds: [user.id],
-      tags: ["admin", "ui"],
-      metadata: { seed: "admin_demo" },
+      mentionDayKeys: [new Date().toISOString().slice(0, 10)],
+      lastMentionedAt: new Date(),
     },
   });
 
@@ -199,18 +182,12 @@ async function main(): Promise<void> {
       type: "project_context",
       scope: "global",
       tier: "long",
-      strength: 3,
-      riskLevel: "medium",
       content: "Seed demo: 陆思源后台管理应保持浅色、清爽、低饱和，并优先呈现真实业务链路。",
       summary: "全局基础记忆示例：Admin 设计取向与开发原则。",
-      importance: 7,
-      confidence: 0.86,
       status: "active",
-      source: "admin_demo_seed",
-      channel: "web",
-      tags: ["admin", "global", "design"],
-      entities: ["陆思源", "Admin 平台"],
-      metadata: { seed: "admin_demo", global: true },
+      sourceMessageIds: [seed.messageIds[0], seed.messageIds[1]],
+      mentionDayKeys: [new Date().toISOString().slice(0, 10)],
+      lastMentionedAt: new Date(),
     },
   });
 
@@ -245,10 +222,10 @@ async function main(): Promise<void> {
         "用户正在把 Web Chat 扩展成 Admin 平台，当前重点是用真实后台链路管理记忆和 Dream 产物。",
       keyPoints: [
         "Admin 壳已经从占位页进入真实业务页面",
-        "记忆库和提案审核已接入真实数据",
+        "记忆库已接入真实数据",
         "下一步需要让运行态可观察、可手动触发",
       ],
-      sourceStats: { messages: 3, memories: 2, proposals: 4 },
+      sourceStats: { messages: 3, memories: 2 },
       riskSummary: { medium: 1, high: 0 },
       status: "active",
     },
@@ -338,70 +315,14 @@ async function main(): Promise<void> {
       promotedCount: 2,
       rejectedCount: 1,
       riskCount: 1,
-      generatedProposalIds: [...seed.dreamProposalIds],
       rawOutput: { seed: "admin_demo", source: "dream_deep_sleep" },
       metadata: {
         seed: "admin_demo",
         dreamJobId: dreamJob.id,
         sourceSignalIds: [...seed.dreamSignalIds],
+        generatedMemoryIds: [seed.targetMemoryId, seed.globalMemoryId],
       },
     },
-  });
-
-  await prisma.memoryProposal.createMany({
-    data: [
-      {
-        id: seed.dreamProposalIds[0],
-        reportId: consolidationReport.id,
-        personId: null,
-        conversationId: conversation.id,
-        channel: "web",
-        proposalType: "create_memory",
-        scope: "project",
-        type: "project_context",
-        tier: "mid",
-        strength: 3,
-        content:
-          "Seed demo: Dream 识别到 Admin 平台正在从单一聊天入口扩展成完整管理台。",
-        summary: "Dream 提案：Admin 平台阶段目标变化。",
-        tags: ["dream", "admin", "project"],
-        entities: ["Admin 平台", "Dream Cycle"],
-        reason: "多个 Dream Signal 指向同一个项目阶段变化，值得进入审核队列。",
-        confidence: 0.9,
-        riskLevel: "low",
-        status: "pending",
-        sourceMessageIds: [seed.messageIds[2]],
-        sourceConversationIds: [conversation.id],
-        sourceUserIds: [user.id],
-        metadata: { seed: "admin_demo", source: "dream_deep_sleep" },
-      },
-      {
-        id: seed.dreamProposalIds[1],
-        reportId: consolidationReport.id,
-        personId: person.id,
-        conversationId: conversation.id,
-        channel: "web",
-        proposalType: "update_memory",
-        targetMemoryId: targetMemory.id,
-        scope: "person",
-        type: "user_preference",
-        tier: "short",
-        strength: 2,
-        content:
-          "Seed demo: 用户偏好浅色、低饱和、真实业务链路清楚的 Admin 控制台。",
-        summary: "Dream 提案：更新 Admin 视觉与产品偏好。",
-        tags: ["dream", "ui", "preference"],
-        entities: ["Admin 平台"],
-        reason: "Dream 发现旧记忆与新偏好冲突，需要更新而不是新增重复记忆。",
-        confidence: 0.88,
-        riskLevel: "medium",
-        status: "pending",
-        sourceMessageIds: [seed.messageIds[0], seed.messageIds[1]],
-        sourceConversationIds: [conversation.id],
-        sourceUserIds: [user.id],
-        metadata: { seed: "admin_demo", source: "dream_deep_sleep" },
-      },
-    ],
   });
 
   await prisma.memoryRiskFlag.create({
@@ -412,7 +333,7 @@ async function main(): Promise<void> {
       severity: "medium",
       description:
         "Seed demo: Dream Deep Sleep 发现旧 UI 偏好记忆与最新偏好冲突。",
-      suggestedAction: "优先审核 update_memory 提案，避免新增重复 user_preference。",
+      suggestedAction: "优先更新已有 user_preference，避免新增重复记忆。",
       relatedMessageIds: [seed.messageIds[0], seed.messageIds[1]],
       status: "open",
     },
@@ -437,7 +358,7 @@ async function main(): Promise<void> {
   console.log(`- conversation: ${conversation.externalConversationId}`);
   console.log(`- dream job: ${dreamJob.id}`);
   console.log(`- dream signals: ${seed.dreamSignalIds.length}`);
-  console.log(`- dream proposals: ${seed.dreamProposalIds.length}`);
+  console.log("- dream memories: 2");
 }
 
 main()

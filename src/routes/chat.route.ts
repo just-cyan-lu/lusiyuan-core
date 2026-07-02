@@ -32,7 +32,6 @@ const addMemoryBodySchema = {
   properties: {
     type: { type: "string", minLength: 1 },
     content: { type: "string", minLength: 1 },
-    importance: { type: "number", minimum: 1, maximum: 10 },
   },
 } as const;
 
@@ -251,7 +250,6 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
       const body = request.body as {
         type: string;
         content: string;
-        importance?: number;
       };
 
       const user = await prisma.user.findUnique({ where: { externalId: userId } });
@@ -265,8 +263,6 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
           type: body.type as MemoryType,
           scope: "person",
           content: body.content,
-          importance: body.importance ?? 5,
-          source: "manual",
         },
       ]);
 

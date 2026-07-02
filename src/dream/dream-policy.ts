@@ -59,10 +59,6 @@ export function filterProposals(
     if (containsPretendHumanContent(p.content)) return false;
     if (!["project", "global", "topic"].includes(p.scope)) return false;
     if (p.type === "relationship" || p.type === "core") return false;
-    if (p.riskLevel === "high") {
-      // High-risk proposals are allowed but flagged — caller handles separately
-      return true;
-    }
     return true;
   });
 }

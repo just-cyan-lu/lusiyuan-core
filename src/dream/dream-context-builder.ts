@@ -6,7 +6,6 @@ import type {
   DreamSourceMessage,
   DreamSourceMemory,
   DreamSourceToolCall,
-  DreamSourceMemoryProposal,
 } from "./dream.types.js";
 
 export interface BuildDreamContextInput {
@@ -20,19 +19,17 @@ export class DreamContextBuilder {
   async build(input: BuildDreamContextInput): Promise<DreamContext> {
     const { from, to, userId, conversationId } = input;
 
-    const [messages, memories, toolCalls, memoryProposals] =
+    const [messages, memories, toolCalls] =
       await Promise.all([
         this.fetchMessages(from, to, userId, conversationId),
         this.fetchMemories(from, to, userId),
         this.fetchToolCalls(from, to),
-        this.fetchMemoryProposals(from, to),
       ]);
 
     const sourceStats: Record<string, number> = {
       messages: messages.length,
       memories: memories.length,
       toolCalls: toolCalls.length,
-      memoryProposals: memoryProposals.length,
     };
 
     return {
@@ -40,7 +37,6 @@ export class DreamContextBuilder {
       messages,
       memories,
       toolCalls,
-      memoryProposals,
       sourceStats,
     };
   }
@@ -141,7 +137,6 @@ export class DreamContextBuilder {
         scope: true,
         tier: true,
         content: true,
-        importance: true,
         createdAt: true,
       },
     });
@@ -152,7 +147,6 @@ export class DreamContextBuilder {
       scope: r.scope,
       tier: r.tier,
       content: r.content,
-      importance: r.importance,
       createdAt: r.createdAt,
     }));
   }
@@ -167,33 +161,6 @@ export class DreamContextBuilder {
     return rows.map((r) => ({
       id: r.id,
       toolName: r.toolName,
-      status: r.status,
-      createdAt: r.createdAt,
-    }));
-  }
-
-  private async fetchMemoryProposals(
-    from: Date,
-    to: Date
-  ): Promise<DreamSourceMemoryProposal[]> {
-    const rows = await prisma.memoryProposal.findMany({
-      where: { createdAt: { gte: from, lte: to } },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        proposalType: true,
-        content: true,
-        confidence: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-
-    return rows.map((r) => ({
-      id: r.id,
-      proposalType: r.proposalType,
-      content: r.content,
-      confidence: r.confidence,
       status: r.status,
       createdAt: r.createdAt,
     }));

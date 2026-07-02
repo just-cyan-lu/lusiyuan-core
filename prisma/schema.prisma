@@ -112,34 +112,23 @@ model ChannelEvent {
 
 /// Long-term memories used to personalize future replies.
 model Memory {
-  id                    String    @id @default(cuid())
-  personId              String?
-  type                  String
-  scope                 String    @default("person")
-  tier                  String    @default("short")
-  strength              Int       @default(1)
-  riskLevel             String    @default("low")
-  content               String
-  summary               String?
-  importance            Int       @default(5)
-  confidence            Float     @default(0.8)
-  status                String    @default("active")
-  source                String?
-  tags                  Json?
-  entities              Json?
-  channel               String?
-  conversationId        String?
-  sourceMessageIds      Json?
-  sourceConversationIds Json?
-  sourceUserIds         Json?
-  mentionDayKeys        Json?
-  lastMentionedAt       DateTime?
-  nextReviewAt          DateTime?
-  lastAccessedAt        DateTime?
-  accessCount           Int       @default(0)
-  metadata              Json?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  personId         String?
+  type             String
+  scope            String    @default("person")
+  tier             String    @default("temp")
+  tierMentionCount Int       @default(0)
+  tierEnteredAt    DateTime?
+  content          String
+  summary          String?
+  status           String    @default("active")
+  sourceMessageIds Json?
+  mentionDayKeys   Json?
+  lastMentionedAt  DateTime?
+  lastAccessedAt   DateTime?
+  accessCount      Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   person     PersonIdentity?   @relation(fields: [personId], references: [id], onDelete: Cascade)
   embeddings MemoryEmbedding[]
@@ -147,8 +136,6 @@ model Memory {
   @@index([personId])
   @@index([type])
   @@index([tier])
-  @@index([riskLevel])
-  @@index([importance])
   @@index([status, scope, type])
   @@index([personId, status])
   @@index([scope, status, tier])
@@ -540,7 +527,6 @@ model PersonIdentity {
   reviewProposals    RelationshipReviewProposal[]
   reviewEvidences    RelationshipReviewEvidence[]
   memories           Memory[]
-  memoryProposals    MemoryProposal[]
 
   @@index([label])
   @@map("person_identities")
@@ -770,52 +756,6 @@ model MessageEmbedding {
 
 // ── Dream learning outputs ───────────────────────────────────────────────────
 
-/// Proposed memory changes waiting for review or application.
-model MemoryProposal {
-  id                    String    @id @default(cuid())
-  reportId              String
-  personId              String?
-  conversationId        String?
-  channel               String?
-  proposalType          String
-  targetMemoryId        String?
-  scope                 String
-  type                  String
-  tier                  String    @default("short")
-  strength              Int       @default(1)
-  content               String
-  summary               String?
-  tags                  Json?
-  entities              Json?
-  reason                String
-  confidence            Float
-  riskLevel             String
-  status                String    @default("pending")
-  reviewedBy            String?
-  reviewedAt            DateTime?
-  appliedMemoryId       String?
-  sourceMessageIds      Json?
-  sourceConversationIds Json?
-  sourceUserIds         Json?
-  metadata              Json?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  report DreamConsolidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  person PersonIdentity?          @relation(fields: [personId], references: [id], onDelete: Cascade)
-
-  @@index([reportId])
-  @@index([personId])
-  @@index([conversationId])
-  @@index([channel])
-  @@index([status])
-  @@index([proposalType])
-  @@index([riskLevel])
-  @@index([confidence])
-  @@index([scope, status])
-  @@map("memory_change_proposals")
-}
-
 /// Risk items detected by dream consolidation.
 model MemoryRiskFlag {
   id                String   @id @default(cuid())
@@ -973,21 +913,19 @@ model DreamDiaryEntry {
 
 /// Report for dream-cycle consolidation and generated proposals.
 model DreamConsolidationReport {
-  id                   String   @id @default(cuid())
-  jobId                String?
-  summary              String
-  phase                String
-  candidateCount       Int      @default(0)
-  promotedCount        Int      @default(0)
-  rejectedCount        Int      @default(0)
-  riskCount            Int      @default(0)
-  generatedProposalIds Json?
-  rawOutput            Json?
-  metadata             Json?
-  createdAt            DateTime @default(now())
+  id             String   @id @default(cuid())
+  jobId          String?
+  summary        String
+  phase          String
+  candidateCount Int      @default(0)
+  promotedCount  Int      @default(0)
+  rejectedCount  Int      @default(0)
+  riskCount      Int      @default(0)
+  rawOutput      Json?
+  metadata       Json?
+  createdAt      DateTime @default(now())
 
   job                         DreamJob?                    @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  proposals                   MemoryProposal[]
   riskFlags                   MemoryRiskFlag[]
   growthLogs                  GrowthLogProposal[]
   relationshipReviewProposals RelationshipReviewProposal[]

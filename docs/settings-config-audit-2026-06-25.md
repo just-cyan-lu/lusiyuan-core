@@ -13,7 +13,7 @@
 
 ## 总结
 
-- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，新增 `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT`、`TOOL_CALL_LOG_ENABLED`；已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`RUNTIME_AUTONOMY_TIMEZONE`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`、`MAX_MESSAGE_LENGTH`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT`、`TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`TAVILY_SEARCH_DEPTH`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 44 个。
+- 运行时配置原有 91 个。期间新增聊天上下文配置 6 个，新增 `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT`、`TOOL_CALL_LOG_ENABLED`；已删除 `REFLECTION_OWNER_ONLY`、`REFLECTION_ENABLED`、`REFLECTION_DEFAULT_MESSAGE_LIMIT`、`REFLECTION_MAX_MESSAGE_LIMIT`、`REFLECTION_MIN_MESSAGES`、`REFLECTION_INCLUDE_MEMORIES`、`REFLECTION_AUTO_APPLY`、`REFLECTION_PROPOSAL_MIN_CONFIDENCE`、`REFLECTION_PROPOSAL_MAX_PER_RUN`、`REFLECTION_ENABLE_GROWTH_LOG`、`DREAM_AUTO_APPLY`、`DREAM_AUTO_RUN`、`RUNTIME_AUTONOMY_TIMEZONE`、`MINIMAX_REASONING_SPLIT`、`REPLY_PROGRESS_DRAFT_ENABLED`、`RELATIONSHIP_UPDATE_MODE`、`RELATIONSHIP_REVIEW_MIN_SIGNALS`、`MAX_MESSAGE_LENGTH`、`TOOL_MAX_CALLS_PER_MESSAGE`、`TOOL_TIMEOUT_MS`、`TOOL_LOG_INPUT_OUTPUT`、`TOOLS_ENABLED`、`TOOLS_AUTO_EXECUTE_LOW_RISK`、`TOOLS_ALLOW_MEDIUM_RISK`、`TOOLS_ALLOW_HIGH_RISK`、`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT`、`TAVILY_SEARCH_DEPTH`、`TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE`、`MEMORY_SEMANTIC_TOP_K`、`MEMORY_MAX_TOTAL_CHARS`，以及 23 个 Dream 窗口/阈值/展示/脱敏/阶段配置，当前为 42 个。
 - 绝大多数配置可以确认接入了业务路径。
 - Dream 已从“固定回看小时 + 抽样上限 + 多个阈值”收敛为“上一次成功 Dream 到本次 Dream 的连续区间”，避免自动整理漏消息。
 - `.env` 配置大部分都在用；`TAVILY_API_KEYS` 已统一为唯一 Tavily key 配置，旧的 `MODEL_*` fallback 已删除。`WEB_ORIGIN` 仍需要等上线前决定是否接入全局 CORS。
@@ -31,10 +31,10 @@
 | --- | --- | --- | --- |
 | 模型运行 | `ACTIVE_MODEL_PROVIDER`、`MINIMAX_THINKING_TYPE`、`MINIMAX_MAX_COMPLETION_TOKENS` | 保留 | `src/core/model-provider.ts` |
 | 回复投递 | `REPLY_DELIVERY_MODE`、`REPLY_SEGMENTATION_LLM_ENABLED`、`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` | 保留；`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT` 已改为代码默认值 | `src/core/chat.service.ts`、`src/core/reply-segmentation.service.ts` |
-| 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_SEMANTIC_TOP_K`、`MEMORY_FINAL_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` | 保留 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts`、`src/memory/memory-proposal.service.ts` |
+| 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_FINAL_TOP_K` | 保留；`MEMORY_SEMANTIC_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` 已删除，候选召回和上下文预算改为内部固定策略 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts` |
 | 工具 | `TOOL_CALL_LOG_ENABLED` | 保留；工具层固定开启，访问范围只在具体工具上配置；全局/风险开关已删除 | `src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
 | 工具访问 | `TOOL_SEARCH_MEMORIES_MODE`、`TOOL_WEB_SEARCH_MODE`、`TOOL_READ_PAGE_MODE` | 保留；`summarize_recent_conversation` 工具和 `TOOL_SUMMARIZE_RECENT_CONVERSATION_MODE` 已删除 | `src/tools/builtin/*.tool.ts` |
-| Reflection | 无运行时配置 | 手动 Reflection 已删除；记忆提案审核由 Dream 产物和记忆页面承接 | `src/dream/*`、`src/routes/memory-proposals.route.ts` |
+| Reflection | 无运行时配置 | 手动 Reflection 已删除；旧记忆审核模型也已删除，Dream 直接写入记忆，关系复盘走关系待确认队列 | `src/dream/*`、`src/routes/dream.route.ts` |
 | Dream | `DREAM_ENABLED`、`DREAM_CRON` | 保留 | `src/dream/*`、`src/routes/dream.route.ts`、`src/app.ts` |
 | 运行态 | `RUNTIME_STATE_AUTO_UPDATE_ENABLED`、`RUNTIME_AUTONOMY_AUTO_RUN`、`RUNTIME_AUTONOMY_CRON`、`RUNTIME_AUTONOMY_LOW_CHAT_COUNT`、`RUNTIME_AUTONOMY_HIGH_CHAT_COUNT` | 保留；自动校准总开关从 RuntimeState 字段迁到 system_settings，时区改用服务器本地时间；自启动聊天密度阈值可配置 | `src/runtime/runtime-state.service.ts`、`src/runtime/runtime-autonomy-scheduler.ts`、`src/app.ts` |
 | 网页能力 | `TAVILY_ENABLED`、`TAVILY_MAX_RESULTS`、`JINA_ENABLED`、`PLAYWRIGHT_ENABLED` | 保留；`TAVILY_SEARCH_DEPTH` 改为 `web_search` 工具参数，由模型按本次搜索意图选择 basic/advanced；`PLAYWRIGHT_MAX_PAGE_TEXT_CHARS`、`PLAYWRIGHT_SCREENSHOT_ENABLED` 已删除，网页读取不再强制截断；Playwright 或 Chrome MCP 被选中时可返回截图，Jina 不支持截图 | `src/web-search/*`、`src/page-reader/*`、`src/tools/builtin/read-page.tool.ts`、`src/platforms/xiaohongshu/xiaohongshu-url-import.service.ts` |
@@ -53,7 +53,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 - `DREAM_MORNING_BRIEF_ENABLED`：删除未接线开关，Morning Brief 保留为 Job 的只读摘要接口。
 - `DREAM_DIARY_VISIBILITY`：删除，当前无 admin 账号/权限层，日记固定写入 `internal` 标记。
 - `DREAM_REDACT_PRIVATE_DATA`：删除，Dream 产物只在 admin 查看，且后续训练/导出更需要保留完整原始材料。
-- Dream 阶段和提案类型开关：删除，`DREAM_ENABLED=true` 时固定完整运行 Daily Note、Dream Signal、Dream Diary、Deep Sleep，并生成待审核提案。
+- Dream 阶段和产物类型开关：删除，`DREAM_ENABLED=true` 时固定完整运行 Daily Note、Dream Signal、Dream Diary、Deep Sleep，并直接写入记忆、成长记录提案和风险项。
 - `DREAM_LOCK_TTL_MINUTES`：删除配置项；Dream 使用不可过期运行锁防并发，拿不到锁时本次运行返回 `running` 并跳过，等待下次 cron 继续。
 
 ## 已处理：关系复盘入口
@@ -112,8 +112,8 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 
 - 旧的 `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` fallback 已删除；模型只按 `ACTIVE_MODEL_PROVIDER` 指向的 provider 配置读取，配置错了就直接报错。
 - `WEB_ORIGIN` 目前像是“安全配置”，但全局 CORS 仍允许任意 origin。这个最好单独修，不然配置页会给人一种已经限制来源的错觉。
-- 手动 Reflection 已删除。后续记忆提案、成长记录、风险项统一从 Dream 深睡阶段进入待审核队列。
-- 已处理：旧 `reflection_jobs`、`reflection_reports`、`reflection_risk_flags` 表已删除；记忆提案、风险项、成长日志现在直接挂到 `dream_consolidation_reports`，由 Dream 深睡阶段统一生成和审核。
+- 手动 Reflection 已删除。后续记忆、成长记录、风险项统一由 Dream 深睡阶段生成。
+- 已处理：旧 `reflection_jobs`、`reflection_reports`、`reflection_risk_flags`、旧记忆审核表已删除；记忆由 Dream 直接写入，风险项和成长日志挂到 `dream_consolidation_reports`。
 
 ## 建议清理顺序
 

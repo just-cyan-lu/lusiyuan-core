@@ -19,12 +19,8 @@ type MemoryDateField = "createdAt" | "updatedAt" | "lastAccessedAt";
 type MemorySortKey =
   | "updated_desc"
   | "created_desc"
-  | "importance_desc"
-  | "confidence_desc"
   | "access_desc"
-  | "stale_access"
-  | "review_focus";
-type MemoryActivityMetric = "count" | "importance";
+  | "stale_access";
 
 interface MemoryLibraryPageProps {
   adminToken: string;
@@ -39,19 +35,9 @@ interface MemoryFormState {
   scope: string;
   type: string;
   tier: string;
-  strength: string;
-  riskLevel: string;
   status: string;
   content: string;
   summary: string;
-  importance: string;
-  confidence: string;
-  source: string;
-  channel: string;
-  conversationId: string;
-  tagsText: string;
-  entitiesText: string;
-  metadataText: string;
 }
 
 const statusOptions: Array<{ value: MemoryStatusFilter; label: string }> = [
@@ -86,22 +72,13 @@ const dateFieldOptions: Array<{ value: MemoryDateField; label: string }> = [
 const sortOptions: Array<{ value: MemorySortKey; label: string }> = [
   { value: "updated_desc", label: "最近更新" },
   { value: "created_desc", label: "最近创建" },
-  { value: "importance_desc", label: "重要度高" },
-  { value: "confidence_desc", label: "置信度高" },
   { value: "access_desc", label: "访问最多" },
   { value: "stale_access", label: "久未访问" },
-  { value: "review_focus", label: "重点审查" },
-];
-
-const activityMetricOptions: Array<{ value: MemoryActivityMetric; label: string }> = [
-  { value: "count", label: "数量" },
-  { value: "importance", label: "重要度" },
 ];
 
 const editableScopes = ["person", "global", "project", "topic"];
 const editableStatuses = ["active", "archived", "superseded"];
-const editableTiers = ["short", "mid", "long"];
-const editableRisks = ["low", "medium", "high"];
+const editableTiers = ["temp", "short", "mid", "long"];
 const canonicalMemoryTypes = [
   "personal_fact",
   "user_preference",
@@ -114,6 +91,17 @@ const canonicalMemoryTypes = [
   "other",
 ];
 
+const tierLabels: Record<string, string> = {
+  temp: "临时",
+  short: "短期",
+  mid: "中期",
+  long: "长期",
+};
+
+function memoryTierLabel(value: string): string {
+  return tierLabels[value] ?? value;
+}
+
 function emptyForm(): MemoryFormState {
   return {
     mode: "create",
@@ -121,20 +109,10 @@ function emptyForm(): MemoryFormState {
     personId: "",
     scope: "person",
     type: "user_preference",
-    tier: "short",
-    strength: "1",
-    riskLevel: "low",
+    tier: "temp",
     status: "active",
     content: "",
     summary: "",
-    importance: "5",
-    confidence: "0.8",
-    source: "admin_manual",
-    channel: "",
-    conversationId: "",
-    tagsText: "",
-    entitiesText: "",
-    metadataText: "",
   };
 }
 
@@ -164,19 +142,9 @@ function formFromMemory(memory: AdminMemory): MemoryFormState {
     scope: memory.scope,
     type: memory.type,
     tier: memory.tier,
-    strength: String(memory.strength),
-    riskLevel: memory.riskLevel,
     status: memory.status,
     content: memory.content,
     summary: memory.summary ?? "",
-    importance: String(memory.importance),
-    confidence: String(memory.confidence),
-    source: memory.source ?? "",
-    channel: memory.channel ?? "",
-    conversationId: memory.conversationId ?? "",
-    tagsText: toTextList(memory.tags).join(", "),
-    entitiesText: toTextList(memory.entities).join(", "),
-    metadataText: memory.metadata ? JSON.stringify(memory.metadata, null, 2) : "",
   };
 }
 
@@ -269,24 +237,6 @@ function toTextList(value: unknown): string[] {
   return [JSON.stringify(value)];
 }
 
-function parseCsv(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseOptionalJson(value: string): unknown {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  return JSON.parse(trimmed);
-}
-
-function numberValue(value: string, fallback: number): number {
-  const parsed = parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
 function mergeTypes(existing: string[], memories: AdminMemory[]): string[] {
   const next = new Set([...canonicalMemoryTypes, ...existing]);
   for (const memory of memories) {
@@ -308,7 +258,6 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
   const [toDate, setToDate] = useState("");
   const [dateField, setDateField] = useState<MemoryDateField>("updatedAt");
   const [sortKey, setSortKey] = useState<MemorySortKey>("updated_desc");
-  const [activityMetric, setActivityMetric] = useState<MemoryActivityMetric>("count");
   const [memories, setMemories] = useState<AdminMemory[]>([]);
   const [activity, setActivity] = useState<AdminMemoryActivity | null>(null);
   const [knownTypes, setKnownTypes] = useState<string[]>(canonicalMemoryTypes);
@@ -372,7 +321,6 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
           type: typeFilter,
           query: query.trim() || undefined,
           dateField,
-          metric: activityMetric,
         }),
       ]);
       setMemories(next);
@@ -423,7 +371,6 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
             type: typeFilter,
             query: query.trim() || undefined,
             dateField,
-            metric: activityMetric,
           }),
         ]);
         if (cancelled) return;
@@ -451,7 +398,6 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
       cancelled = true;
     };
   }, [
-    activityMetric,
     adminToken,
     dateField,
     dateRange.from,
@@ -509,19 +455,9 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
         type: form.type.trim(),
         scope: form.scope,
         tier: form.tier,
-        strength: numberValue(form.strength, 1),
-        riskLevel: form.riskLevel,
         content: form.content.trim(),
         summary: form.summary.trim() || null,
-        importance: numberValue(form.importance, 5),
-        confidence: numberValue(form.confidence, 0.8),
         status: form.status,
-        source: form.source.trim() || null,
-        tags: parseCsv(form.tagsText),
-        entities: parseCsv(form.entitiesText),
-        channel: form.channel.trim() || null,
-        conversationId: form.conversationId.trim() || null,
-        metadata: parseOptionalJson(form.metadataText),
       };
 
       const saved =
@@ -628,7 +564,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
           <FilterInput
             label="搜索"
             value={query}
-            placeholder="id / content / user / channel"
+            placeholder="id / content / user / tier"
             onChange={setQuery}
           />
           <div className="block">
@@ -679,16 +615,6 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
               options={sortOptions.map((option) => ({ key: option.value, label: option.label }))}
             />
           </div>
-          <div className="block">
-            <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">热力图</span>
-            <AdminSelect
-              className="mt-1"
-              ariaLabel="热力图"
-              value={activityMetric}
-              onChange={(value) => setActivityMetric(value as MemoryActivityMetric)}
-              options={activityMetricOptions.map((option) => ({ key: option.value, label: option.label }))}
-            />
-          </div>
           <Button
             type="default"
             className="h-11 self-end"
@@ -725,7 +651,6 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
 
         <MemoryActivityHeatmap
           activity={activity}
-          metric={activityMetric}
           selectedFromDate={datePreset === "custom" ? fromDate : ""}
           selectedToDate={datePreset === "custom" ? toDate : ""}
           onSelectDay={selectActivityDay}
@@ -809,7 +734,7 @@ function MemoryListItem({
               {memory.scope}
             </span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
-              {memory.tier}
+              {memoryTierLabel(memory.tier)}
             </span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
               {ownerLabel(memory)}
@@ -822,13 +747,7 @@ function MemoryListItem({
         <StatusPill active={memory.status === "active"} label={memory.status} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
-        <span>重要度 {memory.importance}</span>
-        <span>·</span>
-        <span>强度 {memory.strength}</span>
-        <span>·</span>
-        <span>风险 {memory.riskLevel}</span>
-        <span>·</span>
-        <span>置信度 {Math.round(memory.confidence * 100)}%</span>
+        <span>本层提及 {memory.tierMentionCount}</span>
         <span>·</span>
         <span>{formatDate(memory.updatedAt)}</span>
       </div>
@@ -838,21 +757,19 @@ function MemoryListItem({
 
 function MemoryActivityHeatmap({
   activity,
-  metric,
   selectedFromDate,
   selectedToDate,
   onSelectDay,
 }: {
   activity: AdminMemoryActivity | null;
-  metric: MemoryActivityMetric;
   selectedFromDate: string;
   selectedToDate: string;
   onSelectDay: (day: string) => void;
 }) {
   const dayMap = useMemo(() => {
-    const map = new Map<string, { count: number; importance: number }>();
+    const map = new Map<string, { count: number }>();
     for (const day of activity?.days ?? []) {
-      map.set(day.date, { count: day.count, importance: day.importance });
+      map.set(day.date, { count: day.count });
     }
     return map;
   }, [activity]);
@@ -866,34 +783,26 @@ function MemoryActivityHeatmap({
     const next: Array<{
       date: string | null;
       count: number;
-      importance: number;
     }> = Array.from({ length: blankCount }, () => ({
       date: null,
       count: 0,
-      importance: 0,
     }));
 
     for (let index = 0; index < 365; index += 1) {
       const date = new Date(firstDay);
       date.setDate(firstDay.getDate() + index);
       const key = localDateKey(date);
-      const value = dayMap.get(key) ?? { count: 0, importance: 0 };
+      const value = dayMap.get(key) ?? { count: 0 };
       next.push({ date: key, ...value });
     }
     return next;
   }, [dayMap]);
 
-  const peak = Math.max(
-    1,
-    ...cells.map((cell) =>
-      metric === "importance" ? cell.importance : cell.count
-    )
-  );
+  const peak = Math.max(1, ...cells.map((cell) => cell.count));
 
-  function intensity(cell: { count: number; importance: number }): number {
-    const value = metric === "importance" ? cell.importance : cell.count;
-    if (value <= 0) return 0;
-    return Math.max(1, Math.ceil((value / peak) * 4));
+  function intensity(cell: { count: number }): number {
+    if (cell.count <= 0) return 0;
+    return Math.max(1, Math.ceil((cell.count / peak) * 4));
   }
 
   function cellClass(level: number, selected: boolean): string {
@@ -931,7 +840,7 @@ function MemoryActivityHeatmap({
                 key={cell.date}
                 type="button"
                 onClick={() => onSelectDay(cell.date ?? "")}
-                title={`${cell.date}: ${cell.count} 条 · 重要度 ${cell.importance}`}
+                title={`${cell.date}: ${cell.count} 条`}
                 className={`admin-layout-button h-2.5 w-2.5 rounded-[2px] transition hover:scale-125 ${cellClass(
                   intensity(cell),
                   cell.date >= selectedFromDate && cell.date <= selectedToDate
@@ -1028,6 +937,12 @@ function MemoryEditor({
           <DetailRow label="Created" value={formatDate(selectedMemory.createdAt)} title={selectedMemory.createdAt} />
           <DetailRow label="Updated" value={formatDate(selectedMemory.updatedAt)} title={selectedMemory.updatedAt} />
           <DetailRow label="Access" value={`${selectedMemory.accessCount} 次`} />
+          <DetailRow label="Tier Mentions" value={`${selectedMemory.tierMentionCount} 次`} />
+          <DetailRow
+            label="Tier Entered"
+            value={formatDate(selectedMemory.tierEnteredAt)}
+            title={selectedMemory.tierEnteredAt ?? "无"}
+          />
         </div>
       )}
 
@@ -1084,50 +999,9 @@ function MemoryEditor({
             ariaLabel="Tier"
             value={form.tier}
             onChange={(value) => update("tier", value)}
-            options={editableTiers.map((tier) => ({ key: tier, label: tier }))}
+            options={editableTiers.map((tier) => ({ key: tier, label: memoryTierLabel(tier) }))}
           />
         </div>
-        <div className="block">
-          <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Risk</span>
-          <AdminSelect
-            className="mt-1"
-            ariaLabel="Risk"
-            value={form.riskLevel}
-            onChange={(value) => update("riskLevel", value)}
-            options={editableRisks.map((risk) => ({ key: risk, label: risk }))}
-          />
-        </div>
-        <Field label="Importance">
-          <AdminInput
-            type="number"
-            min={1}
-            max={10}
-            value={form.importance}
-            onChange={(event) => update("importance", event.target.value)}
-            aria-label="Importance"
-          />
-        </Field>
-        <Field label="Strength">
-          <AdminInput
-            type="number"
-            min={1}
-            max={10}
-            value={form.strength}
-            onChange={(event) => update("strength", event.target.value)}
-            aria-label="Strength"
-          />
-        </Field>
-        <Field label="Confidence">
-          <AdminInput
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={form.confidence}
-            onChange={(event) => update("confidence", event.target.value)}
-            aria-label="Confidence"
-          />
-        </Field>
       </div>
 
       <Field label="Content" className="mt-4">
@@ -1148,60 +1022,6 @@ function MemoryEditor({
           rows={2}
           className="field-input resize-y leading-6"
           placeholder="可选，用于快速理解这条记忆。"
-        />
-      </Field>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <Field label="Tags（逗号分隔）">
-          <AdminInput
-            value={form.tagsText}
-            onChange={(event) => update("tagsText", event.target.value)}
-            placeholder="admin, ui, preference"
-            aria-label="Tags"
-          />
-        </Field>
-        <Field label="Entities（逗号分隔）">
-          <AdminInput
-            value={form.entitiesText}
-            onChange={(event) => update("entitiesText", event.target.value)}
-            placeholder="Admin 平台"
-            aria-label="Entities"
-          />
-        </Field>
-        <Field label="Source">
-          <AdminInput
-            value={form.source}
-            onChange={(event) => update("source", event.target.value)}
-            placeholder="admin_manual / reflection"
-            aria-label="Source"
-          />
-        </Field>
-        <Field label="Channel">
-          <AdminInput
-            value={form.channel}
-            onChange={(event) => update("channel", event.target.value)}
-            placeholder="telegram / web"
-            aria-label="Channel"
-          />
-        </Field>
-      </div>
-
-      <Field label="Conversation ID" className="mt-4">
-        <AdminInput
-          value={form.conversationId}
-          onChange={(event) => update("conversationId", event.target.value)}
-          placeholder="可选"
-          aria-label="Conversation ID"
-        />
-      </Field>
-
-      <Field label="Metadata JSON" className="mt-4">
-        <textarea
-          value={form.metadataText}
-          onChange={(event) => update("metadataText", event.target.value)}
-          rows={4}
-          className="field-input resize-y font-mono text-xs leading-5"
-          placeholder='{"source":"manual"}'
         />
       </Field>
 
@@ -1228,11 +1048,7 @@ function MemoryEditor({
         )}
       </div>
 
-      {selectedMemory && (
-        <div className="mt-5">
-          <JsonBlock title="Raw Metadata" value={selectedMemory.metadata} />
-        </div>
-      )}
+      {selectedMemory && <SourceMessageBlock value={selectedMemory.sourceMessageIds} />}
     </div>
   );
 }
@@ -1300,19 +1116,24 @@ function DetailRow({ label, value, title }: { label: string; value: string; titl
   );
 }
 
-function JsonBlock({ title, value }: { title: string; value: unknown }) {
-  if (value === null || value === undefined) return null;
+function SourceMessageBlock({ value }: { value: unknown }) {
+  const ids = toTextList(value);
+  if (ids.length === 0) return null;
 
-  const text = JSON.stringify(value, null, 2);
   return (
-    <section className="rounded-lg border border-[var(--ls-border)] bg-white p-4">
-      <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">{title}</h4>
-      <pre
-        title={text}
-        className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--ls-panel-soft)] p-3 text-xs leading-5 text-[var(--ls-ink-strong)]"
-      >
-        {text}
-      </pre>
+    <section className="mt-5 rounded-lg border border-[var(--ls-border)] bg-white p-4">
+      <h4 className="text-sm font-semibold text-[var(--ls-ink-strong)]">来源消息</h4>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {ids.map((id) => (
+          <span
+            key={id}
+            title={id}
+            className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1 font-mono text-xs text-[var(--ls-ink-soft)]"
+          >
+            {shortId(id)}
+          </span>
+        ))}
+      </div>
     </section>
   );
 }

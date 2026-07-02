@@ -41,7 +41,6 @@ export interface DreamSourceMemory {
   scope?: string;
   tier?: string;
   content: string;
-  importance: number;
   createdAt: Date;
 }
 
@@ -52,21 +51,11 @@ export interface DreamSourceToolCall {
   createdAt: Date;
 }
 
-export interface DreamSourceMemoryProposal {
-  id: string;
-  proposalType: string;
-  content: string;
-  confidence: number;
-  status: string;
-  createdAt: Date;
-}
-
 export interface DreamContext {
   range: { from: Date; to: Date };
   messages: DreamSourceMessage[];
   memories: DreamSourceMemory[];
   toolCalls: DreamSourceToolCall[];
-  memoryProposals: DreamSourceMemoryProposal[];
   // reserved for v0.8+
   assetReviews?: unknown[];
   sourceStats: Record<string, number>;
@@ -113,15 +102,8 @@ export interface RawConsolidationProposal {
   targetMemoryId?: string;
   scope: string;
   type: string;
-  tier?: string;
-  strength?: number;
   content: string;
   summary?: string;
-  tags?: string[];
-  entities?: string[];
-  reason: string;
-  confidence: number;
-  riskLevel: DreamRiskLevel;
   sourceMessageIds?: string[];
 }
 
@@ -142,7 +124,7 @@ export interface RawConsolidationRiskFlag {
 }
 
 export interface RawConsolidationOutput {
-  memoryProposals: RawConsolidationProposal[];
+  memoryChanges: RawConsolidationProposal[];
   growthLogProposals: RawConsolidationGrowthLog[];
   riskFlags: RawConsolidationRiskFlag[];
   openQuestions: string[];
@@ -189,15 +171,8 @@ export interface RawRelationshipMemoryChange {
   proposalType: "create_memory" | "update_memory" | "supersede_memory" | "archive_memory";
   targetMemoryId?: string | null;
   type: string;
-  tier?: "short" | "mid" | "long";
-  strength?: number;
   content: string;
   summary?: string | null;
-  tags?: string[];
-  entities?: string[];
-  reason: string;
-  confidence: number;
-  riskLevel?: DreamRiskLevel;
   sourceMessageIds?: string[];
 }
 

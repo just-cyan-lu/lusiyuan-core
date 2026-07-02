@@ -2,11 +2,11 @@
 
 ## 概述
 
-Dream Cycle 是陆思源的闲时记忆巩固系统。它在不实时聊天的时候，整理最近发生的事情，生成每日笔记、梦境日记和记忆提案。
+Dream Cycle 是陆思源的闲时记忆巩固系统。它在不实时聊天的时候，整理最近发生的事情，生成每日笔记、梦境日记和记忆整理结果。
 
 核心原则：**梦可以有诗意，但记忆必须有证据。**
 
-Dream 不直接写正式 Memory，所有长期记忆变更仍然走 Proposal → Owner 审核流。
+Dream 现在直接写入或更新 Memory；关系档案是否自动应用由每个身份的“允许 Dream 自动维护”开关决定。
 
 ---
 
@@ -16,8 +16,8 @@ Dream 不直接写正式 Memory，所有长期记忆变更仍然走 Proposal →
 |---|---|---|
 | 触发方式 | 手动 / 对话后 | 手动 / 定时（默认关闭） |
 | 风格 | 理性复盘、结构化评估 | 闲时整理、日记叙事 |
-| 输出 | MemoryProposal、RiskFlag | DailyNote、DreamSignal、DreamDiaryEntry、MemoryProposal |
-| 写入 Memory | 需 owner 审核 | 需 owner 审核（同一审核流） |
+| 输出 | 已删除 | DailyNote、DreamSignal、DreamDiaryEntry、Memory、RiskFlag |
+| 写入 Memory | 已删除 | Dream 直接写入或更新 |
 
 ---
 
@@ -33,7 +33,7 @@ REM Sleep（梦境联想）
 Dream Diary（梦境日记）
   ↓ 生成 DreamDiaryEntry：陆思源风格内在叙事
 Deep Sleep（深睡巩固）
-  ↓ 生成 MemoryProposal / GrowthLogProposal / RiskFlag
+  ↓ 写入 Memory / GrowthLogProposal / RiskFlag
 Morning Brief（醒来摘要）
   ↓ 给 owner 看的结果摘要
 ```
@@ -73,11 +73,10 @@ Morning Brief（醒来摘要）
 ## 安全边界
 
 Dream Cycle 绝对不会：
-- 直接写入正式 Memory
 - 修改 persona 文件或 boundaries
 - 自动发送消息
 - 把梦境日记当作事实来源
-- 把梦境日记作为 MemoryProposal 的唯一证据
+- 只凭梦境日记写入记忆
 - 在 DreamDiaryEntry 中编造真实世界经历
 
 Dream Policy 会过滤：
@@ -133,7 +132,7 @@ src/dream/
 ├── daily-note.service.ts       # Light Sleep：生成 DailyNote
 ├── dream-signal-extractor.ts   # REM Sleep：提取 DreamSignal
 ├── dream-diary-writer.ts       # Dream Diary：生成日记
-├── dream-consolidator.ts       # Deep Sleep：生成提案
+├── dream-consolidator.ts       # Deep Sleep：写入记忆
 ├── morning-brief.service.ts    # Morning Brief：结果摘要
 └── dream.service.ts            # 主编排器
 ```
@@ -145,5 +144,4 @@ src/dream/
 | 项目 | 状态 | 说明 |
 |------|------|------|
 | 首次 Dream 大范围初始化 | ⏭ 待整理 | 当前首次没有成功记录时会从最早时间开始，后续可在 admin 任务页做明确初始化入口 |
-| 审核 UI（图形界面） | ⏭ 跳过 | 属于前端仓库（lusiyuan-web）的工作，目前审核只能通过 HTTP API 或 CLI |
-| Dream Proposal 专属 CLI | ⏭ 跳过 | Dream 生成的 MemoryProposal 复用 Reflection 的审核流（`pnpm reflection:apply`），不单独做 |
+| 独立记忆审核 UI | ⏭ 跳过 | 记忆现在直接写入，发现污染时在记忆库归档或修改 |
