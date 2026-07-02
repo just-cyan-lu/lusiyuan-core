@@ -325,7 +325,180 @@ Dream 的记忆写入当前流程：
 
 当前优先级是让 Dream 在上下文里判断得更准，让 Memory 表保持干净。
 
+## 设计：全局、项目、话题记忆自动整理
+
+全局、项目、话题记忆不属于某个具体用户身份，`personId` 固定为 `null`。它们的整理不放进关系复盘里，避免“某个人的一段聊天”直接污染所有人的上下文。
+
+第一版不新增表结构，继续复用 `Memory`：
+
+- `scope=global`：对陆思源整体成立、跨场景都可能有用的稳定信息。
+- `scope=project`：某个项目、产品、代码、创作计划、长期任务的事实和决策。
+- `scope=topic`：多人或多次聊天里反复出现的公共话题、热点、兴趣趋势、阶段性讨论整理。
+
+### 边界
+
+不写入全局、项目、话题记忆的内容：
+
+- 某个具体人的资料、偏好、经历。这些必须写入 `scope=person`。
+- 关系摘要、互动风格、好感度理由。这些属于关系档案。
+- 一次性闲聊、普通寒暄、没有持续价值的短期情绪。
+- 未经确认的公共事实。不要因为某个用户随口说了一个新闻、传闻、观点，就把它当成全局事实。
+- 人设和核心设定。人设仍以 persona / project-handbook 为准，不通过记忆覆盖。
+
+三类非个人记忆的区别：
+
+| scope | 用途 | 例子 |
+| --- | --- | --- |
+| `global` | 对所有聊天都可能有帮助的稳定背景 | Owner 明确说“以后所有地方都按这个规则理解”；陆思源长期运营方向；跨用户反复确认的稳定共识 |
+| `project` | 某个项目自己的上下文和决策 | `lusiyuan-core` 记忆模块采用 Dream 自动写入；某个小红书运营计划的阶段目标 |
+| `topic` | 最近或长期反复出现的话题趋势 | 最近很多人都在聊某游戏；多位用户都提到养猫；某个热点被连续讨论 |
+
+`topic` 不是 `global`。它表达“这件事最近常被聊到 / 有一些群体趋势”，不表达“这件事永远为真”。
+
+### 触发位置
+
+新增一个 Dream 后置整理器，建议命名为 `DreamScopedMemoryOrganizer`。
+
+运行顺序：
+
+1. Dream 收集上次到本次之间的完整消息窗口。
+2. 先按身份跑关系复盘和个人记忆整理。
+3. 再跑 `DreamScopedMemoryOrganizer`，只处理 `global/project/topic`。
+4. 写入或更新 `personId=null` 的 Memory。
+5. 对 active 记忆重建 embedding。
+
+这样做的好处：
+
+- 个人关系和个人记忆先稳定下来。
+- 非个人整理器能看到整段时间所有人的消息，而不是被单个身份局限。
+- 同一个 Dream job 里，不会出现个人整理器和全局整理器互相抢同一条记忆。
+
+### 输入材料
+
+非个人整理器使用这些材料：
+
+- 本次 Dream 时间窗口内的全部消息。
+- 本次 Dream 生成的个人记忆变化摘要，只作为信号，不直接把个人信息搬进全局记忆。
+- 当前 active 的 `global/project/topic` 记忆候选。
+- 相关旧原文窗口或消息 embedding 召回结果，用来确认“以前是否也聊过这件事”。
+
+候选旧记忆仍然两路召回：
+
+- 语义召回：用本次 Dream 窗口的主题摘要去找相似的 `global/project/topic` 记忆。
+- 短语召回：提取项目名、作品名、热点名、技术名、平台名、游戏名、宠物/兴趣对象等短词，匹配旧记忆。
+
+个人记忆可以作为“趋势信号”，但不能作为非个人记忆的 target。比如多个人都聊猫，可以形成 `topic` 记忆；但不能把某个人养猫的具体信息写进 topic。
+
+### 输出动作
+
+非个人整理器输出类似 `memoryChanges` 的动作，但必须带 `scope`：
+
+```json
+{
+  "scope": "topic",
+  "proposalType": "update_memory",
+  "relationToTarget": "newer_version",
+  "targetMemoryId": "memory_xxx",
+  "type": "recurring_topic",
+  "content": "最近多位用户都聊到养猫，重点集中在猫的性格、陪伴感和日常照顾。",
+  "summary": "近期多人聊养猫",
+  "sourceMessageIds": ["msg_a", "msg_b"]
+}
+```
+
+动作沿用个人记忆这套：
+
+- `create_memory`
+- `reinforce_memory`
+- `update_memory`
+- `supersede_memory`
+- `archive_memory`
+
+也沿用 `relationToTarget`：
+
+- `same_fact`
+- `more_specific`
+- `newer_version`
+- `conflict`
+- `related_but_distinct`
+- `unrelated`
+
+系统仍然要兜底校验：
+
+- `targetMemoryId` 必须是 `personId=null` 且 scope 匹配的 active 记忆。
+- `sourceMessageIds` 必须来自本次 Dream 窗口。
+- `global/project/topic` 之间不能自动互相改 scope，除非 Admin 手动改。
+- 同一目标多动作归并，只写入最终动作。
+- create 前先查重，命中同一事实则 reinforce 或 update。
+
+### 写入策略
+
+`global` 最保守：
+
+- 默认不自动 create，除非 Owner 明确说“以后都按这个记住 / 全局记住”，或多个独立时间窗口反复确认。
+- 不记录普通公共事实和新闻事实。
+- 不记录某个用户的个人观点，除非它已经被整理成匿名、稳定、跨场景有用的规则。
+
+`project` 相对积极：
+
+- Owner、Codex、工具输出、项目讨论里形成的明确技术决策、产品方向、任务背景，可以写入 project。
+- 如果来源是工具或代码分析，后续实现时可以允许 assistant/tool 相关消息作为 source；第一版可以先只用 Dream 窗口内可追溯消息。
+- 项目记忆需要在内容里写清项目名，比如“项目 `lusiyuan-core`：……”。
+
+`topic` 最适合自动整理：
+
+- 多个身份、多个会话或多个 Dream 窗口里重复出现的话题，可以 create 或 reinforce。
+- 只记录匿名聚合趋势，不泄露具体用户身份。
+- 可以写“最近多人都在聊……”或“这段时间反复出现……”。
+- 过期后应自动降级或归档，避免旧热点长期污染聊天。
+
+### 层级和过期
+
+非个人记忆也继续使用 `temp/short/mid/long`，但含义和个人记忆略不同：
+
+- `topic` 默认从 `temp` 开始。后续 Dream 窗口再次有效出现，才升到 `short/mid`。
+- `project` 可以根据明确程度从 `short` 开始；Owner 明确决策或代码事实可以进入 `mid`。
+- `global` 默认不自动升长期。只有 Owner 明确指定或长期反复验证，才进入 `long`。
+
+过期逻辑不按某个身份的“活跃聊天日”，而按 Dream 窗口或自然时间：
+
+- `topic`：一段时间没有再出现就降级或归档。
+- `project`：项目长期没被提到不一定忘，但如果被新决策覆盖，应 update/supersede。
+- `global`：不自动过期，只能被明确新证据 update/supersede，或 Admin 手动归档。
+
+第一版实现可以先只做写入和强化，过期整理后补。
+
+### 检索使用
+
+聊天时不无脑携带非个人记忆，仍然走相关性检索：
+
+- 当前话题命中 project/topic/global 记忆，才进入 prompt。
+- `topic` 记忆适合让思源自然意识到“最近不少人也聊这个”。
+- `project` 记忆适合让思源延续项目上下文。
+- `global` 记忆适合作为稳定背景，但数量要少，避免压过 persona。
+
+如果非个人记忆和个人记忆冲突：
+
+- 个人偏好优先于 topic 趋势。
+- project 决策优先于普通 topic 讨论。
+- persona / project-handbook 优先于 Memory。
+
+### 第一版实现顺序
+
+1. 新增 `DreamScopedMemoryOrganizer`，在关系复盘后运行。
+2. 新增 scoped memory prompt 和类型，不复用关系复盘 prompt。
+3. 召回 active 的 `global/project/topic` 候选。
+4. 输出并归一化 scoped memory changes。
+5. 写入 `Memory`，`personId=null`。
+6. 重建 active memory embedding。
+7. 增加测试：scope 校验、重复 create 转 reinforce、topic 多窗口强化、project 更新、global 保守创建。
+
+第一版暂时不新增项目表、话题表或跨身份 topic index。等 `topic` 记忆真的变多，再考虑把 project/topic 抽成独立实体，支持合并、别名、热度和趋势页。
+
 ## 后续入口
 
-- 跨人联想和话题趋势还没有单独数据结构。后续可以做一个跨身份 topic index，用来支持“很多人最近都在聊这件事”和“这件事让我想起另一个人”的内部线索。
-- 记忆详情页现在是列表筛选形态，后续如果需要看完整证据链，可以再做单条记忆详情页。
+- 全局、项目、话题记忆自动整理暂缓。上面的设计先作为以后实现依据。
+- 跨人联想和话题趋势暂缓。第一版可以先用 `scope=topic` 记忆表达；如果以后需要更强能力，再考虑跨身份 topic index。
+- 历史脏数据批量清理不做。开发期数据可以手动清库或手动归档。
+- 独立记忆变更日志不做。当前保留 `sourceMessageIds`、有效提及日期和 Dream 原始输出即可，避免再增加一套很少查看的日志。
+- Admin 已支持在记忆详情中查看证据链。单条记忆独立页面暂时不做，当前列表选中详情已经够用。
