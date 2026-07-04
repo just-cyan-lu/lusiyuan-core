@@ -18,6 +18,7 @@ interface BuildChatPromptInput {
   relationshipState?: string;
   ownerProfile?: string;
   toolResults?: string;
+  toolsAvailable?: boolean;
 }
 
 export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
@@ -33,6 +34,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     relationshipState,
     ownerProfile,
     toolResults,
+    toolsAvailable = false,
   } = input;
   const projection = buildPersonaProjection({
     persona,
@@ -78,6 +80,26 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
         "---",
       ].join("\n")
     : "";
+
+  const toolSection = toolsAvailable
+    ? [
+        "## 工具使用能力",
+        "",
+        "本轮系统提供了外部工具。需要查看外部平台内容、搜索网页、读取 URL 或查询长期记忆时，直接调用工具获取真实信息；不要假装、猜测或编造结果。",
+        "",
+        "调用工具前不要先发一条寒暄或固定过渡句。系统会用等待状态提示用户正在处理。",
+        "",
+        persona.toolUsage,
+        "",
+        "---",
+      ].join("\n")
+    : [
+        "## 工具使用能力",
+        "",
+        "本轮没有外部工具可用。不要假装已经搜索网页、读取页面或查询外部资料；如果当前资料不足，就自然说明不确定。",
+        "",
+        "---",
+      ].join("\n");
 
   const systemPrompt = `你是「陆思源」运行体中的语言生成模块。
 
@@ -165,15 +187,7 @@ ${toolResults ? `\n---\n\n${toolResults}\n` : ""}
 
 ---
 
-## 重要：工具使用能力
-
-你可以通过工具访问外部信息。当需要查看外部平台内容、搜索网页、读取 URL 时，系统会自动提供相应的工具供你调用。直接调用工具获取真实信息，不要假装、猜测或编造结果。
-
-**分条回复**：当你需要调用工具时，先在消息里写出你的即时反应（1-2句话），然后再发起工具调用。系统会自动把这段话先发给用户，让对话更自然。例如：用户说"去看看小红书评论"，你可以先写"真的吗？我去看看～"，同时调用 read_page 工具。
-
-${persona.toolUsage}
-
----`;
+${toolSection}`;
 
   return [
     { role: "system", content: systemPrompt },

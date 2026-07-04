@@ -26,6 +26,7 @@ export async function loadPromptConversationContext(input: {
   userId: string;
   conversationId: string;
   query: string;
+  queryEmbedding?: Promise<number[]> | number[];
   excludeMessageId?: string;
 }): Promise<PromptConversationContext> {
   const maxChars = Math.max(1, runtimeConfig.CHAT_CONTEXT_MAX_CHARS);
@@ -56,6 +57,7 @@ export async function loadPromptConversationContext(input: {
   const recallWindows = await retrieveConversationRecallWindows({
     userId: input.userId,
     query: input.query,
+    queryEmbedding: input.queryEmbedding,
     excludedMessageIds,
     maxChars: Math.min(runtimeConfig.CHAT_CONTEXT_RECALL_MAX_CHARS, remainingChars),
   }).catch((err) => {

@@ -83,6 +83,7 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
   const voicePlayback = useVoicePlayback(identity);
   const {
     messages,
+    typingLabel,
     isSending,
     isStopping,
     canStop,
@@ -321,6 +322,7 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
         messages={messages}
         isSending={isSending}
         isLoadingHistory={isLoadingHistory}
+        typingLabel={typingLabel}
         voiceLoadingMessageIds={voicePlayback.loadingMessageIds}
         voicePlayingMessageId={voicePlayback.playingMessageId}
         voiceErrorByMessageId={voicePlayback.errorByMessageId}

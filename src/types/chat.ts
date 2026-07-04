@@ -30,8 +30,6 @@ export interface ChatInput {
   raw_event?: unknown;
   voice?: ChatVoiceOptions;
 
-  // Callback for sending intermediate messages during conversation
-  onIntermediateMessage?: (content: string, delayMs: number) => Promise<void>;
   onReplyPart?: (part: ChatReplyPart) => Promise<void>;
 }
 

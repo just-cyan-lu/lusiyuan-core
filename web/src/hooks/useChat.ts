@@ -19,6 +19,7 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
   const [isSending, setIsSending] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [typingLabel, setTypingLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
@@ -65,6 +66,7 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
     setIsSending(true);
     setIsStopping(false);
     setCurrentTaskId(null);
+    setTypingLabel(null);
     setError(null);
 
     let receivedAssistantMessage = false;
@@ -73,6 +75,7 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
     function appendAssistantMessage(part: ChatReplyPart) {
       if (!part.content.trim()) return;
       receivedAssistantMessage = true;
+      setTypingLabel(null);
       const assistantMsg: ChatMessage = {
         id: part.message_id ?? crypto.randomUUID(),
         messageId: part.message_id,
@@ -99,6 +102,9 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
           if (event.type === "ready" && event.data.task_id) {
             setCurrentTaskId(event.data.task_id);
           }
+          if (event.type === "progress") {
+            setTypingLabel(labelForProgress(event.data.content));
+          }
           if (event.type === "message") appendAssistantMessage(event.data);
           if (
             event.type === "voice_start" ||
@@ -121,6 +127,7 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
       setIsSending(false);
       setIsStopping(false);
       setCurrentTaskId(null);
+      setTypingLabel(null);
     }
   }
 
@@ -143,6 +150,7 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
 
   return {
     messages,
+    typingLabel,
     isSending,
     isStopping,
     canStop: Boolean(currentTaskId) && isSending && !isStopping,
@@ -151,4 +159,12 @@ export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
     sendMessage,
     stopMessage,
   };
+}
+
+function labelForProgress(content: string): string | null {
+  if (content === "tool:search_memories") return "正在翻记忆…";
+  if (content === "tool:web_search") return "正在搜索网页…";
+  if (content === "tool:read_page") return "正在读取页面…";
+  if (content.startsWith("tool:")) return "工具调用中…";
+  return null;
 }

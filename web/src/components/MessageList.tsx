@@ -8,6 +8,7 @@ interface Props {
   messages: ChatMessage[];
   isSending: boolean;
   isLoadingHistory: boolean;
+  typingLabel?: string | null;
   voiceLoadingMessageIds?: Set<string>;
   voicePlayingMessageId?: string | null;
   voiceErrorByMessageId?: Record<string, string>;
@@ -18,6 +19,7 @@ export function MessageList({
   messages,
   isSending,
   isLoadingHistory,
+  typingLabel,
   voiceLoadingMessageIds,
   voicePlayingMessageId,
   voiceErrorByMessageId = {},
@@ -57,7 +59,7 @@ export function MessageList({
           onPlayVoice={onPlayVoice}
         />
       ))}
-      {isSending && <TypingIndicator />}
+      {isSending && <TypingIndicator label={typingLabel} />}
       <div ref={bottomRef} />
     </div>
   );

@@ -16,6 +16,7 @@ const SEMANTIC_CANDIDATE_MIN = 24;
 export interface MemoryRetrievalInput {
   personId: string;
   query: string;
+  queryEmbedding?: Promise<number[]> | number[];
 }
 
 function visibleMemoryWhere(personId: string): Prisma.MemoryWhereInput {
@@ -50,7 +51,9 @@ export async function retrieveMemories(
   const { personId, query } = input;
   const visibleWhere = visibleMemoryWhere(personId);
 
-  const queryEmbedding = await embeddingProvider.embedText(query);
+  const queryEmbedding = input.queryEmbedding
+    ? await input.queryEmbedding
+    : await embeddingProvider.embedText(query);
   const similarResults = await pgVectorMemoryIndex.searchSimilarMemories({
     queryEmbedding,
     personId,

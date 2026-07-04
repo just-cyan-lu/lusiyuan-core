@@ -5,6 +5,7 @@ import { loadOwnerProfile } from "./owner-profile-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
 import { modelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
+import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import {
   loadPromptConversationContext,
   maintainConversationContext,
@@ -13,9 +14,11 @@ import { checkInput, sanitizeOutput } from "./safety.js";
 import { toolExecutor } from "../tools/tool-executor.js";
 import { toolRegistry } from "../tools/tool-registry.js";
 import { convertToolsForLLM } from "../tools/tool-converter.js";
+import { selectToolsForChat, toolProgressContent } from "../tools/tool-router.js";
 import { isOwner } from "../tools/policy/owner-check.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   isTaskCancellationError,
   runningTaskRegistry,
@@ -31,64 +34,53 @@ import {
   getReplySegmentationOptions,
   replySegmentDelay,
   segmentReply,
-  shouldDeliverIntermediateMessages,
 } from "./reply-segmentation.service.js";
 import type { ChatInput, ChatOutput, ChatReplyPart } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 import type { ChatMessage, MessageContentPart } from "../types/model.js";
 import type { Message } from "@prisma/client";
 
-async function storeAndEmitIntermediateMessage(input: {
-  chatInput: ChatInput;
-  conversationId: string;
+function createChatTrace(input: {
   turnId: string;
-  sequence: number;
-  content: string;
-  delayMs: number;
-  source: string;
-}): Promise<ChatReplyPart | null> {
-  const content = input.content.trim();
-  if (!content) return null;
+  channel: string;
+  userId: string;
+  conversationId: string;
+}) {
+  const startedAt = Date.now();
+  let previousAt = startedAt;
+  const base = `turn=${input.turnId} channel=${input.channel} user=${input.userId} conversation=${input.conversationId}`;
 
-  const message = await prisma.message.create({
-    data: {
-      conversationId: input.conversationId,
-      role: "assistant",
-      content,
-      isIntermediate: true,
-      metadata: {
-        turnId: input.turnId,
-        deliveryKind: "intermediate",
-        sequence: input.sequence,
-        source: input.source,
-      },
+  return {
+    mark(stage: string, extra?: Record<string, unknown>) {
+      const now = Date.now();
+      const stepMs = now - previousAt;
+      const totalMs = now - startedAt;
+      previousAt = now;
+      const suffix = extra ? ` ${JSON.stringify(extra)}` : "";
+      console.info(`[chat:trace] ${base} stage=${stage} step=${stepMs}ms total=${totalMs}ms${suffix}`);
     },
-  });
-
-  const part: ChatReplyPart = {
-    turn_id: input.turnId,
-    message_id: message.id,
-    sequence: input.sequence,
-    kind: "intermediate",
-    content,
-    delay_ms: input.delayMs,
-    transcript: true,
+    async time<T>(stage: string, fn: () => Promise<T>, extra?: Record<string, unknown>): Promise<T> {
+      const stageStartedAt = Date.now();
+      try {
+        return await fn();
+      } finally {
+        const now = Date.now();
+        const stageMs = now - stageStartedAt;
+        const stepMs = now - previousAt;
+        const totalMs = now - startedAt;
+        previousAt = now;
+        const suffix = extra ? ` ${JSON.stringify(extra)}` : "";
+        console.info(`[chat:trace] ${base} stage=${stage} stageMs=${stageMs}ms step=${stepMs}ms total=${totalMs}ms${suffix}`);
+      }
+    },
   };
-
-  if (input.chatInput.onReplyPart) {
-    await input.chatInput.onReplyPart(part);
-    return part;
-  }
-  if (input.chatInput.onIntermediateMessage) {
-    await input.chatInput.onIntermediateMessage(content, input.delayMs);
-  }
-  return part;
 }
 
 async function emitProgressDraft(input: {
   chatInput: ChatInput;
   turnId: string;
   sequence: number;
+  content?: string;
 }): Promise<ChatReplyPart | null> {
   if (!input.chatInput.onReplyPart) {
     return null;
@@ -98,7 +90,7 @@ async function emitProgressDraft(input: {
     turn_id: input.turnId,
     sequence: input.sequence,
     kind: "progress",
-    content: "typing",
+    content: input.content ?? "typing",
     delay_ms: 0,
     transcript: false,
   };
@@ -193,30 +185,39 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   const owner = isOwner(input.user_id);
   const turnId = input.task_id ?? randomUUID();
+  const trace = createChatTrace({
+    turnId,
+    channel: input.channel,
+    userId: input.user_id,
+    conversationId: input.conversation_id,
+  });
   let replySequence = 0;
   const replyParts: ChatReplyPart[] = [];
   const deliveryOptions = getReplySegmentationOptions();
-  const deliverIntermediate = shouldDeliverIntermediateMessages(deliveryOptions.mode);
-  async function progress(): Promise<void> {
+  async function progress(content = "typing"): Promise<void> {
     if (!input.onReplyPart) return;
     const part = await emitProgressDraft({
       chatInput: input,
       turnId,
       sequence: replySequence,
+      content,
     });
     if (part) replySequence++;
   }
+  trace.mark("received");
 
   let userMessage: Message;
   try {
-    userMessage = await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "user",
-        content: input.message,
-        externalMessageId: input.external_message_id,
-      },
-    });
+    userMessage = await trace.time("store_user_message", () =>
+      prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: "user",
+          content: input.message,
+          externalMessageId: input.external_message_id,
+        },
+      })
+    );
   } catch (err) {
     if (input.external_message_id && isPrismaUniqueConstraintError(err)) {
       return buildDuplicatedChatOutput(input.conversation_id);
@@ -226,39 +227,71 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   checkCancelled();
 
-  const relationshipRecord = await relationshipStateService.getOrCreate(user.id);
+  const relationshipRecord = await trace.time("relationship_get_or_create", () =>
+    relationshipStateService.getOrCreate(user.id)
+  );
+  const sharedQueryEmbedding =
+    runtimeConfig.MEMORY_RETRIEVAL_ENABLED && runtimeConfig.CHAT_CONTEXT_RECALL_ENABLED
+      ? trace.time("query_embedding", () => embeddingProvider.embedText(input.message))
+      : undefined;
 
-  const [persona, ownerProfile, memories, conversationContext, runtimeState, relationshipState] = await Promise.all([
-    loadPersona(),
-    owner ? loadOwnerProfile() : Promise.resolve(""),
-    memoryService.retrieveRelevantMemories({
-      personId: relationshipRecord.personId,
-      query: input.message,
-    }),
-    loadPromptConversationContext({
-      userId: user.id,
-      conversationId: conversation.id,
-      query: input.message,
-      excludeMessageId: userMessage.id,
-    }),
-    runtimeStateService
-      .formatForPrompt()
-      .catch((err) => {
-        console.warn("[chat] runtime state unavailable:", err);
-        return undefined;
-      }),
-    relationshipStateService
-      .formatForPrompt(user.id)
-      .catch((err) => {
-        console.warn("[chat] relationship state unavailable:", err);
-        return undefined;
-      }),
-  ]);
+  const [persona, ownerProfile, memories, conversationContext, runtimeState, relationshipState] = await trace.time(
+    "prepare_prompt_materials",
+    () =>
+      Promise.all([
+        loadPersona(),
+        owner ? loadOwnerProfile() : Promise.resolve(""),
+        memoryService.retrieveRelevantMemories({
+          personId: relationshipRecord.personId,
+          query: input.message,
+          queryEmbedding: sharedQueryEmbedding,
+        }),
+        loadPromptConversationContext({
+          userId: user.id,
+          conversationId: conversation.id,
+          query: input.message,
+          queryEmbedding: sharedQueryEmbedding,
+          excludeMessageId: userMessage.id,
+        }),
+        runtimeStateService
+          .formatForPrompt()
+          .catch((err) => {
+            console.warn("[chat] runtime state unavailable:", err);
+            return undefined;
+          }),
+        relationshipStateService
+          .formatForPrompt(user.id)
+          .catch((err) => {
+            console.warn("[chat] relationship state unavailable:", err);
+            return undefined;
+          }),
+      ])
+  );
   checkCancelled();
 
-  const availableTools = toolRegistry.listEnabled();
+  trace.mark("prompt_materials_ready", {
+    memories: memories.length,
+    recentMessages: conversationContext.recentMessages.length,
+    summaries: conversationContext.summaries.length,
+    recallWindows: conversationContext.recallWindows.length,
+  });
+
+  const toolContext: ToolExecutionContext = {
+    userId: user.id,
+    channel: input.channel,
+    conversationId: conversation.id,
+    messageId: userMessage.id,
+    isOwner: owner, // use externalId (e.g. "telegram:1848918705"), not internal DB id
+    signal,
+  };
+  const availableTools = selectToolsForChat({
+    message: input.message,
+    tools: toolRegistry.listEnabled(),
+    context: toolContext,
+  });
 
   console.log(`[chat] availableTools count: ${availableTools.length}`);
+  trace.mark("tool_route", { tools: availableTools.map((tool) => tool.name) });
 
   const messages = buildChatPrompt({
     persona,
@@ -271,7 +304,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     runtimeState,
     relationshipState,
     ownerProfile: ownerProfile || undefined,
+    toolsAvailable: availableTools.length > 0,
   });
+  trace.mark("prompt_ready", { messages: messages.length });
 
   // If user sent images, append them to the last user message
   if (input.images && input.images.length > 0) {
@@ -291,15 +326,6 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   checkCancelled();
 
   if (availableTools.length > 0) {
-    const toolContext: ToolExecutionContext = {
-      userId: user.id,
-      channel: input.channel,
-      conversationId: conversation.id,
-      messageId: userMessage.id,
-      isOwner: owner, // use externalId (e.g. "telegram:1848918705"), not internal DB id
-      signal,
-    };
-
     console.log(`[chat] externalId: ${input.user_id}, isOwner: ${toolContext.isOwner}`);
 
     const toolsForLLM = convertToolsForLLM(availableTools);
@@ -310,10 +336,15 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       checkCancelled();
       console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
-      const response = await modelProvider.chatWithTools(
-        conversationMessages,
-        toolsForLLM,
-        { signal }
+      const response = await trace.time(
+        `model_tools_round_${round + 1}`,
+        () =>
+          modelProvider.chatWithTools(
+            conversationMessages,
+            toolsForLLM,
+            { signal }
+          ),
+        { tools: availableTools.map((tool) => tool.name) }
       );
       checkCancelled();
 
@@ -325,80 +356,11 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       }
 
       // LLM wants to call tools
+      const toolCallNames = response.tool_calls.map((toolCall) => toolCall.function.name);
       console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
-      await progress();
+      await progress(toolProgressContent(toolCallNames));
+      trace.mark("tool_calls_requested", { round: round + 1, tools: toolCallNames });
       checkCancelled();
-
-      // If LLM returned text alongside tool calls, send it as an intermediate message.
-      // This is the primary multi-message mechanism: the LLM naturally writes its
-      // immediate reaction in the content field before issuing tool calls.
-      if (deliverIntermediate && response.content && response.content.trim().length > 0) {
-        console.log(`[chat] LLM returned content with tool calls, sending as intermediate message`);
-        const delay = replySegmentDelay(replySequence, response.content, deliveryOptions);
-        try {
-          const part = await storeAndEmitIntermediateMessage({
-            chatInput: input,
-            conversationId: conversation.id,
-            turnId,
-            sequence: replySequence++,
-            content: response.content,
-            delayMs: delay,
-            source: "content_with_tool_calls",
-          });
-          if (part) replyParts.push(part);
-        } catch (err) {
-          if (isTaskCancellationError(err, signal)) throw err;
-          console.error("[chat] failed to send intermediate message:", err);
-        }
-      }
-
-      // Some providers return only hidden thinking before tool calls. In that
-      // case, ask for a short visible reaction so the chat feels responsive.
-      if (deliverIntermediate &&
-          (!modelProvider.capabilities.supportsContentWithToolCalls ||
-          modelProvider.capabilities.requestsToolReactionFallback) &&
-          (!response.content || response.content.trim().length === 0)) {
-        console.log(`[chat] provider returned no visible tool-call content, requesting immediate reaction`);
-
-        // Build a focused prompt to get a short immediate reaction
-        const reactionPrompt: ChatMessage[] = [
-          ...conversationMessages,
-          {
-            role: "assistant",
-            content: `[内部指令] 你即将调用工具 ${response.tool_calls.map(tc => tc.function.name).join(", ")}。在调用工具之前，请用1句话表达你的即时反应（如"我去看看"、"稍等，我查一下"等），让对话更自然。只输出这1句话，不要解释。`,
-          },
-        ];
-
-        try {
-          const reactionResponse = await modelProvider.chat(reactionPrompt, { signal });
-          checkCancelled();
-          const reaction = reactionResponse.trim();
-
-          if (reaction.length > 0 && reaction.length < 100) {
-            console.log(`[chat] got immediate reaction: ${reaction}`);
-            const delay = replySegmentDelay(replySequence, reaction, deliveryOptions);
-            try {
-              const part = await storeAndEmitIntermediateMessage({
-                chatInput: input,
-                conversationId: conversation.id,
-                turnId,
-                sequence: replySequence++,
-                content: reaction,
-                delayMs: delay,
-                source: "tool_reaction_fallback",
-              });
-              if (part) replyParts.push(part);
-            } catch (err) {
-              if (isTaskCancellationError(err, signal)) throw err;
-              console.error("[chat] failed to send immediate reaction:", err);
-            }
-          }
-        } catch (err) {
-          if (isTaskCancellationError(err, signal)) throw err;
-          console.warn("[chat] failed to get immediate reaction:", err);
-          // Continue with tool execution even if reaction fails
-        }
-      }
 
       // Add assistant message with tool calls to conversation
       conversationMessages.push({
@@ -422,12 +384,14 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
           toolInput = {};
         }
 
-        const result = await toolExecutor.execute({
-          toolName,
-          input: toolInput,
-          context: toolContext,
-          signal,
-        });
+        const result = await trace.time(`tool_${toolName}`, () =>
+          toolExecutor.execute({
+            toolName,
+            input: toolInput,
+            context: toolContext,
+            signal,
+          })
+        );
         checkCancelled();
 
         console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
@@ -474,21 +438,27 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     if (!reply) {
       checkCancelled();
       console.log("[chat] exhausted tool rounds, final call without tools");
-      const finalResponse = await modelProvider.chat(conversationMessages, { signal });
+      const finalResponse = await trace.time("model_final_no_tools", () =>
+        modelProvider.chat(conversationMessages, { signal })
+      );
       checkCancelled();
       reply = sanitizeOutput(finalResponse);
     }
   } else {
     // No tool is available for this context, so use a direct response.
     checkCancelled();
-    const draftReply = await modelProvider.chat(messages, { signal });
+    const draftReply = await trace.time("model_direct", () =>
+      modelProvider.chat(messages, { signal })
+    );
     checkCancelled();
     reply = sanitizeOutput(draftReply);
   }
 
   await progress();
   checkCancelled();
-  const segmentation = await segmentReply(reply, deliveryOptions, { signal });
+  const segmentation = await trace.time("segment_reply", () =>
+    segmentReply(reply, deliveryOptions, { signal })
+  );
   checkCancelled();
   const finalReplies = segmentation.replies.length > 0 ? segmentation.replies : [reply];
   const replyGroupId = randomUUID();
@@ -504,23 +474,25 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   for (const [index, part] of finalParts.entries()) {
     checkCancelled();
-    const assistantMessage = await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "assistant",
-        content: part.content,
-        metadata: {
-          turnId,
-          replyGroupId,
-          deliveryKind: "final",
-          sequence: part.sequence,
-          segmentIndex: index,
-          segmentTotal: finalParts.length,
-          delayMs: part.delay_ms,
-          segmentationSource: segmentation.source,
+    const assistantMessage = await trace.time("store_assistant_message", () =>
+      prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: "assistant",
+          content: part.content,
+          metadata: {
+            turnId,
+            replyGroupId,
+            deliveryKind: "final",
+            sequence: part.sequence,
+            segmentIndex: index,
+            segmentTotal: finalParts.length,
+            delayMs: part.delay_ms,
+            segmentationSource: segmentation.source,
+          },
         },
-      },
-    });
+      })
+    );
     part.message_id = assistantMessage.id;
     assistantMessages.push(assistantMessage);
   }
@@ -556,6 +528,8 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       displayName: input.display_name,
     })
     .catch((err) => console.warn("[chat] identity proposal update failed:", err));
+
+  trace.mark("done", { finalParts: finalParts.length });
 
   return {
     reply,

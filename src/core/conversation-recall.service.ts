@@ -25,6 +25,7 @@ const recallWindowMessages = 8;
 export async function retrieveConversationRecallWindows(input: {
   userId: string;
   query: string;
+  queryEmbedding?: Promise<number[]> | number[];
   excludedMessageIds: Set<string>;
   maxChars: number;
 }): Promise<ConversationRecallWindow[]> {
@@ -35,7 +36,9 @@ export async function retrieveConversationRecallWindows(input: {
   const query = input.query.trim();
   if (!query) return [];
 
-  const queryEmbedding = await embeddingProvider.embedText(query.slice(0, 6000));
+  const queryEmbedding = input.queryEmbedding
+    ? await input.queryEmbedding
+    : await embeddingProvider.embedText(query.slice(0, 6000));
   const matches = await searchSimilarMessages({
     queryEmbedding,
     userId: input.userId,

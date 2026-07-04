@@ -172,11 +172,6 @@ export function createTelegramBot(token: string) {
         external_message_id: String(message.message_id),
         display_name: from?.username ?? from?.first_name,
         raw_event: message,
-        onIntermediateMessage: async (content: string, delayMs: number) => {
-          // Add delay to simulate typing
-          await sleep(delayMs);
-          await ctx.reply(content);
-        },
       });
 
       if (result.duplicated) return;
@@ -215,10 +210,6 @@ export function createTelegramBot(token: string) {
         external_message_id: String(message.message_id),
         display_name: from?.username ?? from?.first_name,
         raw_event: message,
-        onIntermediateMessage: async (content: string, delayMs: number) => {
-          await sleep(delayMs);
-          await ctx.reply(content);
-        },
       });
 
       if (result.duplicated) return;
@@ -266,10 +257,6 @@ export function createTelegramBot(token: string) {
         external_message_id: String(message.message_id),
         display_name: from?.username ?? from?.first_name,
         raw_event: message,
-        onIntermediateMessage: async (content: string, delayMs: number) => {
-          await sleep(delayMs);
-          await ctx.reply(content);
-        },
       });
 
       if (result.duplicated) return;

@@ -45,10 +45,6 @@ export function getReplySegmentationOptions(): ReplySegmentationOptions {
   };
 }
 
-export function shouldDeliverIntermediateMessages(mode = getReplySegmentationOptions().mode): boolean {
-  return mode === "hybrid";
-}
-
 export function shouldSegmentFinalReply(mode = getReplySegmentationOptions().mode): boolean {
   return mode === "final_blocks" || mode === "hybrid";
 }
