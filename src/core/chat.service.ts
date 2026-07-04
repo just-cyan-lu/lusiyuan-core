@@ -50,7 +50,7 @@ async function storeAndEmitIntermediateMessage(input: {
   const content = input.content.trim();
   if (!content) return null;
 
-  await prisma.message.create({
+  const message = await prisma.message.create({
     data: {
       conversationId: input.conversationId,
       role: "assistant",
@@ -67,6 +67,7 @@ async function storeAndEmitIntermediateMessage(input: {
 
   const part: ChatReplyPart = {
     turn_id: input.turnId,
+    message_id: message.id,
     sequence: input.sequence,
     kind: "intermediate",
     content,
@@ -503,7 +504,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
 
   for (const [index, part] of finalParts.entries()) {
     checkCancelled();
-    assistantMessages.push(await prisma.message.create({
+    const assistantMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         role: "assistant",
@@ -519,7 +520,9 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
           segmentationSource: segmentation.source,
         },
       },
-    }));
+    });
+    part.message_id = assistantMessage.id;
+    assistantMessages.push(assistantMessage);
   }
 
   const assistantMessage = assistantMessages[0];

@@ -60,12 +60,47 @@ model Message {
 
   conversation Conversation       @relation(fields: [conversationId], references: [id])
   embeddings   MessageEmbedding[]
+  voiceCaches  VoiceAudioCache[]
 
   @@unique([conversationId, externalMessageId])
   @@index([conversationId])
   @@index([createdAt])
   @@index([externalMessageId])
   @@map("chat_messages")
+}
+
+/// Cached generated audio for assistant messages.
+model VoiceAudioCache {
+  id               String   @id @default(cuid())
+  messageId        String
+  cacheKey         String   @unique
+  textHash         String
+  voiceProfileHash String
+  provider         String
+  model            String
+  voiceId          String
+  format           String
+  mimeType         String
+  sampleRate       Int
+  bitrate          Int
+  channel          Int
+  storageKind      String   @default("file")
+  storagePath      String
+  byteSize         Int
+  durationMs       Int?
+  status           String   @default("ready")
+  providerTraceId  String?
+  lastPlayedAt     DateTime
+  playCount        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([lastPlayedAt])
+  @@index([createdAt])
+  @@map("voice_audio_caches")
 }
 
 /// Compact summaries of older conversation ranges used as chat context.

@@ -13,6 +13,7 @@ import { dreamRoute } from "./routes/dream.route.js";
 import { adminRoute } from "./routes/admin.route.js";
 import { webSearchRoute } from "./routes/web-search.route.js";
 import { pageReaderRoute } from "./routes/page-reader.route.js";
+import { voiceRoute } from "./voice/voice.route.js";
 import { env } from "./utils/env.js";
 import { runtimeSettingsService } from "./config/runtime-settings.service.js";
 import type { RuntimeSettingKey } from "./config/runtime-settings.registry.js";
@@ -24,6 +25,7 @@ import {
   stopRuntimeAutonomyScheduler,
 } from "./runtime/runtime-autonomy-scheduler.js";
 import { chromeDevtoolsMcpService } from "./mcp/chrome-devtools-mcp.service.js";
+import { startVoiceCleanupScheduler, stopVoiceCleanupScheduler } from "./voice/voice-cleanup-scheduler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +62,7 @@ export function buildApp() {
   void app.register(adminRoute);
   void app.register(webSearchRoute);
   void app.register(pageReaderRoute);
+  void app.register(voiceRoute);
 
   // Serve web frontend (production build)
   const webDistPath = path.join(__dirname, "../web/dist");
@@ -80,6 +83,9 @@ export function buildApp() {
 
   // Start runtime autonomy scheduler if enabled
   startRuntimeAutonomyScheduler(app.log);
+
+  // Start voice cache cleanup scheduler
+  startVoiceCleanupScheduler(app.log);
 
   const dreamKeys = new Set<RuntimeSettingKey>([
     "DREAM_ENABLED", "DREAM_CRON",
@@ -102,6 +108,7 @@ export function buildApp() {
     unsubscribe();
     stopDreamScheduler();
     stopRuntimeAutonomyScheduler();
+    stopVoiceCleanupScheduler();
     await telegramRuntime.stop();
     await chromeDevtoolsMcpService.resetConnection();
   });

@@ -428,6 +428,7 @@ function envFilePath(): string {
 }
 
 const databaseDataTables = [
+  "voice_audio_caches",
   "channel_events",
   "chat_messages",
   "chat_conversations",
@@ -1186,6 +1187,8 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
         pageReader: runtimeConfig.JINA_ENABLED || runtimeConfig.PLAYWRIGHT_ENABLED ||
           (runtimeConfig.MCP_ENABLED && runtimeConfig.CHROME_DEVTOOLS_MCP_ENABLED),
         mcp: runtimeConfig.MCP_ENABLED,
+        voiceTts: runtimeConfig.VOICE_TTS_ENABLED,
+        voiceAsr: runtimeConfig.VOICE_ASR_ENABLED,
       },
       safety: {},
     });

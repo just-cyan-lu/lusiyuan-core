@@ -4,6 +4,7 @@ import type {
   ChatResponse,
   ChatStreamEvent,
   ConversationMessage,
+  VoiceStreamEvent,
 } from "../types/chat";
 
 export const API_BASE_URL =
@@ -1121,6 +1122,10 @@ function parseSseEvent(rawEvent: string): ChatStreamEvent | null {
   if (eventName === "done") return { type: "done", data: data as ChatResponse };
   if (eventName === "cancelled") return { type: "cancelled", data: data as { task_id?: string; reason?: string } };
   if (eventName === "error") return { type: "error", data: data as { error: string } };
+  if (eventName === "voice_start") return { type: "voice_start", data: data as VoiceStreamEvent["data"] } as VoiceStreamEvent;
+  if (eventName === "voice_chunk") return { type: "voice_chunk", data: data as VoiceStreamEvent["data"] } as VoiceStreamEvent;
+  if (eventName === "voice_done") return { type: "voice_done", data: data as VoiceStreamEvent["data"] } as VoiceStreamEvent;
+  if (eventName === "voice_error") return { type: "voice_error", data: data as VoiceStreamEvent["data"] } as VoiceStreamEvent;
   return null;
 }
 
@@ -1193,6 +1198,81 @@ export async function cancelChatTask(input: {
     }
   );
   return parseJsonResponse<RunningTaskResponse>(response, "无法停止当前回复");
+}
+
+export async function streamMessageVoice(
+  input: {
+    userId: string;
+    conversationId: string;
+    messageId: string;
+  },
+  onEvent: (event: VoiceStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/voice/messages/${encodeURIComponent(input.messageId)}/play`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: input.userId,
+        conversation_id: input.conversationId,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "语音播放失败");
+  }
+  if (!response.body) throw new Error("当前浏览器不支持语音流");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let streamError: string | null = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+    const chunks = buffer.split(/\n\n/);
+    buffer = chunks.pop() ?? "";
+
+    for (const chunk of chunks) {
+      if (!chunk.trim()) continue;
+      const event = parseSseEvent(chunk);
+      if (!event) continue;
+      if (
+        event.type === "voice_start" ||
+        event.type === "voice_chunk" ||
+        event.type === "voice_done" ||
+        event.type === "voice_error"
+      ) {
+        onEvent(event);
+        if (event.type === "voice_error") streamError = event.data.error;
+      }
+    }
+
+    if (done) break;
+  }
+  if (streamError) throw new Error(streamError);
+}
+
+export interface VoiceClientConfig {
+  asr: {
+    enabled: boolean;
+    provider: "browser";
+    language: string;
+    max_duration_seconds: number;
+    auto_silence_ms: number;
+  };
+  tts: {
+    enabled: boolean;
+  };
+}
+
+export async function fetchVoiceClientConfig(): Promise<VoiceClientConfig> {
+  const response = await fetch(`${API_BASE_URL}/v1/voice/config`);
+  return parseJsonResponse<VoiceClientConfig>(response, "无法读取语音配置");
 }
 
 export async function fetchRunningTasks(token: string): Promise<RunningTasksResponse> {

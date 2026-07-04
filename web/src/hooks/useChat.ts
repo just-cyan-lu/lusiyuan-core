@@ -5,9 +5,15 @@ import {
   fetchConversationMessages,
 } from "../api/lusiyuan-api";
 import type { ChatMessage, ChatReplyPart } from "../types/chat";
+import type { VoiceStreamEvent } from "../types/chat";
 import type { WebIdentity } from "../utils/storage";
 
-export function useChat(identity: WebIdentity) {
+interface UseChatOptions {
+  voiceAutoplayEnabled?: boolean;
+  onVoiceStreamEvent?: (event: VoiceStreamEvent) => void;
+}
+
+export function useChat(identity: WebIdentity, options: UseChatOptions = {}) {
   const { userId, conversationId, displayName } = identity;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -27,7 +33,8 @@ export function useChat(identity: WebIdentity) {
         if (cancelled) return;
         setMessages(
           history.map((m) => ({
-            id: crypto.randomUUID(),
+            id: m.id,
+            messageId: m.id,
             role: m.role,
             content: m.content,
             createdAt: m.createdAt,
@@ -67,7 +74,8 @@ export function useChat(identity: WebIdentity) {
       if (!part.content.trim()) return;
       receivedAssistantMessage = true;
       const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: part.message_id ?? crypto.randomUUID(),
+        messageId: part.message_id,
         role: "assistant",
         content: part.content,
         createdAt: new Date().toISOString(),
@@ -83,12 +91,23 @@ export function useChat(identity: WebIdentity) {
           conversation_id: conversationId,
           message: content,
           display_name: displayName,
+          voice: {
+            autoplay: Boolean(options.voiceAutoplayEnabled),
+          },
         },
         (event) => {
           if (event.type === "ready" && event.data.task_id) {
             setCurrentTaskId(event.data.task_id);
           }
           if (event.type === "message") appendAssistantMessage(event.data);
+          if (
+            event.type === "voice_start" ||
+            event.type === "voice_chunk" ||
+            event.type === "voice_done" ||
+            event.type === "voice_error"
+          ) {
+            options.onVoiceStreamEvent?.(event);
+          }
           if (event.type === "cancelled") stopped = true;
         }
       );

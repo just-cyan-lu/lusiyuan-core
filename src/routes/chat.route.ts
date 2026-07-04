@@ -5,6 +5,8 @@ import { memoryService } from "../core/memory.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import { requireAdminAuth } from "./admin-auth.js";
 import { env } from "../utils/env.js";
+import { runtimeConfig } from "../config/runtime-settings.service.js";
+import { voiceCacheService } from "../voice/voice-cache.service.js";
 import {
   isTaskCancellationError,
   runningTaskRegistry,
@@ -23,6 +25,13 @@ const chatBodySchema = {
     conversation_id: { type: "string", minLength: 1 },
     message: { type: "string", minLength: 1 },
     display_name: { type: "string" },
+    voice: {
+      type: "object",
+      properties: {
+        autoplay: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
   },
 } as const;
 
@@ -90,6 +99,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         conversation_id: string;
         message: string;
         display_name?: string;
+        voice?: { autoplay?: boolean };
       };
 
       try {
@@ -115,6 +125,7 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         conversation_id: string;
         message: string;
         display_name?: string;
+        voice?: { autoplay?: boolean };
       };
 
       try {
@@ -168,6 +179,35 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         }
         throwIfTaskCancelled(handle.signal);
         writeEvent(part.kind === "progress" ? "progress" : "message", part);
+        if (part.kind === "intermediate" && !runtimeConfig.VOICE_AUTOPLAY_FINAL_ONLY) {
+          try {
+            await sendVoiceForPart(part);
+          } catch (error) {
+            writeEvent("voice_error", {
+              message_id: part.message_id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      };
+
+      const sendVoiceForPart = async (part: ChatReplyPart) => {
+        if (!input.voice?.autoplay || !part.message_id) return;
+        if (runtimeConfig.VOICE_AUTOPLAY_FINAL_ONLY && part.kind !== "final") return;
+        await voiceCacheService.streamMessageSpeech({
+          messageId: part.message_id,
+          context: {
+            userId: input.user_id,
+            conversationId: input.conversation_id,
+          },
+          signal: handle.signal,
+          emit: {
+            start: (event) => writeEvent("voice_start", event),
+            chunk: (event) => writeEvent("voice_chunk", event),
+            done: (event) => writeEvent("voice_done", event),
+            error: (event) => writeEvent("voice_error", event),
+          },
+        });
       };
 
       try {
@@ -182,6 +222,14 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
         if (!output.duplicated) {
           for (const part of output.reply_parts.filter((item) => item.kind === "final")) {
             await sendPart(part);
+            try {
+              await sendVoiceForPart(part);
+            } catch (error) {
+              writeEvent("voice_error", {
+                message_id: part.message_id,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
           }
         }
 
@@ -295,12 +343,13 @@ export async function chatRoute(app: FastifyInstance): Promise<void> {
     const messages = await prisma.message.findMany({
       where: { conversationId: conversation.id },
       orderBy: { createdAt: "asc" },
-      select: { role: true, content: true, createdAt: true },
+      select: { id: true, role: true, content: true, createdAt: true },
     });
 
     return reply.send({
       messages: messages.map((m) => ({
         role: m.role,
+        id: m.id,
         content: m.content,
         createdAt: m.createdAt.toISOString(),
       })),

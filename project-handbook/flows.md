@@ -36,6 +36,23 @@ chat.service.ts
 返回给用户
 ```
 
+如果 Web Chat 请求里带 `voice.autoplay=true`，文字回复仍然先按 `message` SSE 事件返回。每个 final assistant message 写库后，路由会拿它的 `message_id` 调用语音缓存服务：
+
+```text
+assistant Message
+↓
+查 VoiceAudioCache
+↓
+命中：刷新 lastPlayedAt，返回 audio_url
+未命中：MiniMax T2A WebSocket 生成音频 chunk
+↓
+写入 data/voice-cache 和 VoiceAudioCache
+↓
+SSE 发送 voice_start / voice_chunk / voice_done
+```
+
+语音失败只发送 `voice_error`，不会改写本轮文字聊天结果。
+
 ## Prompt 是怎么来的
 
 以前容易理解成：
@@ -163,6 +180,31 @@ Telegram：立即启动或停止
 ```
 
 API Key、Base URL、Admin Token、清库密码和数据库地址不走这条流程，继续由 `.env` 提供。
+
+## 语音电话是怎么走的
+
+```text
+用户打开 Web Chat 语音电话
+↓
+浏览器 SpeechRecognition 转写语音
+↓
+语音消息：用户手动结束
+自动通话：超过配置的停顿阈值或最长时长触发结束
+↓
+返回转写文字给前端
+↓
+前端把文字发给 /v1/chat/stream
+↓
+现有聊天主链路生成并保存思源文字回复
+↓
+voice.autoplay=true 触发 MiniMax TTS
+↓
+前端按播放队列播放语音，同时保留文字气泡
+↓
+自动通话等待播放队列空闲后继续监听下一句
+```
+
+语音电话不是独立人格链路。ASR 只产生用户文字，TTS 只渲染思源已经保存的文字回复。
 
 ## 小红书回复 Skill 是怎么走的
 

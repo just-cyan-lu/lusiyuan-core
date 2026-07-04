@@ -8,9 +8,21 @@ interface Props {
   messages: ChatMessage[];
   isSending: boolean;
   isLoadingHistory: boolean;
+  voiceLoadingMessageIds?: Set<string>;
+  voicePlayingMessageId?: string | null;
+  voiceErrorByMessageId?: Record<string, string>;
+  onPlayVoice?: (messageId: string) => void;
 }
 
-export function MessageList({ messages, isSending, isLoadingHistory }: Props) {
+export function MessageList({
+  messages,
+  isSending,
+  isLoadingHistory,
+  voiceLoadingMessageIds,
+  voicePlayingMessageId,
+  voiceErrorByMessageId = {},
+  onPlayVoice,
+}: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,7 +48,14 @@ export function MessageList({ messages, isSending, isLoadingHistory }: Props) {
         </div>
       )}
       {messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          voiceLoading={Boolean(msg.messageId && voiceLoadingMessageIds?.has(msg.messageId))}
+          voicePlaying={Boolean(msg.messageId && voicePlayingMessageId === msg.messageId)}
+          voiceError={msg.messageId ? voiceErrorByMessageId[msg.messageId] : undefined}
+          onPlayVoice={onPlayVoice}
+        />
       ))}
       {isSending && <TypingIndicator />}
       <div ref={bottomRef} />

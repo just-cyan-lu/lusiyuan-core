@@ -36,6 +36,12 @@
 
 原始渠道事件。比如 Telegram 或微信传来的原始 payload，方便排查问题。
 
+**VoiceAudioCache**
+
+某条 assistant `Message` 的语音缓存。它保存 message id、文本 hash、音色/模型参数 hash、音频文件路径、大小、播放次数和 `lastPlayedAt`。
+
+音频本体默认保存在 `data/voice-cache/`，不放进 Git，也不长期塞进数据库。清理任务按 `lastPlayedAt` 删除超过保留天数未播放的缓存；删除后再次播放会重新生成。
+
 ## 记忆表
 
 **Memory**

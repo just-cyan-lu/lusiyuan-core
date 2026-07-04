@@ -8,7 +8,9 @@
 
 - 数据库地址、后端端口、Web Origin。
 - Admin Token、清库密码、owner 身份。
-- 模型、Embedding、搜索、页面读取和渠道的 API Key、Base URL、Model、Token、Secret、Proxy。
+- 模型、Embedding、搜索、页面读取、TTS 和渠道的 API Key、Base URL、Model、Token、Secret、Proxy。
+
+MiniMax TTS 使用 `MINIMAX_API_KEY`。这个 key 仍然只放 `.env`，不写入数据库。ASR 第一版使用浏览器 Web Speech API，不需要后端 API Key。
 
 这些内容很少修改，部分改动需要重启。Admin 不允许编辑 `ADMIN_API_TOKEN`、`ADMIN_DATABASE_CLEAR_PASSWORD`、`DATABASE_URL` 或 `OWNER_USER_IDS`。
 
@@ -24,6 +26,15 @@
 - 修改 Dream 或自启动时间：停止旧定时器并重新排程。
 - 修改 Chrome MCP 连接：断开旧客户端，下次读取重新连接。
 - 开关 Telegram：立即启动或停止长轮询。
+
+语音相关配置也在 `SystemSetting`：
+
+- `VOICE_TTS_*`：MiniMax TTS endpoint、模型、音色、语速、音量、音高和音频格式。
+- `VOICE_ASR_*`：浏览器 ASR 启用状态、provider、语言、单段最长时长和自动通话停顿阈值。
+- `VOICE_CACHE_RETENTION_DAYS`：语音缓存按最近播放时间保留多久。
+- `VOICE_AUTOPLAY_FINAL_ONLY`：自动朗读是否只读最终回复。
+
+这些值不含秘密，Admin 保存后即时生效。语音缓存清理任务读取最新保留天数；TTS 下一次调用读取最新模型和音色设置；Web Chat 通过 `/v1/voice/config` 读取浏览器 ASR 配置和自动通话停顿阈值。
 
 ## Web Chat 身份
 

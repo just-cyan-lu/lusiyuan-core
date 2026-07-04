@@ -4,11 +4,16 @@ export type ReplyPartKind = "progress" | "intermediate" | "final";
 
 export interface ChatReplyPart {
   turn_id: string;
+  message_id?: string;
   sequence: number;
   kind: ReplyPartKind;
   content: string;
   delay_ms: number;
   transcript: boolean;
+}
+
+export interface ChatVoiceOptions {
+  autoplay?: boolean;
 }
 
 export interface ChatInput {
@@ -23,6 +28,7 @@ export interface ChatInput {
   external_message_id?: string;
   display_name?: string;
   raw_event?: unknown;
+  voice?: ChatVoiceOptions;
 
   // Callback for sending intermediate messages during conversation
   onIntermediateMessage?: (content: string, delayMs: number) => Promise<void>;

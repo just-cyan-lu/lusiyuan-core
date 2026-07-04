@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchWebChatConversations,
   type WebChatConversationSummary,
 } from "../api/lusiyuan-api";
 import { useChat } from "../hooks/useChat";
+import { useVoicePlayback } from "../hooks/useVoicePlayback";
+import { useVoiceCall } from "../hooks/useVoiceCall";
 import {
   createWebConversationIdentity,
   displayNameForWebUser,
@@ -19,6 +21,7 @@ import {
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { VoiceCallPanel } from "./VoiceCallPanel";
 
 interface ChatPageProps {
   adminToken?: string;
@@ -77,6 +80,7 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
   const [conversations, setConversations] = useState<WebChatConversationSummary[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [selectorError, setSelectorError] = useState<string | null>(null);
+  const voicePlayback = useVoicePlayback(identity);
   const {
     messages,
     isSending,
@@ -86,7 +90,16 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
     error,
     sendMessage,
     stopMessage,
-  } = useChat(identity);
+  } = useChat(identity, {
+    voiceAutoplayEnabled: voicePlayback.autoplayEnabled,
+    onVoiceStreamEvent: voicePlayback.handleStreamEvent,
+  });
+  const voiceCall = useVoiceCall(async (text) => {
+    voicePlayback.clearQueue();
+    await sendMessage(text);
+    await voicePlayback.waitUntilIdle();
+  });
+  const clearVoiceQueueRef = useRef(voicePlayback.clearQueue);
 
   const selectedConversation = useMemo(
     () =>
@@ -168,12 +181,52 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken]);
 
+  useEffect(() => {
+    clearVoiceQueueRef.current = voicePlayback.clearQueue;
+  }, [voicePlayback.clearQueue]);
+
+  useEffect(() => {
+    const clearVoiceQueue = () => clearVoiceQueueRef.current();
+    window.addEventListener("pointerdown", clearVoiceQueue, { capture: true, passive: true });
+    window.addEventListener("wheel", clearVoiceQueue, { capture: true, passive: true });
+    window.addEventListener("keydown", clearVoiceQueue, true);
+    return () => {
+      window.removeEventListener("pointerdown", clearVoiceQueue, true);
+      window.removeEventListener("wheel", clearVoiceQueue, true);
+      window.removeEventListener("keydown", clearVoiceQueue, true);
+    };
+  }, []);
+
   const hasKnownCurrentConversation = Boolean(selectedConversation);
   const canUseCurrentConversation = isWebConversationId(identity.conversationId);
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[#d9e2ec] bg-white shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-      <ChatHeader userId={identity.userId} conversationId={identity.conversationId} />
+      <ChatHeader
+        userId={identity.userId}
+        conversationId={identity.conversationId}
+        voiceAutoplayEnabled={voicePlayback.autoplayEnabled}
+        onToggleVoiceAutoplay={() => voicePlayback.setAutoplayEnabled(!voicePlayback.autoplayEnabled)}
+        onOpenVoiceCall={() => {
+          voicePlayback.setAutoplayEnabled(true);
+          voiceCall.setIsOpen(true);
+        }}
+      />
+      <VoiceCallPanel
+        isOpen={voiceCall.isOpen}
+        isSupported={voiceCall.isSupported}
+        isRecording={voiceCall.isRecording}
+        isTranscribing={voiceCall.isTranscribing}
+        isAutoCallActive={voiceCall.isAutoCallActive}
+        liveTranscript={voiceCall.liveTranscript}
+        lastTranscript={voiceCall.lastTranscript}
+        error={voiceCall.error}
+        onStart={() => void voiceCall.startRecording()}
+        onStopAndSend={() => void voiceCall.stopAndSend()}
+        onStartAutoCall={() => void voiceCall.startAutoCall()}
+        onStopAutoCall={voiceCall.stopAutoCall}
+        onClose={voiceCall.close}
+      />
       <div className="border-b border-[#d9e2ec] bg-[#fff9e8] px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <label className="w-full lg:w-44">
@@ -268,6 +321,10 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
         messages={messages}
         isSending={isSending}
         isLoadingHistory={isLoadingHistory}
+        voiceLoadingMessageIds={voicePlayback.loadingMessageIds}
+        voicePlayingMessageId={voicePlayback.playingMessageId}
+        voiceErrorByMessageId={voicePlayback.errorByMessageId}
+        onPlayVoice={(messageId) => void voicePlayback.playMessage(messageId)}
       />
       {error && (
         <div className="mx-4 mb-2 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-3 py-2 text-sm text-[#8d6048]">

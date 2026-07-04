@@ -39,6 +39,12 @@ function validateValue(key: RuntimeSettingKey, value: unknown): SettingValue {
       throw new Error(`${key} must point to local Chrome`);
     }
   }
+  if (key === "VOICE_TTS_WS_ENDPOINT") {
+    const url = new URL(value);
+    if (url.protocol !== "wss:") {
+      throw new Error(`${key} must be a wss:// URL`);
+    }
+  }
   return value;
 }
 
@@ -120,6 +126,9 @@ class RuntimeSettingsService {
     }
     if (Number(candidate.get("RUNTIME_AUTONOMY_LOW_CHAT_COUNT")) >= Number(candidate.get("RUNTIME_AUTONOMY_HIGH_CHAT_COUNT"))) {
       throw new Error("自启动低聊天阈值必须小于高聊天阈值");
+    }
+    if (candidate.get("VOICE_TTS_ENABLED") === true && !String(candidate.get("VOICE_TTS_VOICE_ID") ?? "").trim()) {
+      throw new Error("开启 TTS 前需要配置思源音色 ID");
     }
 
     if (changes.length === 0) {

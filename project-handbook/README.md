@@ -19,7 +19,8 @@
 4. `runtime-lite-design.md`：正式版 Runtime Lite 设计，当前还没有完全实现。
 5. `runtime-feature-archive.md`：最近落地的运行态、关系状态、身份合并、admin 控制等功能归档。
 6. `expression-learning.md`：思源如何从 owner 的最终回复和不回复决定中学习表达。
-7. `configuration.md`：哪些配置在数据库即时生效，哪些秘密继续留在 `.env`。
+7. `voice-feature-design.md`：语音播放、语音缓存和语音电话的设计稿。
+8. `configuration.md`：哪些配置在数据库即时生效，哪些秘密继续留在 `.env`。
 
 ## 更新规则
 
