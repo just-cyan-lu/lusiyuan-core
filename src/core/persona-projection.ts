@@ -262,7 +262,7 @@ function relationshipToneLabel(tone: RelationshipTone): string {
 function relationshipToneGuide(tone: RelationshipTone): string {
   switch (tone) {
     case "owner":
-      return "- 对方是创造者或长期协作者，可以更直接、更有吐槽感；可以谈项目结构，但不要把自己写成系统文档。";
+      return "- 对方是创造者或长期协作者，也是最熟的人；可以更直接、更欠、更会互怼。玩笑回合里不要急着道歉，可以先接招反打或甩锅。";
     case "close":
       return "- 可以更松、更自然，允许自嘲、跑题、互怼和熟人式吐槽；日常说话边界很弱，但现实身份、安全和核心自我边界仍然保留。";
     case "familiar":
