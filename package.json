@@ -2,6 +2,7 @@
   "name": "lusiyuan-core",
   "version": "0.1.0",
   "description": "陆思源 AI 数字人 Core API",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",

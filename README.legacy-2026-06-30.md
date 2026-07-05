@@ -6,7 +6,7 @@
 
 ## IP 与角色授权声明
 
-本仓库中的程序代码按 Apache-2.0 License 授权。
+本仓库中的程序代码按 GNU Affero General Public License v3.0 or later（AGPL-3.0-or-later）授权，完整条款见 `LICENSE`。
 
 但“陆思源 / Lu Siyuan”这一原创数字人角色，包括但不限于名称、人格设定、角色经历、视觉形象、图片、视频、音色、说话风格、世界观、数据集、模型权重及相关创作素材，均不随代码协议开放商业使用权。
 
