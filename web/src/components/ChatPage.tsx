@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Card, Icon, Radio, Select, Tooltip } from "animal-island-ui";
 import {
   fetchWebChatConversations,
   type WebChatConversationSummary,
@@ -43,6 +44,7 @@ function formatDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("zh-CN", {
+    year: "2-digit",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -69,10 +71,7 @@ function userLabel(conversation: WebChatConversationSummary): string {
 }
 
 function conversationLabel(conversation: WebChatConversationSummary): string {
-  const preview = conversation.lastMessagePreview
-    ? ` · ${conversation.lastMessagePreview}`
-    : "";
-  return `${formatDate(conversation.lastMessageAt)} · ${userLabel(conversation)} · ${conversation.externalConversationId} · ${conversation.messageCount} 条${preview}`;
+  return `${formatDate(conversation.lastMessageAt)} · ${userLabel(conversation)} · ${conversation.messageCount} 条`;
 }
 
 export function ChatPage({ adminToken = "" }: ChatPageProps) {
@@ -201,146 +200,163 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
   const hasKnownCurrentConversation = Boolean(selectedConversation);
   const canUseCurrentConversation = isWebConversationId(identity.conversationId);
 
+  const conversationOptions = useMemo(
+    () =>
+      conversations.map((conversation) => ({
+        key: conversation.externalConversationId,
+        label: conversationLabel(conversation),
+      })),
+    [conversations]
+  );
+
+  const actorOptions = useMemo(
+    () => [
+      ...WEB_CHAT_ACTORS.map((actor) => ({ label: actor.label, value: actor.id })),
+      { label: "历史身份", value: "custom", disabled: true },
+    ],
+    []
+  );
+
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[#d9e2ec] bg-white shadow-[0_18px_48px_rgba(91,117,150,0.13)]">
-      <ChatHeader
-        userId={identity.userId}
-        conversationId={identity.conversationId}
-        voiceAutoplayEnabled={voicePlayback.autoplayEnabled}
-        onToggleVoiceAutoplay={() => voicePlayback.setAutoplayEnabled(!voicePlayback.autoplayEnabled)}
-        onOpenVoiceCall={() => {
-          voicePlayback.setAutoplayEnabled(true);
-          voiceCall.setIsOpen(true);
-        }}
-      />
-      <VoiceCallPanel
-        isOpen={voiceCall.isOpen}
-        isSupported={voiceCall.isSupported}
-        isRecording={voiceCall.isRecording}
-        isTranscribing={voiceCall.isTranscribing}
-        isAutoCallActive={voiceCall.isAutoCallActive}
-        liveTranscript={voiceCall.liveTranscript}
-        lastTranscript={voiceCall.lastTranscript}
-        error={voiceCall.error}
-        onStart={() => void voiceCall.startRecording()}
-        onStopAndSend={() => void voiceCall.stopAndSend()}
-        onStartAutoCall={() => void voiceCall.startAutoCall()}
-        onStopAutoCall={voiceCall.stopAutoCall}
-        onClose={voiceCall.close}
-      />
-      <div className="border-b border-[#d9e2ec] bg-[#fff9e8] px-4 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <label className="w-full lg:w-44">
-            <span className="mb-1 block text-xs font-semibold text-[#8a6f5a]">
-              这次是谁在聊
-            </span>
-            <select
-              value={activeActor}
-              onChange={(event) => handleActorChange(event.target.value as WebChatActorId)}
-              disabled={isSending}
-              className="field-input h-10 bg-white"
-            >
-              {WEB_CHAT_ACTORS.map((actor) => (
-                <option key={actor.id} value={actor.id}>
-                  {actor.label}
-                </option>
-              ))}
-              {activeActor === "custom" && <option value="custom">历史身份</option>}
-            </select>
-          </label>
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] w-full max-w-5xl flex-col">
+      <Card className="flex h-full flex-col overflow-hidden" pattern="app-pink">
+        <ChatHeader
+          userId={identity.userId}
+          conversationId={identity.conversationId}
+          displayName={identity.displayName}
+          voiceAutoplayEnabled={voicePlayback.autoplayEnabled}
+          onToggleVoiceAutoplay={() => voicePlayback.setAutoplayEnabled(!voicePlayback.autoplayEnabled)}
+          onOpenVoiceCall={() => {
+            voicePlayback.setAutoplayEnabled(true);
+            voiceCall.setIsOpen(true);
+          }}
+        />
+        <VoiceCallPanel
+          isOpen={voiceCall.isOpen}
+          isSupported={voiceCall.isSupported}
+          isRecording={voiceCall.isRecording}
+          isTranscribing={voiceCall.isTranscribing}
+          isAutoCallActive={voiceCall.isAutoCallActive}
+          liveTranscript={voiceCall.liveTranscript}
+          lastTranscript={voiceCall.lastTranscript}
+          error={voiceCall.error}
+          onStart={() => void voiceCall.startRecording()}
+          onStopAndSend={() => void voiceCall.stopAndSend()}
+          onStartAutoCall={() => void voiceCall.startAutoCall()}
+          onStopAutoCall={voiceCall.stopAutoCall}
+          onClose={voiceCall.close}
+        />
 
-          <label className="min-w-0 flex-1">
-            <span className="mb-1 block text-xs font-semibold text-[#8a6f5a]">
-              继续哪个 Web 对话
-            </span>
-            <select
-              value={identity.conversationId}
-              onChange={(event) => handleSelectConversation(event.target.value)}
-              disabled={!adminToken || isLoadingConversations || isSending}
-              className="field-input h-10 min-w-0 bg-white"
-            >
-              {!hasKnownCurrentConversation && (
-                <option value={identity.conversationId}>
-                  当前新对话 · {identity.conversationId}
-                </option>
-              )}
-              {conversations.map((conversation) => (
-                <option
-                  key={conversation.id}
-                  value={conversation.externalConversationId}
-                >
-                  {conversationLabel(conversation)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="border-b border-[var(--ls-border)] bg-[var(--ls-panel)] px-4 py-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="w-full lg:w-40">
+              <span className="mb-1.5 block text-xs font-black text-[var(--ls-ink-soft)]">
+                这次是谁在聊
+              </span>
+              <Radio
+                value={activeActor}
+                onChange={(value) => handleActorChange(value as WebChatActorId)}
+                options={actorOptions}
+                direction="horizontal"
+                disabled={isSending}
+              />
+            </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void loadWebConversations()}
-              disabled={!adminToken || isLoadingConversations || isSending}
-              className="h-10 rounded-lg border border-[#c9d6e5] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#f8fbff]"
-            >
-              {isLoadingConversations ? "读取中" : "刷新"}
-            </button>
-            <button
-              type="button"
-              onClick={handleNewConversation}
-              disabled={isSending}
-              className="h-10 rounded-lg border border-[#a9bfd7] bg-[#eaf2fb] px-4 text-sm font-medium text-[#27496d] transition hover:bg-[#ddebf7]"
-            >
-              新对话
-            </button>
+            <div className="min-w-0 flex-1">
+              <span className="mb-1.5 block text-xs font-black text-[var(--ls-ink-soft)]">
+                继续哪个 Web 对话
+              </span>
+              <div className="admin-select-host admin-select-below">
+                <Select
+                  value={identity.conversationId}
+                  onChange={handleSelectConversation}
+                  options={[
+                    ...(!hasKnownCurrentConversation
+                      ? [{ key: identity.conversationId, label: `当前新对话 · ${shortConversationId(identity.conversationId)}` }]
+                      : []),
+                    ...conversationOptions,
+                  ]}
+                  disabled={!adminToken || isLoadingConversations || isSending}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="default"
+                size="middle"
+                icon={<Icon name="icon-variant" size={18} />}
+                loading={isLoadingConversations}
+                disabled={!adminToken || isSending}
+                onClick={() => void loadWebConversations()}
+              >
+                刷新
+              </Button>
+              <Button
+                type="primary"
+                size="middle"
+                icon={<Icon name="icon-chat" size={18} />}
+                disabled={isSending}
+                onClick={handleNewConversation}
+              >
+                新对话
+              </Button>
+            </div>
           </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--ls-ink-soft)]">
+            <span className="admin-chip admin-chip-yellow">只列出 web:&lt;uuid&gt;</span>
+            <span className={activeActor === "owner" ? "admin-chip admin-chip-mint" : "admin-chip"}>
+              {activeActor === "owner"
+                ? "当前按你本人记录"
+                : activeActor === "codex"
+                  ? "当前按 Codex 记录"
+                  : "当前是历史身份"}
+            </span>
+            <Tooltip title={identity.conversationId} variant="island" placement="top">
+              <span className="admin-chip cursor-pointer">
+                会话 {shortConversationId(identity.conversationId)}
+              </span>
+            </Tooltip>
+            <Tooltip title={identity.userId} variant="island" placement="top">
+              <span className="admin-chip cursor-pointer truncate">用户 {identity.userId}</span>
+            </Tooltip>
+            {!adminToken && <span className="admin-chip">输入 Admin Token 后可选择已有对话</span>}
+          </div>
+
+          {(selectorError || !canUseCurrentConversation) && (
+            <div className="mt-3 rounded-[18px] border-2 border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm font-semibold text-[var(--ls-warning-text)]">
+              {selectorError ?? "当前会话不是 web:<uuid>，请新建一个 Web 对话。"}
+            </div>
+          )}
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#7b8ca2]">
-          <span className="admin-chip admin-chip-yellow">只列出 web:&lt;uuid&gt;</span>
-          <span className={activeActor === "owner" ? "admin-chip admin-chip-mint" : "admin-chip"}>
-            {activeActor === "owner"
-              ? "当前按你本人记录"
-              : activeActor === "codex"
-                ? "当前按 Codex 记录"
-                : "当前是历史身份"}
-          </span>
-          <span title={identity.conversationId}>
-            当前 {shortConversationId(identity.conversationId)}
-          </span>
-          <span>·</span>
-          <span className="truncate">用户 {identity.userId}</span>
-          {!adminToken && <span>· 输入 Admin Token 后可选择已有对话</span>}
-        </div>
+        <MessageList
+          messages={messages}
+          isSending={isSending}
+          isLoadingHistory={isLoadingHistory}
+          typingLabel={typingLabel}
+          voiceLoadingMessageIds={voicePlayback.loadingMessageIds}
+          voicePlayingMessageId={voicePlayback.playingMessageId}
+          voiceErrorByMessageId={voicePlayback.errorByMessageId}
+          onPlayVoice={(messageId) => void voicePlayback.playMessage(messageId)}
+        />
 
-        {(selectorError || !canUseCurrentConversation) && (
-          <div className="mt-3 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-3 py-2 text-sm text-[#8d6048]">
-            {selectorError ?? "当前会话不是 web:<uuid>，请新建一个 Web 对话。"}
+        {error && (
+          <div className="mx-4 mb-2 rounded-[18px] border-2 border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm font-semibold text-[var(--ls-warning-text)]">
+            {error}
           </div>
         )}
-      </div>
-      <MessageList
-        messages={messages}
-        isSending={isSending}
-        isLoadingHistory={isLoadingHistory}
-        typingLabel={typingLabel}
-        voiceLoadingMessageIds={voicePlayback.loadingMessageIds}
-        voicePlayingMessageId={voicePlayback.playingMessageId}
-        voiceErrorByMessageId={voicePlayback.errorByMessageId}
-        onPlayVoice={(messageId) => void voicePlayback.playMessage(messageId)}
-      />
-      {error && (
-        <div className="mx-4 mb-2 rounded-lg border border-[#ead4c8] bg-[#fff6f1] px-3 py-2 text-sm text-[#8d6048]">
-          {error}
-        </div>
-      )}
-      <ChatInput
-        onSend={sendMessage}
-        onStop={stopMessage}
-        disabled={!canUseCurrentConversation}
-        isSending={isSending}
-        isStopping={isStopping}
-        canStop={canStop}
-      />
+
+        <ChatInput
+          onSend={sendMessage}
+          onStop={stopMessage}
+          disabled={!canUseCurrentConversation}
+          isSending={isSending}
+          isStopping={isStopping}
+          canStop={canStop}
+        />
+      </Card>
     </div>
   );
 }
