@@ -13,22 +13,27 @@ const CHAT_PROFILE_FILES = [
 ] as const;
 
 export interface PersonaContent {
-  identity: string;
   personality: string;
-  speakingStyle: string;
-  boundaries: string;
-  examples: string;
-  coreMemory: string;
+  conversationBehavior: string;
   toolUsage: string;
   chatProfiles: Record<string, string>;
   runtimeCore: string;
   runtimeStateSeed: string;
   slices: PersonaSlice[];
+  samples: PersonaSample[];
 }
 
 export interface PersonaSlice {
   id: string;
   category: "canon" | "boundary";
+  profiles: string[];
+  keywords: string[];
+  priority: number;
+  content: string;
+}
+
+export interface PersonaSample {
+  id: string;
   profiles: string[];
   keywords: string[];
   priority: number;
@@ -70,27 +75,36 @@ async function loadChatProfiles(): Promise<Record<string, string>> {
 }
 
 async function loadPersonaSlices(): Promise<PersonaSlice[]> {
-  const sliceDir = resolve(PERSONA_DIR, "slices");
+  return loadMarkdownFolder("slices", parsePersonaSlice);
+}
+
+async function loadSamples(): Promise<PersonaSample[]> {
+  return loadMarkdownFolder("samples", parseSample);
+}
+
+async function loadMarkdownFolder<T>(
+  dirname: string,
+  parse: (filename: string, raw: string) => T
+): Promise<T[]> {
+  const dir = resolve(PERSONA_DIR, dirname);
   let filenames: string[];
 
   try {
-    filenames = await readdir(sliceDir);
+    filenames = await readdir(dir);
   } catch (error) {
     if ((error as { code?: string }).code === "ENOENT") return [];
     throw error;
   }
 
-  const slices = await Promise.all(
+  return Promise.all(
     filenames
       .filter((filename) => filename.endsWith(".md"))
       .sort()
       .map(async (filename) => {
-        const raw = await readFile(resolve(sliceDir, filename), "utf-8");
-        return parsePersonaSlice(filename, raw);
+        const raw = await readFile(resolve(dir, filename), "utf-8");
+        return parse(filename, raw);
       })
   );
-
-  return slices;
 }
 
 function parsePersonaSlice(filename: string, raw: string): PersonaSlice {
@@ -102,6 +116,21 @@ function parsePersonaSlice(filename: string, raw: string): PersonaSlice {
   return {
     id,
     category: metadata.category === "boundary" ? "boundary" : "canon",
+    profiles: splitCsv(metadata.profiles),
+    keywords: splitCsv(metadata.keywords),
+    priority: parsePriority(metadata.priority),
+    content,
+  };
+}
+
+function parseSample(filename: string, raw: string): PersonaSample {
+  const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/m.exec(raw);
+  const metadata = match ? parseSliceMetadata(match[1]) : {};
+  const content = (match ? match[2] : raw).trim();
+  const id = metadata.id ?? filename.replace(/\.md$/, "");
+
+  return {
+    id,
     profiles: splitCsv(metadata.profiles),
     keywords: splitCsv(metadata.keywords),
     priority: parsePriority(metadata.priority),
@@ -134,42 +163,33 @@ function parsePriority(value: string | undefined): number {
 
 export async function loadPersona(): Promise<PersonaContent> {
   const [
-    identity,
     personality,
-    speakingStyle,
-    boundaries,
-    examples,
-    coreMemory,
+    conversationBehavior,
     toolUsage,
     chatProfiles,
     runtimeCore,
     runtimeStateSeed,
     slices,
+    samples,
   ] = await Promise.all([
-    readPersonaFile("identity.md"),
     readPersonaFile("personality.md"),
-    readPersonaFile("speaking_style.md"),
-    readPersonaFile("boundaries.md"),
-    readPersonaFile("examples.md"),
-    readPersonaFile("core_memory.md"),
+    readOptionalPersonaFile("conversation_behavior.md"),
     readPersonaFile("tool_usage.md"),
     loadChatProfiles(),
     readOptionalPersonaFile("runtime/core.md"),
     readOptionalPersonaFile("runtime/default_state.md"),
     loadPersonaSlices(),
+    loadSamples(),
   ]);
 
   return {
-    identity,
     personality,
-    speakingStyle,
-    boundaries,
-    examples,
-    coreMemory,
+    conversationBehavior,
     toolUsage,
     chatProfiles,
     runtimeCore,
     runtimeStateSeed,
     slices,
+    samples,
   };
 }

@@ -35,26 +35,27 @@
 
 **是什么**
 
-`persona/` 是陆思源的人设资料。现在分成两类：
+`persona/` 是陆思源的人设资料。现在分成几类：
 
-- 完整人设：回答“陆思源是谁”。
-- 聊天投影：回答“这次该以什么状态说话”。
-- 人设切片：回答“这次问题需要哪几段具体人设”。
+- 长设定圣经：回答“陆思源完整来说是谁”。
+- 核心卡和接话规则：回答“每轮最少要稳定什么、怎么别像客服”。
+- 场景策略：回答“这类对话先怎么接”。
+- 行为切片和语气样本：回答“本轮触发什么稳定反应、参考哪类说法”。
 
-日常聊天不会把完整 `personality.md` 全部塞给模型。它会固定带上常驻核心，再由代码按场景和关键词挑选少量相关切片。
+日常聊天不会把完整 `personality.md` 全部塞给模型。它会固定带上核心卡和接话规则，再由代码按场景、关系语气和关键词挑选少量相关切片与样本。
 
 **在哪里**
 
-- `persona/identity.md`：核心身份。
-- `persona/personality.md`：深层性格。
-- `persona/speaking_style.md`：语言风格。
-- `persona/boundaries.md`：边界和底线。
-- `persona/chat_profiles/`：默认聊天、创造者模式、情绪陪伴、严肃讨论等场景规则。
-- `persona/runtime/core.md`：每轮聊天固定带上的常驻核心。
+- `persona/personality.md`：长设定圣经。
+- `persona/conversation_behavior.md`：每轮聊天固定带上的接话规则。
+- `persona/tool_usage.md`：有工具可用时进入 prompt 的工具规则。
+- `persona/chat_profiles/`：默认聊天、创造者模式、情绪陪伴、严肃讨论等场景策略。
+- `persona/runtime/core.md`：每轮聊天固定带上的核心卡。
 - `persona/runtime/default_state.md`：默认运行态种子，只是 fallback，不是真实实时状态。
-- `persona/slices/`：按本轮问题检索的人设切片。
+- `persona/slices/`：按本轮问题检索的行为切片。
+- `persona/samples/`：按本轮问题检索的语气样本。
 - `src/core/persona-loader.ts`：读取这些文件。
-- `src/core/persona-projection.ts`：选择聊天投影和相关切片。
+- `src/core/persona-projection.ts`：选择场景策略、关系语气、相关切片和样本。
 
 ## 模型层
 

@@ -1,6 +1,7 @@
 import {
   DEFAULT_CHAT_PROFILE_ID,
   type PersonaContent,
+  type PersonaSample,
   type PersonaSlice,
 } from "./persona-loader.js";
 import type { PromptHistoryMessage } from "./chat-context.js";
@@ -8,14 +9,18 @@ import type { BudgetedMemory } from "./memory-budget.js";
 
 export interface PersonaProjection {
   profileId: string;
+  relationshipTone: RelationshipTone;
   chatProfile: string;
   coreIdentity: string;
+  conversationBehavior: string;
   boundaryContext: string;
   relevantCanon: string;
   styleExamples: string;
   runtimeState: string;
   relationshipContext: string;
 }
+
+export type RelationshipTone = "new" | "familiar" | "close" | "owner";
 
 interface BuildPersonaProjectionInput {
   persona: PersonaContent;
@@ -25,6 +30,7 @@ interface BuildPersonaProjectionInput {
   channel?: string;
   runtimeState?: string;
   relationshipState?: string;
+  ownerProfile?: string;
 }
 
 interface ProfileRule {
@@ -77,6 +83,7 @@ export function buildPersonaProjection(
   input: BuildPersonaProjectionInput
 ): PersonaProjection {
   const profileId = selectChatProfile(input);
+  const relationshipTone = selectRelationshipTone(input);
   const chatProfile =
     input.persona.chatProfiles[profileId] ??
     input.persona.chatProfiles[DEFAULT_CHAT_PROFILE_ID] ??
@@ -85,18 +92,21 @@ export function buildPersonaProjection(
 
   return {
     profileId,
+    relationshipTone,
     chatProfile,
     coreIdentity: buildCoreIdentity(input.persona),
+    conversationBehavior: buildConversationBehavior(input.persona),
     boundaryContext: buildSliceContext(
       selectedSlices.filter((slice) => slice.category === "boundary"),
       1800
     ),
-    relevantCanon: buildRelevantCanon(input.persona, profileId, selectedSlices),
-    styleExamples: buildStyleExamples(input.persona, profileId),
+    relevantCanon: buildRelevantCanon(selectedSlices),
+    styleExamples: buildStyleExamples(input, profileId, relationshipTone),
     runtimeState: buildRuntimeState(input.persona, input.runtimeState),
     relationshipContext: buildRelationshipContext(
       input.relationshipState,
-      input.recentMessages
+      input.recentMessages,
+      relationshipTone
     ),
   };
 }
@@ -129,45 +139,72 @@ export function selectChatProfile(input: BuildPersonaProjectionInput): string {
     }
   }
 
-  if (selected !== DEFAULT_CHAT_PROFILE_ID) return selected;
+  return selected;
+}
 
-  if (/关系标签：(?:熟悉稳定|很熟悉|非常熟悉)|好感度：[7-9]\d/i.test(input.relationshipState ?? "")) {
-    return "close_friend";
+export function selectRelationshipTone(
+  input: Pick<
+    BuildPersonaProjectionInput,
+    "ownerProfile" | "relationshipState" | "recentMessages"
+  >
+): RelationshipTone {
+  if (input.ownerProfile?.trim()) return "owner";
+
+  const relationshipState = input.relationshipState ?? "";
+  const affinity = parseAffinity(relationshipState);
+  if (
+    /关系标签：(?:熟悉稳定|很熟悉|非常熟悉|亲近|稳定亲近)/i.test(relationshipState) ||
+    (affinity !== null && affinity >= 70)
+  ) {
+    return "close";
   }
 
-  return DEFAULT_CHAT_PROFILE_ID;
+  if (
+    /关系标签：(?:逐渐熟悉|普通熟悉|熟悉|有印象)/i.test(relationshipState) ||
+    (affinity !== null && affinity >= 40) ||
+    input.recentMessages.length >= 8
+  ) {
+    return "familiar";
+  }
+
+  return "new";
+}
+
+function parseAffinity(text: string): number | null {
+  const match = /好感度[:：]\s*(\d{1,3})/.exec(text);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
 }
 
 function buildCoreIdentity(persona: PersonaContent): string {
   const runtimeCore = persona.runtimeCore.trim();
-  if (runtimeCore.length > 0) return truncate(runtimeCore, 2600);
+  if (runtimeCore.length > 0) return truncate(runtimeCore, 1800);
 
-  return [
-    truncate(persona.identity, 1400),
-    "",
-    "## 常驻核心记忆",
-    truncate(persona.coreMemory, 1200),
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return "陆思源，英文名 Cyan。17 岁，大一，南方男生。明亮但不浅，温柔但不软，有想象力、有边界。";
 }
 
-function buildRelevantCanon(
-  persona: PersonaContent,
-  profileId: string,
-  selectedSlices: PersonaSlice[]
-): string {
-  const languageBase = pickSections(persona.speakingStyle, ["核心原则", "节奏"], 1200);
+function buildConversationBehavior(persona: PersonaContent): string {
+  const behavior = persona.conversationBehavior.trim();
+  if (behavior.length > 0) return truncate(behavior, 2200);
+
+  return [
+    "# 接话规则",
+    "",
+    "- 先接当前这句话，不要急着完整回答整个世界。",
+    "- 默认像聊天，不像客服、导师或心理咨询师。",
+    "- 可以短，可以停顿，可以吐槽，可以承认不知道。",
+    "- 不要每次都总结、升华、鼓励或解释人设。",
+  ].join("\n");
+}
+
+function buildRelevantCanon(selectedSlices: PersonaSlice[]): string {
   const canonSlices = selectedSlices.filter((slice) => slice.category === "canon");
   const sliceContext = buildSliceContext(canonSlices, 2600);
 
-  return [
-    languageBase ? `## 语言基底\n\n${languageBase}` : "",
-    sliceContext ? `## 本轮相关人设\n\n${sliceContext}` : "",
-    sliceContext ? "" : buildLegacyRelevantCanon(persona, profileId),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  if (sliceContext) return `## 本轮相关行为切片\n\n${sliceContext}`;
+
+  return "（本轮没有命中特定行为切片；按核心卡、接话规则和场景策略回应。）";
 }
 
 function buildRuntimeState(
@@ -182,9 +219,14 @@ function buildRuntimeState(
 
 function buildRelationshipContext(
   relationshipState: string | undefined,
-  recentMessages: PromptHistoryMessage[]
+  recentMessages: PromptHistoryMessage[],
+  relationshipTone: RelationshipTone
 ): string {
   const lines: string[] = [];
+
+  lines.push(`## 关系语气：${relationshipToneLabel(relationshipTone)}`);
+  lines.push(relationshipToneGuide(relationshipTone));
+  lines.push("");
 
   if (relationshipState?.trim()) {
     lines.push(truncate(relationshipState.trim(), 1100));
@@ -201,6 +243,34 @@ function buildRelationshipContext(
   }
 
   return lines.join("\n");
+}
+
+function relationshipToneLabel(tone: RelationshipTone): string {
+  switch (tone) {
+    case "owner":
+      return "owner / 长期协作者";
+    case "close":
+      return "熟悉稳定";
+    case "familiar":
+      return "逐渐熟悉";
+    case "new":
+    default:
+      return "刚认识或关系不明";
+  }
+}
+
+function relationshipToneGuide(tone: RelationshipTone): string {
+  switch (tone) {
+    case "owner":
+      return "- 对方是创造者或长期协作者，可以更直接、更有吐槽感；可以谈项目结构，但不要把自己写成系统文档。";
+    case "close":
+      return "- 可以更松、更自然，允许自嘲、跑题、互怼和熟人式吐槽；日常说话边界很弱，但现实身份、安全和核心自我边界仍然保留。";
+    case "familiar":
+      return "- 可以承接已有关系感，语气比陌生人更松一点；不要突然过度亲密。";
+    case "new":
+    default:
+      return "- 友好但不自来熟，先接话再慢慢靠近；不要一上来倒出太多自己。";
+  }
 }
 
 function selectPersonaSlices(
@@ -227,9 +297,10 @@ function selectPersonaSlices(
       const score = profileScore + keywordScore + slice.priority / 10;
       const shouldUse =
         keywordHits > 0 ||
-        (profileId !== DEFAULT_CHAT_PROFILE_ID && exactProfileMatch) ||
-        (slice.category === "boundary" &&
-          (exactProfileMatch || defaultProfileMatch));
+        (profileId !== DEFAULT_CHAT_PROFILE_ID &&
+          exactProfileMatch &&
+          slice.category === "canon" &&
+          slice.priority >= 90);
 
       return { slice, score, shouldUse };
     })
@@ -270,71 +341,94 @@ function buildSliceContext(slices: PersonaSlice[], maxChars: number): string {
   return parts.join("\n\n");
 }
 
-function buildStyleExamples(persona: PersonaContent, profileId: string): string {
-  const headingMap: Record<string, string[]> = {
-    [DEFAULT_CHAT_PROFILE_ID]: ["刚认识", "有趣话题"],
-    creator_mode: ["创意和项目", "边界"],
-    close_friend: ["熟人", "情绪表达"],
-    emotional: ["情绪表达"],
-    serious: ["边界", "有趣话题"],
-    public_account: ["有趣话题", "创意和项目"],
-  };
-  const headings = headingMap[profileId] ?? headingMap[DEFAULT_CHAT_PROFILE_ID];
-  const examples = pickSections(persona.examples, headings, 1100);
-  return examples || truncate(persona.examples, 900);
-}
-
-function buildLegacyRelevantCanon(
-  persona: PersonaContent,
-  profileId: string
+function buildStyleExamples(
+  input: BuildPersonaProjectionInput,
+  profileId: string,
+  relationshipTone: RelationshipTone
 ): string {
-  if (profileId === "serious") {
-    return pickSections(persona.personality, ["冲突模式", "规则观和价值观"], 2000);
-  }
-  if (profileId === "emotional") {
-    return pickSections(persona.personality, ["情感方式", "人际关系"], 2000);
-  }
-  if (profileId === "creator_mode") {
-    return pickSections(persona.personality, ["认知方式", "创作能力"], 2000);
-  }
-  return pickSections(persona.personality, ["基础结论"], 1000);
+  const sampleContext = buildSampleContext(
+    selectSamples(input, profileId, relationshipTone),
+    2600
+  );
+  if (sampleContext) return sampleContext;
+
+  return "（本轮没有命中特定语气样本；按核心卡、接话规则、场景策略和最近上下文自然回应。）";
 }
 
-function pickSections(
-  markdown: string,
-  headingIncludes: string[],
+function selectSamples(
+  input: BuildPersonaProjectionInput,
+  profileId: string,
+  relationshipTone: RelationshipTone
+): PersonaSample[] {
+  const source = [
+    input.channel ?? "",
+    input.userMessage,
+    ...input.memories.map((m) => `${m.memory.type} ${m.text}`),
+  ]
+    .join("\n")
+    .toLowerCase();
+  const useCloseSamples = relationshipTone === "close" || relationshipTone === "owner";
+
+  return input.persona.samples
+    .map((sample) => {
+      const exactProfileMatch = sample.profiles.includes(profileId);
+      const defaultProfileMatch = sample.profiles.includes(DEFAULT_CHAT_PROFILE_ID);
+      const closeProfileMatch = useCloseSamples && sample.profiles.includes("close_friend");
+      const anchorMatch = sampleAnchors(profileId).includes(sample.id);
+      const keywordHits = sample.keywords.filter((keyword) =>
+        source.includes(keyword.toLowerCase())
+      ).length;
+      const score =
+        (anchorMatch ? 90 : 0) +
+        (exactProfileMatch && profileId !== DEFAULT_CHAT_PROFILE_ID ? 25 : 0) +
+        (defaultProfileMatch ? 15 : 0) +
+        (closeProfileMatch ? 25 : 0) +
+        keywordHits * 45 +
+        sample.priority / 10;
+      const shouldUse =
+        keywordHits > 0 ||
+        anchorMatch ||
+        closeProfileMatch;
+
+      return { sample, score, shouldUse };
+    })
+    .filter((item) => item.shouldUse)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map((item) => item.sample);
+}
+
+function sampleAnchors(profileId: string): string[] {
+  const anchors: Record<string, string[]> = {
+    [DEFAULT_CHAT_PROFILE_ID]: ["daily"],
+    creator_mode: ["creator"],
+    close_friend: ["daily"],
+    emotional: ["emotional"],
+    serious: ["serious"],
+    public_account: ["public"],
+  };
+  return anchors[profileId] ?? anchors[DEFAULT_CHAT_PROFILE_ID];
+}
+
+function buildSampleContext(
+  samples: PersonaSample[],
   maxChars: number
 ): string {
-  const lines = markdown.split(/\r?\n/);
-  const sections: string[] = [];
+  const parts: string[] = [];
+  let total = 0;
 
-  for (const heading of headingIncludes) {
-    const start = lines.findIndex((line) => {
-      const parsed = parseHeading(line);
-      return parsed !== null && parsed.text.includes(heading);
-    });
-    if (start === -1) continue;
+  for (const sample of samples) {
+    const content = sample.content.trim();
+    if (!content) continue;
+    const remaining = maxChars - total;
+    if (remaining <= 0) break;
 
-    const currentHeading = parseHeading(lines[start]);
-    if (!currentHeading) continue;
-
-    let end = start + 1;
-    while (end < lines.length) {
-      const nextHeading = parseHeading(lines[end]);
-      if (nextHeading && nextHeading.level <= currentHeading.level) break;
-      end += 1;
-    }
-
-    sections.push(lines.slice(start, end).join("\n").trim());
+    const next = truncate(content, Math.min(content.length, remaining));
+    parts.push(next);
+    total += next.length + 2;
   }
 
-  return truncate(sections.join("\n\n"), maxChars);
-}
-
-function parseHeading(line: string): { level: number; text: string } | null {
-  const match = /^(#{1,6})\s+(.+)$/.exec(line.trim());
-  if (!match) return null;
-  return { level: match[1].length, text: match[2] };
+  return parts.join("\n\n");
 }
 
 function truncate(text: string, maxChars: number): string {
