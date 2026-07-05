@@ -178,7 +178,7 @@ export function AdminShell({
 
   return (
     <Cursor forceAll className="admin-island-shell">
-      <div className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-[19.5rem_1fr]">
+      <div className="relative grid min-h-dvh grid-cols-1 lg:grid-cols-[19.5rem_minmax(0,1fr)]">
         <aside className="admin-island-sidebar border-b px-4 py-4 backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
           <div className="flex items-center justify-between gap-4 lg:block">
             <button

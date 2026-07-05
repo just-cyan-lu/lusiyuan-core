@@ -595,7 +595,7 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
         <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Tools</div>
         <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">工具调用</h2>
         <p className="mt-3 text-sm leading-7 text-[var(--ls-ink-soft)]">
@@ -606,9 +606,9 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="space-y-5">
       <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)] md:p-7">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Tool Console</div>
             <h2 className="mt-2 text-3xl font-semibold text-[var(--ls-ink-strong)]">工具调用</h2>
@@ -653,16 +653,16 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="注册工具" value={String(state.tools.length)} detail={`${enabledTools} 个当前可用`} />
-        <MetricCard label="Owner Only" value={String(ownerOnlyTools)} detail="只允许 owner 上下文调用" />
-        <MetricCard label="近端日志" value={String(state.logs.length)} detail={`成功 ${summary.success} / 失败 ${summary.failed}`} />
-        <MetricCard label="平均耗时" value={formatDuration(summary.averageDuration)} detail={`阻断 ${summary.blocked} 次`} />
+      <section className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <MetricCard label="注册工具" value={String(state.tools.length)} detail={`${enabledTools} 个当前可用`} tone="teal" />
+        <MetricCard label="Owner Only" value={String(ownerOnlyTools)} detail="只允许 owner 上下文调用" tone="blue" />
+        <MetricCard label="近端日志" value={String(state.logs.length)} detail={`成功 ${summary.success} / 失败 ${summary.failed}`} tone="orange" />
+        <MetricCard label="平均耗时" value={formatDuration(summary.averageDuration)} detail={`阻断 ${summary.blocked} 次`} tone="pink" />
       </section>
 
       {state.policy && (
         <SectionPanel title="工具日志" subtitle="工具本身固定可用，访问范围在具体工具上配置">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <PolicyConfigItem
               label="工具调用轨迹"
               field={settingFieldMap.get("TOOL_CALL_LOG_ENABLED")}
@@ -671,9 +671,11 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
               disabled={state.saving}
               onChange={handlePolicyConfigChange}
             />
-          </div>
-          <div className="mt-4 rounded-lg border border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm leading-6 text-[var(--ls-info-text)]">
-            开关点击后会立即写入数据库；工具调用轨迹只记录是否调用、状态和耗时，不保存工具入参和出参。
+            <div className="relative overflow-hidden rounded-lg border border-[var(--ls-info-border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--ls-info-text)] shadow-sm">
+              <div className="absolute left-0 top-0 h-full w-1.5 bg-[var(--ls-yellow)]" />
+              <span className="mb-1.5 block pl-3 text-xs font-semibold text-[var(--ls-ink-soft)]">说明</span>
+              <p className="pl-3">开关点击后会立即写入数据库；工具调用轨迹只记录是否调用、状态和耗时，不保存工具入参和出参。</p>
+            </div>
           </div>
         </SectionPanel>
       )}
@@ -711,156 +713,161 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
         )}
       </SectionPanel>
 
-      <section className="admin-select-host grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-        <SectionPanel title="调用日志" subtitle="来自 tool_call_logs">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <AdminSelect
-              ariaLabel="工具"
-              value={toolName}
-              onChange={(value) => setToolName(value)}
-              options={[
-                { key: "all", label: "全部工具" },
-                ...toolOptions.map((tool) => ({ key: tool.name, label: tool.name })),
-              ]}
-            />
-            <AdminSelect
-              ariaLabel="状态"
-              value={status}
-              onChange={(value) => setStatus(value)}
-              options={[
-                { key: "all", label: "全部状态" },
-                { key: "success", label: "成功" },
-                { key: "failed", label: "失败" },
-                { key: "blocked", label: "已阻断" },
-              ]}
-            />
-            <AdminSelect
-              ariaLabel="风险"
-              value={riskLevel}
-              onChange={(value) => setRiskLevel(value)}
-              options={[
-                { key: "all", label: "全部风险" },
-                { key: "low", label: "低风险" },
-                { key: "medium", label: "中风险" },
-                { key: "high", label: "高风险" },
-              ]}
-            />
-            <AdminSelect
-              ariaLabel="阻断状态"
-              value={blocked}
-              onChange={(value) => setBlocked(value)}
-              options={[
-                { key: "all", label: "全部阻断状态" },
-                { key: "true", label: "只看阻断" },
-                { key: "false", label: "排除阻断" },
-              ]}
-            />
-            <AdminSelect
-              ariaLabel="时间范围"
-              value={datePreset}
-              onChange={(value) => setDatePreset(value as DatePreset)}
-              options={datePresetOptions.map((option) => ({ key: option.value, label: option.label }))}
-            />
-            <AdminSelect
-              ariaLabel="返回条数"
-              value={limit}
-              onChange={(value) => setLimit(value)}
-              options={[
-                { key: "30", label: "30 条" },
-                { key: "80", label: "80 条" },
-                { key: "150", label: "150 条" },
-                { key: "200", label: "200 条" },
-              ]}
-            />
-            <AdminInput
-              value={userId}
-              onChange={(event) => setUserId(event.target.value)}
-              placeholder="User externalId / id"
-              aria-label="User ID"
-            />
-            <AdminInput
-              value={conversationId}
-              onChange={(event) => setConversationId(event.target.value)}
-              placeholder="Conversation ID"
-              aria-label="Conversation ID"
-            />
-            {datePreset === "custom" && (
-              <>
-                <AdminInput
-                  value={customFrom}
-                  onChange={(event) => setCustomFrom(event.target.value)}
-                  type="date"
-                  aria-label="开始日期"
-                />
-                <AdminInput
-                  value={customTo}
-                  onChange={(event) => setCustomTo(event.target.value)}
-                  type="date"
-                  aria-label="结束日期"
-                />
-              </>
-            )}
-            <div className="flex gap-2 md:col-span-2 xl:col-span-4">
-              <AdminInput
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void loadTools();
-                }}
-                placeholder="模糊搜索工具名、错误、阻断原因、渠道、会话 id"
-                aria-label="模糊搜索"
+      <section className="admin-select-host space-y-5">
+        <SectionPanel title="调用日志筛选" subtitle="来自 tool_call_logs">
+          <div className="rounded-xl border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-3 md:p-4">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
+              <AdminSelect
+                ariaLabel="工具"
+                value={toolName}
+                onChange={(value) => setToolName(value)}
+                options={[
+                  { key: "all", label: "全部工具" },
+                  ...toolOptions.map((tool) => ({ key: tool.name, label: tool.name })),
+                ]}
               />
-              <Button
-                type="primary"
-                loading={state.loading}
-                onClick={() => void loadTools()}
-              >
-                查询
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
-            <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 border-b border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-2 text-xs font-semibold text-[var(--ls-ink-soft)] md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr]">
-              <div>工具</div>
-              <div>状态</div>
-              <div>风险</div>
-              <div>耗时</div>
-              <div className="hidden md:block">时间</div>
-            </div>
-            <div className="divide-y divide-[var(--ls-border)]">
-              {state.logs.length > 0 ? (
-                state.logs.map((log) => (
-                  <button
-                    key={log.id}
-                    type="button"
-                    onClick={() => setSelectedLog(log)}
-                    className={`admin-layout-button grid w-full grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr] gap-3 px-4 py-3 text-left text-sm transition md:grid-cols-[1.2fr_0.6fr_0.6fr_0.6fr_0.9fr] ${
-                      selectedLog?.id === log.id ? "bg-[var(--ls-panel-soft)]" : "bg-white hover:bg-[var(--ls-panel-soft)]"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <Tooltip title={log.toolName} variant="island" placement="bottom">
-                        <div className="truncate font-medium text-[var(--ls-ink-strong)]">
-                          {log.toolName}
-                        </div>
-                      </Tooltip>
-                      <div className="mt-1 truncate text-xs text-[var(--ls-ink-soft)]" title={log.channel ?? undefined}>
-                        {log.channel ?? "unknown"} · {shortId(log.conversationId)}
-                      </div>
-                    </div>
-                    <div><StatusBadge value={statusLabel(log.status, log.blocked)} tone={log.blocked ? "blocked" : log.status} /></div>
-                    <div className="text-[var(--ls-ink-soft)]">{riskLabel(log.riskLevel)}</div>
-                    <div className="text-[var(--ls-ink-soft)]">{formatDuration(log.durationMs)}</div>
-                    <div className="hidden text-[var(--ls-ink-soft)] md:block">{formatDate(log.createdAt)}</div>
-                  </button>
-                ))
-              ) : (
-                <EmptyState loading={state.loading} text="当前筛选下没有工具调用记录。" />
+              <AdminSelect
+                ariaLabel="状态"
+                value={status}
+                onChange={(value) => setStatus(value)}
+                options={[
+                  { key: "all", label: "全部状态" },
+                  { key: "success", label: "成功" },
+                  { key: "failed", label: "失败" },
+                  { key: "blocked", label: "已阻断" },
+                ]}
+              />
+              <AdminSelect
+                ariaLabel="风险"
+                value={riskLevel}
+                onChange={(value) => setRiskLevel(value)}
+                options={[
+                  { key: "all", label: "全部风险" },
+                  { key: "low", label: "低风险" },
+                  { key: "medium", label: "中风险" },
+                  { key: "high", label: "高风险" },
+                ]}
+              />
+              <AdminSelect
+                ariaLabel="阻断状态"
+                value={blocked}
+                onChange={(value) => setBlocked(value)}
+                options={[
+                  { key: "all", label: "全部阻断状态" },
+                  { key: "true", label: "只看阻断" },
+                  { key: "false", label: "排除阻断" },
+                ]}
+              />
+              <AdminSelect
+                ariaLabel="时间范围"
+                value={datePreset}
+                onChange={(value) => setDatePreset(value as DatePreset)}
+                options={datePresetOptions.map((option) => ({ key: option.value, label: option.label }))}
+              />
+              <AdminSelect
+                ariaLabel="返回条数"
+                value={limit}
+                onChange={(value) => setLimit(value)}
+                options={[
+                  { key: "30", label: "30 条" },
+                  { key: "80", label: "80 条" },
+                  { key: "150", label: "150 条" },
+                  { key: "200", label: "200 条" },
+                ]}
+              />
+              <AdminInput
+                value={userId}
+                onChange={(event) => setUserId(event.target.value)}
+                placeholder="User externalId / id"
+                aria-label="User ID"
+              />
+              <AdminInput
+                value={conversationId}
+                onChange={(event) => setConversationId(event.target.value)}
+                placeholder="Conversation ID"
+                aria-label="Conversation ID"
+              />
+              {datePreset === "custom" && (
+                <>
+                  <AdminInput
+                    value={customFrom}
+                    onChange={(event) => setCustomFrom(event.target.value)}
+                    type="date"
+                    aria-label="开始日期"
+                  />
+                  <AdminInput
+                    value={customTo}
+                    onChange={(event) => setCustomTo(event.target.value)}
+                    type="date"
+                    aria-label="结束日期"
+                  />
+                </>
               )}
+              <div className="col-span-full flex gap-2">
+                <AdminInput
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void loadTools();
+                  }}
+                  placeholder="模糊搜索工具名、错误、阻断原因、渠道、会话 id"
+                  aria-label="模糊搜索"
+                />
+                <Button
+                  type="primary"
+                  loading={state.loading}
+                  onClick={() => void loadTools()}
+                >
+                  查询
+                </Button>
+              </div>
             </div>
           </div>
         </SectionPanel>
+
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-[1.25fr_1fr]">
+          <SectionPanel title="调用日志" subtitle="点击行查看详情">
+            <div className="overflow-hidden rounded-lg border border-[var(--ls-border)]">
+              <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] gap-3 border-b border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-2 text-xs font-semibold text-[var(--ls-ink-soft)] md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.9fr)]">
+                <div className="min-w-0">工具</div>
+                <div className="min-w-0">状态</div>
+                <div className="min-w-0">风险</div>
+                <div className="min-w-0">耗时</div>
+                <div className="hidden min-w-0 md:block">时间</div>
+              </div>
+              <div className="divide-y divide-[var(--ls-border)]">
+                {state.logs.length > 0 ? (
+                  state.logs.map((log) => (
+                    <button
+                      key={log.id}
+                      type="button"
+                      onClick={() => setSelectedLog(log)}
+                      className={`admin-layout-button grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] gap-3 px-4 py-3 text-left text-sm transition md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,0.9fr)] ${
+                        selectedLog?.id === log.id ? "bg-[var(--ls-panel-soft)]" : "bg-white hover:bg-[var(--ls-panel-soft)]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <Tooltip title={log.toolName} variant="island" placement="bottom">
+                          <div className="truncate font-medium text-[var(--ls-ink-strong)]">
+                            {log.toolName}
+                          </div>
+                        </Tooltip>
+                        <div className="mt-1 truncate text-xs text-[var(--ls-ink-soft)]" title={log.channel ?? undefined}>
+                          {log.channel ?? "unknown"} · {shortId(log.conversationId)}
+                        </div>
+                      </div>
+                      <div className="min-w-0"><StatusBadge value={statusLabel(log.status, log.blocked)} tone={log.blocked ? "blocked" : log.status} /></div>
+                      <div className="min-w-0 truncate text-[var(--ls-ink-soft)]">{riskLabel(log.riskLevel)}</div>
+                      <div className="min-w-0 truncate text-[var(--ls-ink-soft)]">{formatDuration(log.durationMs)}</div>
+                      <div className="hidden min-w-0 truncate text-[var(--ls-ink-soft)] md:block">{formatDate(log.createdAt)}</div>
+                    </button>
+                  ))
+                ) : (
+                  <EmptyState loading={state.loading} text="当前筛选下没有工具调用记录。" />
+                )}
+              </div>
+            </div>
+          </SectionPanel>
 
         <SectionPanel title="调用详情" subtitle={selectedLog ? selectedLog.id : "选择一条日志"}>
           {selectedLog ? (
@@ -869,8 +876,9 @@ export function ToolsAdminPage({ adminToken }: ToolsAdminPageProps) {
             <EmptyState loading={state.loading} text="选择左侧一条调用日志后查看详情。" />
           )}
         </SectionPanel>
-      </section>
-    </div>
+      </div>
+    </section>
+  </div>
   );
 }
 
@@ -878,16 +886,37 @@ function MetricCard({
   label,
   value,
   detail,
+  tone = "default",
 }: {
   label: string;
   value: string;
   detail: string;
+  tone?: "default" | "teal" | "blue" | "orange" | "pink";
 }) {
+  const toneBar: Record<typeof tone, string> = {
+    default: "bg-[var(--ls-border-strong)]",
+    teal: "bg-[var(--ls-mint-light)]",
+    blue: "bg-[var(--ls-blue)]",
+    orange: "bg-[var(--ls-orange)]",
+    pink: "bg-[var(--ls-pink)]",
+  };
+  const toneBg: Record<typeof tone, string> = {
+    default: "bg-transparent",
+    teal: "bg-[var(--ls-mint-soft)]",
+    blue: "bg-[var(--ls-panel-cold-light)]",
+    orange: "bg-[var(--ls-warning-bg)]",
+    pink: "bg-[var(--ls-pink-soft)]",
+  };
   return (
-    <div className="rounded-lg border border-[var(--ls-border)] bg-white px-5 py-4 shadow-sm">
-      <div className="text-xs text-[var(--ls-ink-soft)]">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">{value}</div>
-      <div className="mt-1 text-xs text-[var(--ls-ink-soft)]">{detail}</div>
+    <div className="relative overflow-hidden rounded-lg border border-[var(--ls-border)] bg-white px-5 py-4 shadow-sm">
+      <div className={`absolute left-0 top-0 h-full w-1.5 ${toneBar[tone]}`} />
+      <div className="relative pl-3">
+        <div className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${toneBg[tone]} text-[var(--ls-ink-soft)]`}>
+          {label}
+        </div>
+        <div className="mt-1.5 text-2xl font-semibold text-[var(--ls-ink-strong)]">{value}</div>
+        <div className="mt-0.5 text-xs text-[var(--ls-ink-soft)]">{detail}</div>
+      </div>
     </div>
   );
 }
@@ -914,8 +943,9 @@ function PolicyConfigItem({
   const booleanOn = currentValue === "true";
 
   return (
-    <div className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
+    <div className="admin-select-host relative overflow-hidden rounded-lg border border-[var(--ls-border)] bg-white px-4 py-3 shadow-sm">
+      <div className="absolute left-0 top-0 h-full w-1.5 bg-[var(--ls-mint-light)]" />
+      <div className="flex items-center justify-between gap-3 pl-3">
         <div className="text-sm font-medium text-[var(--ls-ink-strong)]">{label}</div>
         {field && isBoolean ? (
           <button
@@ -1004,19 +1034,31 @@ function ToolCard({
     tool.enabled ? (tool.ownerOnly ? "owner_only" : "on") : "off"
   );
 
+  const toolTone = tool.effectiveEnabled
+    ? tool.ownerOnly
+      ? "blue"
+      : "teal"
+    : "warning";
+  const toolToneBar: Record<typeof toolTone, string> = {
+    teal: "bg-[var(--ls-mint-light)]",
+    blue: "bg-[var(--ls-blue)]",
+    warning: "bg-[var(--ls-orange)]",
+  };
+
   return (
-    <details className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)]">
-      <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <h4 className="min-w-[12rem] shrink-0 truncate font-semibold text-[var(--ls-ink-strong)]" title={tool.name}>
+    <details className="group overflow-hidden rounded-lg border border-[var(--ls-border)] bg-white shadow-sm">
+      <summary className="relative flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
+        <div className={`absolute left-0 top-0 h-full w-1.5 ${toolToneBar[toolTone]}`} />
+        <div className="flex min-w-0 flex-1 items-center gap-3 pl-3">
+          <h4 className="min-w-0 shrink-0 truncate font-semibold text-[var(--ls-ink-strong)] sm:max-w-[12rem] md:max-w-[16rem] lg:max-w-[18rem] xl:max-w-[14rem]" title={tool.name}>
             {tool.name}
           </h4>
-          <p className="hidden min-w-0 truncate text-sm text-[var(--ls-ink-soft)] md:block" title={tool.description}>
+          <p className="hidden min-w-0 flex-1 truncate text-sm text-[var(--ls-ink-soft)] xl:block" title={tool.description}>
             {tool.description}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs">
-          <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 text-[var(--ls-ink-soft)]">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-xs">
+          <span className={`rounded-full border px-2.5 py-1 ${toolTone === "warning" ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]" : "border-[var(--ls-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-ink-soft)]"}`}>
             {riskLabel(tool.riskLevel)}
           </span>
           {modeField && (
@@ -1044,13 +1086,13 @@ function ToolCard({
           />
         </div>
       </summary>
-      <div className="border-t border-[var(--ls-border)] p-4">
+      <div className="border-t border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       {tool.disabledReason && (
-        <div className="mt-3 rounded-lg border border-[var(--ls-warning-border)] bg-white px-3 py-2 text-xs text-[var(--ls-warning-text)]">
+        <div className="rounded-lg border border-[var(--ls-warning-border)] bg-white px-3 py-2 text-xs text-[var(--ls-warning-text)]">
           {tool.disabledReason}
         </div>
       )}
-      <div className="mt-4 grid gap-3 text-sm leading-6">
+      <div className="mt-1 grid gap-3 rounded-lg border border-[var(--ls-border)] bg-white p-3 text-sm leading-6">
         <GuideRow label="功能" value={guide?.purpose ?? tool.description} />
         <GuideRow label="怎么用" value={guide?.usage ?? "由模型根据用户意图自动调用。"} />
         <GuideRow label="触发" value={guide?.trigger ?? "聊天服务提供工具列表后，由模型按需触发。"} />
@@ -1369,9 +1411,9 @@ function StatusBadge({ value, tone }: { value: string; tone: string }) {
     tone === "success"
       ? "border-[var(--ls-success-border)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
       : tone === "failed"
-        ? "border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text)]"
+        ? "border-[var(--ls-warning-border-strong)] bg-[var(--ls-warning-bg)] text-[var(--ls-warning-text-strong)]"
         : tone === "blocked"
-          ? "border-[var(--ls-info-border)] bg-[var(--ls-panel-soft)] text-[var(--ls-info-text)]"
+          ? "border-[var(--ls-blue)] bg-[var(--ls-panel-cold-light)] text-[var(--ls-link)]"
           : "border-[var(--ls-border)] bg-white text-[var(--ls-ink-soft)]";
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${className}`}>
