@@ -1,8 +1,10 @@
 import type { Message } from "@prisma/client";
+import { prisma } from "../db/prisma.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   estimatePromptMessagesChars,
   loadRecentConversationContext,
+  useAsChatContext,
   type PromptHistoryMessage,
 } from "./chat-context.js";
 import {
@@ -29,6 +31,18 @@ export async function loadPromptConversationContext(input: {
   queryEmbedding?: Promise<number[]> | number[];
   excludeMessageId?: string;
 }): Promise<PromptConversationContext> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: input.conversationId },
+    select: { metadata: true },
+  });
+  if (conversation && !useAsChatContext(conversation.metadata)) {
+    return {
+      summaries: [],
+      recallWindows: [],
+      recentMessages: [],
+    };
+  }
+
   const maxChars = Math.max(1, runtimeConfig.CHAT_CONTEXT_MAX_CHARS);
   const recentMaxChars = Math.min(
     runtimeConfig.CHAT_CONTEXT_RECENT_MAX_CHARS,

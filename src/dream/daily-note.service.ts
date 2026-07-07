@@ -58,7 +58,9 @@ export class DailyNoteService {
     if (context.messages.length > 0) {
       lines.push(`## 最近消息（${context.messages.length} 条）`);
       for (const m of context.messages.slice(-40)) {
-        lines.push(`[${m.role}] ${m.content.slice(0, 200)}`);
+        lines.push(
+          `[${m.role}][${m.sourceKind ?? "unknown"}][${m.continuity ?? "unknown"}] ${m.content.slice(0, 200)}`
+        );
       }
       lines.push("");
     }

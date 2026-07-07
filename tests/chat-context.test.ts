@@ -55,6 +55,23 @@ test("compacts split final replies and drops intermediate messages", () => {
   assert.deepEqual(compacted[1].sourceMessageIds, ["a1", "a2"]);
 });
 
+test("skips messages that are not chat context", () => {
+  const compacted = compactConversationMessages([
+    message({
+      id: "platform-comment",
+      role: "user",
+      content: "这是一条评论区互动",
+      metadata: { useAsChatContext: false, sourcePlatform: "xiaohongshu" },
+    }),
+    message({ id: "normal", role: "user", content: "这是一条普通聊天" }),
+  ]);
+
+  assert.deepEqual(
+    compacted.map((m) => m.content),
+    ["这是一条普通聊天"]
+  );
+});
+
 test("selects newest messages within the character budget", () => {
   const selected = selectMessagesWithinCharBudget(
     [

@@ -1,6 +1,7 @@
 // dream-context-builder.ts — collect recent system events for Dream Cycle
 
 import { prisma } from "../db/prisma.js";
+import type { Prisma } from "@prisma/client";
 import type {
   DreamContext,
   DreamSourceMessage,
@@ -13,6 +14,83 @@ export interface BuildDreamContextInput {
   to: Date;
   userId?: string;
   conversationId?: string;
+}
+
+type DreamMessageSourceKind = NonNullable<DreamSourceMessage["sourceKind"]>;
+type DreamMessageContinuity = NonNullable<DreamSourceMessage["continuity"]>;
+
+function readRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function booleanValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+export function classifyDreamMessageSource(input: {
+  channel?: string | null;
+  messageMetadata?: Prisma.JsonValue | null;
+  conversationMetadata?: Prisma.JsonValue | null;
+}): {
+  sourceKind: DreamMessageSourceKind;
+  sourcePlatform: string | null;
+  sourceType: string | null;
+  continuity: DreamMessageContinuity;
+  dreamEligible: boolean;
+  memoryEligible: boolean;
+  relationshipEligible: boolean;
+} {
+  const messageMetadata = readRecord(input.messageMetadata ?? null);
+  const conversationMetadata = readRecord(input.conversationMetadata ?? null);
+  const sourcePlatform =
+    stringValue(messageMetadata.sourcePlatform) ??
+    stringValue(conversationMetadata.sourcePlatform) ??
+    input.channel ??
+    null;
+  const sourceType =
+    stringValue(messageMetadata.sourceType) ??
+    stringValue(conversationMetadata.sourceType);
+  const continuity =
+    (stringValue(messageMetadata.continuity) ??
+      stringValue(conversationMetadata.continuity)) === "threaded"
+      ? "threaded"
+      : "continuous";
+
+  let sourceKind: DreamMessageSourceKind = "private_chat";
+  if (sourcePlatform === "xiaohongshu" || input.channel === "xiaohongshu") {
+    const hasReplyTarget = Boolean(stringValue(messageMetadata.replyToId));
+    sourceKind = continuity === "threaded"
+      ? hasReplyTarget ? "platform_thread_reply" : "platform_comment"
+      : "platform_interaction";
+  }
+  if (sourceType === "comment_reply" || sourceType === "thread_reply") {
+    sourceKind = "platform_thread_reply";
+  }
+
+  return {
+    sourceKind,
+    sourcePlatform,
+    sourceType,
+    continuity,
+    dreamEligible: booleanValue(
+      messageMetadata.dreamEligible ?? conversationMetadata.dreamEligible,
+      true
+    ),
+    memoryEligible: booleanValue(
+      messageMetadata.memoryEligible ?? conversationMetadata.memoryEligible,
+      true
+    ),
+    relationshipEligible: booleanValue(
+      messageMetadata.relationshipEligible ?? conversationMetadata.relationshipEligible,
+      true
+    ),
+  };
 }
 
 export class DreamContextBuilder {
@@ -31,6 +109,13 @@ export class DreamContextBuilder {
       memories: memories.length,
       toolCalls: toolCalls.length,
     };
+    for (const message of messages) {
+      const sourceKey = `messages:${message.sourceKind ?? "unknown"}`;
+      sourceStats[sourceKey] = (sourceStats[sourceKey] ?? 0) + 1;
+      if (message.continuity === "threaded") {
+        sourceStats["messages:threaded"] = (sourceStats["messages:threaded"] ?? 0) + 1;
+      }
+    }
 
     return {
       range: { from, to },
@@ -80,11 +165,13 @@ export class DreamContextBuilder {
         role: true,
         content: true,
         createdAt: true,
+        metadata: true,
         conversationId: true,
         conversation: {
           select: {
             channel: true,
             externalConversationId: true,
+            metadata: true,
             userId: true,
             user: {
               select: {
@@ -97,18 +184,28 @@ export class DreamContextBuilder {
       },
     });
 
-    return rows.map((r) => ({
-      id: r.id,
-      role: r.role,
-      content: r.content,
-      createdAt: r.createdAt,
-      conversationId: r.conversationId,
-      channel: r.conversation.channel,
-      externalConversationId: r.conversation.externalConversationId,
-      userId: r.conversation.userId,
-      userDisplayName: r.conversation.user.displayName,
-      userExternalId: r.conversation.user.externalId,
-    }));
+    return rows
+      .map((r) => {
+        const source = classifyDreamMessageSource({
+          channel: r.conversation.channel,
+          messageMetadata: r.metadata,
+          conversationMetadata: r.conversation.metadata,
+        });
+        return {
+          id: r.id,
+          role: r.role,
+          content: r.content,
+          createdAt: r.createdAt,
+          conversationId: r.conversationId,
+          channel: r.conversation.channel,
+          externalConversationId: r.conversation.externalConversationId,
+          userId: r.conversation.userId,
+          userDisplayName: r.conversation.user.displayName,
+          userExternalId: r.conversation.user.externalId,
+          ...source,
+        };
+      })
+      .filter((message) => message.dreamEligible);
   }
 
   private async fetchMemories(

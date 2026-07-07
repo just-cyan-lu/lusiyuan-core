@@ -3,11 +3,15 @@ import { prisma } from "../db/prisma.js";
 import { createMemoryContentHash } from "../embeddings/content-hash.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import { upsertMessageEmbedding } from "../vector-index/pgvector-message-index.js";
+import { useAsChatContext } from "./chat-context.js";
 
 const maxEmbeddingTextChars = 6000;
 
-export function shouldIndexMessageForRecall(message: Pick<Message, "role" | "content" | "isIntermediate">): boolean {
+export function shouldIndexMessageForRecall(
+  message: Pick<Message, "role" | "content" | "isIntermediate"> & { metadata?: unknown }
+): boolean {
   if (message.isIntermediate) return false;
+  if (!useAsChatContext(message.metadata)) return false;
   if (message.role !== "user" && message.role !== "assistant") return false;
   return message.content.trim().length > 0;
 }

@@ -13,6 +13,7 @@ export const DAILY_NOTE_SYSTEM_PROMPT = `你是陆思源系统的 Daily Note 生
 6. possibleSignals 是可能值得长期关注的信号（不确定的，只是候选）。
 7. risks 是需要注意的风险点。
 8. openQuestions 是还没有答案的问题。
+9. 输入消息可能带有 sourceKind / continuity：platform_comment 和 platform_thread_reply 是公开评论区互动，不是连续私聊；摘要时必须保留这个语境，不要写成私聊发生了连续对话。
 
 输出严格 JSON，不要有任何额外文字：
 {
@@ -47,6 +48,7 @@ export const DREAM_SIGNAL_SYSTEM_PROMPT = `你是陆思源系统的 Dream Signal
 4. 涉及装真人、隐私、外部行动的内容要标记 riskLevel 为 medium 或 high。
 5. confidence 和 strength 都是 0-1 的浮点数。
 6. evidenceCount 是支持这个信号的独立证据数量。
+7. platform_comment / platform_thread_reply 是公开评论区互动，不是连续私聊。可以提取外部反馈、项目兴趣、稳定偏好等信号，但不要把普通评论误判成亲密关系变化。
 
 输出严格 JSON array，不要有任何额外文字：
 [
@@ -170,6 +172,14 @@ export const RELATIONSHIP_REVIEW_SYSTEM_PROMPT = `你是陆思源系统的 Relat
 8. 更新文本字段时，要基于 currentRelationship 进行增量修正，不要把已有关系资料洗掉。
 9. 不要修改 admin 备注。备注不是 Dream 维护字段。
 10. 如果证据不足，只输出 evidences 为空或 proposedPatch 为空，不要为了“有结果”硬改。
+
+来源语境规则：
+1. private_chat 是连续私聊，关系权重最高。
+2. platform_comment 是公开平台评论互动，非连续、弱关系证据。不要把“评论过一次/夸了一句/蹲后续/哈哈哈”写成亲密关系，也不要据此明显提高 affinity。
+3. platform_thread_reply 是评论区来回互动，比单条评论强一点，但仍不是私聊。只有多次、有明确内容的来回，才可以轻微影响关系摘要或互动风格。
+4. 评论区可以作为个人记忆证据，但只记录稳定事实、明确偏好、持续关注、认真反馈或反复出现的互动风格；不要记录一次性表情、客套、围观、普通夸赞。
+5. 公开评论里的礼貌回复、账号运营语气不能推断成私人亲近。
+6. 公开评论里的恶意、越界、价值冲突仍然是真实风险证据，可以保留负向或边界相关 evidence。
 
 个人记忆整理规则：
 1. 你可以在 memoryChanges 中输出这个身份相关的个人记忆变化，系统会自动写入，不需要 Owner 逐条审核。

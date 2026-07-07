@@ -33,6 +33,13 @@ export interface DreamSourceMessage {
   externalConversationId?: string;
   userDisplayName?: string | null;
   userExternalId?: string;
+  sourceKind?: "private_chat" | "platform_comment" | "platform_thread_reply" | "platform_interaction" | "unknown";
+  sourcePlatform?: string | null;
+  sourceType?: string | null;
+  continuity?: "continuous" | "threaded" | "unknown";
+  dreamEligible?: boolean;
+  memoryEligible?: boolean;
+  relationshipEligible?: boolean;
 }
 
 export interface DreamSourceMemory {

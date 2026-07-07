@@ -24,6 +24,10 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+export function useAsChatContext(value: unknown): boolean {
+  return readRecord(value).useAsChatContext !== false;
+}
+
 function replyGroupId(message: Pick<Message, "metadata">): string | undefined {
   const metadata = readRecord(message.metadata);
   if (metadata.deliveryKind !== "final") return undefined;
@@ -48,6 +52,7 @@ export function compactConversationMessages(
   const compacted: PromptHistoryMessage[] = [];
   for (const message of messages) {
     if (message.isIntermediate) continue;
+    if (!useAsChatContext(message.metadata)) continue;
 
     const groupId = message.role === "assistant" ? replyGroupId(message) : undefined;
     const last = compacted[compacted.length - 1];

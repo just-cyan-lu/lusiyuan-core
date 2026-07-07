@@ -83,6 +83,7 @@ export async function searchSimilarMessages(
       AND m."isIntermediate" = false
       AND m."role" IN ('user', 'assistant')
       AND LENGTH(BTRIM(m."content")) > 0
+      AND COALESCE(m."metadata"->>'useAsChatContext', c."metadata"->>'useAsChatContext', 'true') <> 'false'
     ORDER BY me."embedding" <=> ${vectorLiteral}::vector
     LIMIT ${input.topK}
   `;

@@ -468,6 +468,32 @@ function baseDeltaForEvidence(
   }
 }
 
+function sourceKindsForIds(
+  ids: string[],
+  messageById: Map<string, DreamSourceMessage>
+): string[] {
+  return Array.from(new Set(
+    ids.map((id) => messageById.get(id)?.sourceKind ?? "unknown")
+  ));
+}
+
+function positiveDeltaForSourceContext(
+  baseDelta: number,
+  sourceKinds: string[]
+): number {
+  if (baseDelta <= 0) return baseDelta;
+  if (sourceKinds.length === 0) return baseDelta;
+  const onlyPlatform = sourceKinds.every((kind) =>
+    kind === "platform_comment" ||
+    kind === "platform_thread_reply" ||
+    kind === "platform_interaction"
+  );
+  if (!onlyPlatform) return baseDelta;
+
+  const hasThreadReply = sourceKinds.includes("platform_thread_reply");
+  return Math.min(baseDelta, hasThreadReply ? 2 : 1);
+}
+
 function positiveCapForAffinity(affinity: number): number {
   if (affinity < 30) return 10;
   if (affinity < 40) return 6;
@@ -563,6 +589,7 @@ function normalizeEvidences(input: {
   affinity: number;
   existingEvidenceKeys: Set<string>;
   validUserMessageIds: Set<string>;
+  messageById: Map<string, DreamSourceMessage>;
 }): NormalizedRelationshipEvidence[] {
   const seen = new Set<string>();
   const candidates: Omit<NormalizedRelationshipEvidence, "adjustedDelta">[] = [];
@@ -580,11 +607,13 @@ function normalizeEvidences(input: {
     const reason = cleanText(rawEvidence.reason, 260);
     if (!content || !reason) continue;
 
-    const baseDelta = baseDeltaForEvidence(
+    const rawBaseDelta = baseDeltaForEvidence(
       rawEvidence.evidenceType,
       input.affinity,
       rawEvidence.severity
     );
+    const sourceKinds = sourceKindsForIds(sourceMessageIds, input.messageById);
+    const baseDelta = positiveDeltaForSourceContext(rawBaseDelta, sourceKinds);
     const affectsFields = affectsFieldsFromEvidence(rawEvidence, baseDelta);
 
     seen.add(evidenceKey);
@@ -602,6 +631,9 @@ function normalizeEvidences(input: {
       metadata: {
         traitKey: cleanText(rawEvidence.traitKey, 80) ?? null,
         severity: rawEvidence.severity ?? null,
+        sourceKinds,
+        sourceContextAdjusted: baseDelta !== rawBaseDelta,
+        rawBaseDelta,
         rawEvidence: rawEvidence as unknown as Prisma.InputJsonValue,
       },
     });
@@ -925,6 +957,12 @@ function buildUserContent(input: {
     role: message.role,
     createdAt: message.createdAt.toISOString(),
     channel: message.channel,
+    sourceKind: message.sourceKind,
+    sourcePlatform: message.sourcePlatform,
+    sourceType: message.sourceType,
+    continuity: message.continuity,
+    memoryEligible: message.memoryEligible,
+    relationshipEligible: message.relationshipEligible,
     userId: message.userId,
     userDisplayName: message.userDisplayName,
     content: message.content,
@@ -957,6 +995,8 @@ function buildUserContent(input: {
       existingEvidenceKeys: input.existingEvidenceKeys,
       memoryCandidateHint:
         "currentMemories 已包含 semantic、tier/recent 候选，也包含和本轮用户消息有短实体/短语重合的候选。matchedTerms 命中时要特别检查喜欢/不喜欢、纠正、否定等反向事实。只有 scope=person 的记忆可以作为 memoryChanges 的目标，global/project/topic 只能参考。",
+      sourceContextHint:
+        "messages[].sourceKind 表示来源语境。private_chat 是连续私聊；platform_comment / platform_thread_reply 是公开平台评论线，非连续私聊，关系加权要更轻，但明确稳定事实仍可整理为个人记忆。",
       currentMemories,
       messages,
     },
@@ -1185,6 +1225,7 @@ export class DreamRelationshipReviewOrganizer {
       affinity: input.group.relationship.affinity,
       existingEvidenceKeys,
       validUserMessageIds: userMessageIds,
+      messageById: new Map(input.group.messages.map((message) => [message.id, message])),
     });
     const patch = normalizedPatch({
       raw,

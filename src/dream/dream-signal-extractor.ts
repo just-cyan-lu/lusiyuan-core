@@ -72,7 +72,9 @@ export class DreamSignalExtractor {
     if (context.messages.length > 0) {
       lines.push(`## 消息样本（最近 20 条）`);
       for (const m of context.messages.slice(-20)) {
-        lines.push(`[${m.id}][${m.role}] ${m.content.slice(0, 150)}`);
+        lines.push(
+          `[${m.id}][${m.role}][${m.sourceKind ?? "unknown"}][${m.continuity ?? "unknown"}] ${m.content.slice(0, 150)}`
+        );
       }
       lines.push("");
     }
