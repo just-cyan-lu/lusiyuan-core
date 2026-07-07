@@ -59,6 +59,7 @@ export function useVoicePlayback(identity: WebIdentity) {
   const playbackQueueRef = useRef<VoicePlaybackJob[]>([]);
   const playingMessageIdRef = useRef<string | null>(null);
   const queueTokenRef = useRef(0);
+  const manualRequestTokenRef = useRef(0);
   const idleWaitersRef = useRef<Array<() => void>>([]);
 
   const loadingSet = useMemo(
@@ -103,6 +104,22 @@ export function useVoicePlayback(identity: WebIdentity) {
     playbackQueueRef.current = [];
     queueTokenRef.current += 1;
     notifyIdleIfNeeded();
+  }
+
+  function clearPendingVoices() {
+    const pendingIds = Array.from(pendingRef.current.keys());
+    pendingRef.current.clear();
+    for (const messageId of pendingIds) {
+      markLoading(messageId, false);
+    }
+  }
+
+  function stopPlayback() {
+    manualRequestTokenRef.current += 1;
+    clearQueue();
+    clearPendingVoices();
+    playerRef.current.stop();
+    setCurrentPlaying(null);
   }
 
   function waitUntilIdle(): Promise<void> {
@@ -245,26 +262,36 @@ export function useVoicePlayback(identity: WebIdentity) {
   }
 
   async function playMessage(messageId: string) {
-    if (playingMessageId === messageId) {
-      clearQueue();
-      playerRef.current.stop();
-      setCurrentPlaying(null);
+    if (playingMessageIdRef.current === messageId) {
+      stopPlayback();
       return;
     }
 
+    if (playingMessageIdRef.current || pendingRef.current.size > 0 || playbackQueueRef.current.length > 0) {
+      stopPlayback();
+    } else {
+      clearQueue();
+    }
+
+    const requestToken = ++manualRequestTokenRef.current;
     markLoading(messageId, true);
     setErrorByMessageId((current) => {
       const next = { ...current };
       delete next[messageId];
       return next;
     });
+    const handleManualStreamEvent = (event: VoiceStreamEvent) => {
+      if (requestToken !== manualRequestTokenRef.current) return;
+      handleStreamEvent(event);
+    };
     try {
       await streamMessageVoice({
         userId: identity.userId,
         conversationId: identity.conversationId,
         messageId,
-      }, handleStreamEvent);
+      }, handleManualStreamEvent);
     } catch (error) {
+      if (requestToken !== manualRequestTokenRef.current) return;
       markLoading(messageId, false);
       setErrorByMessageId((current) => ({
         ...current,
@@ -274,9 +301,7 @@ export function useVoicePlayback(identity: WebIdentity) {
   }
 
   function stop() {
-    clearQueue();
-    playerRef.current.stop();
-    setCurrentPlaying(null);
+    stopPlayback();
   }
 
   return {

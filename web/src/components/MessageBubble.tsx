@@ -61,12 +61,16 @@ export function MessageBubble({
               }`}
               title={voicePlaying ? "停止语音" : voiceLoading ? "正在生成语音" : "播放语音"}
               aria-label={voicePlaying ? "停止语音" : "播放语音"}
-              disabled={voiceLoading}
+              disabled={voiceLoading && !voicePlaying}
             >
-              {voiceLoading ? (
+              {voicePlaying ? (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" />
+                </svg>
+              ) : voiceLoading ? (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--ls-border-strong)] border-t-[var(--ls-mint)]" />
               ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" />
                   <path
                     d="M16 8.5c1 .9 1.5 2.1 1.5 3.5S17 14.6 16 15.5M18.5 6c1.7 1.5 2.5 3.5 2.5 6s-.8 4.5-2.5 6"

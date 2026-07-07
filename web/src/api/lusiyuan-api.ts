@@ -389,6 +389,7 @@ export interface ConversationSummary {
   userId: string;
   channel: string;
   externalConversationId: string;
+  note: string | null;
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
@@ -411,6 +412,7 @@ export interface AdminConversation {
   userId: string;
   channel: string;
   externalConversationId: string;
+  note: string | null;
   metadata: unknown;
   createdAt: string;
   updatedAt: string;
@@ -439,6 +441,10 @@ export interface WebChatConversationSummary extends ConversationSummary {
 
 export interface WebChatConversationsResponse {
   conversations: WebChatConversationSummary[];
+}
+
+export interface ConversationUpdateResponse {
+  conversation: AdminConversation;
 }
 
 export interface RelationshipUpdateInput {
@@ -1675,6 +1681,22 @@ export async function fetchAdminConversationMessages(input: {
     }
   );
   return parseJsonResponse<AdminConversationMessagesResponse>(response, "无法读取会话消息");
+}
+
+export async function updateAdminConversation(input: {
+  token: string;
+  conversationId: string;
+  note: string | null;
+}): Promise<ConversationUpdateResponse> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/conversations/${input.conversationId}`, {
+    method: "PATCH",
+    headers: {
+      ...adminHeaders(input.token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ note: input.note }),
+  });
+  return parseJsonResponse<ConversationUpdateResponse>(response, "保存对话备注失败");
 }
 
 export async function fetchWebChatConversations(input: {

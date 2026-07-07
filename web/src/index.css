@@ -820,6 +820,27 @@ textarea.field-input {
   z-index: 40;
 }
 
+.admin-chat-conversation-select [class^="animal-wrapper-"],
+.admin-chat-conversation-select [class*=" animal-wrapper-"] {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.admin-chat-conversation-select [class^="animal-trigger-"],
+.admin-chat-conversation-select [class*=" animal-trigger-"] {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.admin-chat-conversation-select [class^="animal-value-"],
+.admin-chat-conversation-select [class*=" animal-value-"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /*
  * animal-island-ui@1.0.x Input 包装样式
  * ---------------------------------------------------------------------------

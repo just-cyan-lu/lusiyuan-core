@@ -699,6 +699,30 @@ function latestConversationMessage(conversation: {
   return conversation.messages[0] ?? null;
 }
 
+function conversationNoteFromMetadata(metadata: Prisma.JsonValue | null): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+  const note = (metadata as Record<string, unknown>).note;
+  return typeof note === "string" && note.trim() ? note.trim() : null;
+}
+
+function mergeConversationNoteMetadata(
+  metadata: Prisma.JsonValue | null,
+  note: string | null
+): Prisma.InputJsonValue {
+  const next =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...(metadata as Record<string, unknown>) }
+      : {};
+  if (note?.trim()) {
+    next.note = note.trim().slice(0, 120);
+  } else {
+    delete next.note;
+  }
+  return next as Prisma.InputJsonObject;
+}
+
 const webChatConversationIdPattern =
   /^web:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -712,6 +736,7 @@ async function listWebChatConversations(limit: number) {
     where: {
       channel: "web",
       externalConversationId: { startsWith: "web:" },
+      user: { externalId: "web:owner" },
     },
     orderBy: { createdAt: "desc" },
     take: queryLimit,
@@ -750,6 +775,7 @@ async function listWebChatConversations(limit: number) {
         userId: conversation.userId,
         channel: conversation.channel,
         externalConversationId: conversation.externalConversationId,
+        note: conversationNoteFromMetadata(conversation.metadata),
         metadata: conversation.metadata,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
@@ -1008,6 +1034,7 @@ async function getConversationPersonDetail(personId: string, conversationLimit: 
           channel: conversation.channel,
           externalConversationId: conversation.externalConversationId,
           metadata: conversation.metadata,
+          note: conversationNoteFromMetadata(conversation.metadata),
           createdAt: conversation.createdAt,
           updatedAt: conversation.updatedAt,
           messageCount: conversation._count.messages,
@@ -1060,7 +1087,10 @@ async function getConversationMessages(conversationId: string, limit: number) {
     take: clampLimit(limit, 120),
   });
   return {
-    conversation,
+    conversation: {
+      ...conversation,
+      note: conversationNoteFromMetadata(conversation.metadata),
+    },
     messages: messages.reverse(),
   };
 }
@@ -1408,6 +1438,36 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       clampLimit(query.limit, 120)
     );
     return reply.send(detail);
+  });
+
+  app.patch("/v1/admin/conversations/:conversationId", async (request, reply) => {
+    const { conversationId } = request.params as { conversationId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (!hasOwn(body, "note")) {
+      throw routeError("Missing note", 400);
+    }
+    const note = cleanNullableString(body.note) ?? null;
+    const current = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      select: { metadata: true },
+    });
+    const conversation = await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        metadata: mergeConversationNoteMetadata(current.metadata, note),
+      },
+      include: {
+        user: {
+          select: { id: true, externalId: true, displayName: true },
+        },
+      },
+    });
+    return reply.send({
+      conversation: {
+        ...conversation,
+        note: conversationNoteFromMetadata(conversation.metadata),
+      },
+    });
   });
 
   app.get("/v1/admin/web-chat/conversations", async (request, reply) => {

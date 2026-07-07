@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Icon, Radio, Select, Tooltip } from "animal-island-ui";
+import { Button, Card, Icon, Select } from "animal-island-ui";
 import {
   fetchWebChatConversations,
+  updateAdminConversation,
   type WebChatConversationSummary,
 } from "../api/lusiyuan-api";
 import { useChat } from "../hooks/useChat";
@@ -11,18 +12,15 @@ import {
   createWebConversationIdentity,
   displayNameForWebUser,
   getWebIdentityForActor,
-  getWebIdentity,
   isWebConversationId,
   setWebIdentity,
-  webActorForUserId,
-  WEB_CHAT_ACTORS,
-  type WebChatActorId,
   type WebIdentity,
 } from "../utils/storage";
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { VoiceCallPanel } from "./VoiceCallPanel";
+import { ConversationNoteDialog } from "./admin/ConversationNoteDialog";
 
 interface ChatPageProps {
   adminToken?: string;
@@ -52,12 +50,6 @@ function formatDate(value: string | null | undefined): string {
   }).format(date);
 }
 
-function shortConversationId(value: string): string {
-  const [prefix, id] = value.split(":");
-  if (!prefix || !id || id.length <= 12) return value;
-  return `${prefix}:${id.slice(0, 8)}...${id.slice(-4)}`;
-}
-
 function identityFromConversation(conversation: WebChatConversationSummary): WebIdentity {
   return {
     userId: conversation.user.externalId,
@@ -66,19 +58,21 @@ function identityFromConversation(conversation: WebChatConversationSummary): Web
   };
 }
 
-function userLabel(conversation: WebChatConversationSummary): string {
-  return conversation.user.displayName ?? conversation.user.externalId;
-}
-
 function conversationLabel(conversation: WebChatConversationSummary): string {
-  return `${formatDate(conversation.lastMessageAt)} · ${userLabel(conversation)} · ${conversation.messageCount} 条`;
+  const note = conversation.note?.trim();
+  const time = formatDate(conversation.lastMessageAt);
+  return note
+    ? `${note} · ${time} · ${conversation.messageCount} 条`
+    : `${time} · ${conversation.messageCount} 条`;
 }
 
 export function ChatPage({ adminToken = "" }: ChatPageProps) {
-  const [identity, setIdentity] = useState<WebIdentity>(() => getWebIdentity());
+  const [identity, setIdentity] = useState<WebIdentity>(() => getWebIdentityForActor("owner"));
   const [conversations, setConversations] = useState<WebChatConversationSummary[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [selectorError, setSelectorError] = useState<string | null>(null);
+  const [noteDialog, setNoteDialog] = useState<{ conversationId: string; value: string } | null>(null);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const voicePlayback = useVoicePlayback(identity);
   const {
     messages,
@@ -109,7 +103,6 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
       ) ?? null,
     [conversations, identity.conversationId]
   );
-  const activeActor = webActorForUserId(identity.userId);
 
   function applyIdentity(nextIdentity: WebIdentity) {
     setWebIdentity(nextIdentity);
@@ -158,22 +151,54 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
       (item) => item.externalConversationId === conversationId
     );
     if (!conversation || !isWebConversationId(conversation.externalConversationId)) {
-      setSelectorError("这里只能选择 web:<uuid> 形式的 Web Chat 会话。");
+      setSelectorError("这里只能选择有效的 Web Chat 会话。");
       return;
     }
     setSelectorError(null);
     applyIdentity(identityFromConversation(conversation));
   }
 
-  function handleActorChange(actorId: WebChatActorId) {
-    if (actorId === "custom") return;
-    setSelectorError(null);
-    applyIdentity(getWebIdentityForActor(actorId));
+  function handleNewConversation() {
+    const nextIdentity = createWebConversationIdentity("web:owner");
+    applyIdentity(nextIdentity);
   }
 
-  function handleNewConversation() {
-    const nextIdentity = createWebConversationIdentity(identity.userId);
-    applyIdentity(nextIdentity);
+  function openNoteDialog() {
+    if (!selectedConversation) return;
+    setNoteDialog({
+      conversationId: selectedConversation.id,
+      value: selectedConversation.note ?? "",
+    });
+  }
+
+  async function saveConversationNote() {
+    if (!adminToken || !noteDialog) return;
+    setIsSavingNote(true);
+    setSelectorError(null);
+    try {
+      const result = await updateAdminConversation({
+        token: adminToken,
+        conversationId: noteDialog.conversationId,
+        note: noteDialog.value.trim() || null,
+      });
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === noteDialog.conversationId
+            ? {
+                ...conversation,
+                note: result.conversation.note,
+                metadata: result.conversation.metadata,
+                updatedAt: result.conversation.updatedAt,
+              }
+            : conversation
+        )
+      );
+      setNoteDialog(null);
+    } catch (error) {
+      setSelectorError(friendlyErrorMessage(error));
+    } finally {
+      setIsSavingNote(false);
+    }
   }
 
   useEffect(() => {
@@ -209,20 +234,10 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
     [conversations]
   );
 
-  const actorOptions = useMemo(
-    () => [
-      ...WEB_CHAT_ACTORS.map((actor) => ({ label: actor.label, value: actor.id })),
-      { label: "历史身份", value: "custom", disabled: true },
-    ],
-    []
-  );
-
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] w-full max-w-5xl flex-col">
       <Card className="flex h-full flex-col overflow-hidden" pattern="app-pink">
         <ChatHeader
-          userId={identity.userId}
-          conversationId={identity.conversationId}
           displayName={identity.displayName}
           voiceAutoplayEnabled={voicePlayback.autoplayEnabled}
           onToggleVoiceAutoplay={() => voicePlayback.setAutoplayEnabled(!voicePlayback.autoplayEnabled)}
@@ -249,30 +264,17 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
 
         <div className="border-b border-[var(--ls-border)] bg-[var(--ls-panel)] px-4 py-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-            <div className="w-full lg:w-40">
-              <span className="mb-1.5 block text-xs font-black text-[var(--ls-ink-soft)]">
-                这次是谁在聊
-              </span>
-              <Radio
-                value={activeActor}
-                onChange={(value) => handleActorChange(value as WebChatActorId)}
-                options={actorOptions}
-                direction="horizontal"
-                disabled={isSending}
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 lg:basis-[60%]">
               <span className="mb-1.5 block text-xs font-black text-[var(--ls-ink-soft)]">
                 继续哪个 Web 对话
               </span>
-              <div className="admin-select-host admin-select-below">
+              <div className="admin-select-host admin-select-below admin-chat-conversation-select w-full">
                 <Select
                   value={identity.conversationId}
                   onChange={handleSelectConversation}
                   options={[
                     ...(!hasKnownCurrentConversation
-                      ? [{ key: identity.conversationId, label: `当前新对话 · ${shortConversationId(identity.conversationId)}` }]
+                      ? [{ key: identity.conversationId, label: "当前新对话" }]
                       : []),
                     ...conversationOptions,
                   ]}
@@ -282,6 +284,15 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="default"
+                size="middle"
+                icon={<span className="inline-block -scale-x-100 text-sm leading-none">✎</span>}
+                disabled={!selectedConversation || !adminToken || isSending}
+                onClick={openNoteDialog}
+              >
+                备注
+              </Button>
               <Button
                 type="default"
                 size="middle"
@@ -304,29 +315,9 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--ls-ink-soft)]">
-            <span className="admin-chip admin-chip-yellow">只列出 web:&lt;uuid&gt;</span>
-            <span className={activeActor === "owner" ? "admin-chip admin-chip-mint" : "admin-chip"}>
-              {activeActor === "owner"
-                ? "当前按你本人记录"
-                : activeActor === "codex"
-                  ? "当前按 Codex 记录"
-                  : "当前是历史身份"}
-            </span>
-            <Tooltip title={identity.conversationId} variant="island" placement="top">
-              <span className="admin-chip cursor-pointer">
-                会话 {shortConversationId(identity.conversationId)}
-              </span>
-            </Tooltip>
-            <Tooltip title={identity.userId} variant="island" placement="top">
-              <span className="admin-chip cursor-pointer truncate">用户 {identity.userId}</span>
-            </Tooltip>
-            {!adminToken && <span className="admin-chip">输入 Admin Token 后可选择已有对话</span>}
-          </div>
-
           {(selectorError || !canUseCurrentConversation) && (
             <div className="mt-3 rounded-[18px] border-2 border-[var(--ls-warning-border)] bg-[var(--ls-warning-bg)] px-4 py-3 text-sm font-semibold text-[var(--ls-warning-text)]">
-              {selectorError ?? "当前会话不是 web:<uuid>，请新建一个 Web 对话。"}
+              {selectorError ?? "当前会话不可用于 Web Chat，请新建一个 Web 对话。"}
             </div>
           )}
         </div>
@@ -357,6 +348,17 @@ export function ChatPage({ adminToken = "" }: ChatPageProps) {
           canStop={canStop}
         />
       </Card>
+      {noteDialog && (
+        <ConversationNoteDialog
+          value={noteDialog.value}
+          saving={isSavingNote}
+          onChange={(value) =>
+            setNoteDialog((current) => current ? { ...current, value } : current)
+          }
+          onClose={() => setNoteDialog(null)}
+          onSave={() => void saveConversationNote()}
+        />
+      )}
     </div>
   );
 }

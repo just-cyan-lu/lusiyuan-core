@@ -1,23 +1,35 @@
 export class VoicePlayer {
   private audio: HTMLAudioElement | null = null;
+  private readonly audios = new Set<HTMLAudioElement>();
   private stream: MediaSourceVoiceStream | null = null;
   private stopCurrentPlayback: (() => void) | null = null;
 
   stop(): void {
+    const stopCurrentPlayback = this.stopCurrentPlayback;
+
     this.stream?.abort();
     this.stream = null;
-    this.stopCurrentPlayback?.();
-    this.stopCurrentPlayback = null;
-    if (!this.audio) return;
-    this.audio.pause();
-    this.audio.currentTime = 0;
+
+    for (const audio of this.audios) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // Some MediaSource-backed audio elements cannot seek after aborting.
+      }
+    }
+
+    this.audios.clear();
     this.audio = null;
+    this.stopCurrentPlayback = null;
+    stopCurrentPlayback?.();
   }
 
   async playUrl(url: string): Promise<void> {
     this.stop();
     const audio = new Audio(url);
     this.audio = audio;
+    this.audios.add(audio);
     await this.play(audio);
   }
 
@@ -39,6 +51,7 @@ export class VoicePlayer {
     const objectUrl = URL.createObjectURL(mediaSource);
     audio.src = objectUrl;
     this.audio = audio;
+    this.audios.add(audio);
 
     const stream = new MediaSourceVoiceStream({
       audio,
@@ -48,6 +61,7 @@ export class VoicePlayer {
       onDone: () => {
         if (this.stream === stream) this.stream = null;
         if (this.audio === audio) this.audio = null;
+        this.audios.delete(audio);
       },
     });
     this.stream = stream;
@@ -64,16 +78,19 @@ export class VoicePlayer {
       const onEnded = () => {
         cleanup();
         if (this.audio === audio) this.audio = null;
+        this.audios.delete(audio);
         resolve();
       };
       const onError = () => {
         cleanup();
         if (this.audio === audio) this.audio = null;
+        this.audios.delete(audio);
         reject(new Error("语音播放失败"));
       };
       const onStop = () => {
         cleanup();
         if (this.audio === audio) this.audio = null;
+        this.audios.delete(audio);
         resolve();
       };
       this.stopCurrentPlayback = onStop;
@@ -82,6 +99,7 @@ export class VoicePlayer {
       audio.play().catch((error: unknown) => {
         cleanup();
         if (this.audio === audio) this.audio = null;
+        this.audios.delete(audio);
         reject(error instanceof Error ? error : new Error(String(error)));
       });
     });

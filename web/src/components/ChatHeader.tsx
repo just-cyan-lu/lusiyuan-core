@@ -2,23 +2,13 @@ import { Button, Tooltip } from "animal-island-ui";
 import { LusiyuanAvatar } from "./LusiyuanAvatar";
 
 interface ChatHeaderProps {
-  conversationId: string;
-  userId: string;
   displayName?: string;
   voiceAutoplayEnabled: boolean;
   onToggleVoiceAutoplay: () => void;
   onOpenVoiceCall: () => void;
 }
 
-function shortId(value: string): string {
-  const [prefix, id] = value.split(":");
-  if (!prefix || !id || id.length <= 12) return value;
-  return `${prefix}:${id.slice(0, 8)}...${id.slice(-4)}`;
-}
-
 export function ChatHeader({
-  conversationId,
-  userId,
   displayName,
   voiceAutoplayEnabled,
   onToggleVoiceAutoplay,
@@ -80,14 +70,6 @@ export function ChatHeader({
           />
         </Tooltip>
 
-        <div className="min-w-0 rounded-[16px] border-2 border-[var(--ls-border)] bg-white px-3 py-2 text-xs font-bold text-[var(--ls-ink-soft)] shadow-sm">
-          <Tooltip title={conversationId} variant="island" placement="bottom">
-            <div className="truncate cursor-pointer">会话 {shortId(conversationId)}</div>
-          </Tooltip>
-          <Tooltip title={userId} variant="island" placement="bottom">
-            <div className="mt-0.5 truncate cursor-pointer">用户 {userId}</div>
-          </Tooltip>
-        </div>
       </div>
     </div>
   );

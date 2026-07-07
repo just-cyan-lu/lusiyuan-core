@@ -83,15 +83,15 @@ export function ChatInput({
           onClick={handlePrimaryAction}
           icon={
             isSending ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <rect x="6" y="6" width="12" height="12" rx="2" fill="white" />
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" />
               </svg>
             ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
-                  d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"
-                  stroke="white"
-                  strokeWidth="2"
+                  d="M5 12h13M13 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
