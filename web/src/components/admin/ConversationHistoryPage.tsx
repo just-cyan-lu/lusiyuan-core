@@ -5,6 +5,7 @@ import {
   fetchAdminConversationMessages,
   fetchConversationPeople,
   fetchConversationPersonDetail,
+  updateAdminConversation,
   type AdminConversationMessage,
   type ConversationPeopleResponse,
   type ConversationPersonDetailResponse,
@@ -12,6 +13,7 @@ import {
   type ConversationSummary,
 } from "../../api/lusiyuan-api";
 import { StatusPill } from "./StatusPill";
+import { ConversationNoteDialog } from "./ConversationNoteDialog";
 
 interface ConversationHistoryPageProps {
   adminToken: string;
@@ -76,6 +78,7 @@ function allConversations(detail: ConversationPersonDetailResponse | null): Conv
 }
 
 function conversationTitle(conversation: ConversationSummary): string {
+  if (conversation.note?.trim()) return conversation.note.trim();
   const [prefix, id] = conversation.externalConversationId.split(":");
   if (!prefix || !id || id.length <= 12) return conversation.externalConversationId;
   return `${prefix}:${id.slice(0, 6)}…${id.slice(-4)}`;
@@ -112,6 +115,8 @@ export function ConversationHistoryPage({
 }: ConversationHistoryPageProps) {
   const [query, setQuery] = useState("");
   const [localPersonId, setLocalPersonId] = useState<string | null>(null);
+  const [noteDialog, setNoteDialog] = useState<{ conversationId: string; value: string } | null>(null);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const [state, setState] = useState<PageState>({
     people: [],
     detail: null,
@@ -232,6 +237,56 @@ export function ConversationHistoryPage({
     }));
   }
 
+  function updateConversationInDetail(conversationId: string, patch: Partial<ConversationSummary>) {
+    setState((current) => {
+      if (!current.detail) return current;
+      return {
+        ...current,
+        detail: {
+          ...current.detail,
+          users: current.detail.users.map((userDetail) => ({
+            ...userDetail,
+            conversations: userDetail.conversations.map((conversation) =>
+              conversation.id === conversationId
+                ? { ...conversation, ...patch }
+                : conversation
+            ),
+          })),
+        },
+      };
+    });
+  }
+
+  function openNoteDialog(conversation: ConversationSummary) {
+    setNoteDialog({
+      conversationId: conversation.id,
+      value: conversation.note ?? "",
+    });
+  }
+
+  async function saveConversationNote() {
+    if (!adminToken || !noteDialog) return;
+    setIsSavingNote(true);
+    setState((current) => ({ ...current, error: null }));
+    try {
+      const result = await updateAdminConversation({
+        token: adminToken,
+        conversationId: noteDialog.conversationId,
+        note: noteDialog.value.trim() || null,
+      });
+      updateConversationInDetail(noteDialog.conversationId, {
+        note: result.conversation.note,
+        metadata: result.conversation.metadata,
+        updatedAt: result.conversation.updatedAt,
+      });
+      setNoteDialog(null);
+    } catch (error) {
+      setState((current) => ({ ...current, error: friendlyErrorMessage(error) }));
+    } finally {
+      setIsSavingNote(false);
+    }
+  }
+
   useEffect(() => {
     if (!adminToken) return;
     void loadPeople("");
@@ -274,7 +329,7 @@ export function ConversationHistoryPage({
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] max-w-7xl flex-col gap-5">
+    <div className="flex h-[calc(100dvh-10rem)] min-h-[34rem] flex-col gap-5">
       <Card className="overflow-hidden p-5 md:p-6" pattern="app-pink">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
@@ -514,30 +569,43 @@ export function ConversationHistoryPage({
                             userDetail.conversations.map((conversation) => {
                               const active = state.selectedConversationId === conversation.id;
                               return (
-                                <button
+                                <div
                                   key={conversation.id}
-                                  type="button"
-                                  onClick={() => selectConversation(conversation.id)}
-                                  className={`w-full rounded-lg border-2 px-3 py-2 text-left transition ${
+                                  className={`flex w-full items-start gap-2 rounded-lg border-2 px-3 py-2 transition ${
                                     active
                                       ? "border-[var(--ls-mint)] bg-[var(--ls-mint-soft)]"
                                       : "border-[var(--ls-border)] bg-white/60 hover:bg-[var(--ls-panel-soft)]"
                                   }`}
                                 >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="break-words text-xs font-black leading-tight text-[var(--ls-ink)]">
-                                        {conversationTitle(conversation)}
+                                  <button
+                                    type="button"
+                                    onClick={() => selectConversation(conversation.id)}
+                                    className="min-w-0 flex-1 text-left"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="break-words text-xs font-black leading-tight text-[var(--ls-ink)]">
+                                          {conversationTitle(conversation)}
+                                        </div>
+                                        <div className="break-words text-[10px] font-semibold leading-4 text-[var(--ls-ink-soft)]">
+                                          {conversation.lastMessagePreview ?? "暂无消息"}
+                                        </div>
                                       </div>
-                                      <div className="break-words text-[10px] font-semibold leading-4 text-[var(--ls-ink-soft)]">
-                                        {conversation.lastMessagePreview ?? "暂无消息"}
+                                      <div className="shrink-0 text-right text-[10px] font-semibold text-[var(--ls-ink-soft)]">
+                                        <div>{conversation.messageCount} 条</div>
                                       </div>
                                     </div>
-                                    <div className="shrink-0 text-right text-[10px] font-semibold text-[var(--ls-ink-soft)]">
-                                      <div>{conversation.messageCount} 条</div>
-                                    </div>
-                                  </div>
-                                </button>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="admin-layout-button inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--ls-border)] bg-white text-sm font-semibold text-[var(--ls-ink-soft)] transition hover:bg-[var(--ls-panel-soft)] hover:text-[var(--ls-ink-strong)]"
+                                    onClick={() => openNoteDialog(conversation)}
+                                    aria-label="编辑对话备注"
+                                    title="编辑对话备注"
+                                  >
+                                    <span className="inline-block -scale-x-100">✎</span>
+                                  </button>
+                                </div>
                               );
                             })
                           ) : (
@@ -559,6 +627,16 @@ export function ConversationHistoryPage({
                           <Icon name="icon-chat" size={16} />
                           消息记录
                         </span>
+                        {selectedConversation && (
+                          <button
+                            type="button"
+                            className="admin-layout-button inline-flex items-center gap-1 rounded-full border border-[var(--ls-border)] bg-white px-2 py-1 text-xs font-semibold text-[var(--ls-ink-soft)] transition hover:bg-[var(--ls-panel-soft)] hover:text-[var(--ls-ink-strong)]"
+                            onClick={() => openNoteDialog(selectedConversation)}
+                          >
+                            <span className="inline-block -scale-x-100">✎</span>
+                            编辑备注
+                          </button>
+                        )}
                       </div>
                       <h3 className="mt-2 text-base font-black text-[var(--ls-ink-strong)]">
                         {selectedConversation
@@ -621,6 +699,18 @@ export function ConversationHistoryPage({
           )}
         </div>
       </section>
+
+      {noteDialog && (
+        <ConversationNoteDialog
+          value={noteDialog.value}
+          saving={isSavingNote}
+          onChange={(value) =>
+            setNoteDialog((current) => current ? { ...current, value } : current)
+          }
+          onClose={() => setNoteDialog(null)}
+          onSave={() => void saveConversationNote()}
+        />
+      )}
     </div>
   );
 }
