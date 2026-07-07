@@ -7,9 +7,7 @@ export type ReplyDeliveryMode = "single" | "final_blocks" | "hybrid";
 export interface ReplySegmentationOptions {
   mode: ReplyDeliveryMode;
   llmEnabled: boolean;
-  minChars: number;
   maxChars: number;
-  maxCount: number;
   delayMinMs: number;
   delayMaxMs: number;
 }
@@ -25,21 +23,13 @@ interface LlmSegmentationResponse {
 
 const SENTENCE_END_CHARS = new Set(["。", "！", "？", "!", "?", "…"]);
 const SOFT_BREAK_CHARS = new Set(["，", ",", "；", ";", "：", ":"]);
-const DEFAULT_SEGMENT_MIN_CHARS = 36;
 const DEFAULT_SEGMENT_MAX_CHARS = 180;
-const DEFAULT_SEGMENT_MAX_COUNT = 4;
-
-function hasSegmentCountLimit(maxCount: number): boolean {
-  return maxCount > 0;
-}
 
 export function getReplySegmentationOptions(): ReplySegmentationOptions {
   return {
     mode: runtimeConfig.REPLY_DELIVERY_MODE as ReplyDeliveryMode,
     llmEnabled: runtimeConfig.REPLY_SEGMENTATION_LLM_ENABLED,
-    minChars: DEFAULT_SEGMENT_MIN_CHARS,
     maxChars: DEFAULT_SEGMENT_MAX_CHARS,
-    maxCount: DEFAULT_SEGMENT_MAX_COUNT,
     delayMinMs: runtimeConfig.REPLY_HUMAN_DELAY_MIN_MS,
     delayMaxMs: runtimeConfig.REPLY_HUMAN_DELAY_MAX_MS,
   };
@@ -72,7 +62,7 @@ export async function segmentReply(
 ): Promise<ReplySegmentationResult> {
   const text = reply.trim();
   if (!text) return { replies: [""], source: "single" };
-  if (!shouldSegmentFinalReply(options.mode) || shouldKeepSingle(text, options)) {
+  if (!shouldSegmentFinalReply(options.mode) || looksStructured(text)) {
     return { replies: [text], source: "single" };
   }
 
@@ -97,10 +87,9 @@ export async function segmentReply(
 
 export function splitReplyByRules(reply: string, options: ReplySegmentationOptions): string[] {
   const text = reply.trim();
-  if (options.maxCount === 1 || looksStructured(text)) return [text];
+  if (looksStructured(text)) return [text];
   const paragraphSegments = splitParagraphSegments(text, options);
   if (paragraphSegments) return paragraphSegments;
-  if (shouldKeepSingle(text, options)) return [text];
 
   const units = splitIntoUnits(text, options.maxChars);
   const segments: string[] = [];
@@ -116,8 +105,7 @@ export function splitReplyByRules(reply: string, options: ReplySegmentationOptio
     }
     if (
       !current ||
-      next.length <= options.maxChars ||
-      current.length < options.minChars
+      next.length <= options.maxChars
     ) {
       current = next;
       continue;
@@ -128,14 +116,12 @@ export function splitReplyByRules(reply: string, options: ReplySegmentationOptio
 
   if (current.trim()) segments.push(current.trim());
 
-  const coalesced = coalesceSmallSegments(segments, options);
-  return clampSegmentCount(coalesced, options.maxCount);
+  return segments.length > 0 ? segments : [text];
 }
 
 export function validateLlmSegments(
   original: string,
-  candidate: unknown,
-  options: Pick<ReplySegmentationOptions, "maxCount">
+  candidate: unknown
 ): string[] | null {
   if (!Array.isArray(candidate)) return null;
   const replies = candidate
@@ -143,7 +129,7 @@ export function validateLlmSegments(
     .map((part) => part.trim())
     .filter(Boolean);
 
-  if (replies.length === 0 || (hasSegmentCountLimit(options.maxCount) && replies.length > options.maxCount)) return null;
+  if (replies.length === 0) return null;
   if (replies.length !== candidate.length) return null;
 
   const originalComparable = normalizeForComparison(original);
@@ -153,36 +139,17 @@ export function validateLlmSegments(
   return replies;
 }
 
-function shouldKeepSingle(text: string, options: ReplySegmentationOptions): boolean {
-  if (options.maxCount === 1) return true;
-  if (looksStructured(text)) return true;
-  if (hasNaturalParagraphBreak(text, options)) return false;
-  if (hasNaturalShortLead(text, options)) return false;
-  if (text.length < Math.max(options.minChars * 2, options.maxChars * 0.8)) return true;
-  return false;
-}
-
-function hasNaturalParagraphBreak(text: string, options: ReplySegmentationOptions): boolean {
+function hasNaturalParagraphBreak(text: string): boolean {
   const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-  return paragraphs.length > 1 && text.length >= options.minChars * 2;
+  return paragraphs.length > 1;
 }
 
 function splitParagraphSegments(text: string, options: ReplySegmentationOptions): string[] | null {
-  if (!hasNaturalParagraphBreak(text, options)) return null;
+  if (!hasNaturalParagraphBreak(text)) return null;
   const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
   if (paragraphs.length <= 1) return null;
   const segments = paragraphs.flatMap((paragraph) => splitLongUnit(paragraph, options.maxChars));
-  const coalesced = coalesceSmallSegments(segments, options);
-  return clampSegmentCount(coalesced, options.maxCount);
-}
-
-function hasNaturalShortLead(text: string, options: ReplySegmentationOptions): boolean {
-  const sentenceUnits = splitByBoundaryChars(text, SENTENCE_END_CHARS);
-  return (
-    sentenceUnits.length > 1 &&
-    isNaturalShortLead(sentenceUnits[0]) &&
-    text.length - sentenceUnits[0].length >= options.minChars
-  );
+  return segments.length > 0 ? segments : null;
 }
 
 function looksStructured(text: string): boolean {
@@ -220,8 +187,7 @@ async function splitWithLlm(
     {
       role: "user",
       content: JSON.stringify({
-        maxMessages: hasSegmentCountLimit(options.maxCount) ? options.maxCount : null,
-        targetMinChars: options.minChars,
+        maxMessages: null,
         targetMaxChars: options.maxChars,
         reply,
       }),
@@ -229,7 +195,7 @@ async function splitWithLlm(
   ];
 
   const response = await modelProvider.chatJson<LlmSegmentationResponse>(messages, callOptions);
-  return validateLlmSegments(reply, response.messages, options);
+  return validateLlmSegments(reply, response.messages);
 }
 
 function splitIntoUnits(text: string, maxChars: number): string[] {
@@ -299,32 +265,6 @@ function hardSplit(text: string, maxChars: number): string[] {
   }
   if (remaining) chunks.push(remaining);
   return chunks;
-}
-
-function coalesceSmallSegments(segments: string[], options: ReplySegmentationOptions): string[] {
-  const result: string[] = [];
-  for (const segment of segments) {
-    const previous = result[result.length - 1];
-    if (
-      previous &&
-      segment.length < options.minChars &&
-      previous.length + segment.length <= options.maxChars &&
-      !isNaturalShortLead(segment)
-    ) {
-      result[result.length - 1] = previous + segment;
-      continue;
-    }
-    result.push(segment);
-  }
-  return result;
-}
-
-function clampSegmentCount(segments: string[], maxCount: number): string[] {
-  if (!hasSegmentCountLimit(maxCount)) return segments.length > 0 ? segments : [""];
-  if (segments.length <= maxCount) return segments.length > 0 ? segments : [""];
-  const head = segments.slice(0, Math.max(1, maxCount - 1));
-  const tail = segments.slice(Math.max(1, maxCount - 1)).join("");
-  return [...head, tail].filter(Boolean);
 }
 
 function isNaturalShortLead(text: string): boolean {

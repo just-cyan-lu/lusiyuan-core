@@ -10,9 +10,7 @@ import {
 const options: ReplySegmentationOptions = {
   mode: "final_blocks",
   llmEnabled: false,
-  minChars: 20,
   maxChars: 70,
-  maxCount: 4,
   delayMinMs: 0,
   delayMaxMs: 0,
 };
@@ -28,7 +26,6 @@ test("splits prose into natural reply bubbles", () => {
   const segments = splitReplyByRules(reply, options);
 
   assert.ok(segments.length > 1);
-  assert.ok(segments.length <= options.maxCount);
   assert.equal(segments[0], "嗯，我懂。");
   assert.equal(comparable(segments.join("")), comparable(reply));
 });
@@ -47,14 +44,13 @@ test("keeps structured replies as a single message", () => {
 
 test("splits natural paragraphs even when each paragraph is short", () => {
   const reply = [
-    "这种感觉其实挺真实的，就是脑子里先转一下，发个泡，然后内容慢慢成型。",
-    "你想让我聊点什么？还是就看看效果就行？",
+    "好。",
+    "可以。",
   ].join("\n\n");
 
   const segments = splitReplyByRules(reply, options);
 
-  assert.ok(segments.length >= 2);
-  assert.equal(segments[0], "这种感觉其实挺真实的，就是脑子里先转一下，发个泡，然后内容慢慢成型。");
+  assert.deepEqual(segments, ["好。", "可以。"]);
   assert.equal(comparable(segments.join("")), comparable(reply));
 });
 
@@ -62,16 +58,16 @@ test("accepts LLM segmentation only when it preserves the original reply", () =>
   const reply = "先这样。然后我们再把 Web 和 Telegram 都接上。";
 
   assert.deepEqual(
-    validateLlmSegments(reply, ["先这样。", "然后我们再把 Web 和 Telegram 都接上。"], options),
+    validateLlmSegments(reply, ["先这样。", "然后我们再把 Web 和 Telegram 都接上。"]),
     ["先这样。", "然后我们再把 Web 和 Telegram 都接上。"]
   );
   assert.equal(
-    validateLlmSegments(reply, ["先这样。", "然后我们顺便加一个新功能。"], options),
+    validateLlmSegments(reply, ["先这样。", "然后我们顺便加一个新功能。"]),
     null
   );
 });
 
-test("allows unlimited final reply segments when max count is zero", () => {
+test("does not clamp paragraph segments", () => {
   const reply = [
     "第一段先安抚一下情绪。",
     "第二段补充真正要点。",
@@ -79,19 +75,13 @@ test("allows unlimited final reply segments when max count is zero", () => {
     "第四段给出下一步。",
     "第五段留一个自然收尾。",
   ].join("\n\n");
-  const unlimitedOptions: ReplySegmentationOptions = {
-    ...options,
-    minChars: 6,
-    maxChars: 80,
-    maxCount: 0,
-  };
 
-  const segments = splitReplyByRules(reply, unlimitedOptions);
+  const segments = splitReplyByRules(reply, { ...options, maxChars: 80 });
 
   assert.equal(segments.length, 5);
   assert.equal(comparable(segments.join("")), comparable(reply));
   assert.deepEqual(
-    validateLlmSegments(reply, segments, unlimitedOptions),
+    validateLlmSegments(reply, segments),
     segments
   );
 });
