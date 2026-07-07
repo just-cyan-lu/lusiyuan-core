@@ -58,6 +58,20 @@ const persona: PersonaContent = {
       content: "# 日常样本\n\nDAILY_SAMPLE_SHOULD_APPEAR",
     },
     {
+      id: "spark",
+      profiles: ["default", "close_friend", "creator_mode"],
+      keywords: ["脑洞", "好玩"],
+      priority: 88,
+      content: "# 活力样本\n\nSPARK_SAMPLE_SHOULD_APPEAR",
+    },
+    {
+      id: "childlike",
+      profiles: ["default", "close_friend", "creator_mode"],
+      keywords: ["幼稚", "慢半拍"],
+      priority: 70,
+      content: "# 孩子气样本\n\nCHILDLIKE_SAMPLE_SHOULD_APPEAR",
+    },
+    {
       id: "emotion",
       profiles: ["emotional"],
       keywords: ["累"],
@@ -117,6 +131,8 @@ test("builds a projected prompt without dumping full personality in default chat
   assert.match(systemPrompt as string, /BEHAVIOR_SHOULD_APPEAR/);
   assert.match(systemPrompt as string, /认真但不沉重/);
   assert.match(systemPrompt as string, /DAILY_SAMPLE_SHOULD_APPEAR/);
+  assert.match(systemPrompt as string, /SPARK_SAMPLE_SHOULD_APPEAR/);
+  assert.match(systemPrompt as string, /CHILDLIKE_SAMPLE_SHOULD_APPEAR/);
   assert.doesNotMatch(systemPrompt as string, /BOUNDARY_SLICE_SHOULD_APPEAR/);
   assert.doesNotMatch(
     systemPrompt as string,

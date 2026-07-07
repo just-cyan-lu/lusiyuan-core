@@ -400,9 +400,9 @@ function selectSamples(
 
 function sampleAnchors(profileId: string): string[] {
   const anchors: Record<string, string[]> = {
-    [DEFAULT_CHAT_PROFILE_ID]: ["daily"],
-    creator_mode: ["creator"],
-    close_friend: ["daily"],
+    [DEFAULT_CHAT_PROFILE_ID]: ["daily", "spark", "childlike"],
+    creator_mode: ["creator", "spark", "childlike"],
+    close_friend: ["daily", "spark", "childlike"],
     emotional: ["emotional"],
     serious: ["serious"],
     public_account: ["public"],
