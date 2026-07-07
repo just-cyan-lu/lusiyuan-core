@@ -23,6 +23,20 @@ interface LlmSegmentationResponse {
 
 const SENTENCE_END_CHARS = new Set(["。", "！", "？", "!", "?", "…"]);
 const SOFT_BREAK_CHARS = new Set(["，", ",", "；", ";", "：", ":"]);
+const SENTENCE_CLOSER_CHARS = new Set([
+  "\"",
+  "'",
+  "”",
+  "’",
+  "」",
+  "』",
+  "）",
+  ")",
+  "]",
+  "】",
+  "》",
+  "〉",
+]);
 const DEFAULT_SEGMENT_MAX_CHARS = 180;
 
 export function getReplySegmentationOptions(): ReplySegmentationOptions {
@@ -99,6 +113,11 @@ export function splitReplyByRules(reply: string, options: ReplySegmentationOptio
     const next = current ? `${current}${unit}` : unit;
     const currentIsShortLead = segments.length === 0 && current && isNaturalShortLead(current);
     if (currentIsShortLead) {
+      segments.push(current.trim());
+      current = unit;
+      continue;
+    }
+    if (current && isStandaloneSentencePunctuation(current)) {
       segments.push(current.trim());
       current = unit;
       continue;
@@ -218,7 +237,9 @@ function splitIntoUnits(text: string, maxChars: number): string[] {
 }
 
 function splitLongUnit(unit: string, maxChars: number): string[] {
-  const sentenceUnits = splitByBoundaryChars(unit, SENTENCE_END_CHARS);
+  const sentenceUnits = splitByBoundaryChars(unit, SENTENCE_END_CHARS, {
+    includeSentenceClosers: true,
+  });
   if (unit.length <= maxChars) {
     return sentenceUnits.length > 1 && isNaturalShortLead(sentenceUnits[0])
       ? sentenceUnits
@@ -239,14 +260,28 @@ function splitLongUnitBySoftBreak(unit: string, maxChars: number): string[] {
   return hardSplit(unit, maxChars);
 }
 
-function splitByBoundaryChars(text: string, boundaries: Set<string>): string[] {
+function splitByBoundaryChars(
+  text: string,
+  boundaries: Set<string>,
+  options: { includeSentenceClosers?: boolean } = {}
+): string[] {
   const units: string[] = [];
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     if (!boundaries.has(text[i])) continue;
-    const slice = text.slice(start, i + 1);
+    let end = i + 1;
+    if (options.includeSentenceClosers) {
+      while (
+        end < text.length &&
+        SENTENCE_CLOSER_CHARS.has(text[end])
+      ) {
+        end++;
+      }
+    }
+    const slice = text.slice(start, end);
     if (slice.trim()) units.push(slice);
-    start = i + 1;
+    start = end;
+    i = end - 1;
   }
   const tail = text.slice(start);
   if (tail.trim()) units.push(tail);
@@ -269,7 +304,11 @@ function hardSplit(text: string, maxChars: number): string[] {
 
 function isNaturalShortLead(text: string): boolean {
   const trimmed = text.trim();
-  return trimmed.length <= 18 && /[。！？!?…]$/.test(trimmed);
+  return trimmed.length <= 18 && /[。！？!?…]["'”’」』）)\]】》〉]*$/.test(trimmed);
+}
+
+function isStandaloneSentencePunctuation(text: string): boolean {
+  return /^[。！？!?…]+$/.test(text.trim());
 }
 
 function normalizeForComparison(text: string): string {

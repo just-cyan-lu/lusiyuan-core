@@ -1,5 +1,5 @@
 import { Button } from "animal-island-ui";
-import { useState, useRef, type KeyboardEvent } from "react";
+import { useState, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 interface Props {
   onSend: (text: string) => void;
@@ -20,6 +20,7 @@ export function ChatInput({
 }: Props) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composingRef = useRef(false);
   const minTextareaHeight = 48;
   const maxTextareaHeight = 128;
 
@@ -33,8 +34,15 @@ export function ChatInput({
     }
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
+      const nativeEvent = e.nativeEvent as KeyboardEvent & {
+        isComposing?: boolean;
+        keyCode?: number;
+      };
+      if (composingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229) {
+        return;
+      }
       e.preventDefault();
       if (!isSending) handleSend();
     }
@@ -65,6 +73,12 @@ export function ChatInput({
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onCompositionStart={() => {
+            composingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            composingRef.current = false;
+          }}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           placeholder="发消息给陆思源…"

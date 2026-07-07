@@ -54,6 +54,25 @@ test("splits natural paragraphs even when each paragraph is short", () => {
   assert.equal(comparable(segments.join("")), comparable(reply));
 });
 
+test("keeps closing quotes with sentence-ending punctuation", () => {
+  const reply = "“你说这一句，很有夏天的感觉…”然后我会再轻轻接一句。";
+
+  const segments = splitReplyByRules(reply, { ...options, maxChars: 18 });
+
+  assert.equal(segments[0], "“你说这一句，很有夏天的感觉…”");
+  assert.ok(!segments.includes("”"));
+  assert.equal(comparable(segments.join("")), comparable(reply));
+});
+
+test("keeps repeated sentence punctuation as separate breath marks", () => {
+  const reply = "我想了一下……啊？";
+
+  const segments = splitReplyByRules(reply, { ...options, maxChars: 8 });
+
+  assert.deepEqual(segments, ["我想了一下…", "…", "啊？"]);
+  assert.equal(comparable(segments.join("")), comparable(reply));
+});
+
 test("accepts LLM segmentation only when it preserves the original reply", () => {
   const reply = "先这样。然后我们再把 Web 和 Telegram 都接上。";
 
