@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 
 interface UpsertInput {
@@ -15,8 +16,7 @@ interface SearchInput {
   provider: string;
   model: string;
   dimensions: number;
-  platform: string;
-  scene: string;
+  scenes: string[];
   limit: number;
 }
 
@@ -55,6 +55,8 @@ export async function upsertExpressionLearningEmbedding(input: UpsertInput): Pro
 
 export async function searchExpressionLearningEmbeddings(input: SearchInput) {
   const vectorLiteral = `[${input.embedding.join(",")}]`;
+  const scenes = input.scenes.length > 0 ? input.scenes : ["general"];
+  const sceneList = Prisma.join(scenes);
   const rows = await prisma.$queryRaw<Array<{ example_id: string; score: number }>>`
     SELECT
       ele."exampleId" AS example_id,
@@ -66,11 +68,7 @@ export async function searchExpressionLearningEmbeddings(input: SearchInput) {
       AND ele."model" = ${input.model}
       AND ele."dimensions" = ${input.dimensions}
       AND e."status" = 'active'
-      AND (
-        e."scope" = 'global'
-        OR (e."platform" = ${input.platform} AND e."scope" = 'platform')
-        OR (e."platform" = ${input.platform} AND e."scene" = ${input.scene} AND e."scope" = 'scene')
-      )
+      AND e."scene" IN (${sceneList})
     ORDER BY ele."embedding" <=> ${vectorLiteral}::vector
     LIMIT ${input.limit}
   `;

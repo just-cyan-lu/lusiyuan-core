@@ -643,9 +643,7 @@ export interface ExpressionLearningExample {
   sourceRef: string;
   sourceType: string;
   sourceId: string | null;
-  platform: string;
   scene: string;
-  scope: string;
   contextText: string;
   draftText: string | null;
   finalText: string | null;
@@ -673,16 +671,24 @@ export interface ExpressionLearningExample {
 export interface ExpressionLearningResponse {
   examples: ExpressionLearningExample[];
   summary: { total: number; active: number; pending: number; skipped: number };
-  platforms: string[];
+  scenes: string[];
+}
+
+export interface ExpressionLearningAnalysis {
+  lesson: string;
+  reasoning: string;
+  strategy: string;
+  tone: string;
+  avoidances: string[];
+  tags: string[];
+  confidence: number;
 }
 
 export interface ExpressionLearningCreateInput {
   token: string;
   trainingRecordId?: string | null;
   sourceType?: string;
-  platform: string;
   scene: string;
-  scope?: string;
   contextText: string;
   draftText?: string | null;
   finalText?: string | null;
@@ -690,11 +696,11 @@ export interface ExpressionLearningCreateInput {
   ownerAction?: string;
   ownerNote?: string | null;
   status?: "pending" | "active" | "disabled";
+  analysis?: Partial<ExpressionLearningAnalysis> | null;
   metadata?: Record<string, unknown>;
 }
 
 export interface ExpressionLearningPracticeQuestion {
-  platform: string;
   scene: string;
   contextText: string;
   draftText: string | null;
@@ -717,9 +723,7 @@ export interface ExpressionLearningDraftResponse {
 export interface ExpressionLearningTrainingRecord {
   id: string;
   sourceType: string;
-  platform: string;
   scene: string;
-  scope: string | null;
   status: string;
   contextText: string | null;
   draftText: string | null;
@@ -748,6 +752,24 @@ export interface ExpressionLearningTrainingRecordsResponse {
     completed: number;
     dismissed: number;
   };
+}
+
+export interface ExpressionLearningTrainingDraftInput {
+  token: string;
+  recordId?: string | null;
+  sourceType?: string;
+  scene: string;
+  status?: string;
+  contextText?: string | null;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  reasonText?: string | null;
+  generatedQuestion?: unknown;
+  generatedDraft?: unknown;
+  analysisSnapshot?: unknown;
 }
 
 export interface XiaohongshuComment {
@@ -1804,14 +1826,12 @@ export async function fetchSkills(token: string): Promise<SkillsResponse> {
 
 export async function fetchExpressionLearningExamples(input: {
   token: string;
-  platform?: string;
   scene?: string;
   status?: string;
   outcome?: string;
   query?: string;
 }): Promise<ExpressionLearningResponse> {
   const params = new URLSearchParams();
-  if (input.platform && input.platform !== "all") params.set("platform", input.platform);
   if (input.scene && input.scene !== "all") params.set("scene", input.scene);
   if (input.status && input.status !== "all") params.set("status", input.status);
   if (input.outcome && input.outcome !== "all") params.set("outcome", input.outcome);
@@ -1838,9 +1858,31 @@ export async function createExpressionLearningExample(
   );
 }
 
+export async function analyzeExpressionLearningExample(
+  input: ExpressionLearningCreateInput
+): Promise<{ analysis: ExpressionLearningAnalysis }> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/analyze`, {
+    method: "POST",
+    headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<{ analysis: ExpressionLearningAnalysis }>(response, "分析表达经验失败");
+}
+
+export async function deleteExpressionLearningExample(input: {
+  token: string;
+  exampleId: string;
+}): Promise<{ ok: true; deletedId: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/examples/${input.exampleId}`,
+    { method: "DELETE", headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<{ ok: true; deletedId: string }>(response, "删除表达经验失败");
+}
+
 export async function generateExpressionLearningPracticeQuestion(input: {
   token: string;
-  platform: string;
   scene: string;
   focus?: string | null;
 }): Promise<ExpressionLearningPracticeQuestionResponse> {
@@ -1858,7 +1900,6 @@ export async function generateExpressionLearningPracticeQuestion(input: {
 
 export async function generateExpressionLearningDraft(input: {
   token: string;
-  platform: string;
   scene: string;
   contextText: string;
 }): Promise<ExpressionLearningDraftResponse> {
@@ -1905,15 +1946,42 @@ export async function fetchExpressionLearningTrainingRecords(input: {
   );
 }
 
+export async function saveExpressionLearningTrainingDraft(
+  input: ExpressionLearningTrainingDraftInput
+): Promise<{ record: ExpressionLearningTrainingRecord }> {
+  const { token, recordId, ...body } = input;
+  const response = await fetch(
+    recordId
+      ? `${API_BASE_URL}/v1/admin/expression-learning/training-records/${recordId}`
+      : `${API_BASE_URL}/v1/admin/expression-learning/training-records`,
+    {
+      method: recordId ? "PATCH" : "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ record: ExpressionLearningTrainingRecord }>(
+    response,
+    "保存习题草稿失败"
+  );
+}
+
 export async function updateExpressionLearningTrainingRecord(input: {
   token: string;
   recordId: string;
+  sourceType?: string;
+  scene?: string;
   status?: string;
+  contextText?: string | null;
+  draftText?: string | null;
   finalText?: string | null;
   outcome?: "sent" | "skipped" | null;
   ownerAction?: string | null;
   ownerNote?: string | null;
   reasonText?: string | null;
+  generatedQuestion?: unknown;
+  generatedDraft?: unknown;
+  analysisSnapshot?: unknown;
 }): Promise<{ record: ExpressionLearningTrainingRecord }> {
   const { token, recordId, ...body } = input;
   const response = await fetch(
@@ -1930,6 +1998,17 @@ export async function updateExpressionLearningTrainingRecord(input: {
   );
 }
 
+export async function deleteExpressionLearningTrainingRecord(input: {
+  token: string;
+  recordId: string;
+}): Promise<{ ok: true; deletedId: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/training-records/${input.recordId}`,
+    { method: "DELETE", headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<{ ok: true; deletedId: string }>(response, "删除习题失败");
+}
+
 export async function updateExpressionLearningExample(input: {
   token: string;
   exampleId: string;
@@ -1939,7 +2018,6 @@ export async function updateExpressionLearningExample(input: {
   tone?: string | null;
   ownerNote?: string | null;
   status?: "pending" | "active" | "disabled";
-  scope?: string;
 }): Promise<{ example: ExpressionLearningExample }> {
   const { token, exampleId, ...body } = input;
   const response = await fetch(

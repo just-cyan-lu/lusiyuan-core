@@ -29,8 +29,7 @@ test("normalizes incomplete LLM analysis into a usable lesson", () => {
 
 test("embedding text includes both the original draft and final owner decision", () => {
   const text = buildExpressionLearningEmbeddingText({
-    platform: "xiaohongshu",
-    scene: "comment_reply",
+    scene: "reply",
     contextText: "评论：你是怎么做出来的？",
     draftText: "这是通过很多技术组合完成的。",
     finalText: "一点点搭起来的，之后慢慢讲。",
@@ -47,19 +46,26 @@ test("embedding text includes both the original draft and final owner decision",
   assert.match(text, /长篇科普/);
 });
 
-test("retrieval scope separates global, platform, scene, and private lessons", () => {
+test("retrieval includes general lessons and the current scene", () => {
   assert.deepEqual(
     buildExpressionLearningRetrievalWhere({
-      platform: "xiaohongshu",
-      scene: "comment_reply",
+      scene: "reply",
     }),
     {
       status: "active",
-      OR: [
-        { scope: "global" },
-        { platform: "xiaohongshu", scope: "platform" },
-        { platform: "xiaohongshu", scene: "comment_reply", scope: "scene" },
-      ],
+      scene: { in: ["general", "reply"] },
+    }
+  );
+});
+
+test("general retrieval is not duplicated", () => {
+  assert.deepEqual(
+    buildExpressionLearningRetrievalWhere({
+      scene: "general",
+    }),
+    {
+      status: "active",
+      scene: { in: ["general"] },
     }
   );
 });
@@ -68,9 +74,7 @@ test("training export keeps raw materials and a supervised sample", () => {
   const exported = buildExpressionLearningTrainingExport({
     id: "record-1",
     sourceType: "practice_question",
-    platform: "chat",
-    scene: "web_chat",
-    scope: "scene",
+    scene: "chat",
     status: "completed",
     contextText: "朋友说：我今天真的很累。",
     draftText: "那你早点睡。",
@@ -108,9 +112,7 @@ test("dismissed training questions export as rejected question feedback", () => 
   const exported = buildExpressionLearningTrainingExport({
     id: "record-bad-question",
     sourceType: "practice_question",
-    platform: "chat",
-    scene: "web_chat",
-    scope: "scene",
+    scene: "chat",
     status: "dismissed",
     contextText: "私设一个陆思源认识八年的朋友。",
     draftText: null,

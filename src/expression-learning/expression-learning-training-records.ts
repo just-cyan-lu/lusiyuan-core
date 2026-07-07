@@ -11,9 +11,7 @@ type TrainingRecordWithExample = ExpressionLearningTrainingRecord & {
 
 export interface ExpressionLearningTrainingRecordInput {
   sourceType: string;
-  platform: string;
   scene: string;
-  scope?: string | null;
   status?: string;
   contextText?: string | null;
   draftText?: string | null;
@@ -36,12 +34,19 @@ export interface CompleteExpressionLearningTrainingRecordInput
 }
 
 export interface ExpressionLearningTrainingRecordUpdateInput {
+  sourceType?: string;
+  scene?: string;
   status?: string;
+  contextText?: string | null;
+  draftText?: string | null;
   finalText?: string | null;
   outcome?: string | null;
   ownerAction?: string | null;
   ownerNote?: string | null;
   reasonText?: string | null;
+  generatedQuestion?: unknown;
+  generatedDraft?: unknown;
+  analysisSnapshot?: unknown;
   rawPayload?: unknown;
 }
 
@@ -54,6 +59,11 @@ export interface ExpressionLearningTrainingRecordListInput {
 function cleanText(value: unknown, fallback = "", max = 12000): string {
   const text = typeof value === "string" ? value.trim() : "";
   return (text || fallback).slice(0, max);
+}
+
+function cleanScene(value: unknown, fallback = "general"): string {
+  const scene = cleanText(value, fallback, 80);
+  return scene === "general" || scene === "chat" || scene === "reply" ? scene : fallback;
 }
 
 function nullableText(value: unknown, max = 12000): string | null {
@@ -124,9 +134,7 @@ function buildTrainingPayload(input: ExpressionLearningTrainingRecordInput) {
   return {
     schema: "lusiyuan.expression_learning.training.v1",
     source_type: cleanText(input.sourceType, "unknown", 80),
-    platform: cleanText(input.platform, "general", 80),
-    scene: cleanText(input.scene, "general", 80),
-    scope: nullableText(input.scope, 80),
+    scene: cleanScene(input.scene),
     status: cleanText(input.status, "started", 80),
     prompt_material: {
       context_text: contextText,
@@ -169,9 +177,7 @@ function createData(
   const payload = buildTrainingPayload(input);
   return {
     sourceType: cleanText(input.sourceType, "unknown", 80),
-    platform: cleanText(input.platform, "general", 80),
-    scene: cleanText(input.scene, "general", 80),
-    scope: nullableText(input.scope, 80),
+    scene: cleanScene(input.scene),
     status: cleanText(input.status, "started", 80),
     contextText: nullableText(input.contextText),
     draftText: nullableText(input.draftText, 4000),
@@ -258,21 +264,23 @@ export async function updateExpressionLearningTrainingRecord(
   }
 
   const dataInput: ExpressionLearningTrainingRecordInput = {
-    sourceType: existing.sourceType,
-    platform: existing.platform,
-    scene: existing.scene,
-    scope: existing.scope,
+    sourceType: patch.sourceType ?? existing.sourceType,
+    scene: patch.scene ?? existing.scene,
     status: patch.status ?? existing.status,
-    contextText: existing.contextText,
-    draftText: existing.draftText,
+    contextText: patch.contextText !== undefined ? patch.contextText : existing.contextText,
+    draftText: patch.draftText !== undefined ? patch.draftText : existing.draftText,
     finalText: patch.finalText !== undefined ? patch.finalText : existing.finalText,
     outcome: patch.outcome !== undefined ? patch.outcome : existing.outcome,
     ownerAction: patch.ownerAction !== undefined ? patch.ownerAction : existing.ownerAction,
     ownerNote: patch.ownerNote !== undefined ? patch.ownerNote : existing.ownerNote,
     reasonText: patch.reasonText !== undefined ? patch.reasonText : existing.reasonText,
-    generatedQuestion: existing.generatedQuestion,
-    generatedDraft: existing.generatedDraft,
-    analysisSnapshot: existing.analysisSnapshot,
+    generatedQuestion: patch.generatedQuestion !== undefined
+      ? patch.generatedQuestion
+      : existing.generatedQuestion,
+    generatedDraft: patch.generatedDraft !== undefined ? patch.generatedDraft : existing.generatedDraft,
+    analysisSnapshot: patch.analysisSnapshot !== undefined
+      ? patch.analysisSnapshot
+      : existing.analysisSnapshot,
     rawPayload: {
       existing: existing.rawPayload,
       update: patch.rawPayload ?? null,
@@ -291,7 +299,11 @@ export async function listExpressionLearningTrainingRecords(
   input: ExpressionLearningTrainingRecordListInput
 ) {
   const where: Prisma.ExpressionLearningTrainingRecordWhereInput = {};
-  if (input.sourceType && input.sourceType !== "all") where.sourceType = input.sourceType;
+  if (input.sourceType && input.sourceType !== "all") {
+    where.sourceType = input.sourceType === "exercise"
+      ? { in: ["practice_question", "practice_answer", "manual_teaching"] }
+      : input.sourceType;
+  }
   if (input.status && input.status !== "all") {
     where.status = input.status === "open" ? "question_generated" : input.status;
   }
@@ -326,9 +338,7 @@ export async function listExpressionLearningTrainingRecords(
 export function buildExpressionLearningTrainingExport(record: TrainingRecordWithExample) {
   const input: ExpressionLearningTrainingRecordInput = {
     sourceType: record.sourceType,
-    platform: record.platform,
     scene: record.scene,
-    scope: record.scope,
     status: record.status,
     contextText: record.contextText,
     draftText: record.draftText,
@@ -351,9 +361,7 @@ export function buildExpressionLearningTrainingExport(record: TrainingRecordWith
     updated_at: record.updatedAt.toISOString(),
     raw_record: {
       source_type: record.sourceType,
-      platform: record.platform,
       scene: record.scene,
-      scope: record.scope,
       status: record.status,
       context_text: record.contextText,
       draft_text: record.draftText,

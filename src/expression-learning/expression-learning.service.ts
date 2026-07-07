@@ -52,8 +52,10 @@ const practiceQuestionPrompt = `你负责给 owner 设计“表达学习”练�
 
 规则：
 - 情境要具体，有真实语气和上下文。
+- 题目必须符合陆思源的基础身份：17 岁男生、大一学生。只能设计他这个年龄和身份可能遇到的表达问题。
+- 不要把陆思源设定成已经工作多年的人，不要出现“多年没见的老同学”“老同事”“加班”“职场 offer”“技术总监”“买房结婚”等明显不符合 17 岁大一学生经历的关系和事件。
 - 不要要求 owner 暴露隐私。
-- 如果是公开平台，问题应适合公开回复；如果是 chat，问题应适合私人聊天。
+- 如果 scene 是 reply，问题应适合公开评论回复；如果 scene 是 chat，问题应适合私人聊天。
 - draftText 可以给一个陆思源可能会写但仍可被 owner 修正的草稿。
 - teachingFocus 要说明这题想训练什么表达能力。
 - expectedOwnerInput 要告诉 owner 应该怎么作答。
@@ -90,6 +92,11 @@ function cleanConfidence(value: unknown): number {
 function cleanStatus(value: unknown): ExpressionLearningStatus {
   if (value === "pending" || value === "active" || value === "disabled") return value;
   return "active";
+}
+
+function cleanScene(value: unknown, fallback = "general"): string {
+  const scene = cleanText(value, fallback, 80);
+  return scene === "general" || scene === "chat" || scene === "reply" ? scene : fallback;
 }
 
 export function deriveExpressionOwnerAction(
@@ -131,14 +138,12 @@ function normalizePracticeQuestion(
   input: ExpressionLearningPracticeInput
 ): ExpressionLearningPracticeQuestion {
   const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const platform = cleanText(input.platform, "general", 80);
-  const scene = cleanText(input.scene, "general", 80);
+  const scene = cleanScene(input.scene);
   const focus = cleanText(input.focus, "", 200);
   const fallbackContext = focus
-    ? `有人在 ${platform} / ${scene} 场景里提出一个需要“${focus}”的表达问题。`
-    : `有人在 ${platform} / ${scene} 场景里提出一个需要陆思源回应的问题。`;
+    ? `有人在 ${scene} 场景里提出一个需要“${focus}”的表达问题。`
+    : `有人在 ${scene} 场景里提出一个需要陆思源回应的问题。`;
   return {
-    platform,
     scene,
     contextText: cleanText(raw.contextText, fallbackContext, 4000),
     draftText: cleanText(raw.draftText, "", 2000) || null,
@@ -154,9 +159,7 @@ function normalizePracticeQuestion(
 
 function buildAnalysisPayload(input: ExpressionLearningInput): string {
   return JSON.stringify({
-    platform: input.platform,
     scene: input.scene,
-    scope: input.scope ?? "platform",
     context: input.contextText,
     siyuan_draft: input.draftText ?? "",
     owner_final_reply: input.finalText ?? "",
@@ -168,13 +171,12 @@ function buildAnalysisPayload(input: ExpressionLearningInput): string {
 
 export function buildExpressionLearningEmbeddingText(
   example: Pick<ExpressionLearningExample,
-    "platform" | "scene" | "contextText" | "draftText" | "finalText" | "outcome" |
+    "scene" | "contextText" | "draftText" | "finalText" | "outcome" |
     "lesson" | "strategy" | "tone" | "avoidances" | "tags">
 ): string {
   const avoidances = Array.isArray(example.avoidances) ? example.avoidances.join("、") : "";
   const tags = Array.isArray(example.tags) ? example.tags.join("、") : "";
   return [
-    `平台：${example.platform}`,
     `场景：${example.scene}`,
     `情境：${example.contextText}`,
     example.draftText ? `原草稿：${example.draftText}` : "",
@@ -200,12 +202,49 @@ async function analyze(input: ExpressionLearningInput): Promise<ExpressionLearni
   }
 }
 
+function normalizeExpressionLearningInput(input: ExpressionLearningInput): ExpressionLearningInput {
+  return {
+    ...input,
+    sourceRef: cleanText(input.sourceRef, "", 240),
+    sourceType: cleanText(input.sourceType, "unknown", 80),
+    sourceId: cleanText(input.sourceId, "", 160) || null,
+    scene: cleanScene(input.scene),
+    contextText: cleanText(input.contextText, "", 12000),
+    draftText: cleanText(input.draftText, "", 4000) || null,
+    finalText: cleanText(input.finalText, "", 4000) || null,
+    ownerNote: cleanText(input.ownerNote, "", 2000) || null,
+    status: cleanStatus(input.status),
+  };
+}
+
+function assertExpressionLearningInput(
+  input: ExpressionLearningInput,
+  options: { requireSourceRef: boolean }
+) {
+  if (options.requireSourceRef && !input.sourceRef) {
+    throw Object.assign(new Error("sourceRef is required"), { statusCode: 400 });
+  }
+  if (!input.contextText) {
+    throw Object.assign(new Error("contextText is required"), { statusCode: 400 });
+  }
+  if (input.outcome === "sent" && !input.finalText) {
+    throw Object.assign(new Error("finalText is required for sent outcomes"), { statusCode: 400 });
+  }
+}
+
+export async function analyzeExpressionLearningDecision(
+  input: ExpressionLearningInput
+): Promise<ExpressionLearningAnalysis> {
+  const normalized = normalizeExpressionLearningInput(input);
+  assertExpressionLearningInput(normalized, { requireSourceRef: false });
+  return analyze(normalized);
+}
+
 export async function generateExpressionLearningPracticeQuestion(
   input: ExpressionLearningPracticeInput
 ): Promise<ExpressionLearningPracticeQuestion> {
   const normalized: ExpressionLearningPracticeInput = {
-    platform: cleanText(input.platform, "general", 80),
-    scene: cleanText(input.scene, "general", 80),
+    scene: cleanScene(input.scene),
     focus: cleanText(input.focus, "", 200) || null,
   };
   try {
@@ -224,8 +263,7 @@ export async function generateExpressionLearningDraft(
   input: ExpressionLearningDraftInput
 ): Promise<ExpressionLearningDraftOutput> {
   const normalized: ExpressionLearningDraftInput = {
-    platform: cleanText(input.platform, "general", 80),
-    scene: cleanText(input.scene, "general", 80),
+    scene: cleanScene(input.scene),
     contextText: cleanText(input.contextText, "", 12000),
   };
   if (!normalized.contextText) {
@@ -235,7 +273,6 @@ export async function generateExpressionLearningDraft(
   const [persona, learnedExamples] = await Promise.all([
     loadPersona(),
     retrieveExpressionLearningExamples({
-      platform: normalized.platform,
       scene: normalized.scene,
       query: normalized.contextText,
       limit: 4,
@@ -245,7 +282,6 @@ export async function generateExpressionLearningDraft(
   const userMessage = [
     "请根据下面的表达学习情境，生成一版“陆思源可能会写的原草稿”。",
     "",
-    `平台：${normalized.platform}`,
     `场景：${normalized.scene}`,
     "",
     "情境：",
@@ -263,7 +299,7 @@ export async function generateExpressionLearningDraft(
     memories: [],
     recentMessages: [],
     userMessage,
-    channel: normalized.platform,
+    channel: normalized.scene,
   }));
   return {
     draftText: cleanText(
@@ -301,35 +337,20 @@ async function indexExample(example: ExpressionLearningExample): Promise<Express
   }
 }
 
-export async function learnExpression(input: ExpressionLearningInput) {
-  const normalized: ExpressionLearningInput = {
-    ...input,
-    sourceRef: cleanText(input.sourceRef, "", 240),
-    sourceType: cleanText(input.sourceType, "unknown", 80),
-    sourceId: cleanText(input.sourceId, "", 160) || null,
-    platform: cleanText(input.platform, "unknown", 80),
-    scene: cleanText(input.scene, "general", 80),
-    scope: input.scope ?? "platform",
-    contextText: cleanText(input.contextText, "", 12000),
-    draftText: cleanText(input.draftText, "", 4000) || null,
-    finalText: cleanText(input.finalText, "", 4000) || null,
-    ownerNote: cleanText(input.ownerNote, "", 2000) || null,
-    status: cleanStatus(input.status),
-  };
-  if (!normalized.sourceRef || !normalized.contextText) {
-    throw Object.assign(new Error("sourceRef and contextText are required"), { statusCode: 400 });
-  }
-  if (normalized.outcome === "sent" && !normalized.finalText) {
-    throw Object.assign(new Error("finalText is required for sent outcomes"), { statusCode: 400 });
-  }
+export async function learnExpression(
+  input: ExpressionLearningInput,
+  analysisOverride?: Partial<ExpressionLearningAnalysis> | null
+) {
+  const normalized = normalizeExpressionLearningInput(input);
+  assertExpressionLearningInput(normalized, { requireSourceRef: true });
 
-  const analysis = await analyze(normalized);
+  const analysis = analysisOverride
+    ? normalizeExpressionLearningAnalysis(analysisOverride, normalized)
+    : await analyze(normalized);
   const data = {
     sourceType: normalized.sourceType,
     sourceId: normalized.sourceId ?? null,
-    platform: normalized.platform,
     scene: normalized.scene,
-    scope: normalized.scope ?? "platform",
     contextText: normalized.contextText,
     draftText: normalized.draftText ?? null,
     finalText: normalized.finalText ?? null,
@@ -367,16 +388,26 @@ function rankRecentExamples(examples: ExpressionLearningExample[], scene: string
   });
 }
 
+async function resolveRetrievalEmbedding(input: ExpressionLearningRetrievalInput): Promise<number[]> {
+  if (Array.isArray(input.queryEmbedding)) return input.queryEmbedding;
+  if (typeof input.queryEmbedding === "function") return input.queryEmbedding();
+  if (input.queryEmbedding) return input.queryEmbedding;
+  return embeddingProvider.embedText(input.query.slice(0, 6000));
+}
+
+function retrievalScenes(input: Pick<ExpressionLearningRetrievalInput, "scene">): string[] {
+  return ["general", input.scene]
+    .map((item) => cleanScene(item, ""))
+    .filter(Boolean)
+    .filter((item, index, all) => all.indexOf(item) === index);
+}
+
 export function buildExpressionLearningRetrievalWhere(
-  input: Pick<ExpressionLearningRetrievalInput, "platform" | "scene">
+  input: Pick<ExpressionLearningRetrievalInput, "scene">
 ): Prisma.ExpressionLearningExampleWhereInput {
   return {
     status: "active",
-    OR: [
-      { scope: "global" },
-      { platform: input.platform, scope: "platform" },
-      { platform: input.platform, scene: input.scene, scope: "scene" },
-    ],
+    scene: { in: retrievalScenes(input) },
   };
 }
 
@@ -384,6 +415,7 @@ export async function retrieveExpressionLearningExamples(
   input: ExpressionLearningRetrievalInput
 ): Promise<ExpressionLearningExample[]> {
   const limit = Math.min(Math.max(input.limit ?? 4, 1), 8);
+  const scenes = retrievalScenes(input);
   let examples: ExpressionLearningExample[] = [];
   const recent = await prisma.expressionLearningExample.findMany({
     where: buildExpressionLearningRetrievalWhere(input),
@@ -393,14 +425,13 @@ export async function retrieveExpressionLearningExamples(
   if (recent.length === 0) return [];
 
   try {
-    const queryEmbedding = await embeddingProvider.embedText(input.query.slice(0, 6000));
+    const queryEmbedding = await resolveRetrievalEmbedding(input);
     const matches = await searchExpressionLearningEmbeddings({
       embedding: queryEmbedding,
       provider: embeddingProvider.providerName,
       model: embeddingProvider.model,
       dimensions: embeddingProvider.dimensions,
-      platform: input.platform,
-      scene: input.scene,
+      scenes,
       limit: limit * 3,
     });
     if (matches.length > 0) {
@@ -436,7 +467,7 @@ export async function retrieveExpressionLearningExamples(
 export function formatExpressionLearningExamples(examples: ExpressionLearningExample[]): string {
   if (examples.length === 0) return "";
   const blocks = examples.map((example, index) => [
-    `经验 ${index + 1}（${example.platform} / ${example.scene}）`,
+    `经验 ${index + 1}（场景：${example.scene}）`,
     `当时情境：${example.contextText.slice(0, 700)}`,
     example.outcome === "skipped" ? "owner 最终选择：不回复" : `owner 最终回复：${example.finalText ?? ""}`,
     `学到的经验：${example.lesson}`,
@@ -451,9 +482,7 @@ export async function reanalyzeExpressionLearningExample(id: string) {
     sourceRef: example.sourceRef,
     sourceType: example.sourceType,
     sourceId: example.sourceId,
-    platform: example.platform,
     scene: example.scene,
-    scope: example.scope as ExpressionLearningInput["scope"],
     contextText: example.contextText,
     draftText: example.draftText,
     finalText: example.finalText,
@@ -476,6 +505,7 @@ export async function reindexExpressionLearningExample(id: string) {
 
 export const expressionLearningService = {
   learn: learnExpression,
+  analyze: analyzeExpressionLearningDecision,
   generateDraft: generateExpressionLearningDraft,
   generatePracticeQuestion: generateExpressionLearningPracticeQuestion,
   retrieve: retrieveExpressionLearningExamples,

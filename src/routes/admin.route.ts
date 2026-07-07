@@ -41,6 +41,7 @@ import {
 import { importXiaohongshuUrl } from "../platforms/xiaohongshu/xiaohongshu-url-import.service.js";
 import { chromeDevtoolsMcpService } from "../mcp/chrome-devtools-mcp.service.js";
 import {
+  analyzeExpressionLearningDecision,
   generateExpressionLearningDraft,
   generateExpressionLearningPracticeQuestion,
   learnExpression,
@@ -55,6 +56,7 @@ import {
   updateExpressionLearningTrainingRecord,
 } from "../expression-learning/expression-learning-training-records.js";
 import type {
+  ExpressionLearningAnalysis,
   ExpressionLearningOwnerAction,
   ExpressionLearningOutcome,
   ExpressionLearningStatus,
@@ -270,14 +272,6 @@ function expressionLearningStatus(
   const status = cleanString(value) ?? fallback;
   if (status === "pending" || status === "active" || status === "disabled") return status;
   throw routeError("status must be pending, active, or disabled", 400);
-}
-
-function expressionLearningScope(value: unknown, fallback = "scene") {
-  const scope = cleanString(value) ?? fallback;
-  if (scope === "global" || scope === "platform" || scope === "scene" || scope === "private") {
-    return scope;
-  }
-  throw routeError("invalid expression-learning scope", 400);
 }
 
 function daysAgoStart(days: number): Date {
@@ -1634,6 +1628,33 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send({ skills: await listSkills() });
   });
 
+  app.post("/v1/admin/expression-learning/analyze", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const outcome = expressionLearningOutcome(body.outcome);
+    const defaultOwnerAction = outcome === "skipped" ? "skipped" : "owner_taught";
+    const ownerAction = expressionLearningOwnerAction(
+      body.ownerAction,
+      defaultOwnerAction
+    );
+    const analysis = await analyzeExpressionLearningDecision({
+      sourceRef: "analysis-preview",
+      sourceType: cleanString(body.sourceType) ?? "manual_teaching",
+      sourceId: cleanNullableString(body.sourceId) ?? null,
+      scene: cleanString(body.scene) ?? "general",
+      contextText: cleanString(body.contextText) ?? "",
+      draftText: cleanNullableString(body.draftText) ?? null,
+      finalText: outcome === "skipped"
+        ? null
+        : cleanNullableString(body.finalText) ?? null,
+      outcome,
+      ownerAction,
+      ownerNote: cleanNullableString(body.ownerNote) ?? null,
+      status: expressionLearningStatus(body.status, "active"),
+      metadata: cleanRecord(body.metadata) ?? {},
+    });
+    return reply.send({ analysis });
+  });
+
   app.post("/v1/admin/expression-learning/examples", async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, unknown>;
     const sourceType = cleanString(body.sourceType) ?? "manual_teaching";
@@ -1652,34 +1673,34 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       ? null
       : cleanNullableString(body.finalText) ?? null;
     const ownerNote = cleanNullableString(body.ownerNote) ?? null;
-    const example = await learnExpression({
-      sourceRef: cleanString(body.sourceRef) ?? (
-        trainingRecordId ? `training:${trainingRecordId}` : `${sourceType}:${randomUUID()}`
-      ),
-      sourceType,
-      sourceId: cleanNullableString(body.sourceId) ?? null,
-      platform: cleanString(body.platform) ?? "general",
-      scene: cleanString(body.scene) ?? "general",
-      scope: expressionLearningScope(body.scope),
-      contextText,
-      draftText,
-      finalText,
-      outcome,
-      ownerAction,
-      ownerNote,
-      status,
-      metadata: {
-        ...metadata,
-        createdFrom: "admin_expression_learning",
-        trainingRecordId,
+    const analysisOverride = cleanRecord(body.analysis) as Partial<ExpressionLearningAnalysis> | null;
+    const example = await learnExpression(
+      {
+        sourceRef: cleanString(body.sourceRef) ?? (
+          trainingRecordId ? `training:${trainingRecordId}` : `${sourceType}:${randomUUID()}`
+        ),
+        sourceType,
+        sourceId: cleanNullableString(body.sourceId) ?? null,
+        scene: cleanString(body.scene) ?? "general",
+        contextText,
+        draftText,
+        finalText,
+        outcome,
+        ownerAction,
+        ownerNote,
+        status,
+        metadata: {
+          ...metadata,
+          createdFrom: "admin_expression_learning",
+          trainingRecordId,
+        },
       },
-    });
+      analysisOverride
+    );
     const trainingRecord = await completeExpressionLearningTrainingRecord({
       trainingRecordId,
       sourceType,
-      platform: example.platform,
       scene: example.scene,
-      scope: example.scope,
       status: "completed",
       contextText,
       draftText,
@@ -1697,16 +1718,13 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   app.post("/v1/admin/expression-learning/practice-question", async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, unknown>;
     const input = {
-      platform: cleanString(body.platform) ?? "general",
       scene: cleanString(body.scene) ?? "general",
       focus: cleanNullableString(body.focus) ?? null,
     };
     const question = await generateExpressionLearningPracticeQuestion(input);
     const trainingRecord = await createExpressionLearningTrainingRecord({
       sourceType: "practice_question",
-      platform: question.platform,
       scene: question.scene,
-      scope: "scene",
       status: "question_generated",
       contextText: question.contextText,
       draftText: question.draftText,
@@ -1721,16 +1739,13 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   app.post("/v1/admin/expression-learning/draft", async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, unknown>;
     const input = {
-      platform: cleanString(body.platform) ?? "general",
       scene: cleanString(body.scene) ?? "general",
       contextText: cleanString(body.contextText) ?? "",
     };
     const draft = await generateExpressionLearningDraft(input);
     const trainingRecord = await createExpressionLearningTrainingRecord({
       sourceType: "manual_draft",
-      platform: input.platform,
       scene: input.scene,
-      scope: "scene",
       status: "draft_generated",
       contextText: input.contextText,
       draftText: draft.draftText,
@@ -1760,6 +1775,37 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.type("application/json; charset=utf-8").send(exported);
   });
 
+  app.post("/v1/admin/expression-learning/training-records", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const nextStatus = cleanNullableString(body.status) ?? "draft_saved";
+    if (
+      !["question_generated", "draft_saved", "answered_archived", "completed", "dismissed"].includes(nextStatus)
+    ) {
+      throw routeError("invalid expression-learning training record status", 400);
+    }
+    const record = await createExpressionLearningTrainingRecord({
+      sourceType: cleanString(body.sourceType) ?? "manual_teaching",
+      scene: cleanString(body.scene) ?? "general",
+      status: nextStatus,
+      contextText: cleanNullableString(body.contextText) ?? null,
+      draftText: cleanNullableString(body.draftText) ?? null,
+      finalText: cleanNullableString(body.finalText) ?? null,
+      outcome: cleanNullableString(body.outcome) ?? null,
+      ownerAction: cleanNullableString(body.ownerAction) ?? null,
+      ownerNote: cleanNullableString(body.ownerNote) ?? null,
+      reasonText: cleanNullableString(body.reasonText) ?? null,
+      generatedQuestion: hasOwn(body, "generatedQuestion") ? body.generatedQuestion : undefined,
+      generatedDraft: hasOwn(body, "generatedDraft") ? body.generatedDraft : undefined,
+      analysisSnapshot: hasOwn(body, "analysisSnapshot") ? body.analysisSnapshot : undefined,
+      rawPayload: body,
+    });
+    const fullRecord = await prisma.expressionLearningTrainingRecord.findUniqueOrThrow({
+      where: { id: record.id },
+      include: { example: true },
+    });
+    return reply.status(201).send({ record: fullRecord });
+  });
+
   app.get("/v1/admin/expression-learning/training-records", async (request, reply) => {
     const query = request.query as {
       sourceType?: string;
@@ -1780,12 +1826,18 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const nextStatus = cleanNullableString(body.status) ?? undefined;
     if (
       nextStatus &&
-      !["question_generated", "answered_archived", "completed", "dismissed"].includes(nextStatus)
+      !["question_generated", "draft_saved", "answered_archived", "completed", "dismissed"].includes(nextStatus)
     ) {
       throw routeError("invalid expression-learning training record status", 400);
     }
     const record = await updateExpressionLearningTrainingRecord(recordId, {
+      sourceType: hasOwn(body, "sourceType") ? cleanString(body.sourceType) ?? "manual_teaching" : undefined,
+      scene: hasOwn(body, "scene") ? cleanString(body.scene) ?? "general" : undefined,
       status: hasOwn(body, "status") ? nextStatus : undefined,
+      contextText: hasOwn(body, "contextText")
+        ? cleanNullableString(body.contextText) ?? null
+        : undefined,
+      draftText: hasOwn(body, "draftText") ? cleanNullableString(body.draftText) ?? null : undefined,
       finalText: hasOwn(body, "finalText") ? cleanNullableString(body.finalText) ?? null : undefined,
       outcome: hasOwn(body, "outcome") ? cleanNullableString(body.outcome) ?? null : undefined,
       ownerAction: hasOwn(body, "ownerAction")
@@ -1795,14 +1847,32 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       reasonText: hasOwn(body, "reasonText")
         ? cleanNullableString(body.reasonText) ?? null
         : undefined,
+      generatedQuestion: hasOwn(body, "generatedQuestion") ? body.generatedQuestion : undefined,
+      generatedDraft: hasOwn(body, "generatedDraft") ? body.generatedDraft : undefined,
+      analysisSnapshot: hasOwn(body, "analysisSnapshot") ? body.analysisSnapshot : undefined,
       rawPayload: body,
     });
     return reply.send({ record });
   });
 
+  app.delete("/v1/admin/expression-learning/training-records/:recordId", async (request, reply) => {
+    const { recordId } = request.params as { recordId: string };
+    const record = await prisma.expressionLearningTrainingRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true, exampleId: true },
+    });
+    if (!record) {
+      throw routeError("expression-learning training record not found", 404);
+    }
+    if (record.exampleId) {
+      throw routeError("linked expression-learning exercises must be deleted from the experience library", 400);
+    }
+    await prisma.expressionLearningTrainingRecord.delete({ where: { id: recordId } });
+    return reply.send({ ok: true, deletedId: recordId });
+  });
+
   app.get("/v1/admin/expression-learning/examples", async (request, reply) => {
     const query = request.query as {
-      platform?: string;
       scene?: string;
       status?: string;
       outcome?: string;
@@ -1810,12 +1880,10 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       limit?: string;
     };
     const clauses: Prisma.ExpressionLearningExampleWhereInput[] = [];
-    const platform = cleanString(query.platform);
     const scene = cleanString(query.scene);
     const status = cleanString(query.status);
     const outcome = cleanString(query.outcome);
     const search = cleanString(query.q);
-    if (platform && platform !== "all") clauses.push({ platform });
     if (scene && scene !== "all") clauses.push({ scene });
     if (status && status !== "all") clauses.push({ status });
     if (outcome && outcome !== "all") clauses.push({ outcome });
@@ -1833,7 +1901,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const where: Prisma.ExpressionLearningExampleWhereInput = clauses.length > 0
       ? { AND: clauses }
       : {};
-    const [examples, total, active, pending, skipped, platforms] = await Promise.all([
+    const [examples, total, active, pending, skipped, scenes] = await Promise.all([
       prisma.expressionLearningExample.findMany({
         where,
         orderBy: { updatedAt: "desc" },
@@ -1844,15 +1912,15 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       prisma.expressionLearningExample.count({ where: { status: "pending" } }),
       prisma.expressionLearningExample.count({ where: { outcome: "skipped" } }),
       prisma.expressionLearningExample.findMany({
-        distinct: ["platform"],
-        select: { platform: true },
-        orderBy: { platform: "asc" },
+        distinct: ["scene"],
+        select: { scene: true },
+        orderBy: { scene: "asc" },
       }),
     ]);
     return reply.send({
       examples,
       summary: { total, active, pending, skipped },
-      platforms: platforms.map((item) => item.platform),
+      scenes: scenes.map((item) => item.scene),
     });
   });
 
@@ -1872,13 +1940,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       }
       data.status = next;
     }
-    if (body.scope !== undefined) {
-      const next = cleanString(body.scope);
-      if (!next || !["global", "platform", "scene", "private"].includes(next)) {
-        throw routeError("invalid expression-learning scope", 400);
-      }
-      data.scope = next;
-    }
     if (body.tags !== undefined) data.tags = body.tags as Prisma.InputJsonValue;
     if (body.avoidances !== undefined) data.avoidances = body.avoidances as Prisma.InputJsonValue;
     let example = await prisma.expressionLearningExample.update({
@@ -1890,6 +1951,25 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       example = await reindexExpressionLearningExample(exampleId);
     }
     return reply.send({ example });
+  });
+
+  app.delete("/v1/admin/expression-learning/examples/:exampleId", async (request, reply) => {
+    const { exampleId } = request.params as { exampleId: string };
+    const example = await prisma.expressionLearningExample.findUnique({
+      where: { id: exampleId },
+      select: { id: true, status: true },
+    });
+    if (!example) {
+      throw routeError("expression learning example not found", 404);
+    }
+    if (example.status !== "disabled") {
+      throw routeError("only disabled expression learning examples can be deleted", 400);
+    }
+    await prisma.expressionLearningTrainingRecord.deleteMany({
+      where: { exampleId },
+    });
+    await prisma.expressionLearningExample.delete({ where: { id: exampleId } });
+    return reply.send({ ok: true, deletedId: exampleId });
   });
 
   app.post("/v1/admin/expression-learning/examples/:exampleId/reanalyze", async (request, reply) => {

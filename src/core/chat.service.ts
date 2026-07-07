@@ -35,6 +35,10 @@ import {
   replySegmentDelay,
   segmentReply,
 } from "./reply-segmentation.service.js";
+import {
+  formatExpressionLearningExamples,
+  retrieveExpressionLearningExamples,
+} from "../expression-learning/expression-learning.service.js";
 import type { ChatInput, ChatOutput, ChatReplyPart } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 import type { ChatMessage, MessageContentPart } from "../types/model.js";
@@ -74,6 +78,10 @@ function createChatTrace(input: {
       }
     },
   };
+}
+
+function expressionLearningSceneForChat(_channel: string): string {
+  return "chat";
 }
 
 async function emitProgressDraft(input: {
@@ -230,12 +238,24 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const relationshipRecord = await trace.time("relationship_get_or_create", () =>
     relationshipStateService.getOrCreate(user.id)
   );
-  const sharedQueryEmbedding =
-    runtimeConfig.MEMORY_RETRIEVAL_ENABLED && runtimeConfig.CHAT_CONTEXT_RECALL_ENABLED
-      ? trace.time("query_embedding", () => embeddingProvider.embedText(input.message))
-      : undefined;
+  let sharedQueryEmbedding: Promise<number[]> | undefined;
+  const getSharedQueryEmbedding = () => {
+    sharedQueryEmbedding ??= trace.time("query_embedding", () =>
+      embeddingProvider.embedText(input.message)
+    );
+    return sharedQueryEmbedding;
+  };
+  const expressionLearningScene = expressionLearningSceneForChat(input.channel);
 
-  const [persona, ownerProfile, memories, conversationContext, runtimeState, relationshipState] = await trace.time(
+  const [
+    persona,
+    ownerProfile,
+    memories,
+    conversationContext,
+    runtimeState,
+    relationshipState,
+    expressionLearningExamples,
+  ] = await trace.time(
     "prepare_prompt_materials",
     () =>
       Promise.all([
@@ -244,13 +264,17 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         memoryService.retrieveRelevantMemories({
           personId: relationshipRecord.personId,
           query: input.message,
-          queryEmbedding: sharedQueryEmbedding,
+          queryEmbedding: runtimeConfig.MEMORY_RETRIEVAL_ENABLED
+            ? getSharedQueryEmbedding()
+            : undefined,
         }),
         loadPromptConversationContext({
           userId: user.id,
           conversationId: conversation.id,
           query: input.message,
-          queryEmbedding: sharedQueryEmbedding,
+          queryEmbedding: runtimeConfig.CHAT_CONTEXT_RECALL_ENABLED
+            ? getSharedQueryEmbedding()
+            : undefined,
           excludeMessageId: userMessage.id,
         }),
         runtimeStateService
@@ -265,6 +289,15 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
             console.warn("[chat] relationship state unavailable:", err);
             return undefined;
           }),
+        retrieveExpressionLearningExamples({
+          scene: expressionLearningScene,
+          query: input.message,
+          queryEmbedding: getSharedQueryEmbedding,
+          limit: 4,
+        }).catch((err) => {
+          console.warn("[chat] expression learning unavailable:", err);
+          return [];
+        }),
       ])
   );
   checkCancelled();
@@ -274,6 +307,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     recentMessages: conversationContext.recentMessages.length,
     summaries: conversationContext.summaries.length,
     recallWindows: conversationContext.recallWindows.length,
+    expressionExamples: expressionLearningExamples.length,
   });
 
   const toolContext: ToolExecutionContext = {
@@ -305,6 +339,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     relationshipState,
     ownerProfile: ownerProfile || undefined,
     toolsAvailable: availableTools.length > 0,
+    expressionLearningContext: formatExpressionLearningExamples(expressionLearningExamples),
   });
   trace.mark("prompt_ready", { messages: messages.length });
 

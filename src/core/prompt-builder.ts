@@ -19,6 +19,7 @@ interface BuildChatPromptInput {
   ownerProfile?: string;
   toolResults?: string;
   toolsAvailable?: boolean;
+  expressionLearningContext?: string;
 }
 
 export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
@@ -35,6 +36,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     ownerProfile,
     toolResults,
     toolsAvailable = false,
+    expressionLearningContext,
   } = input;
   const projection = buildPersonaProjection({
     persona,
@@ -77,6 +79,17 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
         "以下内容来自 owner/profile.md，描述的是正在和陆思源对话的 owner，不是陆思源的人设、记忆或自我描述。它用于理解“对方是谁、你们是什么关系、该如何理解对方”，优先级高于模型从零散聊天里推断出的身份印象。",
         "",
         ownerProfile.trim(),
+        "",
+        "---",
+      ].join("\n")
+    : "";
+  const expressionLearningSection = expressionLearningContext?.trim()
+    ? [
+        "## 本轮动态表达样本",
+        "",
+        "以下内容来自经验库，是 owner 过去教过的相似表达场景。它只用于参考判断、长度、语气和取舍；不要照抄原句，也不要把其中的具体事实当成当前事实。",
+        "",
+        expressionLearningContext.trim(),
         "",
         "---",
       ].join("\n")
@@ -163,6 +176,8 @@ ${projection.relevantCanon}
 ${projection.styleExamples}
 
 ---
+
+${expressionLearningSection ? `${expressionLearningSection}\n\n` : ""}
 
 ## 相关记忆（参考信息）
 

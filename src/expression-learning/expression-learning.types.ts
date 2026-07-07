@@ -12,9 +12,7 @@ export interface ExpressionLearningInput {
   sourceRef: string;
   sourceType: string;
   sourceId?: string | null;
-  platform: string;
   scene: string;
-  scope?: "global" | "platform" | "scene" | "private";
   contextText: string;
   draftText?: string | null;
   finalText?: string | null;
@@ -36,20 +34,18 @@ export interface ExpressionLearningAnalysis {
 }
 
 export interface ExpressionLearningRetrievalInput {
-  platform: string;
   scene: string;
   query: string;
+  queryEmbedding?: Promise<number[]> | number[] | (() => Promise<number[]>);
   limit?: number;
 }
 
 export interface ExpressionLearningPracticeInput {
-  platform: string;
   scene: string;
   focus?: string | null;
 }
 
 export interface ExpressionLearningPracticeQuestion {
-  platform: string;
   scene: string;
   contextText: string;
   draftText: string | null;
@@ -59,7 +55,6 @@ export interface ExpressionLearningPracticeQuestion {
 }
 
 export interface ExpressionLearningDraftInput {
-  platform: string;
   scene: string;
   contextText: string;
 }

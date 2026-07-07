@@ -143,9 +143,7 @@ async function learnFromFinalReply(input: {
     sourceRef: `xiaohongshu_comment:${comment.id}`,
     sourceType: "xiaohongshu_comment",
     sourceId: comment.id,
-    platform: "xiaohongshu",
-    scene: "comment_reply",
-    scope: "platform",
+    scene: "reply",
     contextText: [
       `帖子标题：${comment.post.title}`,
       `帖子类型：${comment.post.postType}`,
@@ -164,6 +162,7 @@ async function learnFromFinalReply(input: {
       draftId: input.draftId,
       replyCommentId: input.replyCommentId,
       source: input.source,
+      sourcePlatform: "xiaohongshu",
     },
   });
 }

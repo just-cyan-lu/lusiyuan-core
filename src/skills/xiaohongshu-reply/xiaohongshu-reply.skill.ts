@@ -150,8 +150,7 @@ export async function generateXiaohongshuReplyDraft(
     input.threadContext ? `评论线程：${input.threadContext}` : "",
   ].filter(Boolean).join("\n");
   const learnedExamples = await retrieveExpressionLearningExamples({
-    platform: "xiaohongshu",
-    scene: "comment_reply",
+    scene: "reply",
     query: learningQuery,
     limit: 4,
   });
