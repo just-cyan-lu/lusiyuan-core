@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
+import { relationshipStateService } from "../../runtime/relationship-state.service.js";
 import {
   deriveExpressionOwnerAction,
   learnExpression,
@@ -53,6 +56,290 @@ function formatThreadLine(comment: {
   const role = comment.isAuthor ? "（作者）" : "";
   const target = comment.replyToAuthorName ? ` 回复 ${comment.replyToAuthorName}` : "";
   return `${author}${role}${target}：${comment.content}`;
+}
+
+function shortHash(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex").slice(0, 24);
+}
+
+function previewText(value: string, max = 80): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > max ? `${normalized.slice(0, max - 1)}…` : normalized;
+}
+
+function readRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+interface XiaohongshuPostMirror {
+  id: string;
+  externalId: string | null;
+  title: string;
+  url: string | null;
+  postType: string;
+  authorName: string | null;
+}
+
+interface XiaohongshuCommentMirror {
+  id: string;
+  postId: string;
+  parentId: string | null;
+  replyToId: string | null;
+  externalId: string | null;
+  authorName: string | null;
+  authorUserId: string | null;
+  content: string;
+  isAuthor: boolean;
+  replyToAuthorName: string | null;
+  replyToAuthorUserId: string | null;
+  sortOrder: number;
+  publishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface XiaohongshuConversationTarget {
+  key: string;
+  externalUserId: string;
+  displayName: string | null;
+  authorName: string | null;
+  authorUserId: string | null;
+  commentIds: Set<string>;
+}
+
+function commenterKey(comment: XiaohongshuCommentMirror): string {
+  const userId = cleanText(comment.authorUserId, 240);
+  if (userId) return `user:${userId}`;
+  const authorName = cleanText(comment.authorName, 240);
+  if (authorName) return `name:${authorName}`;
+  return `comment:${comment.id}`;
+}
+
+function commenterExternalUserId(comment: XiaohongshuCommentMirror): string {
+  const userId = cleanText(comment.authorUserId, 240);
+  if (userId) return `xiaohongshu:${userId}`;
+  const authorName = cleanText(comment.authorName, 240);
+  if (authorName) return `xiaohongshu:name:${shortHash(authorName)}`;
+  return `xiaohongshu:comment:${comment.externalId ?? comment.id}`;
+}
+
+function conversationExternalId(
+  post: XiaohongshuPostMirror,
+  target: XiaohongshuConversationTarget
+): string {
+  const postKey = post.externalId ? `post:${post.externalId}` : `post-db:${post.id}`;
+  return `xiaohongshu:${postKey}:user:${shortHash(target.externalUserId)}`;
+}
+
+function authorReplyTargetsCommenter(
+  comment: XiaohongshuCommentMirror,
+  target: XiaohongshuConversationTarget
+): boolean {
+  if (!comment.isAuthor) return false;
+  if (comment.replyToId && target.commentIds.has(comment.replyToId)) return true;
+  const replyToUserId = cleanText(comment.replyToAuthorUserId, 240);
+  if (target.authorUserId && replyToUserId === target.authorUserId) return true;
+  const replyToName = cleanText(comment.replyToAuthorName, 240);
+  return Boolean(target.authorName && replyToName === target.authorName);
+}
+
+function mirroredMessageContent(comment: XiaohongshuCommentMirror): string {
+  const target = cleanText(comment.replyToAuthorName, 120);
+  return target ? `回复 ${target}：${comment.content}` : comment.content;
+}
+
+function mirroredMessageMetadata(
+  post: XiaohongshuPostMirror,
+  comment: XiaohongshuCommentMirror
+): Prisma.InputJsonObject {
+  return {
+    sourcePlatform: "xiaohongshu",
+    sourceType: "comment",
+    postId: post.id,
+    postExternalId: post.externalId,
+    postTitle: post.title,
+    postUrl: post.url,
+    postType: post.postType,
+    commentId: comment.id,
+    commentExternalId: comment.externalId,
+    parentId: comment.parentId,
+    replyToId: comment.replyToId,
+    authorName: comment.authorName,
+    authorUserId: comment.authorUserId,
+    isAuthor: comment.isAuthor,
+    replyToAuthorName: comment.replyToAuthorName,
+    replyToAuthorUserId: comment.replyToAuthorUserId,
+    publishedAt: comment.publishedAt?.toISOString() ?? null,
+  };
+}
+
+function conversationMetadata(
+  current: Prisma.JsonValue | null,
+  post: XiaohongshuPostMirror,
+  target: XiaohongshuConversationTarget
+): Prisma.InputJsonObject {
+  const existing = readRecord(current);
+  const existingNote = typeof existing.note === "string" ? existing.note.trim() : "";
+  return {
+    ...existing,
+    note: existingNote || `小红书《${previewText(post.title, 48)}》`,
+    sourcePlatform: "xiaohongshu",
+    sourceType: "post_comment_interaction",
+    postId: post.id,
+    postExternalId: post.externalId,
+    postTitle: post.title,
+    postUrl: post.url,
+    postType: post.postType,
+    targetExternalUserId: target.externalUserId,
+    targetAuthorName: target.authorName,
+    targetAuthorUserId: target.authorUserId,
+    mirroredAt: new Date().toISOString(),
+  };
+}
+
+async function upsertMirroredMessage(input: {
+  conversationId: string;
+  post: XiaohongshuPostMirror;
+  comment: XiaohongshuCommentMirror;
+}) {
+  const externalMessageId = `xiaohongshu_comment:${input.comment.id}`;
+  const createdAt = input.comment.publishedAt ?? input.comment.createdAt;
+  return prisma.message.upsert({
+    where: {
+      conversationId_externalMessageId: {
+        conversationId: input.conversationId,
+        externalMessageId,
+      },
+    },
+    create: {
+      conversationId: input.conversationId,
+      role: input.comment.isAuthor ? "assistant" : "user",
+      content: mirroredMessageContent(input.comment),
+      externalMessageId,
+      createdAt,
+      metadata: mirroredMessageMetadata(input.post, input.comment),
+    },
+    update: {
+      role: input.comment.isAuthor ? "assistant" : "user",
+      content: mirroredMessageContent(input.comment),
+      createdAt,
+      metadata: mirroredMessageMetadata(input.post, input.comment),
+    },
+  });
+}
+
+export async function mirrorXiaohongshuThreadToConversations(rootId: string) {
+  const root = await prisma.xiaohongshuComment.findUniqueOrThrow({
+    where: { id: rootId },
+    include: { post: true },
+  });
+  const post: XiaohongshuPostMirror = root.post;
+  const thread = await prisma.xiaohongshuComment.findMany({
+    where: { OR: [{ id: rootId }, { parentId: rootId }] },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  const targets = new Map<string, XiaohongshuConversationTarget>();
+  for (const comment of thread) {
+    if (comment.isAuthor) continue;
+    const key = commenterKey(comment);
+    const existing = targets.get(key);
+    if (existing) {
+      existing.commentIds.add(comment.id);
+      continue;
+    }
+    targets.set(key, {
+      key,
+      externalUserId: commenterExternalUserId(comment),
+      displayName: cleanText(comment.authorName, 240) || null,
+      authorName: cleanText(comment.authorName, 240) || null,
+      authorUserId: cleanText(comment.authorUserId, 240) || null,
+      commentIds: new Set([comment.id]),
+    });
+  }
+
+  let conversationCount = 0;
+  let messageCount = 0;
+  for (const target of targets.values()) {
+    const relevantComments = thread.filter((comment) =>
+      (!comment.isAuthor && commenterKey(comment) === target.key) ||
+      authorReplyTargetsCommenter(comment, target)
+    );
+    if (relevantComments.length === 0) continue;
+
+    const user = await prisma.user.upsert({
+      where: { externalId: target.externalUserId },
+      update: target.displayName ? { displayName: target.displayName } : {},
+      create: {
+        externalId: target.externalUserId,
+        displayName: target.displayName,
+      },
+    });
+    const relationship = await relationshipStateService.getOrCreate(user.id);
+    const externalConversationId = conversationExternalId(post, target);
+    const currentConversation = await prisma.conversation.findFirst({
+      where: {
+        userId: user.id,
+        channel: "xiaohongshu",
+        externalConversationId,
+      },
+    });
+    const conversation = currentConversation
+      ? await prisma.conversation.update({
+          where: { id: currentConversation.id },
+          data: {
+            metadata: conversationMetadata(currentConversation.metadata, post, target),
+          },
+        })
+      : await prisma.conversation.create({
+          data: {
+            userId: user.id,
+            channel: "xiaohongshu",
+            externalConversationId,
+            metadata: conversationMetadata(null, post, target),
+          },
+        });
+
+    const mirroredMessages = [];
+    for (const comment of relevantComments) {
+      mirroredMessages.push(
+        await upsertMirroredMessage({
+          conversationId: conversation.id,
+          post,
+          comment,
+        })
+      );
+    }
+    conversationCount++;
+    messageCount += mirroredMessages.length;
+
+    const latestMessage = mirroredMessages
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    if (
+      latestMessage &&
+      (!relationship.lastInteractionAt ||
+        latestMessage.createdAt.getTime() > relationship.lastInteractionAt.getTime())
+    ) {
+      await relationshipStateService.applyPatch({
+        relationshipId: relationship.id,
+        patch: {
+          lastInteractionAt: latestMessage.createdAt,
+          recentSignal: `小红书评论互动：${previewText(latestMessage.content)}`,
+          statusNote: "平台评论互动已同步到对话追溯。",
+        },
+        eventType: "platform_interaction_sync",
+        source: "xiaohongshu_comment_mirror",
+        userId: user.id,
+        conversationId: conversation.id,
+        messageId: latestMessage.id,
+        channel: "xiaohongshu",
+      });
+    }
+  }
+
+  return { conversations: conversationCount, messages: messageCount };
 }
 
 export async function getXiaohongshuCommentThreadContext(commentId: string) {
@@ -265,6 +552,8 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
       : []),
   ]);
 
+  await mirrorXiaohongshuThreadToConversations(rootId);
+
   const learningExample = await learnFromFinalReply({
     targetCommentId: comment.id,
     replyCommentId,
@@ -334,6 +623,8 @@ export async function syncXiaohongshuAccountMirror(posts: SyncPostInput[]) {
   let replyCount = 0;
   let authorReplyCount = 0;
   let learnedCount = 0;
+  let mirroredConversationCount = 0;
+  let mirroredMessageCount = 0;
 
   for (const item of posts.slice(0, 100)) {
     const externalId = cleanText(item.externalId, 240);
@@ -454,6 +745,10 @@ export async function syncXiaohongshuAccountMirror(posts: SyncPostInput[]) {
           learnedCount++;
         }
       }
+
+      const mirrored = await mirrorXiaohongshuThreadToConversations(root.id);
+      mirroredConversationCount += mirrored.conversations;
+      mirroredMessageCount += mirrored.messages;
     }
   }
 
@@ -466,6 +761,8 @@ export async function syncXiaohongshuAccountMirror(posts: SyncPostInput[]) {
       replies: replyCount,
       authorReplies: authorReplyCount,
       learned: learnedCount,
+      mirroredConversations: mirroredConversationCount,
+      mirroredMessages: mirroredMessageCount,
     },
   };
 }
