@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-export type RunningTaskKind = "chat" | "dream";
+export type RunningTaskKind = "chat" | "dream" | "maintenance";
 export type RunningTaskStatus = "running" | "cancelling";
 
 export interface RunningTask {

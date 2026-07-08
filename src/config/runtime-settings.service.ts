@@ -30,7 +30,12 @@ function validateValue(key: RuntimeSettingKey, value: unknown): SettingValue {
   if (definitionType === "select" && "options" in definition && definition.options && !definition.options.includes(value as never)) {
     throw new Error(`${key} must be one of: ${definition.options.join(", ")}`);
   }
-  if ((key === "DREAM_CRON" || key === "RUNTIME_AUTONOMY_CRON") && !cron.validate(value)) {
+  if (
+    (key === "DREAM_CRON" ||
+      key === "RUNTIME_AUTONOMY_CRON" ||
+      key === "EXPRESSION_LEARNING_AUTO_PRACTICE_CRON") &&
+    !cron.validate(value)
+  ) {
     throw new Error(`${key} is not a valid cron expression`);
   }
   if (key === "CHROME_DEVTOOLS_MCP_BROWSER_URL") {

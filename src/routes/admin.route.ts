@@ -41,9 +41,12 @@ import {
 import { importXiaohongshuUrl } from "../platforms/xiaohongshu/xiaohongshu-url-import.service.js";
 import { chromeDevtoolsMcpService } from "../mcp/chrome-devtools-mcp.service.js";
 import {
+  generateAndStoreExpressionLearningPracticeQuestion,
+  generateExpressionLearningPracticeQuestionBatch,
+} from "../expression-learning/expression-learning-practice-generator.js";
+import {
   analyzeExpressionLearningDecision,
   generateExpressionLearningDraft,
-  generateExpressionLearningPracticeQuestion,
   learnExpression,
   reanalyzeExpressionLearningExample,
   reindexExpressionLearningExample,
@@ -1721,19 +1724,44 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       scene: cleanString(body.scene) ?? "general",
       focus: cleanNullableString(body.focus) ?? null,
     };
-    const question = await generateExpressionLearningPracticeQuestion(input);
-    const trainingRecord = await createExpressionLearningTrainingRecord({
-      sourceType: "practice_question",
-      scene: question.scene,
-      status: "question_generated",
-      contextText: question.contextText,
-      draftText: question.draftText,
-      generatedQuestion: question,
-      rawPayload: {
-        request: input,
+    const result = await generateAndStoreExpressionLearningPracticeQuestion({
+      ...input,
+      source: "admin_manual",
+    });
+    return reply.send(result);
+  });
+
+  app.post("/v1/admin/expression-learning/practice-questions/batch", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const rawCount = Number(body.count ?? 1);
+    const count = Number.isFinite(rawCount)
+      ? Math.min(Math.max(Math.round(rawCount), 1), 20)
+      : 1;
+    const items = await generateExpressionLearningPracticeQuestionBatch({
+      count,
+      scene: cleanString(body.scene) ?? "general",
+      focus: cleanNullableString(body.focus) ?? null,
+      source: "admin_batch",
+    });
+    return reply.send({ items, count: items.length });
+  });
+
+  app.post("/v1/admin/expression-learning/practice-questions/run-auto-batch", async (_request, reply) => {
+    const items = await generateExpressionLearningPracticeQuestionBatch({
+      count: runtimeConfig.EXPRESSION_LEARNING_AUTO_PRACTICE_COUNT,
+      scene: runtimeConfig.EXPRESSION_LEARNING_AUTO_PRACTICE_SCENE,
+      focus: runtimeConfig.EXPRESSION_LEARNING_AUTO_PRACTICE_FOCUS || null,
+      source: "admin_run_now",
+    });
+    return reply.send({
+      items,
+      count: items.length,
+      config: {
+        count: runtimeConfig.EXPRESSION_LEARNING_AUTO_PRACTICE_COUNT,
+        scene: runtimeConfig.EXPRESSION_LEARNING_AUTO_PRACTICE_SCENE,
+        focus: runtimeConfig.EXPRESSION_LEARNING_AUTO_PRACTICE_FOCUS || null,
       },
     });
-    return reply.send({ question, trainingRecord });
   });
 
   app.post("/v1/admin/expression-learning/draft", async (request, reply) => {
@@ -1810,11 +1838,15 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const query = request.query as {
       sourceType?: string;
       status?: string;
+      createdFrom?: string;
+      createdTo?: string;
       limit?: string;
     };
     const result = await listExpressionLearningTrainingRecords({
       sourceType: cleanString(query.sourceType) ?? "practice_question",
       status: cleanString(query.status) ?? "all",
+      createdFrom: cleanString(query.createdFrom) ?? null,
+      createdTo: cleanString(query.createdTo) ?? null,
       limit: clampLimit(query.limit, 100),
     });
     return reply.send(result);

@@ -6,7 +6,10 @@ import {
   deriveExpressionOwnerAction,
   normalizeExpressionLearningAnalysis,
 } from "../src/expression-learning/expression-learning.service.js";
-import { buildExpressionLearningTrainingExport } from "../src/expression-learning/expression-learning-training-records.js";
+import {
+  buildExpressionLearningTrainingExport,
+  buildExpressionLearningTrainingRecordWhere,
+} from "../src/expression-learning/expression-learning-training-records.js";
 import { normalizeXiaohongshuPostType } from "../src/platforms/xiaohongshu/xiaohongshu-account.service.js";
 
 test("distinguishes owner-written, edited, accepted, and skipped decisions", () => {
@@ -138,6 +141,29 @@ test("dismissed training questions export as rejected question feedback", () => 
 
   assert.equal(exported.supervised_sample.task, "rejected_question");
   assert.equal(exported.owner_decision.owner_note, "违背人设，关系背景不能凭空编。");
+});
+
+test("training record filters include exercise source and local created date range", () => {
+  const where = buildExpressionLearningTrainingRecordWhere({
+    sourceType: "exercise",
+    status: "open",
+    createdFrom: "2026-07-08",
+    createdTo: "2026-07-09",
+  });
+
+  assert.deepEqual(where.sourceType, {
+    in: ["practice_question", "practice_answer", "manual_teaching"],
+  });
+  assert.equal(where.status, "question_generated");
+  assert.ok(where.createdAt && typeof where.createdAt === "object");
+  assert.equal(
+    (where.createdAt as { gte: Date }).gte.toISOString(),
+    new Date(2026, 6, 8, 0, 0, 0, 0).toISOString()
+  );
+  assert.equal(
+    (where.createdAt as { lte: Date }).lte.toISOString(),
+    new Date(2026, 6, 9, 23, 59, 59, 999).toISOString()
+  );
 });
 
 test("uses a controlled Xiaohongshu post type vocabulary", () => {

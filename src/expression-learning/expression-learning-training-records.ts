@@ -53,6 +53,8 @@ export interface ExpressionLearningTrainingRecordUpdateInput {
 export interface ExpressionLearningTrainingRecordListInput {
   sourceType?: string | null;
   status?: string | null;
+  createdFrom?: string | Date | null;
+  createdTo?: string | Date | null;
   limit?: number;
 }
 
@@ -91,6 +93,46 @@ function jsonValue(value: unknown): Prisma.InputJsonValue | undefined {
   return value === undefined || value === null
     ? undefined
     : value as Prisma.InputJsonValue;
+}
+
+function parseDateBoundary(value: string | Date | null | undefined, boundary: "start" | "end"): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  const text = value.trim();
+  if (!text) return null;
+  const localDate = text.match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  if (localDate) {
+    const [, year, month, day] = localDate;
+    return boundary === "start"
+      ? new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0)
+      : new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999);
+  }
+  const date = new Date(text);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+export function buildExpressionLearningTrainingRecordWhere(
+  input: ExpressionLearningTrainingRecordListInput
+): Prisma.ExpressionLearningTrainingRecordWhereInput {
+  const where: Prisma.ExpressionLearningTrainingRecordWhereInput = {};
+  if (input.sourceType && input.sourceType !== "all") {
+    where.sourceType = input.sourceType === "exercise"
+      ? { in: ["practice_question", "practice_answer", "manual_teaching"] }
+      : input.sourceType;
+  }
+  if (input.status && input.status !== "all") {
+    where.status = input.status === "open" ? "question_generated" : input.status;
+  }
+
+  const createdFrom = parseDateBoundary(input.createdFrom, "start");
+  const createdTo = parseDateBoundary(input.createdTo, "end");
+  if (createdFrom || createdTo) {
+    where.createdAt = {
+      ...(createdFrom ? { gte: createdFrom } : {}),
+      ...(createdTo ? { lte: createdTo } : {}),
+    };
+  }
+  return where;
 }
 
 function analysisSnapshot(example: ExpressionLearningExample): Prisma.InputJsonObject {
@@ -298,20 +340,12 @@ export async function updateExpressionLearningTrainingRecord(
 export async function listExpressionLearningTrainingRecords(
   input: ExpressionLearningTrainingRecordListInput
 ) {
-  const where: Prisma.ExpressionLearningTrainingRecordWhereInput = {};
-  if (input.sourceType && input.sourceType !== "all") {
-    where.sourceType = input.sourceType === "exercise"
-      ? { in: ["practice_question", "practice_answer", "manual_teaching"] }
-      : input.sourceType;
-  }
-  if (input.status && input.status !== "all") {
-    where.status = input.status === "open" ? "question_generated" : input.status;
-  }
+  const where = buildExpressionLearningTrainingRecordWhere(input);
   const limit = Math.min(Math.max(input.limit ?? 100, 1), 300);
   const [records, total, open, archived, completed, dismissed] = await Promise.all([
     prisma.expressionLearningTrainingRecord.findMany({
       where,
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
       take: limit,
       include: { example: true },
     }),

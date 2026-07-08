@@ -54,6 +54,12 @@ export const runtimeSettingDefinitions = {
   TOOL_WEB_SEARCH_MODE: { group: "工具访问", label: "web_search", type: "select", defaultValue: "owner_only", options: ["off", "owner_only", "on"], description: "控制模型能否用 Tavily 搜索网页；还需要 TAVILY_ENABLED 和 API Key 可用。" },
   TOOL_READ_PAGE_MODE: { group: "工具访问", label: "read_page", type: "select", defaultValue: "owner_only", options: ["off", "owner_only", "on"], description: "控制模型能否读取指定网页正文；还需要 Jina、Playwright 或 Chrome MCP 至少一个读取器启用。" },
 
+  EXPRESSION_LEARNING_AUTO_PRACTICE_ENABLED: { group: "表达学习", label: "自动出题启用", type: "boolean", defaultValue: false, description: "开启后按 cron 自动生成表达学习习题，生成后进入习题库待处理。" },
+  EXPRESSION_LEARNING_AUTO_PRACTICE_CRON: { group: "表达学习", label: "自动出题时间", type: "string", defaultValue: "0 9 * * *", description: "Cron 表达式，使用服务器本地时间。" },
+  EXPRESSION_LEARNING_AUTO_PRACTICE_COUNT: { group: "表达学习", label: "每次出题数量", type: "integer", defaultValue: 3, min: 1, max: 20, description: "每次自动任务生成多少道题。" },
+  EXPRESSION_LEARNING_AUTO_PRACTICE_SCENE: { group: "表达学习", label: "自动出题场景", type: "select", defaultValue: "general", options: ["general", "chat", "reply"], description: "自动出题使用的场景：general=通用，chat=私聊，reply=公开评论回复。" },
+  EXPRESSION_LEARNING_AUTO_PRACTICE_FOCUS: { group: "表达学习", label: "自动出题方向", type: "string", defaultValue: "", description: "可选，例如：拒绝、安抚、评论区回复、边界感。留空则让系统自由出题。" },
+
   DREAM_ENABLED: { group: "Dream", label: "Dream 启用", type: "boolean", defaultValue: true, description: "Dream 总开关；开启后按 DREAM_CRON 自动整理，关闭后手动和定时 Dream 都不运行。" },
   DREAM_CRON: { group: "Dream", label: "Dream 运行时间", type: "string", defaultValue: "30 3 * * *", description: "Cron 表达式，使用服务器本地时间；保存后立即重排定时任务。" },
 

@@ -48,6 +48,13 @@
   - `answered_archived`：已归档不入库，owner 答过但暂不生成经验。
   - `completed`：已生成经验，关联到 `ExpressionLearningExample`。
   - `dismissed`：已弃题，题目不适合，记录原因但不进入经验库。
+- 自动出题支持：
+  - `EXPRESSION_LEARNING_AUTO_PRACTICE_ENABLED` 开启后按 cron 生成习题。
+  - `EXPRESSION_LEARNING_AUTO_PRACTICE_CRON` 控制运行时间，使用服务器本地时间。
+  - `EXPRESSION_LEARNING_AUTO_PRACTICE_COUNT` 控制每次生成题目数量。
+  - `EXPRESSION_LEARNING_AUTO_PRACTICE_SCENE` 和 `EXPRESSION_LEARNING_AUTO_PRACTICE_FOCUS` 控制自动出题场景和方向。
+  - 表达学习页提供“立即批量出题”按钮，可以按当前自动出题配置手动执行一次。
+  - 自动生成的题会直接进入习题库，状态为 `question_generated`。
 - `scope=scene` 只在同平台同场景召回，`scope=platform` 只在同平台召回，`scope=global` 全局召回。
 
 手动教学点“分析并保存经验”后会直接出现在经验库。习题册里点“保存并生成经验”后也会出现在经验库；点“答完但不入库”或“弃题并记录原因”不会进入经验库。
@@ -61,7 +68,6 @@
 ## 后续可选
 
 - 模型教练对某条 owner 回答做点评，并自动生成 pending 经验。
-- 定时出题任务，例如半夜自动生成几道 `question_generated` 题目，等待 owner 白天处理。
 - 练习 session 表，用来把多条训练记录组织成一组题、回答进度和复盘结果。
 - Web Chat 生成回复时接入 `platform=chat` 的表达经验检索。
 - 针对不同场景做练习题模板库，例如拒绝、安抚、公开评论、边界感、技术解释。

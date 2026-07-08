@@ -12,6 +12,7 @@ import {
   generateExpressionLearningDraft,
   generateExpressionLearningPracticeQuestion,
   reanalyzeExpressionLearningExample,
+  runExpressionLearningPracticeBatchNow,
   saveExpressionLearningTrainingDraft,
   updateExpressionLearningExample,
   type ExpressionLearningAnalysis,
@@ -183,9 +184,12 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   const [status, setStatus] = useState("all");
   const [outcome, setOutcome] = useState("all");
   const [query, setQuery] = useState("");
+  const [exerciseCreatedFrom, setExerciseCreatedFrom] = useState("");
+  const [exerciseCreatedTo, setExerciseCreatedTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [batching, setBatching] = useState(false);
   const [exporting, setExporting] = useState<"json" | "jsonl" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,6 +229,9 @@ export function ExpressionLearningPage({ adminToken }: Props) {
         token: adminToken,
         sourceType: "exercise",
         status: "all",
+        createdFrom: exerciseCreatedFrom || undefined,
+        createdTo: exerciseCreatedTo || undefined,
+        limit: 300,
       });
       setExerciseState(result);
     } catch (err) {
@@ -245,7 +252,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   useEffect(() => {
     void loadExercises();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminToken]);
+  }, [adminToken, exerciseCreatedFrom, exerciseCreatedTo]);
 
   async function save(exampleId: string, patch: ExpressionLearningPatch) {
     if (!adminToken) return;
@@ -313,6 +320,21 @@ export function ExpressionLearningPage({ adminToken }: Props) {
       return null;
     } finally {
       setWorking(false);
+    }
+  }
+
+  async function runBatchPracticeNow() {
+    if (!adminToken) return;
+    setBatching(true);
+    setError(null);
+    try {
+      await runExpressionLearningPracticeBatchNow({ token: adminToken });
+      await loadExercises();
+      setActiveTab("exercises");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBatching(false);
     }
   }
 
@@ -490,6 +512,16 @@ export function ExpressionLearningPage({ adminToken }: Props) {
               导出 JSONL
             </Button>
             <Button
+              type="default"
+              size="middle"
+              onClick={() => void runBatchPracticeNow()}
+              disabled={batching || working}
+              loading={batching}
+              icon={<Icon name="icon-camera" size={18} />}
+            >
+              立即批量出题
+            </Button>
+            <Button
               type="primary"
               size="middle"
               icon={<Icon name="icon-variant" size={18} />}
@@ -561,6 +593,14 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           working={working}
           onEdit={editExercise}
           onDelete={(recordId) => void deleteExercise(recordId)}
+          createdFrom={exerciseCreatedFrom}
+          createdTo={exerciseCreatedTo}
+          onCreatedFromChange={setExerciseCreatedFrom}
+          onCreatedToChange={setExerciseCreatedTo}
+          onClearDateFilter={() => {
+            setExerciseCreatedFrom("");
+            setExerciseCreatedTo("");
+          }}
         />
       )}
 
@@ -708,11 +748,21 @@ function ExerciseLibraryPanel({
   working,
   onEdit,
   onDelete,
+  createdFrom,
+  createdTo,
+  onCreatedFromChange,
+  onCreatedToChange,
+  onClearDateFilter,
 }: {
   records: ExpressionLearningTrainingRecord[];
   working: boolean;
   onEdit: (record: ExpressionLearningTrainingRecord) => void;
   onDelete: (recordId: string) => void;
+  createdFrom: string;
+  createdTo: string;
+  onCreatedFromChange: (value: string) => void;
+  onCreatedToChange: (value: string) => void;
+  onClearDateFilter: () => void;
 }) {
   const [scene, setScene] = useState("all");
   const sceneValues = records.map((record) => record.scene);
@@ -735,8 +785,8 @@ function ExerciseLibraryPanel({
         <span className="admin-chip admin-chip-mint">{records.length} 道题</span>
       </div>
 
-      <div className="admin-select-below max-w-xs">
-        <label className="flex flex-col gap-1">
+      <div className="grid gap-3 lg:grid-cols-[minmax(12rem,16rem)_minmax(10rem,14rem)_minmax(10rem,14rem)_auto] lg:items-end">
+        <label className="admin-select-below flex flex-col gap-1">
           <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">场景</span>
           <AdminSelect
             ariaLabel="习题库场景"
@@ -745,6 +795,32 @@ function ExerciseLibraryPanel({
             options={sceneFilterOptions(sceneValues)}
           />
         </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">出题开始</span>
+          <Input
+            type="date"
+            value={createdFrom}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => onCreatedFromChange(event.target.value)}
+            className="h-10"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">出题结束</span>
+          <Input
+            type="date"
+            value={createdTo}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => onCreatedToChange(event.target.value)}
+            className="h-10"
+          />
+        </label>
+        <Button
+          type="default"
+          size="middle"
+          onClick={onClearDateFilter}
+          disabled={!createdFrom && !createdTo}
+        >
+          清除时间
+        </Button>
       </div>
 
       <div className="space-y-2">
@@ -795,8 +871,13 @@ function ExerciseRow({
             <span className="admin-chip admin-chip-yellow">{sceneLabel(record.scene)}</span>
             <StatusPill active={status.active} label={status.label} />
             <span className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">
-              {formatTime(record.updatedAt)}
+              出题 {formatTime(record.createdAt)}
             </span>
+            {record.updatedAt !== record.createdAt && (
+              <span className="text-[11px] font-semibold text-[var(--ls-ink-faint)]">
+                更新 {formatTime(record.updatedAt)}
+              </span>
+            )}
           </div>
           <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">
             {exerciseQuestionText(record)}

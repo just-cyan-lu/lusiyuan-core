@@ -20,6 +20,11 @@ import type { RuntimeSettingKey } from "./config/runtime-settings.registry.js";
 import { telegramRuntime } from "./channels/telegram/telegram-runtime.js";
 import { reconfigureDreamScheduler, startDreamScheduler, stopDreamScheduler } from "./dream/dream-scheduler.js";
 import {
+  reconfigureExpressionLearningPracticeScheduler,
+  startExpressionLearningPracticeScheduler,
+  stopExpressionLearningPracticeScheduler,
+} from "./expression-learning/expression-learning-practice-scheduler.js";
+import {
   reconfigureRuntimeAutonomyScheduler,
   startRuntimeAutonomyScheduler,
   stopRuntimeAutonomyScheduler,
@@ -84,6 +89,9 @@ export function buildApp() {
   // Start runtime autonomy scheduler if enabled
   startRuntimeAutonomyScheduler(app.log);
 
+  // Start expression-learning auto practice generator if enabled
+  startExpressionLearningPracticeScheduler(app.log);
+
   // Start voice cache cleanup scheduler
   startVoiceCleanupScheduler(app.log);
 
@@ -93,6 +101,13 @@ export function buildApp() {
   const autonomyKeys = new Set<RuntimeSettingKey>([
     "RUNTIME_AUTONOMY_AUTO_RUN", "RUNTIME_AUTONOMY_CRON",
   ]);
+  const expressionLearningPracticeKeys = new Set<RuntimeSettingKey>([
+    "EXPRESSION_LEARNING_AUTO_PRACTICE_ENABLED",
+    "EXPRESSION_LEARNING_AUTO_PRACTICE_CRON",
+    "EXPRESSION_LEARNING_AUTO_PRACTICE_COUNT",
+    "EXPRESSION_LEARNING_AUTO_PRACTICE_SCENE",
+    "EXPRESSION_LEARNING_AUTO_PRACTICE_FOCUS",
+  ]);
   const mcpKeys = new Set<RuntimeSettingKey>([
     "MCP_ENABLED", "CHROME_DEVTOOLS_MCP_ENABLED", "CHROME_DEVTOOLS_MCP_CONNECTION_MODE",
     "CHROME_DEVTOOLS_MCP_BROWSER_URL",
@@ -100,6 +115,7 @@ export function buildApp() {
   const unsubscribe = runtimeSettingsService.subscribe(async (keys) => {
     if (keys.some((key) => dreamKeys.has(key))) reconfigureDreamScheduler(app.log);
     if (keys.some((key) => autonomyKeys.has(key))) reconfigureRuntimeAutonomyScheduler(app.log);
+    if (keys.some((key) => expressionLearningPracticeKeys.has(key))) reconfigureExpressionLearningPracticeScheduler(app.log);
     if (keys.includes("TELEGRAM_ENABLED")) await telegramRuntime.reconfigure(app.log);
     if (keys.some((key) => mcpKeys.has(key))) await chromeDevtoolsMcpService.resetConnection();
   });
@@ -108,6 +124,7 @@ export function buildApp() {
     unsubscribe();
     stopDreamScheduler();
     stopRuntimeAutonomyScheduler();
+    stopExpressionLearningPracticeScheduler();
     stopVoiceCleanupScheduler();
     await telegramRuntime.stop();
     await chromeDevtoolsMcpService.resetConnection();

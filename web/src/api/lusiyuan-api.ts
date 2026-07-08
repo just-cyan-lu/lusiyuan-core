@@ -1898,6 +1898,27 @@ export async function generateExpressionLearningPracticeQuestion(input: {
   );
 }
 
+export async function runExpressionLearningPracticeBatchNow(input: {
+  token: string;
+}): Promise<{
+  items: ExpressionLearningPracticeQuestionResponse[];
+  count: number;
+  config: { count: number; scene: string; focus: string | null };
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/practice-questions/run-auto-batch`,
+    {
+      method: "POST",
+      headers: adminHeaders(input.token),
+    }
+  );
+  return parseJsonResponse<{
+    items: ExpressionLearningPracticeQuestionResponse[];
+    count: number;
+    config: { count: number; scene: string; focus: string | null };
+  }>(response, "立即批量出题失败");
+}
+
 export async function generateExpressionLearningDraft(input: {
   token: string;
   scene: string;
@@ -1932,10 +1953,16 @@ export async function fetchExpressionLearningTrainingRecords(input: {
   token: string;
   sourceType?: string;
   status?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  limit?: number;
 }): Promise<ExpressionLearningTrainingRecordsResponse> {
   const params = new URLSearchParams();
   if (input.sourceType && input.sourceType !== "all") params.set("sourceType", input.sourceType);
   if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.createdFrom) params.set("createdFrom", input.createdFrom);
+  if (input.createdTo) params.set("createdTo", input.createdTo);
+  if (input.limit) params.set("limit", String(input.limit));
   const response = await fetch(
     `${API_BASE_URL}/v1/admin/expression-learning/training-records?${params.toString()}`,
     { headers: adminHeaders(input.token) }
