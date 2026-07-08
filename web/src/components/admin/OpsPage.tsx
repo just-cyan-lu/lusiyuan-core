@@ -476,7 +476,7 @@ export function DreamPage({ adminToken }: OpsPageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="space-y-5">
       <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-[var(--ls-shadow)] md:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>

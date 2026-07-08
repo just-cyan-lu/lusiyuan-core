@@ -564,7 +564,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
   return (
     <div className="space-y-5">
       <section className="admin-select-host rounded-lg border border-[var(--ls-border)] bg-white p-5 shadow-[var(--ls-shadow)]">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <div className="block">
             <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">状态</span>
             <AdminSelect

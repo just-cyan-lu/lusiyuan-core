@@ -450,7 +450,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     : 0;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="space-y-5">
       <Card className="admin-learning-hero overflow-hidden p-6 md:p-8" pattern="app-pink">
         <div className="flex flex-wrap items-center gap-2">
           <span className="admin-chip admin-chip-mint">

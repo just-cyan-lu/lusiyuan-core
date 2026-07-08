@@ -32,7 +32,7 @@ export function MemoryAdminPage({ adminToken, focusPersonId }: MemoryAdminPagePr
   }, [focusPersonId]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="space-y-5">
       <section className="rounded-lg border border-[var(--ls-border)] bg-white p-4 shadow-[var(--ls-shadow)] md:p-5">
         <div>
           <div>
