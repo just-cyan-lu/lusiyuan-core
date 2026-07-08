@@ -207,6 +207,21 @@ export interface IdentityLink {
   user: RelationshipUser;
 }
 
+export interface IdentityAlias {
+  id: string;
+  personId: string;
+  sourceUserId: string | null;
+  value: string;
+  normalizedValue: string;
+  source: string;
+  confidence: number;
+  mentionCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PersonIdentity {
   id: string;
   label: string | null;
@@ -214,6 +229,7 @@ export interface PersonIdentity {
   createdAt: string;
   updatedAt: string;
   identityLinks: IdentityLink[];
+  identityAliases?: IdentityAlias[];
 }
 
 export interface RelationshipState {

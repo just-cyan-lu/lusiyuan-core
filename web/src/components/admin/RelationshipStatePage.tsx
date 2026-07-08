@@ -116,6 +116,12 @@ function channelUserName(user: { externalId: string; displayName: string | null 
   return user.displayName?.trim() || "未命名用户";
 }
 
+function identityAliasLabels(relationship: RelationshipState): string[] {
+  return (relationship.person?.identityAliases ?? [])
+    .slice(0, 8)
+    .map((alias) => `${alias.value}${alias.mentionCount > 1 ? ` · ${alias.mentionCount}次` : ""}`);
+}
+
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -1022,6 +1028,19 @@ export function RelationshipStatePage({
                     </span>
                   ))}
                 </div>
+                {identityAliasLabels(pageState.selected).length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
+                    <span className="font-semibold text-[var(--ls-ink-strong)]">自称/别名</span>
+                    {identityAliasLabels(pageState.selected).map((alias) => (
+                      <span
+                        key={alias}
+                        className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1"
+                      >
+                        {alias}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button

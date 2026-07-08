@@ -51,9 +51,16 @@ interface IdentityCandidateUser {
   displayName: string | null;
 }
 
+interface IdentityCandidateAlias {
+  value: string;
+  normalizedValue: string;
+  sourceUserId: string | null;
+}
+
 interface IdentityCandidatePerson {
   id: string;
   label: string | null;
+  identityAliases: IdentityCandidateAlias[];
   identityLinks: Array<{ user: IdentityCandidateUser }>;
 }
 
@@ -318,6 +325,52 @@ function uniqueIdentityHints(values: string[]): string[] {
   return hints;
 }
 
+async function recordSelfIdentityAliases(input: {
+  personId: string;
+  userId: string;
+  hints: string[];
+  source?: string;
+  confidence?: number;
+  observedAt?: Date;
+}) {
+  const aliases = uniqueIdentityHints(input.hints);
+  if (aliases.length === 0) return;
+  const observedAt = input.observedAt ?? new Date();
+  const source = input.source ?? "self_identification";
+  const confidence = input.confidence ?? 0.78;
+  for (const value of aliases) {
+    const normalizedValue = normalizeIdentityToken(value);
+    if (!normalizedValue) continue;
+    await prisma.identityAlias.upsert({
+      where: {
+        personId_normalizedValue: {
+          personId: input.personId,
+          normalizedValue,
+        },
+      },
+      create: {
+        personId: input.personId,
+        sourceUserId: input.userId,
+        value,
+        normalizedValue,
+        source,
+        confidence,
+        mentionCount: 1,
+        firstSeenAt: observedAt,
+        lastSeenAt: observedAt,
+      },
+      update: {
+        sourceUserId: input.userId,
+        value,
+        source,
+        confidence,
+        mentionCount: { increment: 1 },
+        lastSeenAt: observedAt,
+      },
+    });
+  }
+}
+
 export function extractIdentityHints(message: string): string[] {
   const patterns = [
     /我是(?:你)?(?:之前|以前|上次|刚才)?(?:在|用)?(?:微信|weixin|wx|telegram|tg|网页|web)?(?:上|里)?(?:聊过的|认识的|那个|的)\s*([@A-Za-z0-9_.\-\u4e00-\u9fa5]{2,32})/giu,
@@ -348,6 +401,15 @@ function identityTermsForCandidate(candidate: IdentityCandidatePerson) {
   const terms: Array<{ value: string; normalized: string; userId?: string }> = [];
   for (const value of identityTermValues(candidate.label)) {
     terms.push({ value, normalized: normalizeIdentityToken(value) });
+  }
+  for (const alias of candidate.identityAliases) {
+    for (const value of identityTermValues(alias.value)) {
+      terms.push({
+        value,
+        normalized: alias.normalizedValue || normalizeIdentityToken(value),
+        userId: alias.sourceUserId ?? undefined,
+      });
+    }
   }
   for (const link of candidate.identityLinks) {
     for (const value of identityTermValues(link.user.displayName)) {
@@ -567,6 +629,9 @@ export const relationshipStateService = {
       include: {
         person: {
           include: {
+            identityAliases: {
+              orderBy: [{ lastSeenAt: "desc" }],
+            },
             identityLinks: {
               include: {
                 user: { select: { id: true, externalId: true, displayName: true } },
@@ -595,6 +660,9 @@ export const relationshipStateService = {
       include: {
         person: {
           include: {
+            identityAliases: {
+              orderBy: [{ lastSeenAt: "desc" }],
+            },
             identityLinks: {
               include: {
                 user: { select: { id: true, externalId: true, displayName: true } },
@@ -638,6 +706,9 @@ export const relationshipStateService = {
         targetUser: { select: { id: true, externalId: true, displayName: true } },
         targetPerson: {
           include: {
+            identityAliases: {
+              orderBy: [{ lastSeenAt: "desc" }],
+            },
             identityLinks: {
               include: {
                 user: { select: { id: true, externalId: true, displayName: true } },
@@ -701,7 +772,12 @@ export const relationshipStateService = {
 
     return prisma.$transaction(async (tx) => {
       const source = input.source ?? "admin_identity_merge";
+      const reviewer = input.reviewedBy ?? "admin";
+      const reviewedAt = new Date();
       const affinity = Math.max(targetState.affinity, sourceState.affinity);
+      const sourceUserIds = sourceState.person.identityLinks.map((link) => link.user.id);
+      const targetUserIds = targetState.person.identityLinks.map((link) => link.user.id);
+      const mergedUserIds = Array.from(new Set([...sourceUserIds, ...targetUserIds]));
       const sourceLabel =
         sourceState.person.label ??
         sourceState.person.identityLinks[0]?.user.displayName ??
@@ -750,9 +826,38 @@ export const relationshipStateService = {
         data: {
           personId: targetState.personId,
           source,
-          verifiedBy: input.reviewedBy ?? "admin",
+          verifiedBy: reviewer,
         },
       });
+      const [sourceAliases, targetAliases] = await Promise.all([
+        tx.identityAlias.findMany({
+          where: { personId: sourceState.personId },
+        }),
+        tx.identityAlias.findMany({
+          where: { personId: targetState.personId },
+          select: { id: true, normalizedValue: true, firstSeenAt: true, lastSeenAt: true },
+        }),
+      ]);
+      const targetAliasByKey = new Map(targetAliases.map((alias) => [alias.normalizedValue, alias]));
+      for (const alias of sourceAliases) {
+        const existing = targetAliasByKey.get(alias.normalizedValue);
+        if (existing) {
+          await tx.identityAlias.update({
+            where: { id: existing.id },
+            data: {
+              mentionCount: { increment: alias.mentionCount },
+              firstSeenAt: alias.firstSeenAt < existing.firstSeenAt ? alias.firstSeenAt : existing.firstSeenAt,
+              lastSeenAt: alias.lastSeenAt > existing.lastSeenAt ? alias.lastSeenAt : existing.lastSeenAt,
+            },
+          });
+          await tx.identityAlias.delete({ where: { id: alias.id } });
+        } else {
+          await tx.identityAlias.update({
+            where: { id: alias.id },
+            data: { personId: targetState.personId },
+          });
+        }
+      }
       await tx.relationshipStateEvent.updateMany({
         where: { relationshipStateId: sourceState.id },
         data: {
@@ -801,6 +906,31 @@ export const relationshipStateService = {
           targetPersonId: targetState.personId,
         },
       });
+      if (mergedUserIds.length > 0) {
+        await tx.identityLinkProposal.updateMany({
+          where: {
+            status: "pending",
+            targetPersonId: targetState.personId,
+            sourceUserId: { in: mergedUserIds },
+          },
+          data: {
+            status: "approved",
+            reviewedBy: reviewer,
+            reviewedAt,
+          },
+        });
+        await tx.identityLinkProposal.updateMany({
+          where: {
+            status: "pending",
+            sourceUserId: { in: mergedUserIds },
+          },
+          data: {
+            status: "superseded",
+            reviewedBy: reviewer,
+            reviewedAt,
+          },
+        });
+      }
       await tx.memory.updateMany({
         where: { personId: sourceState.personId },
         data: { personId: targetState.personId },
@@ -941,6 +1071,15 @@ export const relationshipStateService = {
           personId: newPerson.id,
           source,
           verifiedBy: reviewer,
+        },
+      });
+      await tx.identityAlias.updateMany({
+        where: {
+          personId: sourceState.personId,
+          sourceUserId: { in: userIds },
+        },
+        data: {
+          personId: newPerson.id,
         },
       });
 
@@ -1427,6 +1566,15 @@ export const relationshipStateService = {
       sourceUser.displayName ?? "",
     ]);
     if (hints.length === 0) return [];
+    if (explicitHints.length > 0) {
+      await recordSelfIdentityAliases({
+        personId: currentPerson.id,
+        userId: input.userId,
+        hints: explicitHints,
+        source: "explicit_self_identification",
+        confidence: 0.82,
+      });
+    }
 
     const explicitHintSet = new Set(explicitHints.map((hint) => normalizeIdentityToken(hint)));
     const candidates = await prisma.personIdentity.findMany({
@@ -1434,6 +1582,9 @@ export const relationshipStateService = {
         id: { not: currentPerson.id },
       },
       include: {
+        identityAliases: {
+          orderBy: [{ lastSeenAt: "desc" }],
+        },
         identityLinks: {
           include: {
             user: { select: { id: true, externalId: true, displayName: true } },

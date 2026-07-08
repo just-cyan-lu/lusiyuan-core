@@ -23,6 +23,7 @@ model User {
   relationshipEvents        RelationshipStateEvent[]
   identityProposalsMade     IdentityLinkProposal[]   @relation("IdentityProposalSourceUser")
   identityProposalsTargeted IdentityLinkProposal[]   @relation("IdentityProposalTargetUser")
+  identityAliases           IdentityAlias[]
   identityBindingCodesIssued   IdentityBindingCode[] @relation("IdentityBindingCodeIssuer")
   identityBindingCodesRedeemed IdentityBindingCode[] @relation("IdentityBindingCodeRedeemer")
 
@@ -553,6 +554,7 @@ model PersonIdentity {
   updatedAt DateTime @updatedAt
 
   identityLinks      IdentityLink[]
+  identityAliases    IdentityAlias[]
   relationshipState  RelationshipState?
   relationshipEvents RelationshipStateEvent[]
   identityProposals  IdentityLinkProposal[]
@@ -580,6 +582,32 @@ model IdentityLink {
   @@index([personId])
   @@index([source])
   @@map("identity_links")
+}
+
+/// Stable self-claimed names for one real-person identity, independent of mutable channel display names.
+model IdentityAlias {
+  id              String   @id @default(cuid())
+  personId        String
+  sourceUserId    String?
+  value           String
+  normalizedValue String
+  source          String   @default("self_identification")
+  confidence      Float    @default(0.7)
+  mentionCount    Int      @default(1)
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  person     PersonIdentity @relation(fields: [personId], references: [id], onDelete: Cascade)
+  sourceUser User?          @relation(fields: [sourceUserId], references: [id], onDelete: SetNull)
+
+  @@unique([personId, normalizedValue])
+  @@index([personId])
+  @@index([sourceUserId])
+  @@index([normalizedValue])
+  @@index([lastSeenAt])
+  @@map("identity_aliases")
 }
 
 /// System suspicion that one channel account may belong to an existing real-person identity.

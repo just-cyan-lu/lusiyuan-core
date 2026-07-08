@@ -33,7 +33,9 @@ be appended as separate migrations instead of rewriting history.
 | `AutonomousArtifact` | `autonomous_artifacts` | Outputs created by autonomous task runs. |
 | `PersonIdentity` | `person_identities` | A real-person identity that can contain multiple channel users. |
 | `IdentityLink` | `identity_links` | Link between a channel user and a real-person identity. |
+| `IdentityAlias` | `identity_aliases` | Self-claimed names for a real-person identity, independent of mutable channel display names. |
 | `IdentityLinkProposal` | `identity_link_proposals` | Suggested links between channel users and identities. |
+| `IdentityBindingCode` | `identity_binding_codes` | Short-lived one-time codes for user-confirmed cross-channel identity binding. |
 | `RelationshipState` | `relationship_states` | Relationship profile and affinity for a person identity. |
 | `RelationshipStateEvent` | `relationship_state_events` | Audit trail for relationship state changes. |
 | `RelationshipReviewProposal` | `relationship_review_proposals` | Pending or applied relationship profile reviews from Dream. |
