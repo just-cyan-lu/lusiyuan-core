@@ -35,8 +35,9 @@
 ## 本轮落地
 
 - 新增 `POST /v1/admin/expression-learning/examples`：admin 可以直接创建表达经验。
-- 新增 `POST /v1/admin/expression-learning/practice-question`：按平台、场景和训练重点生成练习题。
+- 新增 `POST /v1/admin/expression-learning/practice-question`：按平台、场景和训练重点生成练习题；题目本身只负责情境和训练目标，陆思源试答统一走正式试答生成流程。
 - 新增 `POST /v1/admin/expression-learning/draft`：按平台、场景和情境生成一版陆思源试答草稿。
+- 新增 `POST /v1/admin/expression-learning/training-records/:recordId/accept-draft`：如果系统题里的陆思源试答已经合适，可以直接采用试答并保存经验。
 - 新增 `ExpressionLearningTrainingRecord`：保存完整训练过程，包含题目、试答、owner 答案、原因、分析快照、原始 payload 和训练友好的 export payload。
 - 新增 `GET /v1/admin/expression-learning/training-records/export?format=json|jsonl`：导出完整训练数据，JSON 适合备份，JSONL 适合后续训练集转换。
 - `ExpressionLearningExample.status` 支持 `pending`，检索仍然只使用 `active` 经验。
@@ -55,6 +56,8 @@
   - `EXPRESSION_LEARNING_AUTO_PRACTICE_SCENE` 和 `EXPRESSION_LEARNING_AUTO_PRACTICE_FOCUS` 控制自动出题场景和方向。
   - 表达学习页提供“立即批量出题”按钮，可以按当前自动出题配置手动执行一次。
   - 自动生成的题会直接进入习题库，状态为 `question_generated`。
+- 陆思源试答会参考表达学习经验；正式聊天、平台回复和习题试答统一最多召回 6 条相关经验，相关不足时不会硬凑满。
+- 习题库和教学练习页都提供“采用试答”快捷入口：把陆思源试答作为最终回复，记录为 `accepted_draft`，并直接分析入库。
 - `scope=scene` 只在同平台同场景召回，`scope=platform` 只在同平台召回，`scope=global` 全局召回。
 
 手动教学点“分析并保存经验”后会直接出现在经验库。习题册里点“保存并生成经验”后也会出现在经验库；点“答完但不入库”或“弃题并记录原因”不会进入经验库。

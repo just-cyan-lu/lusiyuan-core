@@ -1993,6 +1993,27 @@ export async function saveExpressionLearningTrainingDraft(
   );
 }
 
+export async function acceptExpressionLearningTrainingDraft(input: {
+  token: string;
+  recordId: string;
+  status?: "pending" | "active" | "disabled";
+  ownerNote?: string | null;
+}): Promise<{ example: ExpressionLearningExample; trainingRecord: ExpressionLearningTrainingRecord }> {
+  const { token, recordId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/training-records/${recordId}/accept-draft`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ example: ExpressionLearningExample; trainingRecord: ExpressionLearningTrainingRecord }>(
+    response,
+    "采用陆思源试答失败"
+  );
+}
+
 export async function updateExpressionLearningTrainingRecord(input: {
   token: string;
   recordId: string;

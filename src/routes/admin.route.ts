@@ -1887,6 +1887,66 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send({ record });
   });
 
+  app.post("/v1/admin/expression-learning/training-records/:recordId/accept-draft", async (request, reply) => {
+    const { recordId } = request.params as { recordId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const status = cleanNullableString(body.status) ?? "active";
+    if (!["pending", "active", "disabled"].includes(status)) {
+      throw routeError("status must be pending, active, or disabled", 400);
+    }
+    const record = await prisma.expressionLearningTrainingRecord.findUnique({
+      where: { id: recordId },
+    });
+    if (!record) {
+      throw routeError("expression-learning training record not found", 404);
+    }
+    if (record.exampleId) {
+      throw routeError("this training record has already been saved as an expression example", 400);
+    }
+    const contextText = cleanString(record.contextText);
+    const draftText = cleanString(record.draftText);
+    if (!contextText) {
+      throw routeError("contextText is required before accepting a draft", 400);
+    }
+    if (!draftText) {
+      throw routeError("draftText is required before accepting a draft", 400);
+    }
+    const ownerNote = cleanNullableString(body.ownerNote) ?? record.ownerNote ?? null;
+    const sourceType = record.sourceType === "manual_teaching" ? "manual_teaching" : "practice_answer";
+    const example = await learnExpression({
+      sourceRef: `training:${recordId}`,
+      sourceType,
+      sourceId: recordId,
+      scene: record.scene,
+      contextText,
+      draftText,
+      finalText: draftText,
+      outcome: "sent",
+      ownerAction: "accepted_draft",
+      ownerNote,
+      status: status as ExpressionLearningStatus,
+      metadata: {
+        createdFrom: "admin_expression_learning_accept_draft",
+        trainingRecordId: recordId,
+      },
+    });
+    const trainingRecord = await completeExpressionLearningTrainingRecord({
+      trainingRecordId: recordId,
+      sourceType,
+      scene: example.scene,
+      status: "completed",
+      contextText,
+      draftText,
+      finalText: draftText,
+      outcome: "sent",
+      ownerAction: "accepted_draft",
+      ownerNote,
+      rawPayload: body,
+      example,
+    });
+    return reply.status(201).send({ example, trainingRecord });
+  });
+
   app.delete("/v1/admin/expression-learning/training-records/:recordId", async (request, reply) => {
     const { recordId } = request.params as { recordId: string };
     const record = await prisma.expressionLearningTrainingRecord.findUnique({

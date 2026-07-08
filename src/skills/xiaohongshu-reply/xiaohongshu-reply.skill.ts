@@ -1,6 +1,7 @@
 import { modelProvider } from "../../core/model-provider.js";
 import { prisma } from "../../db/prisma.js";
 import {
+  EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT,
   formatExpressionLearningExamples,
   retrieveExpressionLearningExamples,
 } from "../../expression-learning/expression-learning.service.js";
@@ -152,7 +153,7 @@ export async function generateXiaohongshuReplyDraft(
   const learnedExamples = await retrieveExpressionLearningExamples({
     scene: "reply",
     query: learningQuery,
-    limit: 4,
+    limit: EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT,
   });
   const learnedContext = formatExpressionLearningExamples(learnedExamples);
   const raw = await modelProvider.chatJson<XiaohongshuReplyOutput>([

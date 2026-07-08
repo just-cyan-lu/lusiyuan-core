@@ -37,6 +37,7 @@ import {
   segmentReply,
 } from "./reply-segmentation.service.js";
 import {
+  EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT,
   formatExpressionLearningExamples,
   retrieveExpressionLearningExamples,
 } from "../expression-learning/expression-learning.service.js";
@@ -313,7 +314,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
             scene: expressionLearningScene,
             query: input.message,
             queryEmbedding: getSharedQueryEmbedding,
-            limit: 4,
+            limit: EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT,
           }).catch((err) => {
             console.warn("[chat] expression learning unavailable:", err);
             return [];

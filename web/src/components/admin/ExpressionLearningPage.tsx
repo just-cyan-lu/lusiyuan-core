@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "
 import { Button, Card, Form, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import {
+  acceptExpressionLearningTrainingDraft,
   analyzeExpressionLearningExample,
   createExpressionLearningExample,
   deleteExpressionLearningExample,
@@ -422,6 +423,29 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     }
   }
 
+  async function acceptDraft(input: {
+    recordId: string;
+    status?: "pending" | "active" | "disabled";
+    ownerNote?: string | null;
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await acceptExpressionLearningTrainingDraft({
+        ...input,
+        token: adminToken,
+      });
+      await refreshAll();
+      setSelectedId(result.example.id);
+      setActiveTab("library");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function deleteExercise(recordId: string) {
     if (!adminToken) return;
     if (!window.confirm("确认删除这道未完成的习题吗？删除后不可恢复。")) {
@@ -583,6 +607,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           onGenerateQuestion={(input) => generatePractice(input)}
           onGenerateDraft={generateDraft}
           onSaveDraft={(input) => saveTrainingDraft(input)}
+          onAcceptDraft={(input) => void acceptDraft(input)}
           editSeed={teachingSeed}
         />
       )}
@@ -592,6 +617,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           records={exerciseState.records}
           working={working}
           onEdit={editExercise}
+          onAcceptDraft={(recordId) => void acceptDraft({ recordId })}
           onDelete={(recordId) => void deleteExercise(recordId)}
           createdFrom={exerciseCreatedFrom}
           createdTo={exerciseCreatedTo}
@@ -747,6 +773,7 @@ function ExerciseLibraryPanel({
   records,
   working,
   onEdit,
+  onAcceptDraft,
   onDelete,
   createdFrom,
   createdTo,
@@ -757,6 +784,7 @@ function ExerciseLibraryPanel({
   records: ExpressionLearningTrainingRecord[];
   working: boolean;
   onEdit: (record: ExpressionLearningTrainingRecord) => void;
+  onAcceptDraft: (recordId: string) => void;
   onDelete: (recordId: string) => void;
   createdFrom: string;
   createdTo: string;
@@ -830,6 +858,7 @@ function ExerciseLibraryPanel({
             record={record}
             working={working}
             onEdit={() => onEdit(record)}
+            onAcceptDraft={() => onAcceptDraft(record.id)}
             onDelete={() => onDelete(record.id)}
           />
         ))}
@@ -854,15 +883,18 @@ function ExerciseRow({
   record,
   working,
   onEdit,
+  onAcceptDraft,
   onDelete,
 }: {
   record: ExpressionLearningTrainingRecord;
   working: boolean;
   onEdit: () => void;
+  onAcceptDraft: () => void;
   onDelete: () => void;
 }) {
   const status = exerciseStatus(record);
   const canEdit = !record.exampleId;
+  const canAcceptDraft = canEdit && Boolean(record.contextText?.trim() && record.draftText?.trim());
   return (
     <div className="admin-island-row px-4 py-3.5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -901,6 +933,11 @@ function ExerciseRow({
 
         {canEdit && (
           <div className="flex shrink-0 flex-wrap gap-2">
+            {canAcceptDraft && (
+              <Button type="default" size="small" onClick={onAcceptDraft} disabled={working}>
+                采用试答
+              </Button>
+            )}
             <Button type="primary" size="small" onClick={onEdit} disabled={working}>
               继续编辑
             </Button>
@@ -1013,6 +1050,7 @@ function ManualTeachingPanel({
   onGenerateQuestion,
   onGenerateDraft,
   onSaveDraft,
+  onAcceptDraft,
   editSeed,
 }: {
   working: boolean;
@@ -1030,6 +1068,11 @@ function ManualTeachingPanel({
   onSaveDraft: (
     input: Omit<ExpressionLearningTrainingDraftInput, "token">
   ) => Promise<ExpressionLearningTrainingRecord | null>;
+  onAcceptDraft: (input: {
+    recordId: string;
+    status?: "pending" | "active" | "disabled";
+    ownerNote?: string | null;
+  }) => void;
   editSeed: TeachingSeed | null;
 }) {
   const [form, setForm] = useState<Omit<TeachingForm, "scene" | "status">>({
@@ -1161,6 +1204,15 @@ function ManualTeachingPanel({
     return record;
   }
 
+  function acceptCurrentDraft() {
+    if (!trainingRecordId) return;
+    onAcceptDraft({
+      recordId: trainingRecordId,
+      status: currentGrid().status,
+      ownerNote: form.ownerNote || null,
+    });
+  }
+
   function submit() {
     if (!analysisForm) return;
     onCreate(buildInput(editFormToAnalysis(analysisForm)));
@@ -1191,7 +1243,7 @@ function ManualTeachingPanel({
     setTrainingRecordId(result.trainingRecord.id);
     patchForm({
       contextText: result.question.contextText,
-      draftText: result.question.draftText ?? "",
+      draftText: result.trainingRecord.draftText ?? result.question.draftText ?? "",
       finalText: "",
       ownerNote: "",
       outcome: "sent",
@@ -1213,6 +1265,7 @@ function ManualTeachingPanel({
   }
 
   const teachingSceneOptions = sceneOptions(editSeed?.record.scene ? [editSeed.record.scene] : []);
+  const canAcceptCurrentDraft = Boolean(trainingRecordId && form.contextText.trim() && form.draftText.trim());
 
   return (
     <Card className="admin-select-host space-y-5 p-5" pattern="app-yellow">
@@ -1346,6 +1399,15 @@ function ManualTeachingPanel({
       )}
 
       <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          type="default"
+          size="middle"
+          onClick={acceptCurrentDraft}
+          disabled={working || !canAcceptCurrentDraft}
+          loading={working}
+        >
+          采用试答并保存
+        </Button>
         <Button
           type="default"
           size="middle"
