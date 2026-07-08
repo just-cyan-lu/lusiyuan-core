@@ -436,7 +436,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
 
   if (!adminToken) {
     return (
-      <section className="mx-auto max-w-5xl rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
+      <section className="rounded-lg border border-[var(--ls-border)] bg-white p-7 shadow-[var(--ls-shadow)]">
         <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">Runtime State</div>
         <h2 className="mt-3 text-3xl font-semibold text-[var(--ls-ink-strong)]">陆思源运行态</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ls-ink-soft)]">
@@ -451,7 +451,7 @@ export function RuntimeStatePage({ adminToken }: RuntimeStatePageProps) {
   const activeTasks = pageState.autonomousTasks.filter((task) => task.status === "active");
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="space-y-5">
       <section className="rounded-lg border border-[var(--ls-border)] bg-white p-6 shadow-[var(--ls-shadow)] md:p-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
