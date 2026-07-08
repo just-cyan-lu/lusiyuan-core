@@ -18,6 +18,7 @@ import { selectToolsForChat, toolProgressContent } from "../tools/tool-router.js
 import { isOwner } from "../tools/policy/owner-check.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
+import { identityBindingService } from "../runtime/identity-binding.service.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   isTaskCancellationError,
@@ -246,247 +247,264 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
     return sharedQueryEmbedding;
   };
   const expressionLearningScene = expressionLearningSceneForChat(input.channel);
-
-  const [
-    persona,
-    ownerProfile,
-    memories,
-    conversationContext,
-    runtimeState,
-    relationshipState,
-    expressionLearningExamples,
-  ] = await trace.time(
-    "prepare_prompt_materials",
-    () =>
-      Promise.all([
-        loadPersona(),
-        owner ? loadOwnerProfile() : Promise.resolve(""),
-        memoryService.retrieveRelevantMemories({
-          personId: relationshipRecord.personId,
-          query: input.message,
-          queryEmbedding: runtimeConfig.MEMORY_RETRIEVAL_ENABLED
-            ? getSharedQueryEmbedding()
-            : undefined,
-        }),
-        loadPromptConversationContext({
-          userId: user.id,
-          conversationId: conversation.id,
-          query: input.message,
-          queryEmbedding: runtimeConfig.CHAT_CONTEXT_RECALL_ENABLED
-            ? getSharedQueryEmbedding()
-            : undefined,
-          excludeMessageId: userMessage.id,
-        }),
-        runtimeStateService
-          .formatForPrompt()
-          .catch((err) => {
-            console.warn("[chat] runtime state unavailable:", err);
-            return undefined;
-          }),
-        relationshipStateService
-          .formatForPrompt(user.id)
-          .catch((err) => {
-            console.warn("[chat] relationship state unavailable:", err);
-            return undefined;
-          }),
-        retrieveExpressionLearningExamples({
-          scene: expressionLearningScene,
-          query: input.message,
-          queryEmbedding: getSharedQueryEmbedding,
-          limit: 4,
-        }).catch((err) => {
-          console.warn("[chat] expression learning unavailable:", err);
-          return [];
-        }),
-      ])
-  );
-  checkCancelled();
-
-  trace.mark("prompt_materials_ready", {
-    memories: memories.length,
-    recentMessages: conversationContext.recentMessages.length,
-    summaries: conversationContext.summaries.length,
-    recallWindows: conversationContext.recallWindows.length,
-    expressionExamples: expressionLearningExamples.length,
-  });
-
-  const toolContext: ToolExecutionContext = {
-    userId: user.id,
-    channel: input.channel,
-    conversationId: conversation.id,
-    messageId: userMessage.id,
-    isOwner: owner, // use externalId (e.g. "telegram:1848918705"), not internal DB id
-    signal,
-  };
-  const availableTools = selectToolsForChat({
-    message: input.message,
-    tools: toolRegistry.listEnabled(),
-    context: toolContext,
-  });
-
-  console.log(`[chat] availableTools count: ${availableTools.length}`);
-  trace.mark("tool_route", { tools: availableTools.map((tool) => tool.name) });
-
-  const messages = buildChatPrompt({
-    persona,
-    memories,
-    recentMessages: conversationContext.recentMessages,
-    contextSummaries: conversationContext.summaries,
-    recallWindows: conversationContext.recallWindows,
-    userMessage: input.message,
-    channel: input.channel,
-    runtimeState,
-    relationshipState,
-    ownerProfile: ownerProfile || undefined,
-    toolsAvailable: availableTools.length > 0,
-    expressionLearningContext: formatExpressionLearningExamples(expressionLearningExamples),
-  });
-  trace.mark("prompt_ready", { messages: messages.length });
-
-  // If user sent images, append them to the last user message
-  if (input.images && input.images.length > 0) {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === "user") {
-      // Convert string content to multimodal array
-      const textPart: MessageContentPart = { type: "text", text: typeof lastMessage.content === "string" ? lastMessage.content : "" };
-      lastMessage.content = [textPart, ...input.images];
-    }
-  }
-
-  // Tool execution with function calling
   let reply = "";
 
-  checkCancelled();
-  await progress();
-  checkCancelled();
+  const identityBindingAction = await trace.time("identity_binding", () =>
+    identityBindingService.handleChatMessage({
+      userId: user.id,
+      channel: input.channel,
+      conversationId: conversation.id,
+      messageId: userMessage.id,
+      userMessage: input.message,
+    })
+  );
+  if (identityBindingAction) {
+    reply = sanitizeOutput(identityBindingAction.reply);
+    trace.mark("identity_binding_direct_reply", {
+      type: identityBindingAction.type,
+      code: identityBindingAction.code,
+    });
+  }
 
-  if (availableTools.length > 0) {
-    console.log(`[chat] externalId: ${input.user_id}, isOwner: ${toolContext.isOwner}`);
+  if (!reply) {
+    const [
+      persona,
+      ownerProfile,
+      memories,
+      conversationContext,
+      runtimeState,
+      relationshipState,
+      expressionLearningExamples,
+    ] = await trace.time(
+      "prepare_prompt_materials",
+      () =>
+        Promise.all([
+          loadPersona(),
+          owner ? loadOwnerProfile() : Promise.resolve(""),
+          memoryService.retrieveRelevantMemories({
+            personId: relationshipRecord.personId,
+            query: input.message,
+            queryEmbedding: runtimeConfig.MEMORY_RETRIEVAL_ENABLED
+              ? getSharedQueryEmbedding()
+              : undefined,
+          }),
+          loadPromptConversationContext({
+            userId: user.id,
+            conversationId: conversation.id,
+            query: input.message,
+            queryEmbedding: runtimeConfig.CHAT_CONTEXT_RECALL_ENABLED
+              ? getSharedQueryEmbedding()
+              : undefined,
+            excludeMessageId: userMessage.id,
+          }),
+          runtimeStateService
+            .formatForPrompt()
+            .catch((err) => {
+              console.warn("[chat] runtime state unavailable:", err);
+              return undefined;
+            }),
+          relationshipStateService
+            .formatForPrompt(user.id)
+            .catch((err) => {
+              console.warn("[chat] relationship state unavailable:", err);
+              return undefined;
+            }),
+          retrieveExpressionLearningExamples({
+            scene: expressionLearningScene,
+            query: input.message,
+            queryEmbedding: getSharedQueryEmbedding,
+            limit: 4,
+          }).catch((err) => {
+            console.warn("[chat] expression learning unavailable:", err);
+            return [];
+          }),
+        ])
+    );
+    checkCancelled();
 
-    const toolsForLLM = convertToolsForLLM(availableTools);
-    const conversationMessages: ChatMessage[] = [...messages];
+    trace.mark("prompt_materials_ready", {
+      memories: memories.length,
+      recentMessages: conversationContext.recentMessages.length,
+      summaries: conversationContext.summaries.length,
+      recallWindows: conversationContext.recallWindows.length,
+      expressionExamples: expressionLearningExamples.length,
+    });
 
-    // Allow multiple tool rounds to handle multi-step tasks until the model stops requesting tools.
-    for (let round = 0; ; round++) {
-      checkCancelled();
-      console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
+    const toolContext: ToolExecutionContext = {
+      userId: user.id,
+      channel: input.channel,
+      conversationId: conversation.id,
+      messageId: userMessage.id,
+      isOwner: owner, // use externalId (e.g. "telegram:1848918705"), not internal DB id
+      signal,
+    };
+    const availableTools = selectToolsForChat({
+      message: input.message,
+      tools: toolRegistry.listEnabled(),
+      context: toolContext,
+    });
 
-      const response = await trace.time(
-        `model_tools_round_${round + 1}`,
-        () =>
-          modelProvider.chatWithTools(
-            conversationMessages,
-            toolsForLLM,
-            { signal }
-          ),
-        { tools: availableTools.map((tool) => tool.name) }
-      );
-      checkCancelled();
+    console.log(`[chat] availableTools count: ${availableTools.length}`);
+    trace.mark("tool_route", { tools: availableTools.map((tool) => tool.name) });
 
-      // If LLM returned text (no tool calls), we're done
-      if (!response.tool_calls || response.tool_calls.length === 0) {
-        reply = sanitizeOutput(response.content ?? "");
-        console.log("[chat] LLM returned text, no tool calls");
-        break;
+    const messages = buildChatPrompt({
+      persona,
+      memories,
+      recentMessages: conversationContext.recentMessages,
+      contextSummaries: conversationContext.summaries,
+      recallWindows: conversationContext.recallWindows,
+      userMessage: input.message,
+      channel: input.channel,
+      runtimeState,
+      relationshipState,
+      ownerProfile: ownerProfile || undefined,
+      toolsAvailable: availableTools.length > 0,
+      expressionLearningContext: formatExpressionLearningExamples(expressionLearningExamples),
+    });
+    trace.mark("prompt_ready", { messages: messages.length });
+
+    // If user sent images, append them to the last user message
+    if (input.images && input.images.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role === "user") {
+        // Convert string content to multimodal array
+        const textPart: MessageContentPart = { type: "text", text: typeof lastMessage.content === "string" ? lastMessage.content : "" };
+        lastMessage.content = [textPart, ...input.images];
       }
+    }
 
-      // LLM wants to call tools
-      const toolCallNames = response.tool_calls.map((toolCall) => toolCall.function.name);
-      console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
-      await progress(toolProgressContent(toolCallNames));
-      trace.mark("tool_calls_requested", { round: round + 1, tools: toolCallNames });
-      checkCancelled();
+    checkCancelled();
+    await progress();
+    checkCancelled();
 
-      // Add assistant message with tool calls to conversation
-      conversationMessages.push({
-        role: "assistant",
-        content: response.rawContent ?? response.content ?? "",
-        tool_calls: response.tool_calls,
-        providerMetadata: response.providerMetadata,
-      });
+    if (availableTools.length > 0) {
+      console.log(`[chat] externalId: ${input.user_id}, isOwner: ${toolContext.isOwner}`);
 
-      // Execute each tool call
-      console.log(`[chat] executing ${response.tool_calls.length} tool calls`);
-      const toolResults: Array<{ tool_call_id: string; result: Awaited<ReturnType<typeof toolExecutor.execute>> }> = [];
-      for (const toolCall of response.tool_calls) {
+      const toolsForLLM = convertToolsForLLM(availableTools);
+      const conversationMessages: ChatMessage[] = [...messages];
+
+      // Allow multiple tool rounds to handle multi-step tasks until the model stops requesting tools.
+      for (let round = 0; ; round++) {
         checkCancelled();
-        const toolName = toolCall.function.name;
-        console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
-        let toolInput: unknown;
-        try {
-          toolInput = JSON.parse(toolCall.function.arguments);
-        } catch {
-          toolInput = {};
-        }
+        console.log(`[chat] round ${round + 1}: calling LLM with ${toolsForLLM.length} tools`);
 
-        const result = await trace.time(`tool_${toolName}`, () =>
-          toolExecutor.execute({
-            toolName,
-            input: toolInput,
-            context: toolContext,
-            signal,
-          })
+        const response = await trace.time(
+          `model_tools_round_${round + 1}`,
+          () =>
+            modelProvider.chatWithTools(
+              conversationMessages,
+              toolsForLLM,
+              { signal }
+            ),
+          { tools: availableTools.map((tool) => tool.name) }
         );
         checkCancelled();
 
-        console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
-
-        toolResults.push({
-          tool_call_id: toolCall.id,
-          result,
-        });
-      }
-      await progress();
-      checkCancelled();
-
-      // Add tool results to conversation
-      for (const { tool_call_id, result } of toolResults) {
-        let content: ChatMessage["content"];
-
-        if (result.ok && result.output && typeof result.output === "object" && "screenshotBase64" in result.output && result.output.screenshotBase64) {
-          // Tool returned a screenshot — build multimodal content
-          const { screenshotBase64, ...outputWithoutScreenshot } = result.output as Record<string, unknown>;
-          const parts: MessageContentPart[] = [
-            { type: "text", text: JSON.stringify(outputWithoutScreenshot) },
-            {
-              type: "image",
-              image: {
-                data: screenshotBase64 as string,
-                mimeType: "image/png",
-              },
-            },
-          ];
-          content = parts;
-        } else {
-          content = result.ok
-            ? JSON.stringify(result.output)
-            : `Error: ${result.error}`;
+        // If LLM returned text (no tool calls), we're done
+        if (!response.tool_calls || response.tool_calls.length === 0) {
+          reply = sanitizeOutput(response.content ?? "");
+          console.log("[chat] LLM returned text, no tool calls");
+          break;
         }
 
-        conversationMessages.push({ role: "tool", content, tool_call_id });
+        // LLM wants to call tools
+        const toolCallNames = response.tool_calls.map((toolCall) => toolCall.function.name);
+        console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
+        await progress(toolProgressContent(toolCallNames));
+        trace.mark("tool_calls_requested", { round: round + 1, tools: toolCallNames });
+        checkCancelled();
+
+        // Add assistant message with tool calls to conversation
+        conversationMessages.push({
+          role: "assistant",
+          content: response.rawContent ?? response.content ?? "",
+          tool_calls: response.tool_calls,
+          providerMetadata: response.providerMetadata,
+        });
+
+        // Execute each tool call
+        console.log(`[chat] executing ${response.tool_calls.length} tool calls`);
+        const toolResults: Array<{ tool_call_id: string; result: Awaited<ReturnType<typeof toolExecutor.execute>> }> = [];
+        for (const toolCall of response.tool_calls) {
+          checkCancelled();
+          const toolName = toolCall.function.name;
+          console.log(`[chat] tool call: ${toolName}, args: ${toolCall.function.arguments.slice(0, 200)}`);
+          let toolInput: unknown;
+          try {
+            toolInput = JSON.parse(toolCall.function.arguments);
+          } catch {
+            toolInput = {};
+          }
+
+          const result = await trace.time(`tool_${toolName}`, () =>
+            toolExecutor.execute({
+              toolName,
+              input: toolInput,
+              context: toolContext,
+              signal,
+            })
+          );
+          checkCancelled();
+
+          console.log(`[chat] tool result: ${toolName}, ok: ${result.ok}, output: ${JSON.stringify(result.ok ? result.output : result.error).slice(0, 200)}`);
+
+          toolResults.push({
+            tool_call_id: toolCall.id,
+            result,
+          });
+        }
+        await progress();
+        checkCancelled();
+
+        // Add tool results to conversation
+        for (const { tool_call_id, result } of toolResults) {
+          let content: ChatMessage["content"];
+
+          if (result.ok && result.output && typeof result.output === "object" && "screenshotBase64" in result.output && result.output.screenshotBase64) {
+            // Tool returned a screenshot — build multimodal content
+            const { screenshotBase64, ...outputWithoutScreenshot } = result.output as Record<string, unknown>;
+            const parts: MessageContentPart[] = [
+              { type: "text", text: JSON.stringify(outputWithoutScreenshot) },
+              {
+                type: "image",
+                image: {
+                  data: screenshotBase64 as string,
+                  mimeType: "image/png",
+                },
+              },
+            ];
+            content = parts;
+          } else {
+            content = result.ok
+              ? JSON.stringify(result.output)
+              : `Error: ${result.error}`;
+          }
+
+          conversationMessages.push({ role: "tool", content, tool_call_id });
+        }
+
+        // Continue loop to let LLM respond with tool results
       }
 
-      // Continue loop to let LLM respond with tool results
-    }
-
-    // If we exhausted rounds without getting a text response, ask LLM one more time without tools
-    if (!reply) {
+      // If we exhausted rounds without getting a text response, ask LLM one more time without tools
+      if (!reply) {
+        checkCancelled();
+        console.log("[chat] exhausted tool rounds, final call without tools");
+        const finalResponse = await trace.time("model_final_no_tools", () =>
+          modelProvider.chat(conversationMessages, { signal })
+        );
+        checkCancelled();
+        reply = sanitizeOutput(finalResponse);
+      }
+    } else {
+      // No tool is available for this context, so use a direct response.
       checkCancelled();
-      console.log("[chat] exhausted tool rounds, final call without tools");
-      const finalResponse = await trace.time("model_final_no_tools", () =>
-        modelProvider.chat(conversationMessages, { signal })
+      const draftReply = await trace.time("model_direct", () =>
+        modelProvider.chat(messages, { signal })
       );
       checkCancelled();
-      reply = sanitizeOutput(finalResponse);
+      reply = sanitizeOutput(draftReply);
     }
-  } else {
-    // No tool is available for this context, so use a direct response.
-    checkCancelled();
-    const draftReply = await trace.time("model_direct", () =>
-      modelProvider.chat(messages, { signal })
-    );
-    checkCancelled();
-    reply = sanitizeOutput(draftReply);
   }
 
   await progress();

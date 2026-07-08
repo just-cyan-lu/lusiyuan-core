@@ -23,6 +23,8 @@ model User {
   relationshipEvents        RelationshipStateEvent[]
   identityProposalsMade     IdentityLinkProposal[]   @relation("IdentityProposalSourceUser")
   identityProposalsTargeted IdentityLinkProposal[]   @relation("IdentityProposalTargetUser")
+  identityBindingCodesIssued   IdentityBindingCode[] @relation("IdentityBindingCodeIssuer")
+  identityBindingCodesRedeemed IdentityBindingCode[] @relation("IdentityBindingCodeRedeemer")
 
   @@map("app_users")
 }
@@ -554,6 +556,7 @@ model PersonIdentity {
   relationshipState  RelationshipState?
   relationshipEvents RelationshipStateEvent[]
   identityProposals  IdentityLinkProposal[]
+  identityBindingCodes IdentityBindingCode[]
   reviewProposals    RelationshipReviewProposal[]
   reviewEvidences    RelationshipReviewEvidence[]
   memories           Memory[]
@@ -606,6 +609,31 @@ model IdentityLinkProposal {
   @@index([confidence])
   @@index([createdAt])
   @@map("identity_link_proposals")
+}
+
+/// Short-lived user-facing code used to verify that two channel accounts belong to one person.
+model IdentityBindingCode {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  issuerUserId   String
+  issuerPersonId String
+  redeemedUserId String?
+  status         String    @default("active")
+  expiresAt      DateTime
+  redeemedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  issuerUser   User           @relation("IdentityBindingCodeIssuer", fields: [issuerUserId], references: [id], onDelete: Cascade)
+  issuerPerson PersonIdentity @relation(fields: [issuerPersonId], references: [id], onDelete: Cascade)
+  redeemedUser User?          @relation("IdentityBindingCodeRedeemer", fields: [redeemedUserId], references: [id], onDelete: SetNull)
+
+  @@index([issuerUserId])
+  @@index([issuerPersonId])
+  @@index([redeemedUserId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("identity_binding_codes")
 }
 
 /// Relationship state between Lusiyuan and one real-person identity.
