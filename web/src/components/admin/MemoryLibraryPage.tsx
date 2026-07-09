@@ -700,7 +700,7 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.1fr)]">
+      <section className="grid gap-5 xl:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]">
         <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
           <div className="mb-3">
             <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">记忆列表</h3>
@@ -983,7 +983,7 @@ function MemoryEditor({
       </div>
 
       {selectedMemory && (
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           <DetailRow label="Memory ID" value={selectedMemory.id} title={selectedMemory.id} />
           <DetailRow label="Person" value={ownerLabel(selectedMemory)} title={selectedMemory.personId ?? "无"} />
           <DetailRow label="Created" value={formatDate(selectedMemory.createdAt)} title={selectedMemory.createdAt} />
@@ -1013,7 +1013,7 @@ function MemoryEditor({
         </div>
       )}
 
-      <div className="admin-select-host mt-5 grid gap-3 md:grid-cols-2">
+      <div className="admin-select-host mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <div className="block">
           <span className="text-[11px] font-medium text-[var(--ls-ink-soft)]">Type</span>
           <AdminSelect
