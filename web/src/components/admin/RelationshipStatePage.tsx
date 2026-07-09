@@ -881,8 +881,8 @@ export function RelationshipStatePage({
               </form>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
-              <div className="hidden grid-cols-[minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(20rem,2fr)_minmax(4.5rem,0.35fr)_minmax(7rem,0.55fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
+            <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)] bg-[var(--ls-bg)]">
+              <div className="hidden grid-cols-[minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(20rem,2fr)_minmax(5.5rem,0.42fr)_minmax(6rem,0.48fr)_2rem] items-center gap-3 bg-[var(--ls-bg)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
                 <div>用户</div>
                 <div>渠道账号</div>
                 <div>主要内容</div>
@@ -896,7 +896,7 @@ export function RelationshipStatePage({
                     key={relationship.id}
                     type="button"
                     onClick={() => void selectRelationship(relationship.id)}
-                    className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(20rem,2fr)_minmax(4.5rem,0.35fr)_minmax(7rem,0.55fr)_2rem] lg:items-center"
+                    className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(20rem,2fr)_minmax(5.5rem,0.42fr)_minmax(6rem,0.48fr)_2rem] lg:items-center"
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1663,7 +1663,7 @@ function RelationshipScoreCell({
   const barColor = good ? "var(--ls-mint)" : "var(--ls-orange)";
   const valueColor = good ? "text-[var(--ls-success-text)]" : "text-[var(--ls-warning-text-strong)]";
   return (
-    <div className="rounded-md border border-[var(--ls-panel-cold-deep)] bg-[var(--ls-panel-soft)] px-2 py-2 lg:border-transparent lg:bg-transparent lg:px-1">
+    <div className="rounded-md border border-[var(--ls-panel-cold-deep)] bg-[var(--ls-panel-soft)] px-2 py-2 lg:border-transparent lg:bg-transparent lg:px-2">
       <div className="flex items-center justify-between gap-1.5 text-[10px] font-semibold text-[var(--ls-ink-soft)] lg:flex-col lg:items-start lg:gap-0.5">
         <span>{label}</span>
         <span className={`text-sm font-black tabular-nums ${valueColor}`}>{value}</span>
