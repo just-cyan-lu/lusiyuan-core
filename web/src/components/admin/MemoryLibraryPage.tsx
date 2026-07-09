@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Button } from "animal-island-ui";
+import { Button, Icon, Tag } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   archiveAdminMemory,
@@ -103,6 +103,34 @@ const tierLabels: Record<string, string> = {
 
 function memoryTierLabel(value: string): string {
   return tierLabels[value] ?? value;
+}
+
+function memoryStatusColor(status: string): import("animal-island-ui").TagProps["color"] {
+  switch (status) {
+    case "active":
+      return "app-green";
+    case "archived":
+      return "brown";
+    case "superseded":
+      return "warm-peach-pink";
+    default:
+      return "default";
+  }
+}
+
+function memoryScopeColor(scope: string): import("animal-island-ui").TagProps["color"] {
+  switch (scope) {
+    case "person":
+      return "app-pink";
+    case "global":
+      return "app-blue";
+    case "project":
+      return "app-yellow";
+    case "topic":
+      return "app-teal";
+    default:
+      return "default";
+  }
 }
 
 function emptyForm(): MemoryFormState {
@@ -679,16 +707,13 @@ export function MemoryLibraryPage({ adminToken, focusMemoryId, focusPersonId }: 
 
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
           <StatusPill active={!loading} label={loading ? "读取中" : "已读取"} />
-          <span className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1">
+          <Tag size="small" variant="outlined" color="default">
             当前 {memories.length} 条
-          </span>
+          </Tag>
           {Object.entries(summary).map(([status, count]) => (
-            <span
-              key={status}
-              className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1"
-            >
+            <Tag key={status} size="small" variant="outlined" color={memoryStatusColor(status)}>
               {status}: {count}
-            </span>
+            </Tag>
           ))}
         </div>
 
@@ -769,22 +794,23 @@ function MemoryListItem({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">{memory.type}</span>
-            <span
-              className="rounded-full bg-white/80 px-2 py-0.5 font-mono text-xs text-[var(--ls-ink-soft)]"
-              title={memory.id}
-            >
-              ID {shortId(memory.id)}
+            <Tag size="small" color="app-teal">
+              {memory.type}
+            </Tag>
+            <span title={memory.id}>
+              <Tag size="small" variant="dashed" color="default">
+                ID {shortId(memory.id)}
+              </Tag>
             </span>
-            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
+            <Tag size="small" variant="outlined" color={memoryScopeColor(memory.scope)}>
               {memory.scope}
-            </span>
-            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
+            </Tag>
+            <Tag size="small" variant="outlined" color="default">
               {memoryTierLabel(memory.tier)}
-            </span>
-            <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
+            </Tag>
+            <Tag size="small" variant="outlined" color="default">
               {ownerLabel(memory)}
-            </span>
+            </Tag>
           </div>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--ls-ink-strong)]" title={memory.content}>
             {memory.summary || memory.content}
@@ -967,8 +993,15 @@ function MemoryEditor({
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">
-            {form.mode === "create" ? "New Memory" : "Memory Detail"}
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-semibold text-[var(--ls-eyebrow-text)]">
+              {form.mode === "create" ? "New Memory" : "Memory Detail"}
+            </div>
+            <Icon
+              name="icon-critterpedia"
+              size={18}
+              className="opacity-70"
+            />
           </div>
           <h3 className="mt-2 text-2xl font-semibold text-[var(--ls-ink-strong)]">
             {form.mode === "create" ? "新增记忆" : selectedMemory?.type ?? "记忆详情"}
@@ -1244,12 +1277,9 @@ function MemoryEvidencePanel({
           <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">有效提及日期</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {mentionDays.map((day) => (
-              <span
-                key={day}
-                className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-mono text-xs text-[var(--ls-ink-soft)]"
-              >
+              <Tag key={day} size="small" variant="outlined" color="app-blue">
                 {day}
-              </span>
+              </Tag>
             ))}
           </div>
         </div>
@@ -1260,12 +1290,10 @@ function MemoryEvidencePanel({
           <div className="text-xs font-semibold text-[var(--ls-ink-soft)]">来源消息 ID</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {sourceIds.map((id) => (
-              <span
-                key={id}
-                title={id}
-                className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-mono text-xs text-[var(--ls-ink-soft)]"
-              >
-                {shortId(id)}
+              <span key={id} title={id}>
+                <Tag size="small" variant="dashed" color="default">
+                  {shortId(id)}
+                </Tag>
               </span>
             ))}
           </div>

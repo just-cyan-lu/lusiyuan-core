@@ -73,8 +73,8 @@ importers:
   web:
     dependencies:
       animal-island-ui:
-        specifier: ^1.0.16
-        version: 1.0.16(classnames@2.5.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^1.2.0
+        version: 1.2.0(classnames@2.5.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       classnames:
         specifier: ^2.5.1
         version: 2.5.1
@@ -434,12 +434,6 @@ packages:
 
   '@fastify/static@8.0.2':
     resolution: {integrity: sha512-xJ+XaZVl4Y+lKztx8jGi+BE73aByhOmjMgaTx98E4XtVZxUpiaYQIMBlwACsJz+xohm0kvzV34BZoiZ+bsJtBQ==}
-
-  '@fontsource/noto-sans-sc@5.2.9':
-    resolution: {integrity: sha512-bTUIWGBgJDpwi5qAr+x0/lcgv80IHTB9vl6s2f6EymZEa7qYV99yNRBZuKFT+SYDKVunZrjCEhWtpxqmbXWl5Q==}
-
-  '@fontsource/nunito@5.2.7':
-    resolution: {integrity: sha512-pmtBq0H9ex9nk+RtJYEJOD9pag393iHETnl/PVKleF4i06cd0ttngK5ZCTgYb5eOqR3Xdlrjtev8m7bmgYprew==}
 
   '@grammyjs/transformer-throttler@1.2.1':
     resolution: {integrity: sha512-CpWB0F3rJdUiKsq7826QhQsxbZi4wqfz1ccKX+fr+AOC+o8K7ZvS+wqX0suSu1QCsyUq2MDpNiKhyL2ZOJUS4w==}
@@ -902,8 +896,9 @@ packages:
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
-  animal-island-ui@1.0.16:
-    resolution: {integrity: sha512-5rpF9yRX7pms/BYk5es2MFCVMrw7XcjPvoRJWq5YIdnbr0ovwpBvMOg92HFsG6W2dYlZfEBAF+M1SNUcn4XQvw==}
+  animal-island-ui@1.2.0:
+    resolution: {integrity: sha512-DfbGsQCJsnAoRIiIQ+dYTOmt778hIjhCulR9DsHfXTaLuvjL+1AE176zbIg/EyU/3IS30V69/CtqvM9Ov+g3bw==}
+    engines: {node: '>=18'}
     peerDependencies:
       classnames: ^2.5.1
       react: '>=17.0.0'
@@ -1588,9 +1583,6 @@ packages:
   minipass@7.1.3:
     resolution: {integrity: sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==}
     engines: {node: '>=16 || 14 >=14.17'}
-
-  modern-screenshot@4.7.0:
-    resolution: {integrity: sha512-9YxN+ddPSMMlhylOv25VHzXrl9u67QRxoh7+SEewGtgUw7t6hHTrjptSDJUSne9oG4Xk/h2cwG15nIt4Hc9ujg==}
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -2356,10 +2348,6 @@ snapshots:
       fastq: 1.20.1
       glob: 11.0.0
 
-  '@fontsource/noto-sans-sc@5.2.9': {}
-
-  '@fontsource/nunito@5.2.7': {}
-
   '@grammyjs/transformer-throttler@1.2.1(grammy@1.43.0)':
     dependencies:
       bottleneck: 2.19.5
@@ -2767,12 +2755,9 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
-  animal-island-ui@1.0.16(classnames@2.5.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  animal-island-ui@1.2.0(classnames@2.5.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
-      '@fontsource/noto-sans-sc': 5.2.9
-      '@fontsource/nunito': 5.2.7
       classnames: 2.5.1
-      modern-screenshot: 4.7.0
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
@@ -3445,8 +3430,6 @@ snapshots:
   minimist@1.2.8: {}
 
   minipass@7.1.3: {}
-
-  modern-screenshot@4.7.0: {}
 
   ms@2.1.3: {}
 

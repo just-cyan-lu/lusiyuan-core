@@ -9,14 +9,14 @@
 - `web/node_modules/animal-island-ui/AI_USAGE.md`：上游给 AI 的组件 props 参考。
 - `web/node_modules/animal-island-ui/dist/types/index.d.ts`：本项目当前安装版本的最终导出类型，优先级最高。
 
-注意：当前安装的是 `animal-island-ui@1.0.16`，但 npm 包里的 `AI_USAGE.md` 标题仍是 v0.9.5，且和实际导出有少量差异。写代码时以 `dist/types/index.d.ts` 和 TypeScript build 为准，`AI_USAGE.md` 只作为组件用法参考。
+注意：当前安装的是 `animal-island-ui@1.2.0`，npm 包里的 `AI_USAGE.md` 标题仍是 v0.9.5，但内容已覆盖到新组件。写代码时以 `dist/types/index.d.ts` 和 TypeScript build 为准，`AI_USAGE.md` 只作为组件用法参考。
 
 ## 当前接入状态
 
 依赖在 `web/package.json`：
 
 ```json
-"animal-island-ui": "^1.0.16"
+"animal-island-ui": "^1.2.0"
 ```
 
 全局样式在 `web/src/main.tsx` 引入：
@@ -46,6 +46,7 @@ import { Card, Cursor, Icon, Input, Time, Title } from "animal-island-ui";
 - `AdminShell.tsx`：`Cursor`、`Card`、`Icon`、`Input`、`Time`、`Title`
 - `DashboardPage.tsx`：`Button`、`Card`、`Icon`、`Title`
 - `MemoryAdminPage.tsx`：`Icon`
+- `MemoryLibraryPage.tsx`：`Icon`、`Tag`
 
 本项目还在 `web/src/index.css` 补了一层 admin 适配样式：
 
@@ -65,6 +66,7 @@ import {
   Input,
   Switch,
   Modal,
+  Drawer,
   Card,
   Footer,
   Collapse,
@@ -88,6 +90,9 @@ import {
   Loading,
   Table,
   Wallet,
+  Tag,
+  Notification,
+  Progress,
 } from "animal-island-ui";
 ```
 
@@ -384,6 +389,25 @@ const [status, setStatus] = useState("all");
 - `StateChangeDetail.tsx`
 
 这符合项目规则：`StateChangeDetail` 解释“最终写入后，状态实际改了什么”，并复用 admin 详情展示语言。
+
+## Tag / Notification / Progress / Drawer
+
+`1.2.0` 新增组件，适合在 admin 中做状态标签、操作反馈和进度展示：
+
+- `Tag`：替换手写的圆角状态 badge。颜色 `color` 与 `Card` 共用同一套 13 色板，`variant` 有 `solid` / `outlined` / `dashed`。
+
+  ```tsx
+  <Tag color="app-green">active</Tag>
+  <Tag color="brown" variant="outlined">archived</Tag>
+  ```
+
+  密集列表里建议用 `size="small"`，详情区可用 `medium`。`closable` 适合可移除的筛选标签。
+
+- `Notification`：命令式 toast，`Notification.success('保存成功')`。适合保存、归档、导入等一次性的全局反馈。优先在操作成功后替换手写的 `actionMessage` banner。
+
+- `Progress`：水平进度条，带滚动条纹动画。适合批量导入、导出、同步任务。小区域用 `size="small"`，信息标签用 `infoPosition="right"` 避免文字被截断。
+
+- `Drawer`：侧滑抽屉，`pushBackground` 会让页面主体下沉变暗，形成景深。适合从列表展开详情、复杂筛选面板。如果只想在当前卡片区展示详情，继续用网格内联编辑，不必为了用抽屉而用抽屉。
 
 ## Loading / Phone / Wallet / Footer / Divider
 

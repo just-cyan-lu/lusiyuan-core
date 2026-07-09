@@ -25,6 +25,9 @@
 - 输入框优先用 `Input shadow`。原生输入继续使用 `.field-input`，避免单页手写尺寸。
 - 小状态使用 `StatusPill`，不要散落手写颜色。
 - 表格型数据后续优先考虑 `Table`，但复杂行操作可先保留原生表格并套 admin 样式。
+- 状态标签优先用 `Tag`，颜色与 `Card` 共享色板；不要用新的手写 badge。
+- 全局操作反馈优先用 `Notification`（保存成功、归档、导入导出等）。
+- 固定范围进度展示用 `Progress`；临时/不确定进度继续用文本 loading。
 
 ## 控件尺寸
 
@@ -53,7 +56,7 @@ CSS 变量定义在 `web/src/index.css`：
 
 ## 动效 / 特效目录
 
-以下清单来自当前使用的 `animal-island-ui@1.0.16` 源码。新增页面优先复用这些效果，不随手发明新的动效体系。
+以下清单来自当前使用的 `animal-island-ui@1.2.0` 源码。新增页面优先复用这些效果，不随手发明新的动效体系。
 
 ### 已在 admin 使用
 
@@ -66,6 +69,9 @@ CSS 变量定义在 `web/src/index.css`：
 
 ### 推荐继续使用
 
+- `Tag`：capsule 标签，hover/active 有轻微上浮和阴影。适合状态、分类、轻量筛选标签。`onClick` 会让它变成可键盘访问的按钮。
+- `Notification`：命令式 toast，success/info/warning/error 四色，默认顶部居中 4.5s 自动关闭，支持同 key 原地更新。
+- `Progress`：水平条纹进度条，fill 宽度过渡 + 条纹无限滚动。小空间用 `size="small"`。
 - `Checkbox` / `Radio` splash：选中时圆形 splash 爆开，周围用 box-shadow 生成六向小圆点，同时勾选路径有 stroke-dashoffset 绘制效果。
 - `Input shadow`：显式 `shadow` 后有 3D 输入框厚度；hover 边框/阴影变深，focus 使用黄色光晕。
 - `Switch`：handle 横向滑动，track 使用 inset shadow；loading 状态有小 spinner。
@@ -78,6 +84,7 @@ CSS 变量定义在 `web/src/index.css`：
 
 ### 谨慎使用
 
+- `Drawer`：`pushBackground` 会让整个页面主体下沉 + 变暗，视觉重量大。适合需要从边缘推出的详情/筛选面板；普通内联详情不需要。
 - `Loading`：全屏岛屿 loading，当前实现包含 bundled GSAP/MotionPathPlugin 动画，关闭时有 radial mask 收尾。适合全屏阻塞，不适合小局部加载。
 - `Phone`：有 home screen 背景 `grasswave`、冒号 blink、app icon bounce。适合展示/玩具化视图，不适合密集管理页主体。
 - `Wallet`：钱袋 hover bounce 和胶囊数字样式。适合积分/计数/资源类徽章。
