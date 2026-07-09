@@ -1,5 +1,6 @@
 import { webSearchService } from "../../web-search/web-search.service.js";
 import { runtimeConfig } from "../../config/runtime-settings.service.js";
+import { env } from "../../utils/env.js";
 import { toolAccessState } from "../tool-access.js";
 import type { ToolDefinition, ToolExecutionContext } from "../tool.types.js";
 
@@ -45,6 +46,9 @@ export const webSearchTool: ToolDefinition<WebSearchInput, WebSearchOutput> = {
     required: ["query"],
   },
   enabled: true,
-  runtimeAccess: () => toolAccessState(runtimeConfig.TOOL_WEB_SEARCH_MODE, runtimeConfig.TAVILY_ENABLED),
+  runtimeAccess: () => toolAccessState(
+    runtimeConfig.TOOL_WEB_SEARCH_MODE,
+    runtimeConfig.TAVILY_ENABLED && env.TAVILY_API_KEYS.length > 0
+  ),
   handler,
 };

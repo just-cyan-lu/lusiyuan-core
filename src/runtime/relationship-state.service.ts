@@ -55,6 +55,7 @@ interface IdentityCandidateAlias {
   value: string;
   normalizedValue: string;
   sourceUserId: string | null;
+  confidence: number;
 }
 
 interface IdentityCandidatePerson {
@@ -325,6 +326,10 @@ function uniqueIdentityHints(values: string[]): string[] {
   return hints;
 }
 
+function displayNameIdentityHints(...values: Array<string | null | undefined>): string[] {
+  return uniqueIdentityHints(values.map((value) => value ?? ""));
+}
+
 async function recordSelfIdentityAliases(input: {
   personId: string;
   userId: string;
@@ -398,7 +403,7 @@ function identityTermValues(value: string | null | undefined): string[] {
 }
 
 function identityTermsForCandidate(candidate: IdentityCandidatePerson) {
-  const terms: Array<{ value: string; normalized: string; userId?: string }> = [];
+  const terms: Array<{ value: string; normalized: string; userId?: string; confidence?: number }> = [];
   for (const value of identityTermValues(candidate.label)) {
     terms.push({ value, normalized: normalizeIdentityToken(value) });
   }
@@ -408,6 +413,7 @@ function identityTermsForCandidate(candidate: IdentityCandidatePerson) {
         value,
         normalized: alias.normalizedValue || normalizeIdentityToken(value),
         userId: alias.sourceUserId ?? undefined,
+        confidence: alias.confidence,
       });
     }
   }
@@ -460,6 +466,9 @@ function matchIdentityCandidate(
         (normalizedHint.includes(term.normalized) || term.normalized.includes(normalizedHint))
       ) {
         score = explicit ? 0.72 : 0.62;
+      }
+      if (score > 0 && term.confidence !== undefined) {
+        score *= term.confidence;
       }
 
       if (score > confidence) {
@@ -1279,7 +1288,7 @@ export const relationshipStateService = {
     if (!link) throw serviceError("只能修改当前身份下的渠道账号。", 400);
 
     const displayName = cleanText(input.displayName, 80);
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       const user = await tx.user.update({
         where: { id: input.userId },
         data: { displayName: displayName ?? null },
@@ -1313,6 +1322,16 @@ export const relationshipStateService = {
       });
       return updated;
     });
+    if (displayName) {
+      await recordSelfIdentityAliases({
+        personId: relationship.personId,
+        userId: input.userId,
+        hints: [displayName],
+        source: "admin_channel_display_name",
+        confidence: 0.8,
+      });
+    }
+    return updated;
   },
 
   async approveIdentityLinkProposal(input: { proposalId: string; reviewedBy?: string }) {
@@ -1560,12 +1579,18 @@ export const relationshipStateService = {
     });
     const currentPerson = await this.getOrCreatePersonForUser(input.userId);
     const explicitHints = extractIdentityHints(input.userMessage);
-    const hints = uniqueIdentityHints([
-      ...explicitHints,
-      input.displayName ?? "",
-      sourceUser.displayName ?? "",
-    ]);
+    const displayNameHints = displayNameIdentityHints(input.displayName, sourceUser.displayName);
+    const hints = uniqueIdentityHints([...explicitHints, ...displayNameHints]);
     if (hints.length === 0) return [];
+    if (displayNameHints.length > 0) {
+      await recordSelfIdentityAliases({
+        personId: currentPerson.id,
+        userId: input.userId,
+        hints: displayNameHints,
+        source: "channel_display_name",
+        confidence: 0.76,
+      });
+    }
     if (explicitHints.length > 0) {
       await recordSelfIdentityAliases({
         personId: currentPerson.id,
