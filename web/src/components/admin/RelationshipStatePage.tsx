@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
-import { Button } from "animal-island-ui";
+import { Button, Icon, Tag } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import {
   applyRelationshipReviewProposal,
@@ -854,7 +854,10 @@ export function RelationshipStatePage({
           <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">用户关系</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">用户关系</h3>
+                  <Icon name="icon-chat" size={18} className="opacity-70" />
+                </div>
                 <p className="mt-1 text-xs text-[var(--ls-ink-soft)]">
                   {pageState.relationships.length} 个现实身份，按更新时间读取最近的关系状态。
                 </p>
@@ -879,7 +882,7 @@ export function RelationshipStatePage({
             </div>
 
             <div className="mt-4 overflow-hidden rounded-lg border border-[var(--ls-border)]">
-              <div className="hidden grid-cols-[minmax(11rem,0.9fr)_minmax(11rem,0.85fr)_minmax(16rem,1.35fr)_minmax(5rem,0.4fr)_minmax(8rem,0.7fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
+              <div className="hidden grid-cols-[minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(20rem,2fr)_minmax(4.5rem,0.35fr)_minmax(7rem,0.55fr)_2rem] items-center gap-3 bg-[var(--ls-panel-soft)] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--ls-ink-soft)] lg:grid">
                 <div>用户</div>
                 <div>渠道账号</div>
                 <div>主要内容</div>
@@ -893,24 +896,16 @@ export function RelationshipStatePage({
                     key={relationship.id}
                     type="button"
                     onClick={() => void selectRelationship(relationship.id)}
-                    className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(11rem,0.9fr)_minmax(11rem,0.85fr)_minmax(16rem,1.35fr)_minmax(5rem,0.4fr)_minmax(8rem,0.7fr)_2rem] lg:items-center"
+                    className="admin-layout-button grid w-full gap-3 border-t border-[var(--ls-border)] bg-white px-4 py-4 text-left transition first:border-t-0 hover:bg-[var(--ls-panel-soft)] lg:grid-cols-[minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(20rem,2fr)_minmax(4.5rem,0.35fr)_minmax(7rem,0.55fr)_2rem] lg:items-center"
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="break-words text-sm font-semibold text-[var(--ls-ink-strong)]">
                           {userLabel(relationship)}
                         </span>
-                        {(() => {
-                          const tone = relationshipLabelTone(relationship.relationshipLabel);
-                          return (
-                            <span
-                              className="rounded-full border px-2.5 py-1 text-xs font-semibold"
-                              style={{ background: tone.bg, color: tone.text, borderColor: tone.border }}
-                            >
-                              {relationship.relationshipLabel}
-                            </span>
-                          );
-                        })()}
+                        <Tag size="small" color={relationshipLabelColor(relationship.relationshipLabel)}>
+                          {relationship.relationshipLabel}
+                        </Tag>
                       </div>
                     </div>
                     <div className="min-w-0 space-y-1 text-xs leading-5 text-[var(--ls-ink-soft)]">
@@ -1032,12 +1027,9 @@ export function RelationshipStatePage({
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
                     <span className="font-semibold text-[var(--ls-ink-strong)]">自称/别名</span>
                     {identityAliasLabels(pageState.selected).map((alias) => (
-                      <span
-                        key={alias}
-                        className="rounded-full border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-2.5 py-1"
-                      >
+                      <Tag key={alias} size="small" variant="outlined" color="default">
                         {alias}
-                      </span>
+                      </Tag>
                     ))}
                   </div>
                 )}
@@ -1084,9 +1076,9 @@ export function RelationshipStatePage({
 	                  这里放 Dream 已经想好、但因为关闭自动维护而没有写入的关系档案建议。应用后会进入下面的关系变更记录。
 	                </p>
 	              </div>
-	              <div className="rounded-full bg-[var(--ls-panel-soft)] px-3 py-1 text-xs font-medium text-[var(--ls-ink-soft)]">
-	                {pendingReviewProposals.length} 条待确认
-	              </div>
+	              <Tag size="small" variant="outlined" color="default">
+                {pendingReviewProposals.length} 条待确认
+              </Tag>
 	            </div>
 	            <div className="mt-4 grid gap-3">
 	              {pendingReviewProposals.length > 0 ? (
@@ -1099,12 +1091,12 @@ export function RelationshipStatePage({
 	                    >
 	                      <div className="min-w-0">
 	                        <div className="flex flex-wrap items-center gap-2">
-	                          <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">
-	                            {reviewStatusLabel(proposal.status)}
-	                          </span>
-	                          <span className="rounded-full border border-[var(--ls-border-cold)] bg-white px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
-	                            {Math.round(proposal.confidence * 100)}%
-	                          </span>
+	                          <Tag size="small" color="app-yellow">
+                            {reviewStatusLabel(proposal.status)}
+                          </Tag>
+	                          <Tag size="small" variant="outlined" color="app-blue">
+                            {Math.round(proposal.confidence * 100)}%
+                          </Tag>
 	                          <span className="text-xs text-[var(--ls-ink-soft)]">
 	                            {formatDate(proposal.createdAt)}
 	                          </span>
@@ -1245,9 +1237,9 @@ export function RelationshipStatePage({
                         <span className="text-sm font-semibold text-[var(--ls-ink-strong)]">
                           {proposalTargetLabel(proposal)}
                         </span>
-                        <span className="rounded-full border border-[var(--ls-border-cold)] bg-white px-2 py-0.5 text-xs text-[var(--ls-ink-soft)]">
-                          {Math.round(proposal.confidence * 100)}%
-                        </span>
+                        <Tag size="small" variant="outlined" color="app-blue">
+                            {Math.round(proposal.confidence * 100)}%
+                          </Tag>
                       </div>
                       <div className="mt-2 text-xs leading-6 text-[var(--ls-ink-soft)]">
                         {proposal.reason}
@@ -1381,9 +1373,9 @@ export function RelationshipStatePage({
 	                  最近 20 条程序或 admin 写入记录。按时间展示，每条点开后查看实际改了哪些字段。
 	                </p>
 	              </div>
-              <div className="rounded-full bg-[var(--ls-panel-soft)] px-3 py-1 text-xs font-medium text-[var(--ls-ink-soft)]">
-	                {pageState.events.length} 条记录
-	              </div>
+              <Tag size="small" variant="outlined" color="default">
+                {pageState.events.length} 条记录
+              </Tag>
 	            </div>
 	            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.95fr)]">
 	              {pageState.events.length > 0 ? (
@@ -1402,12 +1394,12 @@ export function RelationshipStatePage({
 	                            }`}
 	                          >
 	                            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
-	                              <span className="rounded-full border border-[var(--ls-border-cold)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
-	                                {eventTypeLabel(event.eventType)}
-	                              </span>
-	                              <span className="rounded-full border border-[var(--ls-border)] bg-white px-2.5 py-1 font-semibold text-[var(--ls-ink-strong)]">
-	                                {event.source ?? "unknown"}
-	                              </span>
+	                              <Tag size="small" variant="outlined" color="app-teal">
+                                {eventTypeLabel(event.eventType)}
+                              </Tag>
+	                              <Tag size="small" variant="outlined" color="default">
+                                {event.source ?? "unknown"}
+                              </Tag>
 	                              {event.channel && <span>渠道：{event.channel}</span>}
 	                              <span>{formatDate(event.createdAt)}</span>
 	                            </div>
@@ -1742,16 +1734,12 @@ function RelationshipSummaryStrip({ relationships }: { relationships: Relationsh
  *   - "陌生/未"          → 灰（冷）
  *   - 兜底 → 暖橙
  */
-function relationshipLabelTone(label: string): { bg: string; text: string; border: string } {
+function relationshipLabelColor(label: string): import("animal-island-ui").TagProps["color"] {
   const s = label ?? "";
-  if (/(熟悉|老朋友|老熟|亲近|信任)/.test(s)) {
-    return { bg: "var(--ls-mint-soft)", text: "var(--ls-mint-text)", border: "var(--ls-success-border-soft)" };
-  }
-  if (/(认识|初次|刚开始|新建|刚)/.test(s)) {
-    return { bg: "var(--ls-panel-cold)", text: "var(--ls-info-text)", border: "var(--ls-border-cold-soft)" };
-  }
-  if (/(陌生|未形成|未知|未确认)/.test(s)) {
-    return { bg: "var(--ls-panel-soft)", text: "var(--ls-ink-soft)", border: "var(--ls-border)" };
-  }
-  return { bg: "var(--ls-warning-bg)", text: "var(--ls-warning-text-strong)", border: "var(--ls-warning-border)" };
+  if (/(熟悉|老朋友|老熟|亲近|信任)/.test(s)) return "app-green";
+  if (/(认识|初次|刚开始|新建|刚)/.test(s)) return "app-blue";
+  if (/(陌生|未形成|未知|未确认)/.test(s)) return "default";
+  return "app-orange";
 }
+
+
