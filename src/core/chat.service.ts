@@ -39,9 +39,10 @@ import {
 } from "./reply-segmentation.service.js";
 import {
   EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT,
-  formatExpressionLearningExamples,
+  formatExpressionLearningContext,
   retrieveExpressionLearningExamples,
 } from "../expression-learning/expression-learning.service.js";
+import { retrieveExpressionLearningRules } from "../expression-learning/expression-learning-rules.js";
 import type { ChatInput, ChatOutput, ChatReplyPart } from "../types/chat.js";
 import type { ToolExecutionContext } from "../tools/tool.types.js";
 import type { ChatMessage, MessageContentPart } from "../types/model.js";
@@ -286,6 +287,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       runtimeState,
       relationshipState,
       expressionLearningExamples,
+      expressionLearningRules,
       externalIdentityContext,
     ] = await trace.time(
       "prepare_prompt_materials",
@@ -330,6 +332,10 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
             console.warn("[chat] expression learning unavailable:", err);
             return [];
           }),
+          retrieveExpressionLearningRules(expressionLearningScene).catch((err) => {
+            console.warn("[chat] expression rules unavailable:", err);
+            return [];
+          }),
           externalIdentityResearchService
             .preparePromptContext(relationshipRecord.personId)
             .catch((err) => {
@@ -346,6 +352,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       summaries: conversationContext.summaries.length,
       recallWindows: conversationContext.recallWindows.length,
       expressionExamples: expressionLearningExamples.length,
+      expressionRules: expressionLearningRules.length,
     });
 
     const toolContext: ToolExecutionContext = {
@@ -377,7 +384,10 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       relationshipState,
       ownerProfile: ownerProfile || undefined,
       toolsAvailable: availableTools.length > 0,
-      expressionLearningContext: formatExpressionLearningExamples(expressionLearningExamples),
+      expressionLearningContext: formatExpressionLearningContext(
+        expressionLearningRules,
+        expressionLearningExamples
+      ),
       externalIdentityContext: externalIdentityContext || undefined,
     });
     trace.mark("prompt_ready", { messages: messages.length });

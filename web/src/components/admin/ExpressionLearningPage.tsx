@@ -7,34 +7,49 @@ import {
   analyzeExpressionLearningExample,
   createExpressionLearningDialogueCase,
   createExpressionLearningDialogueTurn,
+  createExpressionLearningDistillationBatch,
   createExpressionLearningExample,
+  createExpressionLearningRule,
   deleteExpressionLearningDialogueCase,
   deleteExpressionLearningDialogueTurn,
   deleteExpressionLearningExample,
   deleteExpressionLearningTrainingRecord,
+  deleteExpressionLearningRule,
   downloadExpressionLearningTrainingExport,
   fetchExpressionLearningDialogueCases,
   fetchExpressionLearningExamples,
+  fetchExpressionLearningDistillationBatches,
+  fetchExpressionLearningRules,
   fetchExpressionLearningTrainingRecords,
   generateExpressionLearningDialogueTurnDraft,
   generateExpressionLearningDraft,
   generateExpressionLearningPracticeQuestion,
+  proposeExpressionLearningRule,
   reanalyzeExpressionLearningExample,
+  reopenExpressionLearningDistillationCandidate,
+  resolveExpressionLearningDistillationCandidate,
   runExpressionLearningPracticeBatchNow,
   saveExpressionLearningDialogueTurnExample,
   saveExpressionLearningTrainingDraft,
   updateExpressionLearningDialogueCase,
   updateExpressionLearningDialogueTurn,
+  updateExpressionLearningDistillationCandidate,
   updateExpressionLearningExample,
+  updateExpressionLearningRule,
   type ExpressionLearningAnalysis,
   type ExpressionLearningDialogueCase,
   type ExpressionLearningDialogueCasesResponse,
   type ExpressionLearningDialogueTurn,
+  type ExpressionLearningDistillationBatch,
+  type ExpressionLearningDistillationCandidate,
   type ExpressionLearningCreateInput,
   type ExpressionLearningExample,
   type ExpressionLearningPracticeQuestion,
   type ExpressionLearningPracticeQuestionResponse,
   type ExpressionLearningResponse,
+  type ExpressionLearningRule,
+  type ExpressionLearningRuleCandidate,
+  type ExpressionLearningRulesResponse,
   type ExpressionLearningTrainingDraftInput,
   type ExpressionLearningTrainingRecord,
   type ExpressionLearningTrainingRecordsResponse,
@@ -47,7 +62,7 @@ interface Props {
 
 const emptyState: ExpressionLearningResponse = {
   examples: [],
-  summary: { total: 0, active: 0, pending: 0, skipped: 0 },
+  summary: { total: 0, active: 0, skipped: 0 },
   scenes: [],
 };
 
@@ -61,7 +76,14 @@ const emptyDialogueState: ExpressionLearningDialogueCasesResponse = {
   summary: { total: 0, draft: 0, active: 0, archived: 0 },
 };
 
-type LearningTab = "library" | "exercises" | "dialogue";
+const emptyRuleState: ExpressionLearningRulesResponse = {
+  rules: [],
+  summary: { total: 0, active: 0, draft: 0 },
+};
+
+type LearningTab = "library" | "rules" | "exercises" | "dialogue";
+
+type RuleSeed = ExpressionLearningRuleCandidate & { exampleId: string; revision: number };
 
 type TeachingSeed = {
   record: ExpressionLearningTrainingRecord;
@@ -117,7 +139,6 @@ function outcomeLabel(value: string) {
 
 function statusLabel(value: string) {
   return ({
-    pending: "待审核",
     active: "参与生成",
     disabled: "已停用",
   } as Record<string, string>)[value] ?? value;
@@ -197,6 +218,12 @@ function exerciseQuestionText(record: ExpressionLearningTrainingRecord): string 
   return (record.contextText ?? recordString(record.generatedQuestion, "contextText")) || "未填写题目";
 }
 
+function distillationLabel(example: ExpressionLearningExample): string {
+  const evidences = example.ruleEvidences ?? [];
+  if (evidences.length === 0) return "未整理";
+  return evidences.some((item) => item.coverage === "full") ? "已完整覆盖" : "部分覆盖";
+}
+
 function dialogueCaseStatusLabel(value: string) {
   return ({
     draft: "草稿",
@@ -227,9 +254,14 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   const [state, setState] = useState(emptyState);
   const [exerciseState, setExerciseState] = useState(emptyExerciseState);
   const [dialogueState, setDialogueState] = useState(emptyDialogueState);
+  const [ruleState, setRuleState] = useState(emptyRuleState);
+  const [distillationBatches, setDistillationBatches] = useState<ExpressionLearningDistillationBatch[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedDialogueCaseId, setSelectedDialogueCaseId] = useState<string | null>(null);
   const [selectedDialogueTurnId, setSelectedDialogueTurnId] = useState<string | null>(null);
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [selectedDistillationBatchId, setSelectedDistillationBatchId] = useState<string | null>(null);
+  const [ruleSeed, setRuleSeed] = useState<RuleSeed | null>(null);
   const [teachingSeed, setTeachingSeed] = useState<TeachingSeed | null>(null);
   const [teachingRevision, setTeachingRevision] = useState(0);
   const [scene, setScene] = useState("all");
@@ -242,6 +274,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   const [working, setWorking] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [batching, setBatching] = useState(false);
+  const [distilling, setDistilling] = useState(false);
   const [exporting, setExporting] = useState<"json" | "jsonl" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -256,6 +289,14 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   const selectedDialogueTurn = useMemo(
     () => selectedDialogueCase?.turns.find((turn) => turn.id === selectedDialogueTurnId) ?? selectedDialogueCase?.turns[0] ?? null,
     [selectedDialogueCase, selectedDialogueTurnId],
+  );
+  const selectedRule = useMemo(
+    () => ruleState.rules.find((rule) => rule.id === selectedRuleId) ?? ruleState.rules[0] ?? null,
+    [ruleState.rules, selectedRuleId],
+  );
+  const selectedDistillationBatch = useMemo(
+    () => distillationBatches.find((batch) => batch.id === selectedDistillationBatchId) ?? distillationBatches[0] ?? null,
+    [distillationBatches, selectedDistillationBatchId],
   );
 
   async function load() {
@@ -299,6 +340,34 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     }
   }
 
+  async function loadRules() {
+    if (!adminToken) return;
+    setError(null);
+    try {
+      const result = await fetchExpressionLearningRules({ token: adminToken });
+      setRuleState(result);
+      if (!result.rules.some((rule) => rule.id === selectedRuleId)) {
+        setSelectedRuleId(result.rules[0]?.id ?? null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function loadDistillationBatches() {
+    if (!adminToken) return;
+    setError(null);
+    try {
+      const result = await fetchExpressionLearningDistillationBatches({ token: adminToken, limit: 20 });
+      setDistillationBatches(result.batches);
+      if (!result.batches.some((batch) => batch.id === selectedDistillationBatchId)) {
+        setSelectedDistillationBatchId(result.batches[0]?.id ?? null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function loadDialogues() {
     if (!adminToken) return;
     setError(null);
@@ -326,7 +395,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   }
 
   async function refreshAll() {
-    await Promise.all([load(), loadExercises(), loadDialogues()]);
+    await Promise.all([load(), loadRules(), loadDistillationBatches(), loadExercises(), loadDialogues()]);
   }
 
   useEffect(() => {
@@ -339,6 +408,16 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     void loadExercises();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, exerciseCreatedFrom, exerciseCreatedTo]);
+
+  useEffect(() => {
+    void loadRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
+
+  useEffect(() => {
+    void loadDistillationBatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
 
   useEffect(() => {
     void loadDialogues();
@@ -629,7 +708,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     ownerAction?: string | null;
     ownerNote?: string | null;
     analysis?: Partial<ExpressionLearningAnalysis> | null;
-    status?: "pending" | "active" | "disabled";
+    status?: "active" | "disabled";
   }) {
     if (!adminToken) return;
     setWorking(true);
@@ -755,7 +834,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
   async function acceptDraft(input: {
     recordId: string;
-    status?: "pending" | "active" | "disabled";
+    status?: "active" | "disabled";
     ownerNote?: string | null;
   }) {
     if (!adminToken) return;
@@ -831,7 +910,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
   async function deleteExample(exampleId: string) {
     if (!adminToken) return;
-    if (!window.confirm("确认删除这条已停用经验吗？删除后不可恢复，对应习题也会一起删除。")) {
+    if (!window.confirm("确认删除这条经验吗？删除后不可恢复，对应习题和规则证据关联也会一起删除。")) {
       return;
     }
     setWorking(true);
@@ -849,12 +928,175 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     }
   }
 
+  async function distillRule(exampleId: string) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const { candidate } = await proposeExpressionLearningRule({ token: adminToken, exampleId });
+      setRuleSeed({ ...candidate, exampleId, revision: Date.now() });
+      setSelectedRuleId(null);
+      setActiveTab("rules");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function saveRule(input: {
+    ruleId?: string;
+    ruleText: string;
+    kind: ExpressionLearningRule["kind"];
+    scope: ExpressionLearningRule["scope"];
+    scene: string | null;
+    strength: ExpressionLearningRule["strength"];
+    status: ExpressionLearningRule["status"];
+    exampleId?: string | null;
+    coverage?: "partial" | "full";
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = input.ruleId
+        ? await updateExpressionLearningRule({ ...input, token: adminToken, ruleId: input.ruleId })
+        : await createExpressionLearningRule({
+            ...input,
+            token: adminToken,
+            source: input.exampleId ? "distilled" : "manual",
+            exampleIds: input.exampleId ? [input.exampleId] : [],
+          });
+      setRuleSeed(null);
+      setSelectedRuleId(result.rule.id);
+      await loadRules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function deleteRule(ruleId: string) {
+    if (!adminToken || !window.confirm("确认删除这条表达规则吗？原始经验会继续保留。")) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await deleteExpressionLearningRule({ token: adminToken, ruleId });
+      setSelectedRuleId(null);
+      await loadRules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function runDistillation(input: {
+    scene: string;
+    organization: "unorganized" | "partial" | "full" | "all";
+    createdFrom: string;
+    createdTo: string;
+  }) {
+    if (!adminToken) return;
+    setDistilling(true);
+    setError(null);
+    try {
+      const { batch } = await createExpressionLearningDistillationBatch({
+        token: adminToken,
+        scene: input.scene === "all" ? null : input.scene,
+        organization: input.organization,
+        createdFrom: input.createdFrom || null,
+        createdTo: input.createdTo || null,
+        limit: 40,
+      });
+      setDistillationBatches((current) => [batch, ...current.filter((item) => item.id !== batch.id)]);
+      setSelectedDistillationBatchId(batch.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDistilling(false);
+    }
+  }
+
+  async function saveDistillationCandidate(
+    candidateId: string,
+    patch: DistillationCandidatePatch,
+  ) {
+    if (!adminToken) return false;
+    setWorking(true);
+    setError(null);
+    try {
+      await updateExpressionLearningDistillationCandidate({ token: adminToken, candidateId, ...patch });
+      await loadDistillationBatches();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function resolveDistillationCandidate(input: {
+    candidateId: string;
+    patch: DistillationCandidatePatch;
+    action: "create" | "merge" | "dismiss";
+    ruleStatus?: "draft" | "active";
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      if (input.action !== "dismiss") {
+        await updateExpressionLearningDistillationCandidate({
+          token: adminToken,
+          candidateId: input.candidateId,
+          ...input.patch,
+        });
+      }
+      await resolveExpressionLearningDistillationCandidate({
+        token: adminToken,
+        candidateId: input.candidateId,
+        action: input.action,
+        ruleStatus: input.ruleStatus,
+      });
+      await Promise.all([loadDistillationBatches(), loadRules(), load()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function reopenDistillationCandidate(candidateId: string) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await reopenExpressionLearningDistillationCandidate({ token: adminToken, candidateId });
+      await loadDistillationBatches();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   const skippedRatio = state.summary.total > 0
     ? Math.round((state.summary.skipped / state.summary.total) * 100)
     : 0;
   const activeRatio = state.summary.total > 0
     ? Math.round((state.summary.active / state.summary.total) * 100)
     : 0;
+
+  function openLibraryFilter(nextStatus: string, nextOutcome: string) {
+    setScene("all");
+    setStatus(nextStatus);
+    setOutcome(nextOutcome);
+    setQuery("");
+    setActiveTab("library");
+  }
 
   return (
     <div className="space-y-5">
@@ -920,34 +1162,30 @@ export function ExpressionLearningPage({ adminToken }: Props) {
         </div>
       </Card>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-3">
         <Metric
           label="全部经验"
           value={state.summary.total}
           icon="icon-critterpedia"
           tone="app-blue"
           accent="学习过的所有表达笔记"
+          onClick={() => openLibraryFilter("all", "all")}
         />
         <Metric
-          label="正在参与生成"
+          label="已启用"
           value={state.summary.active}
           icon="icon-miles"
           tone="app-yellow"
           accent={`占总经验 ${activeRatio}% · 当前会影响回复`}
+          onClick={() => openLibraryFilter("active", "all")}
         />
         <Metric
-          label="待审核"
-          value={state.summary.pending}
-          icon="icon-camera"
-          tone="warm-peach-pink"
-          accent="练习或导入结果，确认后才参与生成"
-        />
-        <Metric
-          label="学会不回复"
+          label="选择不回复"
           value={state.summary.skipped}
           icon="icon-variant"
           tone="app-green"
           accent={`占总经验 ${skippedRatio}% · 决定不答也是经验`}
+          onClick={() => openLibraryFilter("all", "skipped")}
         />
       </section>
 
@@ -1012,6 +1250,44 @@ export function ExpressionLearningPage({ adminToken }: Props) {
         />
       )}
 
+      {activeTab === "rules" && (
+        <ExpressionRulesPanel
+          key={ruleSeed?.revision ?? selectedRule?.id ?? "empty-rules"}
+          state={ruleState}
+          batches={distillationBatches}
+          selectedBatch={selectedDistillationBatch}
+          selectedRule={selectedRule}
+          seed={ruleSeed}
+          working={working}
+          distilling={distilling}
+          onSelectBatch={setSelectedDistillationBatchId}
+          onRunDistillation={(input) => void runDistillation(input)}
+          onSaveCandidate={(candidateId, patch) => saveDistillationCandidate(candidateId, patch)}
+          onResolveCandidate={(input) => void resolveDistillationCandidate(input)}
+          onReopenCandidate={(candidateId) => void reopenDistillationCandidate(candidateId)}
+          onSelect={(ruleId) => {
+            setRuleSeed(null);
+            setSelectedRuleId(ruleId);
+          }}
+          onStartNew={() => {
+            setSelectedRuleId(null);
+            setRuleSeed({
+              ruleText: "",
+              kind: "strategy",
+              scope: "global",
+              scene: null,
+              strength: "soft",
+              coverage: "partial",
+              reason: "",
+              exampleId: "",
+              revision: Date.now(),
+            });
+          }}
+          onSave={(input) => void saveRule(input)}
+          onDelete={(ruleId) => void deleteRule(ruleId)}
+        />
+      )}
+
       {activeTab === "library" && (
         <>
           <Card className="admin-select-host p-4 md:p-5" pattern="none">
@@ -1037,7 +1313,6 @@ export function ExpressionLearningPage({ adminToken }: Props) {
                   onChange={setStatus}
                   options={[
                     { key: "all", label: "全部状态" },
-                    { key: "pending", label: "待审核" },
                     { key: "active", label: "参与生成" },
                     { key: "disabled", label: "已停用" },
                   ]}
@@ -1102,6 +1377,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
             onSave={(patch) => void save(selected.id, patch)}
             onDelete={() => void deleteExample(selected.id)}
             onReanalyze={() => void reanalyze(selected.id)}
+            onDistill={() => void distillRule(selected.id)}
           />
         ) : (
           <Card className="p-5" pattern="none">
@@ -1123,12 +1399,13 @@ function LearningTabs({
   onChange: (tab: LearningTab) => void;
 }) {
   const tabs: Array<{ key: LearningTab; label: string; description: string; icon: IconName }> = [
-    { key: "library", label: "经验库", description: "查看、审核和修正经验", icon: "icon-critterpedia" },
+    { key: "library", label: "经验库", description: "查看和修正原始经验", icon: "icon-critterpedia" },
+    { key: "rules", label: "表达规则", description: "管理跨场景稳定规则", icon: "icon-map" },
     { key: "exercises", label: "习题库", description: "新建、编辑和分析习题", icon: "icon-camera" },
     { key: "dialogue", label: "多轮练习", description: "连续对话和分支", icon: "icon-chat" },
   ];
   return (
-    <Card className="grid gap-3 p-3 md:grid-cols-3" pattern="none">
+    <Card className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-4" pattern="none">
       {tabs.map((tab) => (
         <button
           key={tab.key}
@@ -1148,6 +1425,435 @@ function LearningTabs({
         </button>
       ))}
     </Card>
+  );
+}
+
+type RuleSaveInput = {
+  ruleId?: string;
+  ruleText: string;
+  kind: ExpressionLearningRule["kind"];
+  scope: ExpressionLearningRule["scope"];
+  scene: string | null;
+  strength: ExpressionLearningRule["strength"];
+  status: ExpressionLearningRule["status"];
+  exampleId?: string | null;
+  coverage?: "partial" | "full";
+};
+
+type DistillationCandidatePatch = {
+  ruleText?: string;
+  kind?: ExpressionLearningRule["kind"];
+  scope?: ExpressionLearningRule["scope"];
+  scene?: string | null;
+  strength?: ExpressionLearningRule["strength"];
+  coverage?: "partial" | "full";
+  reason?: string | null;
+  sourceExampleIds?: string[];
+};
+
+function distillationMatchLabel(value: ExpressionLearningDistillationCandidate["matchType"]) {
+  return value === "duplicate" ? "重复规则" : value === "conflict" ? "规则冲突" : "新规则";
+}
+
+function distillationBatchStatusLabel(value: ExpressionLearningDistillationBatch["status"]) {
+  return ({ processing: "整理中", proposed: "待处理", completed: "已完成", failed: "失败" } as Record<string, string>)[value] ?? value;
+}
+
+function candidateSourceIds(candidate: ExpressionLearningDistillationCandidate): string[] {
+  return Array.isArray(candidate.sourceExampleIds)
+    ? candidate.sourceExampleIds.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function DistillationWorkbench({
+  batches,
+  selectedBatch,
+  working,
+  distilling,
+  onSelectBatch,
+  onRun,
+  onSaveCandidate,
+  onResolveCandidate,
+  onReopenCandidate,
+}: {
+  batches: ExpressionLearningDistillationBatch[];
+  selectedBatch: ExpressionLearningDistillationBatch | null;
+  working: boolean;
+  distilling: boolean;
+  onSelectBatch: (batchId: string) => void;
+  onRun: (input: {
+    scene: string;
+    organization: "unorganized" | "partial" | "full" | "all";
+    createdFrom: string;
+    createdTo: string;
+  }) => void;
+  onSaveCandidate: (candidateId: string, patch: DistillationCandidatePatch) => Promise<boolean>;
+  onResolveCandidate: (input: {
+    candidateId: string;
+    patch: DistillationCandidatePatch;
+    action: "create" | "merge" | "dismiss";
+    ruleStatus?: "draft" | "active";
+  }) => void;
+  onReopenCandidate: (candidateId: string) => void;
+}) {
+  const [filters, setFilters] = useState({
+    scene: "all",
+    organization: "unorganized" as "unorganized" | "partial" | "full" | "all",
+    createdFrom: "",
+    createdTo: "",
+  });
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(selectedBatch?.candidates[0]?.id ?? null);
+  useEffect(() => {
+    setSelectedCandidateId(selectedBatch?.candidates[0]?.id ?? null);
+  }, [selectedBatch?.id]);
+  const proposedCount = selectedBatch?.candidates.filter((candidate) => candidate.status === "proposed").length ?? 0;
+  const selectedCandidate = selectedBatch?.candidates.find((candidate) => candidate.id === selectedCandidateId)
+    ?? selectedBatch?.candidates[0]
+    ?? null;
+
+  return (
+    <Card className="space-y-5 p-5" pattern="app-green">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <SectionTitle icon="icon-diy">经验蒸馏</SectionTitle>
+          <h3 className="mt-2 text-xl font-black text-[var(--ls-ink-strong)]">批量整理候选规则</h3>
+        </div>
+        <Button
+          type="primary"
+          size="middle"
+          disabled={distilling || working}
+          loading={distilling}
+          onClick={() => onRun(filters)}
+          icon={<Icon name="icon-variant" size={18} />}
+        >
+          {distilling ? "整理中" : "开始整理"}
+        </Button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <SelectField label="经验范围" value={filters.organization} onChange={(organization) => setFilters((current) => ({ ...current, organization: organization as typeof filters.organization }))} options={[{ key: "unorganized", label: "未整理" }, { key: "partial", label: "部分覆盖" }, { key: "full", label: "已完整覆盖" }, { key: "all", label: "全部经验" }]} />
+        <SelectField label="场景" value={filters.scene} onChange={(scene) => setFilters((current) => ({ ...current, scene }))} options={sceneFilterOptions()} />
+        <label className="flex flex-col gap-1"><span className="text-xs font-semibold text-[var(--ls-ink-soft)]">开始日期</span><Input type="date" className="h-10" value={filters.createdFrom} onChange={(event: ChangeEvent<HTMLInputElement>) => setFilters((current) => ({ ...current, createdFrom: event.target.value }))} /></label>
+        <label className="flex flex-col gap-1"><span className="text-xs font-semibold text-[var(--ls-ink-soft)]">结束日期</span><Input type="date" className="h-10" value={filters.createdTo} onChange={(event: ChangeEvent<HTMLInputElement>) => setFilters((current) => ({ ...current, createdTo: event.target.value }))} /></label>
+      </div>
+
+      {batches.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {batches.slice(0, 10).map((batch) => (
+            <button key={batch.id} type="button" onClick={() => onSelectBatch(batch.id)} className={`admin-island-row min-w-[12rem] px-3 py-2 text-left ${selectedBatch?.id === batch.id ? "is-active" : ""}`}>
+              <div className="flex items-center justify-between gap-2"><span className="text-xs font-black text-[var(--ls-ink-strong)]">{formatTime(batch.createdAt)}</span><span className="admin-chip admin-chip-mint">{distillationBatchStatusLabel(batch.status)}</span></div>
+              <p className="mt-1 text-[11px] font-semibold text-[var(--ls-ink-muted)]">{batch.sourceCount} 条经验 · {batch.candidateCount} 条候选</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedBatch ? (
+        <div className="space-y-3 border-t-2 border-dashed border-[var(--ls-border)] pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="admin-chip admin-chip-mint">来源 {selectedBatch.sourceCount}</span>
+            <span className="admin-chip admin-chip-yellow">候选 {selectedBatch.candidateCount}</span>
+            <span className="admin-chip admin-chip-pink">待处理 {proposedCount}</span>
+          </div>
+          {selectedBatch.error && <div className="admin-island-soft-panel px-4 py-3 text-sm font-semibold text-[var(--ls-pink-text)]">{selectedBatch.error}</div>}
+          {selectedBatch.candidates.length > 0 && <div className="grid gap-4 xl:grid-cols-[minmax(17rem,0.65fr)_minmax(0,1.35fr)] xl:items-start">
+            <div className="space-y-2">
+              {selectedBatch.candidates.map((candidate) => (
+                <button key={candidate.id} type="button" onClick={() => setSelectedCandidateId(candidate.id)} className={`admin-island-row block w-full px-3 py-3 text-left ${selectedCandidate?.id === candidate.id ? "is-active" : ""}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`admin-chip ${candidate.matchType === "conflict" ? "admin-chip-pink" : candidate.matchType === "duplicate" ? "admin-chip-yellow" : "admin-chip-mint"}`}>{distillationMatchLabel(candidate.matchType)}</span>
+                    <span className="text-[11px] font-semibold text-[var(--ls-ink-muted)]">{candidateSourceIds(candidate).length} 条证据</span>
+                    {candidate.status !== "proposed" && <span className="ml-auto text-[11px] font-bold text-[var(--ls-ink-muted)]">{candidate.status === "accepted" ? candidate.createdRule?.status === "active" ? "已启用" : "已保存" : candidate.status === "merged" ? "已合并" : "已忽略"}</span>}
+                  </div>
+                  <p className="mt-2 line-clamp-3 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">{candidate.ruleText}</p>
+                </button>
+              ))}
+            </div>
+            {selectedCandidate && <DistillationCandidateEditor
+              key={selectedCandidate.id}
+              candidate={selectedCandidate}
+              sourceExamples={selectedBatch.sourceExamples}
+              working={working}
+              onSave={onSaveCandidate}
+              onResolve={onResolveCandidate}
+              onReopen={onReopenCandidate}
+            />}
+          </div>}
+          {selectedBatch.status !== "failed" && selectedBatch.candidates.length === 0 && <div className="admin-island-soft-panel px-4 py-7 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">本批次没有生成有价值的候选规则。</div>}
+        </div>
+      ) : (
+        <div className="admin-island-soft-panel px-4 py-7 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">选择范围后开始第一次批量整理。</div>
+      )}
+    </Card>
+  );
+}
+
+function DistillationCandidateEditor({
+  candidate,
+  sourceExamples,
+  working,
+  onSave,
+  onResolve,
+  onReopen,
+}: {
+  candidate: ExpressionLearningDistillationCandidate;
+  sourceExamples: ExpressionLearningExample[];
+  working: boolean;
+  onSave: (candidateId: string, patch: DistillationCandidatePatch) => Promise<boolean>;
+  onResolve: (input: {
+    candidateId: string;
+    patch: DistillationCandidatePatch;
+    action: "create" | "merge" | "dismiss";
+    ruleStatus?: "draft" | "active";
+  }) => void;
+  onReopen: (candidateId: string) => void;
+}) {
+  const [form, setForm] = useState({
+    ruleText: candidate.ruleText,
+    kind: candidate.kind,
+    scope: candidate.scope,
+    scene: candidate.scene ?? "general",
+    strength: candidate.strength,
+    coverage: candidate.coverage,
+    reason: candidate.reason ?? "",
+  });
+  const [showAllSources, setShowAllSources] = useState(false);
+  const sourceIds = candidateSourceIds(candidate);
+  const sources = sourceExamples.filter((example) => sourceIds.includes(example.id));
+  const visibleSources = showAllSources ? sources : sources.slice(0, 3);
+  const patch: DistillationCandidatePatch = {
+    ...form,
+    scene: form.scope === "global" ? null : form.scene,
+    sourceExampleIds: sourceIds,
+  };
+  const resolved = candidate.status !== "proposed";
+
+  return (
+    <div className={`rounded-lg border-2 p-4 ${candidate.matchType === "conflict" ? "border-[var(--ls-pink)] bg-[var(--ls-pink-soft)]" : "border-[var(--ls-border)] bg-white"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`admin-chip ${candidate.matchType === "conflict" ? "admin-chip-pink" : candidate.matchType === "duplicate" ? "admin-chip-yellow" : "admin-chip-mint"}`}>{distillationMatchLabel(candidate.matchType)}</span>
+        <span className="text-xs font-semibold text-[var(--ls-ink-muted)]">{sourceIds.length} 条证据</span>
+        {resolved && <span className="ml-auto admin-chip admin-chip-mint">{candidate.status === "accepted" ? candidate.createdRule?.status === "active" ? "已启用" : "已保存（未启用）" : candidate.status === "merged" ? "已合并" : "已忽略"}</span>}
+      </div>
+      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+        <div className="space-y-3">
+          <EditField label="候选规则" value={form.ruleText} onChange={(ruleText) => setForm((current) => ({ ...current, ruleText }))} rows={3} />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <SelectField label="类型" value={form.kind} onChange={(kind) => setForm((current) => ({ ...current, kind: kind as ExpressionLearningRule["kind"] }))} options={[{ key: "avoid", label: "避免" }, { key: "prefer", label: "表达偏好" }, { key: "strategy", label: "回复策略" }]} />
+            <SelectField label="范围" value={form.scope} onChange={(scope) => setForm((current) => ({ ...current, scope: scope as ExpressionLearningRule["scope"] }))} options={[{ key: "global", label: "全局" }, { key: "scene", label: "指定场景" }]} />
+            {form.scope === "scene" && <SelectField label="场景" value={form.scene} onChange={(scene) => setForm((current) => ({ ...current, scene }))} options={defaultSceneOptions} />}
+            <SelectField label="强度" value={form.strength} onChange={(strength) => setForm((current) => ({ ...current, strength: strength as ExpressionLearningRule["strength"] }))} options={[{ key: "soft", label: "尽量遵守" }, { key: "hard", label: "必须遵守" }]} />
+            <SelectField label="经验覆盖程度" value={form.coverage} onChange={(coverage) => setForm((current) => ({ ...current, coverage: coverage as "partial" | "full" }))} options={[{ key: "partial", label: "部分覆盖，可继续整理" }, { key: "full", label: "完整覆盖" }]} />
+          </div>
+          <EditField label="提炼依据" value={form.reason} onChange={(reason) => setForm((current) => ({ ...current, reason }))} rows={2} />
+        </div>
+        <div className="space-y-3">
+          {candidate.matchedRule && <DetailReadBlock label={candidate.matchType === "conflict" ? "冲突的现有规则" : "匹配的现有规则"} value={`${candidate.matchedRule.ruleText}\n\n${candidate.matchReason ?? ""}`} icon="icon-map" tone={candidate.matchType === "conflict" ? "admin-chip-pink" : "admin-chip-yellow"} />}
+          <div className="space-y-2">
+            <SectionTitle icon="icon-critterpedia">来源经验</SectionTitle>
+            {visibleSources.map((example) => <div key={example.id} className="admin-island-soft-panel px-3 py-2"><div className="text-[11px] font-bold text-[var(--ls-ink-muted)]">{sceneLabel(example.scene)}</div><p className="mt-1 line-clamp-3 text-xs font-semibold leading-5 text-[var(--ls-ink-strong)]">{example.contextText}</p></div>)}
+            {sources.length > 3 && <button type="button" className="text-xs font-bold text-[var(--ls-link)] underline decoration-dotted underline-offset-4" onClick={() => setShowAllSources((current) => !current)}>{showAllSources ? "收起证据" : `展开另外 ${sources.length - 3} 条证据`}</button>}
+          </div>
+        </div>
+      </div>
+      {!resolved && <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-dashed border-[var(--ls-border)] pt-3">
+        <Button type="default" size="small" disabled={working} onClick={() => onResolve({ candidateId: candidate.id, patch, action: "dismiss" })}>忽略</Button>
+        <Button type="default" size="small" disabled={working || !form.ruleText.trim()} onClick={() => void onSave(candidate.id, patch)}>保存修改</Button>
+        {candidate.matchedRuleId && <Button type="default" size="small" disabled={working} onClick={() => onResolve({ candidateId: candidate.id, patch, action: "merge" })}>{candidate.matchType === "conflict" ? "记为反例" : "合并证据"}</Button>}
+        <Button type="default" size="small" disabled={working || !form.ruleText.trim()} onClick={() => onResolve({ candidateId: candidate.id, patch, action: "create", ruleStatus: "draft" })}>保存</Button>
+        <Button type="primary" size="small" disabled={working || !form.ruleText.trim()} onClick={() => onResolve({ candidateId: candidate.id, patch, action: "create", ruleStatus: "active" })}>保存并启用</Button>
+      </div>}
+      {candidate.status === "dismissed" && <div className="mt-4 flex justify-end border-t border-dashed border-[var(--ls-border)] pt-3"><Button type="default" size="small" disabled={working} onClick={() => onReopen(candidate.id)}>取消忽略</Button></div>}
+    </div>
+  );
+}
+
+function ExpressionRulesPanel({
+  state,
+  batches,
+  selectedBatch,
+  selectedRule,
+  seed,
+  working,
+  distilling,
+  onSelectBatch,
+  onRunDistillation,
+  onSaveCandidate,
+  onResolveCandidate,
+  onReopenCandidate,
+  onSelect,
+  onStartNew,
+  onSave,
+  onDelete,
+}: {
+  state: ExpressionLearningRulesResponse;
+  batches: ExpressionLearningDistillationBatch[];
+  selectedBatch: ExpressionLearningDistillationBatch | null;
+  selectedRule: ExpressionLearningRule | null;
+  seed: RuleSeed | null;
+  working: boolean;
+  distilling: boolean;
+  onSelectBatch: (batchId: string) => void;
+  onRunDistillation: (input: {
+    scene: string;
+    organization: "unorganized" | "partial" | "full" | "all";
+    createdFrom: string;
+    createdTo: string;
+  }) => void;
+  onSaveCandidate: (candidateId: string, patch: DistillationCandidatePatch) => Promise<boolean>;
+  onResolveCandidate: (input: {
+    candidateId: string;
+    patch: DistillationCandidatePatch;
+    action: "create" | "merge" | "dismiss";
+    ruleStatus?: "draft" | "active";
+  }) => void;
+  onReopenCandidate: (candidateId: string) => void;
+  onSelect: (ruleId: string) => void;
+  onStartNew: () => void;
+  onSave: (input: RuleSaveInput) => void;
+  onDelete: (ruleId: string) => void;
+}) {
+  const initial = seed ?? selectedRule;
+  const [form, setForm] = useState({
+    ruleText: initial?.ruleText ?? "",
+    kind: initial?.kind ?? "strategy" as ExpressionLearningRule["kind"],
+    scope: initial?.scope ?? "global" as ExpressionLearningRule["scope"],
+    scene: initial?.scene ?? "general",
+    strength: initial?.strength ?? "soft" as ExpressionLearningRule["strength"],
+    status: selectedRule?.status ?? "draft" as ExpressionLearningRule["status"],
+    coverage: seed?.coverage ?? "partial" as "partial" | "full",
+  });
+
+  function submit(status = form.status) {
+    onSave({
+      ruleId: selectedRule?.id,
+      ruleText: form.ruleText,
+      kind: form.kind,
+      scope: form.scope,
+      scene: form.scope === "scene" ? form.scene : null,
+      strength: form.strength,
+      status,
+      exampleId: seed?.exampleId || null,
+      coverage: form.coverage,
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      <DistillationWorkbench
+        batches={batches}
+        selectedBatch={selectedBatch}
+        working={working}
+        distilling={distilling}
+        onSelectBatch={onSelectBatch}
+        onRun={onRunDistillation}
+        onSaveCandidate={onSaveCandidate}
+        onResolveCandidate={onResolveCandidate}
+        onReopenCandidate={onReopenCandidate}
+      />
+      <section className="grid min-h-[36rem] gap-5 xl:grid-cols-[minmax(20rem,0.8fr)_minmax(0,1.2fr)]">
+      <Card className="space-y-4 p-5" pattern="app-blue">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <SectionTitle icon="icon-map">表达规则</SectionTitle>
+            <p className="mt-2 text-sm font-semibold leading-6 text-[var(--ls-ink-muted)]">
+              已启用规则直接参与生成，原始经验仍单独保留。
+            </p>
+          </div>
+          <Button type="primary" size="small" onClick={onStartNew} disabled={working}>新建规则</Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="admin-chip admin-chip-mint">全部 {state.summary.total}</span>
+          <span className="admin-chip admin-chip-yellow">已启用 {state.summary.active}</span>
+          <span className="admin-chip admin-chip-pink">草稿 {state.summary.draft}</span>
+        </div>
+        <div className="space-y-2">
+          {state.rules.map((rule) => (
+            <button
+              key={rule.id}
+              type="button"
+              onClick={() => onSelect(rule.id)}
+              className={`admin-island-row block w-full px-4 py-3 text-left ${selectedRule?.id === rule.id && !seed ? "is-active" : ""}`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill active={rule.status === "active"} label={rule.status === "active" ? "已启用" : rule.status === "draft" ? "草稿" : "已停用"} />
+                <span className="admin-chip admin-chip-mint">{rule.scope === "global" ? "全局" : sceneLabel(rule.scene ?? "general")}</span>
+                {rule.strength === "hard" && <span className="admin-chip admin-chip-pink">必须遵守</span>}
+              </div>
+              <p className="mt-2 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">{rule.ruleText}</p>
+              <p className="mt-1 text-[11px] font-semibold text-[var(--ls-ink-muted)]">{rule.evidences.length} 条原始证据</p>
+            </button>
+          ))}
+          {state.rules.length === 0 && (
+            <div className="admin-island-soft-panel px-4 py-8 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">
+              还没有规则，可以新建或从经验详情提炼。
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {initial ? (
+        <Card className="space-y-5 p-5" pattern="app-yellow">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-dashed border-[var(--ls-border)] pb-4">
+            <div>
+              <SectionTitle icon="icon-diy">{selectedRule ? "规则详情" : seed?.exampleId ? "提炼候选规则" : "新建规则"}</SectionTitle>
+              <p className="mt-2 text-sm font-semibold text-[var(--ls-ink-muted)]">
+                {seed?.reason || "规则可以随时修改、停用，原始训练资料不会被删除。"}
+              </p>
+            </div>
+            {selectedRule && (
+              <div className="flex items-center gap-2">
+                <Button type="default" size="small" onClick={() => onDelete(selectedRule.id)} disabled={working} className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]">删除</Button>
+                <span className="flex h-8 items-center gap-2 rounded-lg border border-[var(--ls-border)] bg-white px-2.5 text-xs font-semibold">
+                  {form.status === "active" ? "已启用" : "已停用"}
+                  <Switch
+                    checked={form.status === "active"}
+                    disabled={working}
+                    onChange={(enabled: boolean) => {
+                      const status = enabled ? "active" : "disabled";
+                      setForm((current) => ({ ...current, status }));
+                      submit(status);
+                    }}
+                    aria-label="启用这条表达规则"
+                  />
+                </span>
+              </div>
+            )}
+          </div>
+
+          <EditField label="规则内容" value={form.ruleText} onChange={(ruleText) => setForm((current) => ({ ...current, ruleText }))} rows={5} />
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField label="规则类型" value={form.kind} onChange={(kind) => setForm((current) => ({ ...current, kind: kind as ExpressionLearningRule["kind"] }))} options={[{ key: "avoid", label: "避免" }, { key: "prefer", label: "表达偏好" }, { key: "strategy", label: "回复策略" }]} />
+            <SelectField label="执行强度" value={form.strength} onChange={(strength) => setForm((current) => ({ ...current, strength: strength as ExpressionLearningRule["strength"] }))} options={[{ key: "soft", label: "尽量遵守" }, { key: "hard", label: "必须遵守" }]} />
+            <SelectField label="适用范围" value={form.scope} onChange={(scope) => setForm((current) => ({ ...current, scope: scope as ExpressionLearningRule["scope"] }))} options={[{ key: "global", label: "全局" }, { key: "scene", label: "指定场景" }]} />
+            {form.scope === "scene" && <SelectField label="场景" value={form.scene} onChange={(scene) => setForm((current) => ({ ...current, scene }))} options={defaultSceneOptions} />}
+            {seed?.exampleId && <SelectField label="经验覆盖程度" value={form.coverage} onChange={(coverage) => setForm((current) => ({ ...current, coverage: coverage as "partial" | "full" }))} options={[{ key: "partial", label: "部分覆盖，可继续整理" }, { key: "full", label: "完整覆盖" }]} />}
+          </div>
+
+          {selectedRule && selectedRule.evidences.length > 0 && (
+            <div className="space-y-2">
+              <SectionTitle icon="icon-critterpedia">原始经验证据</SectionTitle>
+              {selectedRule.evidences.map((evidence) => (
+                <div key={evidence.id} className="admin-island-soft-panel px-4 py-3">
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold text-[var(--ls-ink-muted)]">
+                    <span>{sceneLabel(evidence.example.scene)}</span><span>·</span><span>{evidence.coverage === "full" ? "完整覆盖" : "部分覆盖"}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[var(--ls-ink-strong)]">{evidence.example.contextText}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 border-t-2 border-dashed border-[var(--ls-border)] pt-4">
+            {!selectedRule && <Button type="default" size="middle" disabled={working || !form.ruleText.trim()} onClick={() => submit("draft")}>保存草稿</Button>}
+            <Button type="primary" size="middle" disabled={working || !form.ruleText.trim()} loading={working} onClick={() => submit(selectedRule?.status ?? "active")}>{selectedRule ? "保存修改" : "保存并启用"}</Button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-5" pattern="none"><div className="admin-island-soft-panel px-4 py-10 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">选择一条规则查看详情，或新建规则。</div></Card>
+      )}
+      </section>
+    </div>
   );
 }
 
@@ -1469,7 +2175,7 @@ function ExerciseWorkspacePanel({
   onSaveDraft: (input: Omit<ExpressionLearningTrainingDraftInput, "token">) => Promise<ExpressionLearningTrainingRecord | null>;
   onAcceptTeachingDraft: (input: {
     recordId: string;
-    status?: "pending" | "active" | "disabled";
+    status?: "active" | "disabled";
     ownerNote?: string | null;
   }) => void;
   onDeleteExercise: (recordId: string) => void;
@@ -1686,7 +2392,7 @@ type TeachingForm = {
   finalText: string;
   outcome: "sent" | "skipped" | "bad_question";
   ownerNote: string;
-  status: "pending" | "active" | "disabled";
+  status: "active" | "disabled";
 };
 
 const defaultTeachingForm: TeachingForm = {
@@ -1775,7 +2481,7 @@ function ManualTeachingPanel({
   ) => Promise<ExpressionLearningTrainingRecord | null>;
   onAcceptDraft: (input: {
     recordId: string;
-    status?: "pending" | "active" | "disabled";
+    status?: "active" | "disabled";
     ownerNote?: string | null;
   }) => void;
   onDeleteExercise: (recordId: string) => void;
@@ -2305,14 +3011,16 @@ function Metric({
   icon,
   tone,
   accent,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: IconName;
   tone: CardColor;
   accent: string;
+  onClick?: () => void;
 }) {
-  return (
+  const content = (
     <Card className="admin-learning-metric flex items-start gap-3 p-4 md:p-5" pattern={tone}>
       <span className="admin-learning-metric-icon">
         <Icon name={icon} size={22} bounce />
@@ -2324,6 +3032,11 @@ function Metric({
       </span>
     </Card>
   );
+  return onClick ? (
+    <button type="button" className="block w-full text-left" onClick={onClick}>
+      {content}
+    </button>
+  ) : content;
 }
 
 function ExampleRow({
@@ -2353,6 +3066,7 @@ function ExampleRow({
           active={example.status === "active"}
           label={statusLabel(example.status)}
         />
+        <span className="admin-chip admin-chip-yellow">{distillationLabel(example)}</span>
         <span className="ml-auto shrink-0 text-[11px] font-semibold text-[var(--ls-ink-soft)] tabular-nums">
           {formatTime(example.updatedAt)}
         </span>
@@ -2387,12 +3101,14 @@ function ExpressionDetail({
   onSave,
   onDelete,
   onReanalyze,
+  onDistill,
 }: {
   example: ExpressionLearningExample;
   working: boolean;
   onSave: (patch: ExpressionLearningPatch) => void;
   onDelete: () => void;
   onReanalyze: () => void;
+  onDistill: () => void;
 }) {
   const [lesson, setLesson] = useState(example.lesson);
   const [reasoning, setReasoning] = useState(example.reasoning ?? "");
@@ -2470,16 +3186,21 @@ function ExpressionDetail({
 
       <div className="flex flex-col gap-3 border-t-2 border-dashed border-[var(--ls-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <EmbeddingHint status={example.embeddingStatus} />
-        <Button
-          type="primary"
-          size="middle"
-          onClick={() => onSave({ lesson, reasoning, strategy, tone })}
-          disabled={working || !lesson.trim()}
-          loading={working}
-          icon={<Icon name="icon-diy" size={18} />}
-        >
-          保存修正
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="default" size="middle" onClick={onDistill} disabled={working}>
+            提炼为规则
+          </Button>
+          <Button
+            type="primary"
+            size="middle"
+            onClick={() => onSave({ lesson, reasoning, strategy, tone })}
+            disabled={working || !lesson.trim()}
+            loading={working}
+            icon={<Icon name="icon-diy" size={18} />}
+          >
+            保存修正
+          </Button>
+        </div>
       </div>
     </Card>
   );
@@ -2514,17 +3235,15 @@ function DetailHeader({
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {example.status === "disabled" && (
-          <Button
-            type="default"
-            size="small"
-            onClick={onDelete}
-            disabled={working}
-            className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]"
-          >
-            删除经验
-          </Button>
-        )}
+        <Button
+          type="default"
+          size="small"
+          onClick={onDelete}
+          disabled={working}
+          className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]"
+        >
+          删除经验
+        </Button>
         <span className={`flex h-8 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold ${
           example.status === "active"
             ? "border-[var(--ls-success-border-light)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"

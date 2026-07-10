@@ -308,7 +308,7 @@ async function markTurnsForReview(turnIds: string[], exampleIds: string[]): Prom
     exampleIds.length > 0
       ? prisma.expressionLearningExample.updateMany({
           where: { id: { in: exampleIds }, status: "active" },
-          data: { status: "pending" },
+          data: { status: "disabled" },
         })
       : Promise.resolve(),
   ]);
@@ -623,7 +623,7 @@ export async function analyzeExpressionLearningDialogueTurn(
     outcome: decision.outcome,
     ownerAction: decision.ownerAction,
     ownerNote: decision.ownerNote,
-    status: "pending",
+    status: "disabled",
     metadata: {
       dialogueCaseId: dialogueCase.id,
       dialogueTurnId: turn.id,

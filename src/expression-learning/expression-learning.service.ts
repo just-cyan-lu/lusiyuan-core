@@ -20,6 +20,10 @@ import type {
   ExpressionLearningRetrievalInput,
   ExpressionLearningStatus,
 } from "./expression-learning.types.js";
+import {
+  formatExpressionLearningRules,
+  retrieveExpressionLearningRules,
+} from "./expression-learning-rules.js";
 
 export const EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT = 6;
 const expressionLearningRetrievalMaxLimit = 8;
@@ -92,7 +96,7 @@ function cleanConfidence(value: unknown): number {
 }
 
 function cleanStatus(value: unknown): ExpressionLearningStatus {
-  if (value === "pending" || value === "active" || value === "disabled") return value;
+  if (value === "active" || value === "disabled") return value;
   return "active";
 }
 
@@ -272,15 +276,16 @@ export async function generateExpressionLearningDraft(
     throw Object.assign(new Error("contextText is required"), { statusCode: 400 });
   }
 
-  const [persona, learnedExamples] = await Promise.all([
+  const [persona, learnedExamples, learnedRules] = await Promise.all([
     loadPersona(),
     retrieveExpressionLearningExamples({
       scene: normalized.scene,
       query: normalized.contextText,
       limit: EXPRESSION_LEARNING_REPLY_RETRIEVAL_LIMIT,
     }),
+    retrieveExpressionLearningRules(normalized.scene),
   ]);
-  const learnedContext = formatExpressionLearningExamples(learnedExamples);
+  const learnedContext = formatExpressionLearningContext(learnedRules, learnedExamples);
   const userMessage = [
     "请根据下面的表达学习情境，生成一版“陆思源可能会写的原草稿”。",
     "",
@@ -469,6 +474,16 @@ export function formatExpressionLearningExamples(examples: ExpressionLearningExa
     example.strategy ? `建议策略：${example.strategy}` : "",
   ].filter(Boolean).join("\n"));
   return `以下是 owner 过去教过的相似表达经验。只参考判断、长度和语气，不要照抄原句：\n\n${blocks.join("\n\n")}`;
+}
+
+export function formatExpressionLearningContext(
+  rules: Parameters<typeof formatExpressionLearningRules>[0],
+  examples: ExpressionLearningExample[]
+): string {
+  return [
+    formatExpressionLearningRules(rules),
+    formatExpressionLearningExamples(examples),
+  ].filter(Boolean).join("\n\n");
 }
 
 export async function reanalyzeExpressionLearningExample(id: string) {

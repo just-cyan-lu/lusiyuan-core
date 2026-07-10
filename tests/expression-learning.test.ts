@@ -12,6 +12,14 @@ import {
   buildExpressionLearningTrainingRecordWhere,
 } from "../src/expression-learning/expression-learning-training-records.js";
 import { normalizeXiaohongshuPostType } from "../src/platforms/xiaohongshu/xiaohongshu-account.service.js";
+import {
+  formatExpressionLearningRules,
+  normalizeExpressionLearningRuleCandidate,
+} from "../src/expression-learning/expression-learning-rules.js";
+import {
+  buildExpressionLearningDistillationWhere,
+  normalizeExpressionLearningDistillationCandidates,
+} from "../src/expression-learning/expression-learning-distillation.js";
 
 test("distinguishes owner-written, edited, accepted, and skipped decisions", () => {
   assert.equal(deriveExpressionOwnerAction(null, "谢谢你呀", "sent"), "owner_written");
@@ -72,6 +80,132 @@ test("general retrieval is not duplicated", () => {
       scene: { in: ["general"] },
     }
   );
+});
+
+test("distills an explicit global avoidance without losing its source coverage", () => {
+  const candidate = normalizeExpressionLearningRuleCandidate({
+    ruleText: "不要使用 🤝 表情，它会让表达显得老气。",
+    kind: "avoid",
+    scope: "global",
+    scene: "reply",
+    strength: "hard",
+    coverage: "partial",
+    reason: "owner 明确要求一定不要使用。",
+  }, {
+    scene: "reply",
+    lesson: "公开回复要简短自然。",
+    strategy: "少用过时表情。",
+    ownerNote: "🤝 太老气，一定不要使用。",
+  });
+
+  assert.equal(candidate.scope, "global");
+  assert.equal(candidate.scene, null);
+  assert.equal(candidate.strength, "hard");
+  assert.equal(candidate.coverage, "partial");
+});
+
+test("formats active rules as higher-priority prompt instructions", () => {
+  const text = formatExpressionLearningRules([{
+    ruleText: "不要使用 🤝 表情。",
+    kind: "avoid",
+    scope: "global",
+    scene: null,
+    strength: "hard",
+  } as never]);
+
+  assert.match(text, /优先于后面的相似经验/);
+  assert.match(text, /必须遵守\/全局\/avoid/);
+});
+
+test("batch distillation filters examples by organization state", () => {
+  assert.deepEqual(buildExpressionLearningDistillationWhere({
+    scene: "reply",
+    organization: "unorganized",
+  }), {
+    scene: "reply",
+    ruleEvidences: { none: {} },
+  });
+  assert.deepEqual(buildExpressionLearningDistillationWhere({
+    organization: "partial",
+  }), {
+    AND: [
+      { ruleEvidences: { some: { coverage: "partial" } } },
+      { ruleEvidences: { none: { coverage: "full" } } },
+    ],
+  });
+});
+
+test("batch distillation deduplicates candidates and matches existing rules", () => {
+  const candidates = normalizeExpressionLearningDistillationCandidates({
+    value: {
+      candidates: [
+        {
+          ruleText: "不要使用 🤝 表情。",
+          kind: "avoid",
+          scope: "global",
+          strength: "hard",
+          coverage: "partial",
+          sourceExampleIds: ["example-1"],
+          matchType: "new",
+        },
+        {
+          ruleText: "不要使用🤝表情",
+          kind: "avoid",
+          scope: "global",
+          strength: "hard",
+          coverage: "full",
+          sourceExampleIds: ["example-2"],
+          matchType: "new",
+        },
+      ],
+    },
+    examples: [
+      { id: "example-1", scene: "reply", lesson: "不用老气表情", ownerNote: null },
+      { id: "example-2", scene: "chat", lesson: "不用老气表情", ownerNote: null },
+    ],
+    existingRules: [{ id: "rule-1", ruleText: "不要使用 🤝 表情" }],
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0]?.matchType, "duplicate");
+  assert.equal(candidates[0]?.matchedRuleId, "rule-1");
+  assert.deepEqual(candidates[0]?.sourceExampleIds, ["example-1", "example-2"]);
+  assert.equal(candidates[0]?.coverage, "partial");
+});
+
+test("marks split rules as partial coverage even when the model says full", () => {
+  const candidates = normalizeExpressionLearningDistillationCandidates({
+    value: { candidates: [
+      { ruleText: "不要使用老气表情", sourceExampleIds: ["example-1"], coverage: "full" },
+      { ruleText: "回复保持简短", sourceExampleIds: ["example-1"], coverage: "full" },
+    ] },
+    examples: [{ id: "example-1", scene: "reply", lesson: "简短且不用老气表情", ownerNote: null }],
+    existingRules: [],
+  });
+  assert.deepEqual(candidates.map((candidate) => candidate.coverage), ["partial", "partial"]);
+});
+
+test("does not propose evidence already linked to the matched rule", () => {
+  const candidates = normalizeExpressionLearningDistillationCandidates({
+    value: { candidates: [{
+      ruleText: "回复保持简短",
+      sourceExampleIds: ["old-evidence", "new-evidence"],
+      matchType: "duplicate",
+      matchedRuleId: "rule-1",
+    }] },
+    examples: [
+      {
+        id: "old-evidence",
+        scene: "reply",
+        lesson: "简短回复",
+        ownerNote: null,
+        ruleEvidences: [{ ruleId: "rule-1", relation: "supports" }],
+      },
+      { id: "new-evidence", scene: "chat", lesson: "简短回复", ownerNote: null, ruleEvidences: [] },
+    ],
+    existingRules: [{ id: "rule-1", ruleText: "回复保持简短" }],
+  });
+  assert.deepEqual(candidates[0]?.sourceExampleIds, ["new-evidence"]);
 });
 
 test("training export keeps raw materials and a supervised sample", () => {

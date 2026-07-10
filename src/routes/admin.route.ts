@@ -71,6 +71,19 @@ import {
   listExpressionLearningTrainingRecords,
   updateExpressionLearningTrainingRecord,
 } from "../expression-learning/expression-learning-training-records.js";
+import {
+  createExpressionLearningRule,
+  listExpressionLearningRules,
+  proposeExpressionLearningRule,
+  updateExpressionLearningRule,
+} from "../expression-learning/expression-learning-rules.js";
+import {
+  createExpressionLearningDistillationBatch,
+  listExpressionLearningDistillationBatches,
+  resolveExpressionLearningDistillationCandidate,
+  reopenExpressionLearningDistillationCandidate,
+  updateExpressionLearningDistillationCandidate,
+} from "../expression-learning/expression-learning-distillation.js";
 import type {
   ExpressionLearningAnalysis,
   ExpressionLearningOwnerAction,
@@ -299,8 +312,8 @@ function expressionLearningStatus(
   fallback: ExpressionLearningStatus
 ): ExpressionLearningStatus {
   const status = cleanString(value) ?? fallback;
-  if (status === "pending" || status === "active" || status === "disabled") return status;
-  throw routeError("status must be pending, active, or disabled", 400);
+  if (status === "active" || status === "disabled") return status;
+  throw routeError("status must be active or disabled", 400);
 }
 
 function daysAgoStart(days: number): Date {
@@ -2074,8 +2087,8 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const { recordId } = request.params as { recordId: string };
     const body = (request.body ?? {}) as Record<string, unknown>;
     const status = cleanNullableString(body.status) ?? "active";
-    if (!["pending", "active", "disabled"].includes(status)) {
-      throw routeError("status must be pending, active, or disabled", 400);
+    if (!["active", "disabled"].includes(status)) {
+      throw routeError("status must be active or disabled", 400);
     }
     const record = await prisma.expressionLearningTrainingRecord.findUnique({
       where: { id: recordId },
@@ -2178,15 +2191,24 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const where: Prisma.ExpressionLearningExampleWhereInput = clauses.length > 0
       ? { AND: clauses }
       : {};
-    const [examples, total, active, pending, skipped, scenes] = await Promise.all([
+    const [examples, total, active, skipped, scenes] = await Promise.all([
       prisma.expressionLearningExample.findMany({
         where,
+        include: {
+          ruleEvidences: {
+            select: {
+              id: true,
+              coverage: true,
+              relation: true,
+              rule: { select: { id: true, ruleText: true, status: true } },
+            },
+          },
+        },
         orderBy: { updatedAt: "desc" },
         take: clampLimit(query.limit, 100),
       }),
       prisma.expressionLearningExample.count(),
       prisma.expressionLearningExample.count({ where: { status: "active" } }),
-      prisma.expressionLearningExample.count({ where: { status: "pending" } }),
       prisma.expressionLearningExample.count({ where: { outcome: "skipped" } }),
       prisma.expressionLearningExample.findMany({
         distinct: ["scene"],
@@ -2196,7 +2218,7 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     ]);
     return reply.send({
       examples,
-      summary: { total, active, pending, skipped },
+      summary: { total, active, skipped },
       scenes: scenes.map((item) => item.scene),
     });
   });
@@ -2212,8 +2234,8 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     if (body.ownerNote !== undefined) data.ownerNote = cleanNullableString(body.ownerNote);
     if (body.status !== undefined) {
       const next = cleanString(body.status);
-      if (!next || !["pending", "active", "disabled"].includes(next)) {
-        throw routeError("status must be pending, active, or disabled", 400);
+      if (!next || !["active", "disabled"].includes(next)) {
+        throw routeError("status must be active or disabled", 400);
       }
       data.status = next;
     }
@@ -2239,9 +2261,6 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     if (!example) {
       throw routeError("expression learning example not found", 404);
     }
-    if (example.status !== "disabled") {
-      throw routeError("only disabled expression learning examples can be deleted", 400);
-    }
     await prisma.expressionLearningTrainingRecord.deleteMany({
       where: { exampleId },
     });
@@ -2253,6 +2272,135 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const { exampleId } = request.params as { exampleId: string };
     const example = await reanalyzeExpressionLearningExample(exampleId);
     return reply.send({ example });
+  });
+
+  app.get("/v1/admin/expression-learning/rules", async (request, reply) => {
+    const query = request.query as {
+      status?: string;
+      scope?: string;
+      scene?: string;
+      q?: string;
+      limit?: string;
+    };
+    return reply.send(await listExpressionLearningRules({
+      status: cleanString(query.status) ?? "all",
+      scope: cleanString(query.scope) ?? "all",
+      scene: cleanString(query.scene) ?? "all",
+      query: cleanString(query.q),
+      limit: clampLimit(query.limit, 200),
+    }));
+  });
+
+  app.post("/v1/admin/expression-learning/rules/propose", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const exampleId = cleanString(body.exampleId);
+    if (!exampleId) throw routeError("exampleId is required", 400);
+    const candidate = await proposeExpressionLearningRule(exampleId);
+    return reply.send({ candidate });
+  });
+
+  app.post("/v1/admin/expression-learning/rules", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const rule = await createExpressionLearningRule({
+      ruleText: cleanString(body.ruleText) ?? "",
+      kind: cleanString(body.kind),
+      scope: cleanString(body.scope),
+      scene: cleanNullableString(body.scene),
+      strength: cleanString(body.strength),
+      status: cleanString(body.status),
+      source: cleanString(body.source),
+      exampleIds: Array.isArray(body.exampleIds)
+        ? body.exampleIds.map(cleanString).filter((item): item is string => Boolean(item))
+        : [],
+      coverage: cleanString(body.coverage),
+      metadata: cleanRecord(body.metadata),
+    });
+    return reply.status(201).send({ rule });
+  });
+
+  app.patch("/v1/admin/expression-learning/rules/:ruleId", async (request, reply) => {
+    const { ruleId } = request.params as { ruleId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const current = await prisma.expressionLearningRule.findUniqueOrThrow({ where: { id: ruleId } });
+    const rule = await updateExpressionLearningRule(ruleId, {
+      ruleText: body.ruleText === undefined ? current.ruleText : cleanString(body.ruleText) ?? "",
+      kind: body.kind === undefined ? current.kind : cleanString(body.kind),
+      scope: body.scope === undefined ? current.scope : cleanString(body.scope),
+      scene: body.scene === undefined ? current.scene : cleanNullableString(body.scene),
+      strength: body.strength === undefined ? current.strength : cleanString(body.strength),
+      status: body.status === undefined ? current.status : cleanString(body.status),
+    });
+    return reply.send({ rule });
+  });
+
+  app.delete("/v1/admin/expression-learning/rules/:ruleId", async (request, reply) => {
+    const { ruleId } = request.params as { ruleId: string };
+    await prisma.expressionLearningRule.delete({ where: { id: ruleId } });
+    return reply.send({ ok: true, deletedId: ruleId });
+  });
+
+  app.get("/v1/admin/expression-learning/distillation-batches", async (request, reply) => {
+    const query = request.query as { limit?: string };
+    const batches = await listExpressionLearningDistillationBatches(clampLimit(query.limit, 20));
+    return reply.send({ batches });
+  });
+
+  app.post("/v1/admin/expression-learning/distillation-batches", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const batch = await createExpressionLearningDistillationBatch({
+      exampleIds: Array.isArray(body.exampleIds)
+        ? body.exampleIds.map(cleanString).filter((item): item is string => Boolean(item))
+        : undefined,
+      scene: cleanNullableString(body.scene),
+      organization: cleanString(body.organization),
+      createdFrom: cleanNullableString(body.createdFrom),
+      createdTo: cleanNullableString(body.createdTo),
+      limit: body.limit === undefined ? undefined : clampLimit(body.limit, 40),
+    });
+    return reply.status(201).send({ batch });
+  });
+
+  app.patch("/v1/admin/expression-learning/distillation-candidates/:candidateId", async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const candidate = await updateExpressionLearningDistillationCandidate(candidateId, {
+      ruleText: body.ruleText === undefined ? undefined : cleanString(body.ruleText) ?? "",
+      kind: cleanString(body.kind) as never,
+      scope: cleanString(body.scope) as never,
+      scene: cleanNullableString(body.scene),
+      strength: cleanString(body.strength) as never,
+      coverage: cleanString(body.coverage) as never,
+      reason: body.reason === undefined ? undefined : cleanNullableString(body.reason) ?? "",
+      sourceExampleIds: Array.isArray(body.sourceExampleIds)
+        ? body.sourceExampleIds.map(cleanString).filter((item): item is string => Boolean(item))
+        : undefined,
+    });
+    return reply.send({ candidate });
+  });
+
+  app.post("/v1/admin/expression-learning/distillation-candidates/:candidateId/resolve", async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const action = cleanString(body.action);
+    if (!action || !["create", "merge", "dismiss"].includes(action)) {
+      throw routeError("action must be create, merge, or dismiss", 400);
+    }
+    const ruleStatus = cleanString(body.ruleStatus);
+    if (ruleStatus && !["draft", "active"].includes(ruleStatus)) {
+      throw routeError("ruleStatus must be draft or active", 400);
+    }
+    const candidate = await resolveExpressionLearningDistillationCandidate({
+      candidateId,
+      action: action as "create" | "merge" | "dismiss",
+      ruleStatus: ruleStatus as "draft" | "active" | undefined,
+    });
+    return reply.send({ candidate });
+  });
+
+  app.post("/v1/admin/expression-learning/distillation-candidates/:candidateId/reopen", async (request, reply) => {
+    const { candidateId } = request.params as { candidateId: string };
+    const candidate = await reopenExpressionLearningDistillationCandidate(candidateId);
+    return reply.send({ candidate });
   });
 
   app.get("/v1/admin/skills/xiaohongshu-reply/config", async (_request, reply) => {

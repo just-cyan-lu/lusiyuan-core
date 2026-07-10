@@ -88,9 +88,9 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     : "";
   const expressionLearningSection = expressionLearningContext?.trim()
     ? [
-        "## 本轮动态表达样本",
+        "## 本轮表达规则与动态样本",
         "",
-        "以下内容来自经验库，是 owner 过去教过的相似表达场景。它只用于参考判断、长度、语气和取舍；不要照抄原句，也不要把其中的具体事实当成当前事实。",
+        "以下内容来自 owner 确认的表达规则和经验库。明确规则优先于相似经验；经验只用于参考判断、长度、语气和取舍。不要照抄原句，也不要把其中的具体事实当成当前事实。",
         "",
         expressionLearningContext.trim(),
         "",
