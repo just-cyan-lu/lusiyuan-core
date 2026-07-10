@@ -773,6 +773,7 @@ export interface ExpressionLearningPracticeQuestionResponse {
 
 export interface ExpressionLearningDraftResponse {
   draftText: string;
+  reason: string;
   referenceExampleIds: string[];
   trainingRecord?: ExpressionLearningTrainingRecord;
 }
@@ -827,6 +828,102 @@ export interface ExpressionLearningTrainingDraftInput {
   generatedQuestion?: unknown;
   generatedDraft?: unknown;
   analysisSnapshot?: unknown;
+}
+
+export interface ExpressionLearningDialogueTurn {
+  id: string;
+  caseId: string;
+  parentTurnId: string | null;
+  branchLabel: string | null;
+  userText: string;
+  pathText: string | null;
+  draftText: string | null;
+  finalText: string | null;
+  outcome: "sent" | "skipped" | null;
+  ownerAction: string | null;
+  ownerNote: string | null;
+  analysisSnapshot: unknown;
+  exampleId: string | null;
+  example?: ExpressionLearningExample | null;
+  status: string;
+  needsReview: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpressionLearningDialogueCase {
+  id: string;
+  scene: string;
+  title: string;
+  trainingFocus: string | null;
+  rootContextText: string;
+  status: "draft" | "active" | "archived";
+  createdFrom: string;
+  metadata: unknown;
+  turns: ExpressionLearningDialogueTurn[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpressionLearningDialogueCasesResponse {
+  cases: ExpressionLearningDialogueCase[];
+  summary: {
+    total: number;
+    draft: number;
+    active: number;
+    archived: number;
+  };
+}
+
+export interface ExpressionLearningDialogueCaseInput {
+  token: string;
+  scene: string;
+  title?: string | null;
+  trainingFocus?: string | null;
+  rootContextText: string;
+  status?: "draft" | "active" | "archived";
+}
+
+export interface ExpressionLearningDialogueTurnInput {
+  token: string;
+  caseId: string;
+  parentTurnId?: string | null;
+  branchLabel?: string | null;
+  userText: string;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  status?: string;
+}
+
+export interface ExpressionLearningDialogueTurnPatch {
+  token: string;
+  turnId: string;
+  parentTurnId?: string | null;
+  branchLabel?: string | null;
+  userText?: string;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  analysisSnapshot?: unknown;
+  status?: string;
+}
+
+export interface ExpressionLearningDialogueTurnDecisionInput {
+  token: string;
+  turnId: string;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  analysis?: Partial<ExpressionLearningAnalysis> | null;
+  status?: "pending" | "active" | "disabled";
 }
 
 export interface XiaohongshuComment {
@@ -1489,32 +1586,6 @@ export async function updateAutonomousTask(input: {
       body: JSON.stringify(body),
     }
   );
-export async function fetchExternalIdentityResearch(input: {
-  token: string;
-  relationshipId: string;
-}): Promise<ExternalIdentityResearchResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/external-identity-research`,
-    { headers: adminHeaders(input.token) }
-  );
-  return parseJsonResponse<ExternalIdentityResearchResponse>(response, "无法读取外部身份候选");
-}
-
-export async function runExternalIdentityResearch(input: {
-  token: string;
-  relationshipId: string;
-  userId: string;
-}): Promise<{ jobId: string | null }> {
-  const response = await fetch(
-    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/external-identity-research`,
-    {
-      method: "POST",
-      headers: { ...adminHeaders(input.token), "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: input.userId }),
-    }
-  );
-  return parseJsonResponse<{ jobId: string | null }>(response, "无法创建外部身份检索");
-}
   return parseJsonResponse<{ task: AutonomousTask }>(response, "更新自主任务失败");
 }
 
@@ -1555,6 +1626,33 @@ export async function fetchRelationshipDetail(input: {
     headers: adminHeaders(input.token),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "无法读取关系详情");
+}
+
+export async function fetchExternalIdentityResearch(input: {
+  token: string;
+  relationshipId: string;
+}): Promise<ExternalIdentityResearchResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/external-identity-research`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ExternalIdentityResearchResponse>(response, "无法读取外部身份候选");
+}
+
+export async function runExternalIdentityResearch(input: {
+  token: string;
+  relationshipId: string;
+  userId: string;
+}): Promise<{ jobId: string | null }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/external-identity-research`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(input.token), "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: input.userId }),
+    }
+  );
+  return parseJsonResponse<{ jobId: string | null }>(response, "无法创建外部身份检索");
 }
 
 export async function mergeRelationshipIdentities(input: {
@@ -1612,6 +1710,25 @@ export async function updateRelationshipIdentityLabel(input: {
     body: JSON.stringify({ label: input.label }),
   });
   return parseJsonResponse<RelationshipDetailResponse>(response, "修改身份名称失败");
+}
+
+export async function updateRelationshipIdentityAliases(input: {
+  token: string;
+  relationshipId: string;
+  aliases: string[];
+}): Promise<RelationshipDetailResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/person/aliases`,
+    {
+      method: "PATCH",
+      headers: {
+        ...adminHeaders(input.token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ aliases: input.aliases }),
+    }
+  );
+  return parseJsonResponse<RelationshipDetailResponse>(response, "修改自称/别名失败");
 }
 
 export async function updateRelationshipUserDisplayName(input: {
@@ -2014,6 +2131,176 @@ export async function generateExpressionLearningDraft(input: {
     body: JSON.stringify(body),
   });
   return parseJsonResponse<ExpressionLearningDraftResponse>(response, "生成陆思源草稿失败");
+}
+
+export async function fetchExpressionLearningDialogueCases(input: {
+  token: string;
+  scene?: string;
+  status?: string;
+  limit?: number;
+}): Promise<ExpressionLearningDialogueCasesResponse> {
+  const params = new URLSearchParams();
+  if (input.scene && input.scene !== "all") params.set("scene", input.scene);
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.limit) params.set("limit", String(input.limit));
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-cases?${params.toString()}`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ExpressionLearningDialogueCasesResponse>(
+    response,
+    "无法读取多轮练习"
+  );
+}
+
+export async function createExpressionLearningDialogueCase(
+  input: ExpressionLearningDialogueCaseInput
+): Promise<{ dialogueCase: ExpressionLearningDialogueCase }> {
+  const { token, ...body } = input;
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/dialogue-cases`, {
+    method: "POST",
+    headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse<{ dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "创建多轮练习失败"
+  );
+}
+
+export async function updateExpressionLearningDialogueCase(input: {
+  token: string;
+  caseId: string;
+  scene?: string;
+  title?: string | null;
+  trainingFocus?: string | null;
+  rootContextText?: string;
+  status?: "draft" | "active" | "archived";
+}): Promise<{ dialogueCase: ExpressionLearningDialogueCase }> {
+  const { token, caseId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-cases/${caseId}`,
+    {
+      method: "PATCH",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "保存多轮练习失败"
+  );
+}
+
+export async function deleteExpressionLearningDialogueCase(input: {
+  token: string;
+  caseId: string;
+}): Promise<{ deletedId: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-cases/${input.caseId}`,
+    { method: "DELETE", headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<{ deletedId: string }>(response, "删除多轮练习失败");
+}
+
+export async function createExpressionLearningDialogueTurn(
+  input: ExpressionLearningDialogueTurnInput
+): Promise<{ dialogueCase: ExpressionLearningDialogueCase }> {
+  const { token, caseId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-cases/${caseId}/turns`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "添加对话分支失败"
+  );
+}
+
+export async function updateExpressionLearningDialogueTurn(
+  input: ExpressionLearningDialogueTurnPatch
+): Promise<{ dialogueCase: ExpressionLearningDialogueCase }> {
+  const { token, turnId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-turns/${turnId}`,
+    {
+      method: "PATCH",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "保存对话节点失败"
+  );
+}
+
+export async function deleteExpressionLearningDialogueTurn(input: {
+  token: string;
+  turnId: string;
+}): Promise<{ dialogueCase: ExpressionLearningDialogueCase }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-turns/${input.turnId}`,
+    { method: "DELETE", headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<{ dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "删除对话节点失败"
+  );
+}
+
+export async function generateExpressionLearningDialogueTurnDraft(input: {
+  token: string;
+  turnId: string;
+}): Promise<ExpressionLearningDraftResponse & { dialogueCase: ExpressionLearningDialogueCase }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-turns/${input.turnId}/draft`,
+    { method: "POST", headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ExpressionLearningDraftResponse & { dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "生成多轮试答失败"
+  );
+}
+
+export async function analyzeExpressionLearningDialogueTurn(
+  input: ExpressionLearningDialogueTurnDecisionInput
+): Promise<{ analysis: ExpressionLearningAnalysis; dialogueCase: ExpressionLearningDialogueCase }> {
+  const { token, turnId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-turns/${turnId}/analyze`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ analysis: ExpressionLearningAnalysis; dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "分析多轮节点失败"
+  );
+}
+
+export async function saveExpressionLearningDialogueTurnExample(
+  input: ExpressionLearningDialogueTurnDecisionInput
+): Promise<{ example: ExpressionLearningExample; dialogueCase: ExpressionLearningDialogueCase }> {
+  const { token, turnId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/expression-learning/dialogue-turns/${turnId}/save-example`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  return parseJsonResponse<{ example: ExpressionLearningExample; dialogueCase: ExpressionLearningDialogueCase }>(
+    response,
+    "保存多轮经验失败"
+  );
 }
 
 export async function downloadExpressionLearningTrainingExport(input: {

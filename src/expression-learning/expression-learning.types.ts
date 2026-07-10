@@ -61,5 +61,6 @@ export interface ExpressionLearningDraftInput {
 
 export interface ExpressionLearningDraftOutput {
   draftText: string;
+  reason: string;
   referenceExampleIds: string[];
 }

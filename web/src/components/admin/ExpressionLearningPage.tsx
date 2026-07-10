@@ -1,22 +1,35 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
-import { Button, Card, Form, Icon, Input, type CardColor, type IconName } from "animal-island-ui";
+import { Button, Card, Form, Icon, Input, Switch, type CardColor, type IconName } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import {
   acceptExpressionLearningTrainingDraft,
+  analyzeExpressionLearningDialogueTurn,
   analyzeExpressionLearningExample,
+  createExpressionLearningDialogueCase,
+  createExpressionLearningDialogueTurn,
   createExpressionLearningExample,
+  deleteExpressionLearningDialogueCase,
+  deleteExpressionLearningDialogueTurn,
   deleteExpressionLearningExample,
   deleteExpressionLearningTrainingRecord,
   downloadExpressionLearningTrainingExport,
+  fetchExpressionLearningDialogueCases,
   fetchExpressionLearningExamples,
   fetchExpressionLearningTrainingRecords,
+  generateExpressionLearningDialogueTurnDraft,
   generateExpressionLearningDraft,
   generateExpressionLearningPracticeQuestion,
   reanalyzeExpressionLearningExample,
   runExpressionLearningPracticeBatchNow,
+  saveExpressionLearningDialogueTurnExample,
   saveExpressionLearningTrainingDraft,
+  updateExpressionLearningDialogueCase,
+  updateExpressionLearningDialogueTurn,
   updateExpressionLearningExample,
   type ExpressionLearningAnalysis,
+  type ExpressionLearningDialogueCase,
+  type ExpressionLearningDialogueCasesResponse,
+  type ExpressionLearningDialogueTurn,
   type ExpressionLearningCreateInput,
   type ExpressionLearningExample,
   type ExpressionLearningPracticeQuestion,
@@ -43,7 +56,12 @@ const emptyExerciseState: ExpressionLearningTrainingRecordsResponse = {
   summary: { total: 0, open: 0, archived: 0, completed: 0, dismissed: 0 },
 };
 
-type LearningTab = "library" | "exercises" | "manual";
+const emptyDialogueState: ExpressionLearningDialogueCasesResponse = {
+  cases: [],
+  summary: { total: 0, draft: 0, active: 0, archived: 0 },
+};
+
+type LearningTab = "library" | "exercises" | "dialogue";
 
 type TeachingSeed = {
   record: ExpressionLearningTrainingRecord;
@@ -144,7 +162,11 @@ function questionFromTrainingRecord(
 }
 
 function analysisFromTrainingRecord(record: ExpressionLearningTrainingRecord): ExpressionLearningAnalysis | null {
-  const raw = recordObject(record.analysisSnapshot);
+  return analysisFromRaw(record.analysisSnapshot);
+}
+
+function analysisFromRaw(value: unknown): ExpressionLearningAnalysis | null {
+  const raw = recordObject(value);
   const lesson = recordString(raw, "lesson");
   if (!lesson) return null;
   return {
@@ -175,12 +197,41 @@ function exerciseQuestionText(record: ExpressionLearningTrainingRecord): string 
   return (record.contextText ?? recordString(record.generatedQuestion, "contextText")) || "未填写题目";
 }
 
+function dialogueCaseStatusLabel(value: string) {
+  return ({
+    draft: "草稿",
+    active: "进行中",
+    archived: "已归档",
+  } as Record<string, string>)[value] ?? value;
+}
+
+function dialoguePathTurns(
+  caseItem: ExpressionLearningDialogueCase,
+  leaf: ExpressionLearningDialogueTurn | null,
+): ExpressionLearningDialogueTurn[] {
+  if (!leaf) return [];
+  const byId = new Map(caseItem.turns.map((turn) => [turn.id, turn]));
+  const path: ExpressionLearningDialogueTurn[] = [];
+  const seen = new Set<string>();
+  let current: ExpressionLearningDialogueTurn | undefined = leaf;
+  while (current && !seen.has(current.id)) {
+    path.unshift(current);
+    seen.add(current.id);
+    current = current.parentTurnId ? byId.get(current.parentTurnId) : undefined;
+  }
+  return path;
+}
+
 export function ExpressionLearningPage({ adminToken }: Props) {
   const [activeTab, setActiveTab] = useState<LearningTab>("library");
   const [state, setState] = useState(emptyState);
   const [exerciseState, setExerciseState] = useState(emptyExerciseState);
+  const [dialogueState, setDialogueState] = useState(emptyDialogueState);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedDialogueCaseId, setSelectedDialogueCaseId] = useState<string | null>(null);
+  const [selectedDialogueTurnId, setSelectedDialogueTurnId] = useState<string | null>(null);
   const [teachingSeed, setTeachingSeed] = useState<TeachingSeed | null>(null);
+  const [teachingRevision, setTeachingRevision] = useState(0);
   const [scene, setScene] = useState("all");
   const [status, setStatus] = useState("all");
   const [outcome, setOutcome] = useState("all");
@@ -197,6 +248,14 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   const selected = useMemo(
     () => state.examples.find((example) => example.id === selectedId) ?? state.examples[0] ?? null,
     [selectedId, state.examples],
+  );
+  const selectedDialogueCase = useMemo(
+    () => dialogueState.cases.find((item) => item.id === selectedDialogueCaseId) ?? dialogueState.cases[0] ?? null,
+    [dialogueState.cases, selectedDialogueCaseId],
+  );
+  const selectedDialogueTurn = useMemo(
+    () => selectedDialogueCase?.turns.find((turn) => turn.id === selectedDialogueTurnId) ?? selectedDialogueCase?.turns[0] ?? null,
+    [selectedDialogueCase, selectedDialogueTurnId],
   );
 
   async function load() {
@@ -240,8 +299,34 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     }
   }
 
+  async function loadDialogues() {
+    if (!adminToken) return;
+    setError(null);
+    try {
+      const result = await fetchExpressionLearningDialogueCases({
+        token: adminToken,
+        limit: 200,
+      });
+      setDialogueState(result);
+      const nextCase = result.cases.find((item) => item.id === selectedDialogueCaseId) ?? result.cases[0] ?? null;
+      if (!nextCase) {
+        setSelectedDialogueCaseId(null);
+        setSelectedDialogueTurnId(null);
+        return;
+      }
+      if (nextCase.id !== selectedDialogueCaseId) {
+        setSelectedDialogueCaseId(nextCase.id);
+      }
+      if (!nextCase.turns.some((turn) => turn.id === selectedDialogueTurnId)) {
+        setSelectedDialogueTurnId(nextCase.turns[0]?.id ?? null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function refreshAll() {
-    await Promise.all([load(), loadExercises()]);
+    await Promise.all([load(), loadExercises(), loadDialogues()]);
   }
 
   useEffect(() => {
@@ -254,6 +339,11 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     void loadExercises();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, exerciseCreatedFrom, exerciseCreatedTo]);
+
+  useEffect(() => {
+    void loadDialogues();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken]);
 
   async function save(exampleId: string, patch: ExpressionLearningPatch) {
     if (!adminToken) return;
@@ -342,7 +432,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
   async function generateDraft(input: {
     scene: string;
     contextText: string;
-  }): Promise<{ draftText: string; trainingRecordId: string | null } | null> {
+  }): Promise<{ draftText: string; draftReason: string; trainingRecordId: string | null } | null> {
     if (!adminToken) return null;
     setDrafting(true);
     setError(null);
@@ -353,6 +443,7 @@ export function ExpressionLearningPage({ adminToken }: Props) {
       });
       return {
         draftText: result.draftText,
+        draftReason: result.reason,
         trainingRecordId: result.trainingRecord?.id ?? null,
       };
     } catch (err) {
@@ -360,6 +451,245 @@ export function ExpressionLearningPage({ adminToken }: Props) {
       return null;
     } finally {
       setDrafting(false);
+    }
+  }
+
+  function rememberDialogueCase(dialogueCase: ExpressionLearningDialogueCase, turnId?: string | null) {
+    setDialogueState((current) => {
+      const exists = current.cases.some((item) => item.id === dialogueCase.id);
+      const cases = exists
+        ? current.cases.map((item) => item.id === dialogueCase.id ? dialogueCase : item)
+        : [dialogueCase, ...current.cases];
+      return {
+        ...current,
+        cases,
+        summary: exists ? current.summary : { ...current.summary, total: current.summary.total + 1 },
+      };
+    });
+    setSelectedDialogueCaseId(dialogueCase.id);
+    setSelectedDialogueTurnId(turnId ?? dialogueCase.turns[0]?.id ?? null);
+  }
+
+  function newestTurn(dialogueCase: ExpressionLearningDialogueCase): ExpressionLearningDialogueTurn | null {
+    return [...dialogueCase.turns].sort((a, b) => (
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ))[0] ?? null;
+  }
+
+  async function createDialogueCase(input: {
+    scene: string;
+    title?: string | null;
+    trainingFocus?: string | null;
+    rootContextText: string;
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await createExpressionLearningDialogueCase({
+        ...input,
+        token: adminToken,
+        status: "draft",
+      });
+      rememberDialogueCase(result.dialogueCase);
+      await loadDialogues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function saveDialogueCase(input: {
+    caseId: string;
+    scene?: string;
+    title?: string | null;
+    trainingFocus?: string | null;
+    rootContextText?: string;
+    status?: "draft" | "active" | "archived";
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await updateExpressionLearningDialogueCase({
+        ...input,
+        token: adminToken,
+      });
+      rememberDialogueCase(result.dialogueCase, selectedDialogueTurnId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function addDialogueTurn(input: {
+    caseId: string;
+    parentTurnId?: string | null;
+    branchLabel?: string | null;
+    userText: string;
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await createExpressionLearningDialogueTurn({
+        ...input,
+        token: adminToken,
+      });
+      rememberDialogueCase(result.dialogueCase, newestTurn(result.dialogueCase)?.id ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function saveDialogueTurn(input: {
+    turnId: string;
+    branchLabel?: string | null;
+    userText?: string;
+    draftText?: string | null;
+    finalText?: string | null;
+    outcome?: "sent" | "skipped" | null;
+    ownerAction?: string | null;
+    ownerNote?: string | null;
+    analysisSnapshot?: unknown;
+    status?: string;
+  }) {
+    if (!adminToken) return null;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await updateExpressionLearningDialogueTurn({
+        ...input,
+        token: adminToken,
+      });
+      rememberDialogueCase(result.dialogueCase, input.turnId);
+      return result.dialogueCase.turns.find((turn) => turn.id === input.turnId) ?? null;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return null;
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function generateDialogueDraft(turnId: string): Promise<string | null> {
+    if (!adminToken) return null;
+    setDrafting(true);
+    setError(null);
+    try {
+      const result = await generateExpressionLearningDialogueTurnDraft({
+        token: adminToken,
+        turnId,
+      });
+      rememberDialogueCase(result.dialogueCase, turnId);
+      return result.draftText;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return null;
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  async function analyzeDialogueTurn(input: {
+    turnId: string;
+    draftText?: string | null;
+    finalText?: string | null;
+    outcome?: "sent" | "skipped" | null;
+    ownerAction?: string | null;
+    ownerNote?: string | null;
+  }): Promise<ExpressionLearningAnalysis | null> {
+    if (!adminToken) return null;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await analyzeExpressionLearningDialogueTurn({
+        ...input,
+        token: adminToken,
+      });
+      rememberDialogueCase(result.dialogueCase, input.turnId);
+      return result.analysis;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return null;
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function saveDialogueExample(input: {
+    turnId: string;
+    draftText?: string | null;
+    finalText?: string | null;
+    outcome?: "sent" | "skipped" | null;
+    ownerAction?: string | null;
+    ownerNote?: string | null;
+    analysis?: Partial<ExpressionLearningAnalysis> | null;
+    status?: "pending" | "active" | "disabled";
+  }) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await saveExpressionLearningDialogueTurnExample({
+        ...input,
+        token: adminToken,
+      });
+      rememberDialogueCase(result.dialogueCase, input.turnId);
+      setSelectedId(result.example.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function deleteDialogueTurn(turnId: string) {
+    if (!adminToken) return;
+    if (!window.confirm("确认删除这个对话节点吗？它的子分支和对应的表达经验都会一起删除。")) {
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await deleteExpressionLearningDialogueTurn({
+        token: adminToken,
+        turnId,
+      });
+      rememberDialogueCase(result.dialogueCase, result.dialogueCase.turns[0]?.id ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function deleteDialogueCase(caseId: string) {
+    if (!adminToken) return;
+    if (!window.confirm("确认删除整个多轮练习案例吗？所有对话节点和对应的表达经验都会一起删除。")) {
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      await deleteExpressionLearningDialogueCase({ token: adminToken, caseId });
+      setDialogueState((current) => ({
+        ...current,
+        cases: current.cases.filter((item) => item.id !== caseId),
+        summary: { ...current.summary, total: Math.max(0, current.summary.total - 1) },
+      }));
+      setSelectedDialogueCaseId((current) => current === caseId ? null : current);
+      setSelectedDialogueTurnId(null);
+      await loadDialogues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -448,14 +778,38 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
   async function deleteExercise(recordId: string) {
     if (!adminToken) return;
-    if (!window.confirm("确认删除这道未完成的习题吗？删除后不可恢复。")) {
+    if (!window.confirm("确认删除这道习题吗？它关联的非启用经验也会一起删除。")) {
       return;
     }
     setWorking(true);
     setError(null);
     try {
       await deleteExpressionLearningTrainingRecord({ token: adminToken, recordId });
+      setTeachingSeed((current) => current?.record.id === recordId ? null : current);
+      setTeachingRevision(Date.now());
       await loadExercises();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function setExerciseEnabled(exampleId: string, enabled: boolean) {
+    if (!adminToken) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const { example } = await updateExpressionLearningExample({
+        token: adminToken,
+        exampleId,
+        status: enabled ? "active" : "disabled",
+      });
+      setTeachingSeed((current) => current?.record.exampleId === exampleId
+        ? { ...current, record: { ...current.record, example } }
+        : current);
+      await loadExercises();
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -465,7 +819,14 @@ export function ExpressionLearningPage({ adminToken }: Props) {
 
   function editExercise(record: ExpressionLearningTrainingRecord) {
     setTeachingSeed({ record, revision: Date.now() });
-    setActiveTab("manual");
+    setTeachingRevision(Date.now());
+    setActiveTab("exercises");
+  }
+
+  function startNewExercise() {
+    setTeachingSeed(null);
+    setTeachingRevision(Date.now());
+    setActiveTab("exercises");
   }
 
   async function deleteExample(exampleId: string) {
@@ -598,27 +959,38 @@ export function ExpressionLearningPage({ adminToken }: Props) {
         </div>
       )}
 
-      {activeTab === "manual" && (
-        <ManualTeachingPanel
+      {activeTab === "dialogue" && (
+        <DialoguePracticePanel
+          state={dialogueState}
+          selectedCase={selectedDialogueCase}
+          selectedTurn={selectedDialogueTurn}
           working={working}
           drafting={drafting}
-          onCreate={(input) => void createTeachingExample(input)}
-          onAnalyze={(input) => analyzeTeaching(input)}
-          onGenerateQuestion={(input) => generatePractice(input)}
-          onGenerateDraft={generateDraft}
-          onSaveDraft={(input) => saveTrainingDraft(input)}
-          onAcceptDraft={(input) => void acceptDraft(input)}
-          editSeed={teachingSeed}
+          onSelectCase={(caseId) => {
+            const nextCase = dialogueState.cases.find((item) => item.id === caseId) ?? null;
+            setSelectedDialogueCaseId(caseId);
+            setSelectedDialogueTurnId(nextCase?.turns[0]?.id ?? null);
+          }}
+          onSelectTurn={setSelectedDialogueTurnId}
+          onCreateCase={(input) => void createDialogueCase(input)}
+          onSaveCase={(input) => void saveDialogueCase(input)}
+          onAddTurn={(input) => void addDialogueTurn(input)}
+          onSaveTurn={saveDialogueTurn}
+          onGenerateDraft={generateDialogueDraft}
+          onAnalyzeTurn={analyzeDialogueTurn}
+          onSaveExample={(input) => void saveDialogueExample(input)}
+          onDeleteTurn={(turnId) => void deleteDialogueTurn(turnId)}
+          onDeleteCase={(caseId) => void deleteDialogueCase(caseId)}
         />
       )}
 
       {activeTab === "exercises" && (
-        <ExerciseLibraryPanel
+        <ExerciseWorkspacePanel
           records={exerciseState.records}
           working={working}
+          drafting={drafting}
           onEdit={editExercise}
-          onAcceptDraft={(recordId) => void acceptDraft({ recordId })}
-          onDelete={(recordId) => void deleteExercise(recordId)}
+          onStartNew={startNewExercise}
           createdFrom={exerciseCreatedFrom}
           createdTo={exerciseCreatedTo}
           onCreatedFromChange={setExerciseCreatedFrom}
@@ -627,6 +999,16 @@ export function ExpressionLearningPage({ adminToken }: Props) {
             setExerciseCreatedFrom("");
             setExerciseCreatedTo("");
           }}
+          onCreate={(input) => void createTeachingExample(input)}
+          onAnalyze={(input) => analyzeTeaching(input)}
+          onGenerateQuestion={(input) => generatePractice(input)}
+          onGenerateDraft={generateDraft}
+          onSaveDraft={(input) => saveTrainingDraft(input)}
+          onAcceptTeachingDraft={(input) => void acceptDraft(input)}
+          onDeleteExercise={(recordId) => void deleteExercise(recordId)}
+          onSetExerciseEnabled={(exampleId, enabled) => void setExerciseEnabled(exampleId, enabled)}
+          editSeed={teachingSeed}
+          teachingRevision={teachingRevision}
         />
       )}
 
@@ -742,8 +1124,8 @@ function LearningTabs({
 }) {
   const tabs: Array<{ key: LearningTab; label: string; description: string; icon: IconName }> = [
     { key: "library", label: "经验库", description: "查看、审核和修正经验", icon: "icon-critterpedia" },
-    { key: "exercises", label: "习题库", description: "继续编辑未完成题目", icon: "icon-camera" },
-    { key: "manual", label: "教学练习", description: "出题、试答、分析、保存", icon: "icon-diy" },
+    { key: "exercises", label: "习题库", description: "新建、编辑和分析习题", icon: "icon-camera" },
+    { key: "dialogue", label: "多轮练习", description: "连续对话和分支", icon: "icon-chat" },
   ];
   return (
     <Card className="grid gap-3 p-3 md:grid-cols-3" pattern="none">
@@ -769,12 +1151,374 @@ function LearningTabs({
   );
 }
 
+type DialogueTurnSaveInput = {
+  turnId: string;
+  branchLabel?: string | null;
+  userText?: string;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+  analysisSnapshot?: unknown;
+  status?: string;
+};
+
+type DialogueTurnDecisionInput = {
+  turnId: string;
+  draftText?: string | null;
+  finalText?: string | null;
+  outcome?: "sent" | "skipped" | null;
+  ownerAction?: string | null;
+  ownerNote?: string | null;
+};
+
+function DialoguePracticePanel({
+  state,
+  selectedCase,
+  selectedTurn,
+  working,
+  drafting,
+  onSelectCase,
+  onSelectTurn,
+  onCreateCase,
+  onSaveCase,
+  onAddTurn,
+  onSaveTurn,
+  onGenerateDraft,
+  onAnalyzeTurn,
+  onSaveExample,
+  onDeleteTurn,
+  onDeleteCase,
+}: {
+  state: ExpressionLearningDialogueCasesResponse;
+  selectedCase: ExpressionLearningDialogueCase | null;
+  selectedTurn: ExpressionLearningDialogueTurn | null;
+  working: boolean;
+  drafting: boolean;
+  onSelectCase: (caseId: string) => void;
+  onSelectTurn: (turnId: string) => void;
+  onCreateCase: (input: { scene: string; title?: string | null; trainingFocus?: string | null; rootContextText: string }) => void;
+  onSaveCase: (input: { caseId: string; scene?: string; title?: string | null; trainingFocus?: string | null; rootContextText?: string; status?: "draft" | "active" | "archived" }) => void;
+  onAddTurn: (input: { caseId: string; parentTurnId?: string | null; branchLabel?: string | null; userText: string }) => void;
+  onSaveTurn: (input: DialogueTurnSaveInput) => Promise<ExpressionLearningDialogueTurn | null>;
+  onGenerateDraft: (turnId: string) => Promise<string | null>;
+  onAnalyzeTurn: (input: DialogueTurnDecisionInput) => Promise<ExpressionLearningAnalysis | null>;
+  onSaveExample: (input: DialogueTurnDecisionInput & { analysis?: Partial<ExpressionLearningAnalysis> | null; status?: "active" | "disabled" }) => void;
+  onDeleteTurn: (turnId: string) => void;
+  onDeleteCase: (caseId: string) => void;
+}) {
+  const [newCase, setNewCase] = useState({ scene: "chat", title: "", rootContextText: "", trainingFocus: "" });
+  const [caseForm, setCaseForm] = useState({ scene: "chat", title: "", rootContextText: "", trainingFocus: "", status: "draft" as "draft" | "active" | "archived" });
+  const [turnForm, setTurnForm] = useState({ draftText: "", draftReason: "", finalText: "", ownerNote: "", outcome: "sent" as "sent" | "skipped" });
+  const [branchParentTurnId, setBranchParentTurnId] = useState<string | null>(null);
+  const [newBranchText, setNewBranchText] = useState("");
+  const [addingBranch, setAddingBranch] = useState(false);
+  const [detailMode, setDetailMode] = useState<"branches" | "reply">("reply");
+  const [analysisForm, setAnalysisForm] = useState<AnalysisEditForm | null>(null);
+
+  useEffect(() => {
+    if (!selectedCase) return;
+    setCaseForm({
+      scene: selectedCase.scene,
+      title: selectedCase.title,
+      rootContextText: selectedCase.rootContextText,
+      trainingFocus: selectedCase.trainingFocus ?? "",
+      status: selectedCase.status,
+    });
+  }, [selectedCase]);
+
+  useEffect(() => {
+    if (!selectedTurn) {
+      setTurnForm({ draftText: "", draftReason: "", finalText: "", ownerNote: "", outcome: "sent" });
+      setAnalysisForm(null);
+      return;
+    }
+    setTurnForm({
+      draftText: selectedTurn.draftText ?? "",
+      draftReason: recordString(selectedTurn.analysisSnapshot, "draftReason"),
+      finalText: selectedTurn.finalText ?? "",
+      ownerNote: selectedTurn.ownerNote ?? "",
+      outcome: selectedTurn.outcome === "skipped" ? "skipped" : "sent",
+    });
+    const analysis = analysisFromRaw(selectedTurn.analysisSnapshot);
+    setAnalysisForm(analysis ? analysisToEditForm(analysis) : null);
+    setBranchParentTurnId(selectedTurn.parentTurnId ?? null);
+  }, [selectedTurn]);
+
+  const pathTurns = selectedCase ? dialoguePathTurns(selectedCase, selectedTurn) : [];
+  const branchChoices = selectedCase?.turns.filter(
+    (turn) => (turn.parentTurnId ?? null) === branchParentTurnId,
+  ) ?? [];
+  const canCreateCase = Boolean(newCase.title.trim() && newCase.rootContextText.trim());
+  const canAnalyze = Boolean(selectedTurn && (turnForm.outcome === "skipped" || turnForm.finalText.trim()));
+  const canSaveExample = Boolean(canAnalyze && analysisForm);
+
+  function updateTurn<K extends keyof typeof turnForm>(key: K, value: (typeof turnForm)[K]) {
+    setTurnForm((current) => ({ ...current, [key]: value }));
+    if (key === "finalText" && value) {
+      setTurnForm((current) => ({ ...current, outcome: "sent" }));
+    }
+    if (key !== "ownerNote") setAnalysisForm(null);
+  }
+
+  function decision(): DialogueTurnDecisionInput | null {
+    if (!selectedTurn) return null;
+    return {
+      turnId: selectedTurn.id,
+      draftText: turnForm.draftText || null,
+      finalText: turnForm.outcome === "skipped" ? null : turnForm.finalText || null,
+      outcome: turnForm.outcome,
+      ownerAction: turnForm.outcome === "skipped" ? "skipped" : "owner_taught",
+      ownerNote: turnForm.ownerNote || null,
+    };
+  }
+
+  async function persistTurn() {
+    if (!selectedTurn) return null;
+    return onSaveTurn({
+      turnId: selectedTurn.id,
+      draftText: turnForm.draftText || null,
+      finalText: turnForm.outcome === "skipped" ? null : turnForm.finalText || null,
+      outcome: turnForm.outcome,
+      ownerAction: turnForm.outcome === "skipped" ? "skipped" : "owner_taught",
+      ownerNote: turnForm.ownerNote || null,
+      analysisSnapshot: analysisForm ? { ...editFormToAnalysis(analysisForm), draftReason: turnForm.draftReason } : undefined,
+      status: "draft_saved",
+    });
+  }
+
+  async function generateDraft() {
+    if (!selectedTurn) return;
+    const saved = await persistTurn();
+    if (!saved) return;
+    const draft = await onGenerateDraft(selectedTurn.id);
+    if (draft) setTurnForm((current) => ({ ...current, draftText: draft }));
+  }
+
+  async function analyze() {
+    const currentDecision = decision();
+    if (!currentDecision) return;
+    await persistTurn();
+    const analysis = await onAnalyzeTurn(currentDecision);
+    if (analysis) setAnalysisForm(analysisToEditForm(analysis));
+  }
+
+  function saveExample(status: "active" | "disabled") {
+    const currentDecision = decision();
+    if (!currentDecision || !analysisForm) return;
+    onSaveExample({ ...currentDecision, analysis: editFormToAnalysis(analysisForm), status });
+  }
+
+  function selectOtherTurn(turn: ExpressionLearningDialogueTurn) {
+    onSelectTurn(turn.id);
+    setBranchParentTurnId(turn.parentTurnId ?? null);
+    setAddingBranch(false);
+    setNewBranchText("");
+    setDetailMode("branches");
+  }
+
+  function selectSiyuanTurn(turn: ExpressionLearningDialogueTurn) {
+    onSelectTurn(turn.id);
+    setDetailMode("reply");
+  }
+
+  function addBranch() {
+    if (!selectedCase || !newBranchText.trim()) return;
+    onAddTurn({ caseId: selectedCase.id, parentTurnId: branchParentTurnId, userText: newBranchText.trim() });
+    setNewBranchText("");
+    setAddingBranch(false);
+    setDetailMode("reply");
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card className="admin-select-host space-y-4 p-5" pattern="app-blue">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">New Dialogue Practice</div>
+            <h3 className="mt-2 text-2xl font-black text-[var(--ls-ink-strong)]">新增多轮练习</h3>
+          </div>
+          <span className="admin-chip admin-chip-mint">{state.summary.total} 个练习</span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="admin-select-below flex flex-col gap-1">
+            <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">场景</span>
+            <AdminSelect ariaLabel="新建多轮练习场景" value={newCase.scene} onChange={(scene) => setNewCase((current) => ({ ...current, scene }))} options={sceneOptions()} />
+          </label>
+          <TextField label="标题" value={newCase.title} onChange={(title) => setNewCase((current) => ({ ...current, title }))} placeholder="比如：朋友低落时怎么陪" />
+        </div>
+        <EditField label="情景介绍" value={newCase.rootContextText} onChange={(rootContextText) => setNewCase((current) => ({ ...current, rootContextText }))} rows={3} />
+        <TextField label="训练重点" value={newCase.trainingFocus} onChange={(trainingFocus) => setNewCase((current) => ({ ...current, trainingFocus }))} placeholder="比如：先接住情绪，再轻轻追问" />
+        <div className="flex justify-end">
+          <Button type="primary" size="middle" disabled={working || !canCreateCase} loading={working} onClick={() => {
+            onCreateCase({ scene: newCase.scene, title: newCase.title, rootContextText: newCase.rootContextText, trainingFocus: newCase.trainingFocus || null });
+            setNewCase({ scene: "chat", title: "", rootContextText: "", trainingFocus: "" });
+          }}>
+            新建练习
+          </Button>
+        </div>
+      </Card>
+
+      <section className="grid gap-5 2xl:grid-cols-[minmax(19rem,0.65fr)_minmax(0,1.35fr)]">
+        <Card className="space-y-3 p-5" pattern="none">
+          <SectionTitle icon="icon-critterpedia">多轮练习列表</SectionTitle>
+          <div className="space-y-2">
+            {state.cases.map((item) => (
+              <button key={item.id} type="button" onClick={() => onSelectCase(item.id)} className={`admin-island-row block w-full px-4 py-3 text-left ${selectedCase?.id === item.id ? "is-active" : ""}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="admin-chip admin-chip-yellow">{sceneLabel(item.scene)}</span>
+                  <StatusPill active={item.status === "active"} label={dialogueCaseStatusLabel(item.status)} />
+                </div>
+                <div className="mt-2 line-clamp-1 text-sm font-black text-[var(--ls-ink-strong)]">{item.title}</div>
+                <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-[var(--ls-ink-muted)]">{item.rootContextText}</div>
+              </button>
+            ))}
+            {state.cases.length === 0 && <div className="admin-island-soft-panel px-4 py-8 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">还没有多轮练习。</div>}
+          </div>
+        </Card>
+
+        {selectedCase ? (
+          <div className="space-y-4">
+            <Card className="admin-select-host space-y-4 p-5" pattern="app-yellow">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <SectionTitle icon="icon-diy">练习详情</SectionTitle>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="default" size="small" disabled={working} onClick={() => onSaveCase({ caseId: selectedCase.id, ...caseForm, trainingFocus: caseForm.trainingFocus || null })}>保存</Button>
+                  <Button type="default" size="small" disabled={working} onClick={() => onDeleteCase(selectedCase.id)} className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]">删除</Button>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField label="标题" value={caseForm.title} onChange={(title) => setCaseForm((current) => ({ ...current, title }))} />
+                <label className="admin-select-below flex flex-col gap-1"><span className="text-xs font-semibold text-[var(--ls-ink-soft)]">场景</span><AdminSelect ariaLabel="多轮练习场景" value={caseForm.scene} onChange={(scene) => setCaseForm((current) => ({ ...current, scene }))} options={sceneOptions()} /></label>
+              </div>
+              <EditField label="情景介绍" value={caseForm.rootContextText} onChange={(rootContextText) => setCaseForm((current) => ({ ...current, rootContextText }))} rows={3} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField label="训练重点" value={caseForm.trainingFocus} onChange={(trainingFocus) => setCaseForm((current) => ({ ...current, trainingFocus }))} />
+                <SelectField label="状态" value={caseForm.status} onChange={(status) => setCaseForm((current) => ({ ...current, status: status as "draft" | "active" | "archived" }))} options={[{ key: "draft", label: "草稿" }, { key: "active", label: "进行中" }, { key: "archived", label: "已归档" }]} />
+              </div>
+            </Card>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+              <Card className="space-y-4 p-5" pattern="none">
+                <div className="flex items-center justify-between gap-3"><SectionTitle icon="icon-chat">当前对话路径</SectionTitle><span className="text-xs font-semibold text-[var(--ls-ink-muted)]">{pathTurns.length} 轮</span></div>
+                <DetailReadBlock label="情景介绍" value={selectedCase.rootContextText} icon="icon-map" tone="admin-chip-mint" />
+                <div className="space-y-4">
+                  {pathTurns.map((turn) => (
+                    <div key={turn.id} className="space-y-2">
+                      <div className="flex justify-start"><button type="button" onClick={() => selectOtherTurn(turn)} className={`max-w-[82%] rounded-lg border-2 px-4 py-3 text-left text-sm font-semibold leading-6 ${turn.id === selectedTurn?.id && detailMode === "branches" ? "border-[var(--ls-mint)] bg-[var(--ls-mint-soft)]" : "border-[var(--ls-border)] bg-[var(--ls-panel-soft)]"}`}>{turn.userText}</button></div>
+                      <div className="flex justify-end"><button type="button" onClick={() => selectSiyuanTurn(turn)} className={`max-w-[82%] rounded-lg border-2 px-4 py-3 text-left text-sm font-semibold leading-6 ${turn.id === selectedTurn?.id && detailMode === "reply" ? "border-[var(--ls-yellow)] bg-[var(--ls-yellow-soft)]" : "border-[var(--ls-border)] bg-white"}`}>{turn.outcome === "skipped" ? "不回复" : turn.finalText || turn.draftText || "点击编辑思源回复"}</button></div>
+                    </div>
+                  ))}
+                  {pathTurns.length === 0 && <div className="admin-island-soft-panel px-4 py-8 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">从下面添加第一条对方消息开始。</div>}
+                </div>
+                <div className="border-t-2 border-dashed border-[var(--ls-border)] pt-4"><Button type="default" size="middle" onClick={() => { setBranchParentTurnId(selectedTurn?.id ?? null); setAddingBranch(true); setDetailMode("branches"); }} disabled={working}>添加一条对话</Button></div>
+              </Card>
+
+              {detailMode === "branches" ? (
+                <Card className="space-y-4 p-5" pattern="app-green">
+                  <div><SectionTitle icon="icon-chat">对方的可能回复</SectionTitle><p className="mt-2 text-sm font-semibold leading-6 text-[var(--ls-ink-muted)]">选择一条回复后，左侧会切换到该分支的后续。</p></div>
+                  <div className="space-y-2">
+                    {branchChoices.map((turn) => <button key={turn.id} type="button" onClick={() => { onSelectTurn(turn.id); setBranchParentTurnId(turn.parentTurnId ?? null); setAddingBranch(false); setDetailMode("reply"); }} className={`admin-island-row block w-full px-4 py-3 text-left ${turn.id === selectedTurn?.id ? "is-active" : ""}`}><div className="text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">{turn.userText}</div></button>)}
+                    {branchChoices.length === 0 && !addingBranch && <div className="admin-island-soft-panel px-4 py-6 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">这里还没有后续回复。</div>}
+                  </div>
+                  {addingBranch ? <><EditField label="新增一种回复" value={newBranchText} onChange={setNewBranchText} rows={4} /><div className="flex justify-end gap-2"><Button type="default" size="middle" onClick={() => setAddingBranch(false)}>取消</Button><Button type="primary" size="middle" disabled={working || !newBranchText.trim()} onClick={addBranch}>确定</Button></div></> : <Button type="default" size="middle" onClick={() => setAddingBranch(true)}>新增一种回复</Button>}
+                </Card>
+              ) : selectedTurn ? (
+                <Card className="space-y-4 p-5" pattern="app-green">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><SectionTitle icon="icon-design">思源回复</SectionTitle><p className="mt-2 text-sm font-semibold leading-6 text-[var(--ls-ink-muted)]">对方：{selectedTurn.userText}</p></div><Button type="default" size="small" disabled={working} onClick={() => onDeleteTurn(selectedTurn.id)} className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]">删除这条对话</Button></div>
+                  <EditField label="陆思源试答" value={turnForm.draftText} onChange={(draftText) => updateTurn("draftText", draftText)} rows={4} action={<Button type="default" size="small" disabled={drafting} loading={drafting} onClick={() => void generateDraft()}>{drafting ? "试答中" : "让思源试答"}</Button>} />
+                  {turnForm.draftReason && <DetailReadBlock label="试答原因" value={turnForm.draftReason} icon="icon-map" tone="admin-chip-mint" />}
+                  <EditField label="我希望的回复" value={turnForm.finalText} onChange={(finalText) => updateTurn("finalText", finalText)} rows={4} />
+                  <EditField label="补充说明" value={turnForm.ownerNote} onChange={(ownerNote) => updateTurn("ownerNote", ownerNote)} rows={3} />
+                  <div className="flex flex-wrap justify-end gap-2"><Button type="default" size="middle" disabled={working} onClick={() => { updateTurn("outcome", "skipped"); updateTurn("finalText", ""); }}>不回复</Button><Button type="primary" size="middle" disabled={working || !canAnalyze} loading={working} onClick={() => void analyze()}>分析</Button></div>
+                  {analysisForm && <AnalysisResultEditor value={analysisForm} onChange={setAnalysisForm} working={working} onSave={() => saveExample("disabled")} hideSave />}
+                  {analysisForm && <div className="flex flex-wrap justify-end gap-2"><Button type="default" size="middle" disabled={working || !canSaveExample} loading={working} onClick={() => saveExample("disabled")}>保存经验</Button><Button type="primary" size="middle" disabled={working || !canSaveExample} loading={working} onClick={() => saveExample("active")}>保存并启用经验</Button></div>}
+                </Card>
+              ) : (
+                <Card className="p-5" pattern="none"><div className="admin-island-soft-panel px-4 py-8 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">点击左侧消息查看分支，或添加第一条对话。</div></Card>
+              )}
+            </div>
+          </div>
+        ) : <Card className="p-5" pattern="none"><div className="admin-island-soft-panel px-4 py-10 text-center text-sm font-semibold text-[var(--ls-ink-muted)]">从左侧选择一个练习查看详情。</div></Card>}
+      </section>
+    </div>
+  );
+}
+
+function ExerciseWorkspacePanel({
+  teachingRevision,
+  onStartNew,
+  ...libraryProps
+}: {
+  teachingRevision: number;
+  onStartNew: () => void;
+  records: ExpressionLearningTrainingRecord[];
+  working: boolean;
+  drafting: boolean;
+  onEdit: (record: ExpressionLearningTrainingRecord) => void;
+  createdFrom: string;
+  createdTo: string;
+  onCreatedFromChange: (value: string) => void;
+  onCreatedToChange: (value: string) => void;
+  onClearDateFilter: () => void;
+  onCreate: (input: Omit<ExpressionLearningCreateInput, "token">) => void;
+  onAnalyze: (input: Omit<ExpressionLearningCreateInput, "token">) => Promise<ExpressionLearningAnalysis | null>;
+  onGenerateQuestion: (input: { scene: string; focus?: string | null }) => Promise<ExpressionLearningPracticeQuestionResponse | null>;
+  onGenerateDraft: (input: { scene: string; contextText: string }) => Promise<{ draftText: string; draftReason: string; trainingRecordId: string | null } | null>;
+  onSaveDraft: (input: Omit<ExpressionLearningTrainingDraftInput, "token">) => Promise<ExpressionLearningTrainingRecord | null>;
+  onAcceptTeachingDraft: (input: {
+    recordId: string;
+    status?: "pending" | "active" | "disabled";
+    ownerNote?: string | null;
+  }) => void;
+  onDeleteExercise: (recordId: string) => void;
+  onSetExerciseEnabled: (exampleId: string, enabled: boolean) => void;
+  editSeed: TeachingSeed | null;
+}) {
+  const {
+    drafting,
+    onCreate,
+    onAnalyze,
+    onGenerateQuestion,
+    onGenerateDraft,
+    onSaveDraft,
+    onAcceptTeachingDraft,
+    onDeleteExercise,
+    onSetExerciseEnabled,
+    editSeed,
+    ...exerciseLibraryProps
+  } = libraryProps;
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(19rem,0.8fr)_minmax(0,1.2fr)] xl:items-start">
+      <ExerciseLibraryPanel
+        {...exerciseLibraryProps}
+        onStartNew={onStartNew}
+      />
+      <ManualTeachingPanel
+        key={editSeed?.revision ?? teachingRevision}
+        working={exerciseLibraryProps.working}
+        drafting={drafting}
+        onCreate={onCreate}
+        onAnalyze={onAnalyze}
+        onGenerateQuestion={onGenerateQuestion}
+        onGenerateDraft={onGenerateDraft}
+        onSaveDraft={onSaveDraft}
+        onAcceptDraft={onAcceptTeachingDraft}
+        onDeleteExercise={onDeleteExercise}
+        onSetExerciseEnabled={onSetExerciseEnabled}
+        editSeed={editSeed}
+      />
+    </section>
+  );
+}
+
 function ExerciseLibraryPanel({
   records,
   working,
   onEdit,
-  onAcceptDraft,
-  onDelete,
+  onStartNew,
   createdFrom,
   createdTo,
   onCreatedFromChange,
@@ -784,8 +1528,7 @@ function ExerciseLibraryPanel({
   records: ExpressionLearningTrainingRecord[];
   working: boolean;
   onEdit: (record: ExpressionLearningTrainingRecord) => void;
-  onAcceptDraft: (recordId: string) => void;
-  onDelete: (recordId: string) => void;
+  onStartNew: () => void;
   createdFrom: string;
   createdTo: string;
   onCreatedFromChange: (value: string) => void;
@@ -810,7 +1553,12 @@ function ExerciseLibraryPanel({
             系统出的题和你保存过的手写题都会在这里。未完成题可以继续编辑，保存经验后状态跟随经验启用/停用。
           </p>
         </div>
-        <span className="admin-chip admin-chip-mint">{records.length} 道题</span>
+        <div className="flex items-center gap-2">
+          <span className="admin-chip admin-chip-mint">{records.length} 道题</span>
+          <Button type="primary" size="small" onClick={onStartNew} disabled={working}>
+            新建习题
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(12rem,16rem)_minmax(10rem,14rem)_minmax(10rem,14rem)_auto] lg:items-end">
@@ -856,16 +1604,13 @@ function ExerciseLibraryPanel({
           <ExerciseRow
             key={record.id}
             record={record}
-            working={working}
             onEdit={() => onEdit(record)}
-            onAcceptDraft={() => onAcceptDraft(record.id)}
-            onDelete={() => onDelete(record.id)}
           />
         ))}
 
         {records.length === 0 && (
           <div className="admin-island-soft-panel px-5 py-10 text-center text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
-            还没有习题。去教学练习里点一次“系统出题”，第一道题就会出现在这里。
+            还没有习题。右侧点“系统出题”或直接填写情境，就能开始第一道题。
           </div>
         )}
 
@@ -881,79 +1626,37 @@ function ExerciseLibraryPanel({
 
 function ExerciseRow({
   record,
-  working,
   onEdit,
-  onAcceptDraft,
-  onDelete,
 }: {
   record: ExpressionLearningTrainingRecord;
-  working: boolean;
   onEdit: () => void;
-  onAcceptDraft: () => void;
-  onDelete: () => void;
 }) {
   const status = exerciseStatus(record);
-  const canEdit = !record.exampleId;
-  const canAcceptDraft = canEdit && Boolean(record.contextText?.trim() && record.draftText?.trim());
   return (
-    <div className="admin-island-row px-4 py-3.5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="admin-chip admin-chip-yellow">{sceneLabel(record.scene)}</span>
-            <StatusPill active={status.active} label={status.label} />
-            <span className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">
-              出题 {formatTime(record.createdAt)}
+    <button type="button" onClick={onEdit} className="admin-island-row block w-full px-4 py-3.5 text-left">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="admin-chip admin-chip-yellow">{sceneLabel(record.scene)}</span>
+          <StatusPill active={status.active} label={status.label} />
+          <span className="text-[11px] font-semibold text-[var(--ls-ink-soft)]">
+            出题 {formatTime(record.createdAt)}
+          </span>
+          {record.updatedAt !== record.createdAt && (
+            <span className="text-[11px] font-semibold text-[var(--ls-ink-faint)]">
+              更新 {formatTime(record.updatedAt)}
             </span>
-            {record.updatedAt !== record.createdAt && (
-              <span className="text-[11px] font-semibold text-[var(--ls-ink-faint)]">
-                更新 {formatTime(record.updatedAt)}
-              </span>
-            )}
-          </div>
-          <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">
-            {exerciseQuestionText(record)}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-[var(--ls-ink-muted)]">
-            <span>表达场景</span>
-            {record.finalText && (
-              <>
-                <span className="text-[var(--ls-3d-shadow)]">·</span>
-                <span>已有你的回复</span>
-              </>
-            )}
-            {analysisFromTrainingRecord(record) && (
-              <>
-                <span className="text-[var(--ls-3d-shadow)]">·</span>
-                <span>已分析</span>
-              </>
-            )}
-          </div>
+          )}
         </div>
-
-        {canEdit && (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {canAcceptDraft && (
-              <Button type="default" size="small" onClick={onAcceptDraft} disabled={working}>
-                采用试答
-              </Button>
-            )}
-            <Button type="primary" size="small" onClick={onEdit} disabled={working}>
-              继续编辑
-            </Button>
-            <Button
-              type="default"
-              size="small"
-              onClick={onDelete}
-              disabled={working}
-              className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]"
-            >
-              删除
-            </Button>
-          </div>
-        )}
+        <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">
+          {exerciseQuestionText(record)}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-[var(--ls-ink-muted)]">
+          <span>表达场景</span>
+          {record.finalText && <><span className="text-[var(--ls-3d-shadow)]">·</span><span>已有你的回复</span></>}
+          {analysisFromTrainingRecord(record) && <><span className="text-[var(--ls-3d-shadow)]">·</span><span>已分析</span></>}
+        </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -1051,6 +1754,8 @@ function ManualTeachingPanel({
   onGenerateDraft,
   onSaveDraft,
   onAcceptDraft,
+  onDeleteExercise,
+  onSetExerciseEnabled,
   editSeed,
 }: {
   working: boolean;
@@ -1064,7 +1769,7 @@ function ManualTeachingPanel({
   onGenerateDraft: (input: {
     scene: string;
     contextText: string;
-  }) => Promise<{ draftText: string; trainingRecordId: string | null } | null>;
+  }) => Promise<{ draftText: string; draftReason: string; trainingRecordId: string | null } | null>;
   onSaveDraft: (
     input: Omit<ExpressionLearningTrainingDraftInput, "token">
   ) => Promise<ExpressionLearningTrainingRecord | null>;
@@ -1073,6 +1778,8 @@ function ManualTeachingPanel({
     status?: "pending" | "active" | "disabled";
     ownerNote?: string | null;
   }) => void;
+  onDeleteExercise: (recordId: string) => void;
+  onSetExerciseEnabled: (exampleId: string, enabled: boolean) => void;
   editSeed: TeachingSeed | null;
 }) {
   const [form, setForm] = useState<Omit<TeachingForm, "scene" | "status">>({
@@ -1085,6 +1792,7 @@ function ManualTeachingPanel({
   const [focus, setFocus] = useState("");
   const [trainingRecordId, setTrainingRecordId] = useState<string | null>(null);
   const [generatedQuestion, setGeneratedQuestion] = useState<ExpressionLearningPracticeQuestion | null>(null);
+  const [draftReason, setDraftReason] = useState("");
   const [analysisForm, setAnalysisForm] = useState<AnalysisEditForm | null>(null);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [libForm] = Form.useForm<Pick<TeachingForm, "scene" | "status">>();
@@ -1100,6 +1808,7 @@ function ManualTeachingPanel({
     });
     setTrainingRecordId(record.id);
     setGeneratedQuestion(question);
+    setDraftReason(recordString(record.generatedDraft, "reason"));
     setForm({
       contextText: record.contextText ?? question?.contextText ?? "",
       draftText: record.draftText ?? question?.draftText ?? "",
@@ -1117,12 +1826,14 @@ function ManualTeachingPanel({
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key === "draftText") setDraftReason("");
     setAnalysisForm(null);
     setLocalMessage(null);
   }
 
   function patchForm(patch: Partial<typeof form>) {
     setForm((current) => ({ ...current, ...patch }));
+    if (patch.draftText !== undefined) setDraftReason("");
     setAnalysisForm(null);
     setLocalMessage(null);
   }
@@ -1186,7 +1897,7 @@ function ManualTeachingPanel({
           }
         : undefined,
       generatedDraft: form.draftText
-        ? { draftText: form.draftText }
+        ? { draftText: form.draftText, reason: draftReason || null }
         : undefined,
       analysisSnapshot: analysis ?? (analysisForm ? editFormToAnalysis(analysisForm) : undefined),
     };
@@ -1226,6 +1937,7 @@ function ManualTeachingPanel({
     });
     if (result?.draftText) {
       update("draftText", result.draftText);
+      setDraftReason(result.draftReason);
       if (!trainingRecordId) {
         setTrainingRecordId(result.trainingRecordId);
       }
@@ -1240,6 +1952,7 @@ function ManualTeachingPanel({
     });
     if (!result) return;
     setGeneratedQuestion(result.question);
+    setDraftReason("");
     setTrainingRecordId(result.trainingRecord.id);
     patchForm({
       contextText: result.question.contextText,
@@ -1266,17 +1979,61 @@ function ManualTeachingPanel({
 
   const teachingSceneOptions = sceneOptions(editSeed?.record.scene ? [editSeed.record.scene] : []);
   const canAcceptCurrentDraft = Boolean(trainingRecordId && form.contextText.trim() && form.draftText.trim());
+  const canSaveCurrentDraft = Boolean(form.contextText.trim());
+  const linkedExample = editSeed?.record.example ?? null;
+  const isExerciseEnabled = linkedExample?.status === "active";
 
   return (
     <Card className="admin-select-host space-y-5 p-5" pattern="app-yellow">
-      <div>
-        <div className="text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
-          Teaching Practice
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-wide text-[var(--ls-ink-soft)]">
+            Exercise Detail
+          </div>
+          <h3 className="mt-2 text-2xl font-black text-[var(--ls-ink-strong)]">
+            {editSeed ? "习题详情" : "新建习题"}
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
+            可以让系统出题，也可以自己写题；先决定该不该回复，再分析成经验，最后确认保存。
+          </p>
         </div>
-        <h3 className="mt-2 text-2xl font-black text-[var(--ls-ink-strong)]">教学练习</h3>
-        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
-          可以让系统出题，也可以自己写题；先决定该不该回复，再分析成经验，最后确认保存。
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {editSeed && (
+            <Button
+              type="default"
+              size="small"
+              disabled={working}
+              onClick={() => onDeleteExercise(editSeed.record.id)}
+              className="!border-[var(--ls-pink)] !text-[var(--ls-pink-text)]"
+            >
+              删除
+            </Button>
+          )}
+          <Button
+            type="default"
+            size="small"
+            disabled={working || !canSaveCurrentDraft}
+            loading={working}
+            onClick={() => void saveDraft(null)}
+          >
+            保存草稿
+          </Button>
+          {linkedExample && (
+            <span className={`flex h-8 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold ${
+              isExerciseEnabled
+                ? "border-[var(--ls-success-border-light)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
+                : "border-[var(--ls-border)] bg-white text-[var(--ls-ink-soft)]"
+            }`}>
+              <span>{isExerciseEnabled ? "已启用" : "已停用"}</span>
+              <Switch
+                checked={isExerciseEnabled}
+                disabled={working}
+                onChange={(enabled: boolean) => onSetExerciseEnabled(linkedExample.id, enabled)}
+                aria-label="启用这道习题对应的表达经验"
+              />
+            </span>
+          )}
+        </div>
       </div>
 
       <ScopeHelp />
@@ -1301,8 +2058,7 @@ function ManualTeachingPanel({
               ariaLabel="保存状态"
               options={[
                 { key: "active", label: "保存后启用" },
-                { key: "disabled", label: "保存后停用" },
-                { key: "pending", label: "保存为待审核" },
+                { key: "disabled", label: "保存后暂不启用" },
               ]}
             />
           </Form.Item>
@@ -1345,18 +2101,38 @@ function ManualTeachingPanel({
           onChange={(value) => update("draftText", value)}
           rows={8}
           action={
-            <Button
-              type="default"
-              size="small"
-              onClick={generateDraft}
-              disabled={drafting || !form.contextText.trim()}
-              loading={drafting}
-            >
-              {drafting ? "试答中" : "让思源试答"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="default"
+                size="small"
+                onClick={generateDraft}
+                disabled={drafting || !form.contextText.trim()}
+                loading={drafting}
+              >
+                {drafting ? "试答中" : "让思源试答"}
+              </Button>
+              <Button
+                type="primary"
+                size="small"
+                onClick={acceptCurrentDraft}
+                disabled={working || !canAcceptCurrentDraft}
+                loading={working}
+              >
+                采用试答并保存
+              </Button>
+            </div>
           }
         />
       </div>
+
+      {draftReason && (
+        <DetailReadBlock
+          label="陆思源试答原因"
+          value={draftReason}
+          icon="icon-map"
+          tone="admin-chip-mint"
+        />
+      )}
 
       <div className="grid gap-3 lg:grid-cols-[14rem_minmax(0,1fr)]">
         <SelectField
@@ -1400,24 +2176,6 @@ function ManualTeachingPanel({
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button
-          type="default"
-          size="middle"
-          onClick={acceptCurrentDraft}
-          disabled={working || !canAcceptCurrentDraft}
-          loading={working}
-        >
-          采用试答并保存
-        </Button>
-        <Button
-          type="default"
-          size="middle"
-          onClick={() => void saveDraft(null)}
-          disabled={working || !form.contextText.trim()}
-          loading={working}
-        >
-          保存草稿
-        </Button>
-        <Button
           type="primary"
           size="middle"
           onClick={analyzeCurrent}
@@ -1446,11 +2204,15 @@ function AnalysisResultEditor({
   onChange,
   working,
   onSave,
+  saveLabel = "保存经验",
+  hideSave = false,
 }: {
   value: AnalysisEditForm;
   onChange: (value: AnalysisEditForm) => void;
   working: boolean;
   onSave: () => void;
+  saveLabel?: string;
+  hideSave?: boolean;
 }) {
   function update<K extends keyof AnalysisEditForm>(key: K, next: AnalysisEditForm[K]) {
     onChange({ ...value, [key]: next });
@@ -1460,7 +2222,6 @@ function AnalysisResultEditor({
     <div className="space-y-4 rounded-[22px] border-2 border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
       <div className="flex flex-wrap items-center gap-3">
         <SectionTitle icon="icon-critterpedia">分析结果</SectionTitle>
-        <span className="admin-chip admin-chip-mint">保存前可修改</span>
         <span className="ml-auto text-[11px] font-semibold text-[var(--ls-ink-muted)]">
           可信度 {Math.round(value.confidence * 100)}%
         </span>
@@ -1477,18 +2238,20 @@ function AnalysisResultEditor({
           <EditField label="检索标签" value={value.tagsText} onChange={(next) => update("tagsText", next)} rows={3} />
         </div>
       </div>
-      <div className="flex justify-end">
-        <Button
-          type="primary"
-          size="middle"
-          onClick={onSave}
-          disabled={working || !value.lesson.trim()}
-          loading={working}
-          icon={<Icon name="icon-diy" size={18} />}
-        >
-          保存经验
-        </Button>
-      </div>
+      {!hideSave && (
+        <div className="flex justify-end">
+          <Button
+            type="primary"
+            size="middle"
+            onClick={onSave}
+            disabled={working || !value.lesson.trim()}
+            loading={working}
+            icon={<Icon name="icon-diy" size={18} />}
+          >
+            {saveLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1762,14 +2525,19 @@ function DetailHeader({
             删除经验
           </Button>
         )}
-        <Button
-          type="default"
-          size="small"
-          onClick={() => onSave({ status: example.status === "active" ? "disabled" : "active" })}
-          disabled={working}
-        >
-          {example.status === "active" ? "停用经验" : "启用经验"}
-        </Button>
+        <span className={`flex h-8 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold ${
+          example.status === "active"
+            ? "border-[var(--ls-success-border-light)] bg-[var(--ls-success-bg)] text-[var(--ls-success-text)]"
+            : "border-[var(--ls-border)] bg-white text-[var(--ls-ink-soft)]"
+        }`}>
+          <span>{example.status === "active" ? "已启用" : "已停用"}</span>
+          <Switch
+            checked={example.status === "active"}
+            disabled={working}
+            onChange={(enabled: boolean) => onSave({ status: enabled ? "active" : "disabled" })}
+            aria-label="启用这条表达经验"
+          />
+        </span>
         <Button
           type="primary"
           size="small"

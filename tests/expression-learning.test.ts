@@ -6,6 +6,7 @@ import {
   deriveExpressionOwnerAction,
   normalizeExpressionLearningAnalysis,
 } from "../src/expression-learning/expression-learning.service.js";
+import { buildExpressionLearningDialogueContext } from "../src/expression-learning/expression-learning-dialogues.js";
 import {
   buildExpressionLearningTrainingExport,
   buildExpressionLearningTrainingRecordWhere,
@@ -164,6 +165,61 @@ test("training record filters include exercise source and local created date ran
     (where.createdAt as { lte: Date }).lte.toISOString(),
     new Date(2026, 6, 9, 23, 59, 59, 999).toISOString()
   );
+});
+
+test("dialogue learning context uses the upstream path and current user turn", () => {
+  const context = buildExpressionLearningDialogueContext({
+    dialogueCase: {
+      scene: "chat",
+      title: "朋友失落时的连续回应",
+      trainingFocus: "先接住，再轻轻追问",
+      rootContextText: "朋友考试失利，语气有点自嘲。",
+    },
+    turns: [
+      {
+        id: "turn-1",
+        parentTurnId: null,
+        branchLabel: null,
+        userText: "算了，我就是不适合这个专业。",
+        draftText: "别这么想。",
+        finalText: "先别急着给自己判死刑，今天真的很难受也正常。",
+        outcome: "sent",
+        ownerNote: null,
+        sortOrder: 0,
+        createdAt: new Date("2026-07-10T00:00:00.000Z"),
+      },
+      {
+        id: "turn-2",
+        parentTurnId: "turn-1",
+        branchLabel: "对方继续自嘲",
+        userText: "哈哈，可能我脑子真的不太行。",
+        draftText: null,
+        finalText: null,
+        outcome: null,
+        ownerNote: null,
+        sortOrder: 0,
+        createdAt: new Date("2026-07-10T00:01:00.000Z"),
+      },
+    ],
+    turn: {
+      id: "turn-2",
+      parentTurnId: "turn-1",
+      branchLabel: "对方继续自嘲",
+      userText: "哈哈，可能我脑子真的不太行。",
+      draftText: null,
+      finalText: null,
+      outcome: null,
+      ownerNote: null,
+      sortOrder: 0,
+      createdAt: new Date("2026-07-10T00:01:00.000Z"),
+    },
+  });
+
+  assert.match(context, /朋友考试失利/);
+  assert.match(context, /先别急着给自己判死刑/);
+  assert.match(context, /对方继续自嘲/);
+  assert.match(context, /哈哈，可能我脑子真的不太行/);
+  assert.doesNotMatch(context, /别这么想。/);
 });
 
 test("uses a controlled Xiaohongshu post type vocabulary", () => {

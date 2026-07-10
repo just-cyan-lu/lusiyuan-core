@@ -292,11 +292,15 @@ export async function generateExpressionLearningDraft(
     learnedContext ? `可参考的既有表达经验：\n${learnedContext}` : "",
     "",
     "要求：",
-    "- 只输出回复正文，不要解释、不加标题。",
+    "- 只输出 JSON，不要 Markdown。",
     "- 这是一版可被 owner 修正的草稿，不需要追求完美。",
     "- 如果情境明显不该回复，也请输出一句克制的短回复草稿，方便 owner 判断和教学。",
+    "- reason 只写 1-3 句面向 owner 的简短回答依据，说明这版草稿抓住了什么、语气为什么合适；不要展示逐步思考过程。",
+    "",
+    "格式：",
+    '{"draftText":"回复正文", "reason":"简短回答依据"}',
   ].filter(Boolean).join("\n");
-  const draft = await modelProvider.chat(buildChatPrompt({
+  const draft = await modelProvider.chatJson<{ draftText?: unknown; reason?: unknown }>(buildChatPrompt({
     persona,
     memories: [],
     recentMessages: [],
@@ -305,10 +309,11 @@ export async function generateExpressionLearningDraft(
   }));
   return {
     draftText: cleanText(
-      draft.replace(/^草稿[:：]\s*/i, "").replace(/^回复[:：]\s*/i, ""),
+      cleanText(draft.draftText, "", 4000).replace(/^草稿[:：]\s*/i, "").replace(/^回复[:：]\s*/i, ""),
       "",
       4000
     ),
+    reason: cleanText(draft.reason, "这是一版供 owner 继续判断和修改的试答。", 1200),
     referenceExampleIds: learnedExamples.map((example) => example.id),
   };
 }

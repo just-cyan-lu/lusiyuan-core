@@ -46,6 +46,18 @@ import {
   generateExpressionLearningPracticeQuestionBatch,
 } from "../expression-learning/expression-learning-practice-generator.js";
 import {
+  analyzeExpressionLearningDialogueTurn,
+  createExpressionLearningDialogueCase,
+  createExpressionLearningDialogueTurn,
+  deleteExpressionLearningDialogueCase,
+  deleteExpressionLearningDialogueTurn,
+  generateExpressionLearningDialogueTurnDraft,
+  listExpressionLearningDialogueCases,
+  saveExpressionLearningDialogueTurnExample,
+  updateExpressionLearningDialogueCase,
+  updateExpressionLearningDialogueTurn,
+} from "../expression-learning/expression-learning-dialogues.js";
+import {
   analyzeExpressionLearningDecision,
   generateExpressionLearningDraft,
   learnExpression,
@@ -251,6 +263,11 @@ function expressionLearningOutcome(value: unknown): ExpressionLearningOutcome {
   throw routeError("outcome must be sent or skipped", 400);
 }
 
+function optionalExpressionLearningOutcome(value: unknown): ExpressionLearningOutcome | null {
+  if (value === undefined || value === null) return null;
+  return expressionLearningOutcome(value);
+}
+
 function expressionLearningOwnerAction(
   value: unknown,
   fallback: ExpressionLearningOwnerAction
@@ -267,6 +284,14 @@ function expressionLearningOwnerAction(
     return action as ExpressionLearningOwnerAction;
   }
   throw routeError("invalid expression-learning ownerAction", 400);
+}
+
+function optionalExpressionLearningOwnerAction(
+  value: unknown,
+  outcome: ExpressionLearningOutcome | null
+): ExpressionLearningOwnerAction | null {
+  if (value === undefined || value === null) return null;
+  return expressionLearningOwnerAction(value, outcome === "skipped" ? "skipped" : "owner_taught");
 }
 
 function expressionLearningStatus(
@@ -1813,6 +1838,139 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send({ ...draft, trainingRecord });
   });
 
+  app.get("/v1/admin/expression-learning/dialogue-cases", async (request, reply) => {
+    const query = request.query as {
+      scene?: string;
+      status?: string;
+      limit?: string;
+    };
+    const result = await listExpressionLearningDialogueCases({
+      scene: cleanString(query.scene) ?? "all",
+      status: cleanString(query.status) ?? "all",
+      limit: clampLimit(query.limit, 80),
+    });
+    return reply.send(result);
+  });
+
+  app.post("/v1/admin/expression-learning/dialogue-cases", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const dialogueCase = await createExpressionLearningDialogueCase({
+      scene: cleanString(body.scene) ?? "general",
+      title: cleanNullableString(body.title) ?? null,
+      trainingFocus: cleanNullableString(body.trainingFocus) ?? null,
+      rootContextText: cleanString(body.rootContextText) ?? "",
+      status: cleanNullableString(body.status) ?? "draft",
+      createdFrom: cleanNullableString(body.createdFrom) ?? "admin",
+      metadata: cleanRecord(body.metadata) ?? null,
+    });
+    return reply.status(201).send({ dialogueCase });
+  });
+
+  app.patch("/v1/admin/expression-learning/dialogue-cases/:caseId", async (request, reply) => {
+    const { caseId } = request.params as { caseId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const dialogueCase = await updateExpressionLearningDialogueCase(caseId, {
+      scene: hasOwn(body, "scene") ? cleanString(body.scene) ?? "general" : undefined,
+      title: hasOwn(body, "title") ? cleanNullableString(body.title) ?? null : undefined,
+      trainingFocus: hasOwn(body, "trainingFocus") ? cleanNullableString(body.trainingFocus) ?? null : undefined,
+      rootContextText: hasOwn(body, "rootContextText") ? cleanString(body.rootContextText) ?? "" : undefined,
+      status: hasOwn(body, "status") ? cleanNullableString(body.status) ?? "draft" : undefined,
+      metadata: hasOwn(body, "metadata") ? cleanRecord(body.metadata) ?? null : undefined,
+    });
+    return reply.send({ dialogueCase });
+  });
+
+  app.delete("/v1/admin/expression-learning/dialogue-cases/:caseId", async (request, reply) => {
+    const { caseId } = request.params as { caseId: string };
+    return reply.send(await deleteExpressionLearningDialogueCase(caseId));
+  });
+
+  app.post("/v1/admin/expression-learning/dialogue-cases/:caseId/turns", async (request, reply) => {
+    const { caseId } = request.params as { caseId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const outcome = optionalExpressionLearningOutcome(body.outcome);
+    const dialogueCase = await createExpressionLearningDialogueTurn({
+      caseId,
+      parentTurnId: cleanNullableString(body.parentTurnId) ?? null,
+      branchLabel: cleanNullableString(body.branchLabel) ?? null,
+      userText: cleanString(body.userText) ?? "",
+      draftText: cleanNullableString(body.draftText) ?? null,
+      finalText: cleanNullableString(body.finalText) ?? null,
+      outcome,
+      ownerAction: optionalExpressionLearningOwnerAction(body.ownerAction, outcome),
+      ownerNote: cleanNullableString(body.ownerNote) ?? null,
+      status: cleanNullableString(body.status) ?? "draft",
+    });
+    return reply.status(201).send({ dialogueCase });
+  });
+
+  app.patch("/v1/admin/expression-learning/dialogue-turns/:turnId", async (request, reply) => {
+    const { turnId } = request.params as { turnId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const outcome = hasOwn(body, "outcome")
+      ? optionalExpressionLearningOutcome(body.outcome)
+      : undefined;
+    const dialogueCase = await updateExpressionLearningDialogueTurn(turnId, {
+      parentTurnId: hasOwn(body, "parentTurnId") ? cleanNullableString(body.parentTurnId) ?? null : undefined,
+      branchLabel: hasOwn(body, "branchLabel") ? cleanNullableString(body.branchLabel) ?? null : undefined,
+      userText: hasOwn(body, "userText") ? cleanString(body.userText) ?? "" : undefined,
+      draftText: hasOwn(body, "draftText") ? cleanNullableString(body.draftText) ?? null : undefined,
+      finalText: hasOwn(body, "finalText") ? cleanNullableString(body.finalText) ?? null : undefined,
+      outcome,
+      ownerAction: hasOwn(body, "ownerAction")
+        ? optionalExpressionLearningOwnerAction(body.ownerAction, outcome ?? null)
+        : undefined,
+      ownerNote: hasOwn(body, "ownerNote") ? cleanNullableString(body.ownerNote) ?? null : undefined,
+      analysisSnapshot: hasOwn(body, "analysisSnapshot")
+        ? cleanRecord(body.analysisSnapshot) as Partial<ExpressionLearningAnalysis> | null
+        : undefined,
+      status: hasOwn(body, "status") ? cleanNullableString(body.status) ?? "draft" : undefined,
+    });
+    return reply.send({ dialogueCase });
+  });
+
+  app.delete("/v1/admin/expression-learning/dialogue-turns/:turnId", async (request, reply) => {
+    const { turnId } = request.params as { turnId: string };
+    const dialogueCase = await deleteExpressionLearningDialogueTurn(turnId);
+    return reply.send({ dialogueCase });
+  });
+
+  app.post("/v1/admin/expression-learning/dialogue-turns/:turnId/draft", async (request, reply) => {
+    const { turnId } = request.params as { turnId: string };
+    const result = await generateExpressionLearningDialogueTurnDraft(turnId);
+    return reply.send(result);
+  });
+
+  app.post("/v1/admin/expression-learning/dialogue-turns/:turnId/analyze", async (request, reply) => {
+    const { turnId } = request.params as { turnId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const outcome = optionalExpressionLearningOutcome(body.outcome);
+    const result = await analyzeExpressionLearningDialogueTurn(turnId, {
+      draftText: hasOwn(body, "draftText") ? cleanNullableString(body.draftText) ?? null : undefined,
+      finalText: hasOwn(body, "finalText") ? cleanNullableString(body.finalText) ?? null : undefined,
+      outcome,
+      ownerAction: optionalExpressionLearningOwnerAction(body.ownerAction, outcome),
+      ownerNote: hasOwn(body, "ownerNote") ? cleanNullableString(body.ownerNote) ?? null : undefined,
+    });
+    return reply.send(result);
+  });
+
+  app.post("/v1/admin/expression-learning/dialogue-turns/:turnId/save-example", async (request, reply) => {
+    const { turnId } = request.params as { turnId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const outcome = optionalExpressionLearningOutcome(body.outcome);
+    const result = await saveExpressionLearningDialogueTurnExample(turnId, {
+      draftText: hasOwn(body, "draftText") ? cleanNullableString(body.draftText) ?? null : undefined,
+      finalText: hasOwn(body, "finalText") ? cleanNullableString(body.finalText) ?? null : undefined,
+      outcome,
+      ownerAction: optionalExpressionLearningOwnerAction(body.ownerAction, outcome),
+      ownerNote: hasOwn(body, "ownerNote") ? cleanNullableString(body.ownerNote) ?? null : undefined,
+      analysis: cleanRecord(body.analysis) as Partial<ExpressionLearningAnalysis> | null,
+      status: expressionLearningStatus(body.status, "active"),
+    });
+    return reply.status(201).send(result);
+  });
+
   app.get("/v1/admin/expression-learning/training-records/export", async (request, reply) => {
     const query = request.query as { format?: string };
     const format = cleanString(query.format) === "jsonl" ? "jsonl" : "json";
@@ -1976,15 +2134,17 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     const { recordId } = request.params as { recordId: string };
     const record = await prisma.expressionLearningTrainingRecord.findUnique({
       where: { id: recordId },
-      select: { id: true, exampleId: true },
+      select: { id: true, exampleId: true, example: { select: { status: true } } },
     });
     if (!record) {
       throw routeError("expression-learning training record not found", 404);
     }
-    if (record.exampleId) {
-      throw routeError("linked expression-learning exercises must be deleted from the experience library", 400);
-    }
-    await prisma.expressionLearningTrainingRecord.delete({ where: { id: recordId } });
+    await prisma.$transaction(async (tx) => {
+      if (record.exampleId) {
+        await tx.expressionLearningExample.delete({ where: { id: record.exampleId } });
+      }
+      await tx.expressionLearningTrainingRecord.delete({ where: { id: recordId } });
+    });
     return reply.send({ ok: true, deletedId: recordId });
   });
 

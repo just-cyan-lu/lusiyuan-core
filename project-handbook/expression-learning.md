@@ -54,10 +54,19 @@ Admin 顶部可以导出训练记录：
 - 手动教学：点“分析并保存经验”后，会直接进入经验库。
 - 练习出题：生成题目后先进入习题册；只有在习题册里点“保存并生成经验”，才进入经验库。
 - 习题册：`待练习` 用来排队；`已归档不入库` 表示答过但暂时不作为经验；`已生成经验` 会关联经验库记录；`已弃题` 用来记录坏题原因。
+- 多轮练习：一个案例保存起始情境和一棵对话树；每个 turn 可以从任意上游节点继续或分叉。保存经验时，系统把“起始情境 + 上游路径 + 当前对方消息”编译成一条普通 `ExpressionLearningExample`，继续复用现有向量索引和启停机制。
 
 如果题目违背人设、凭空编关系、风险太高或训练价值低，不要静默删除，应该“弃题并记录原因”。这些坏题反馈不参与生成，但会保留在导出数据里，后续可以用来改出题 prompt 或训练出题判别器。
 
-模型教练暂不做手动输入入口。后续如果要做，应当由模型自动点评或生成候选经验，再进入 `pending` 等 owner 审核。
+多轮练习的数据分工：
+
+- `ExpressionLearningDialogueCase`：连续对话案例，记录场景、标题、训练重点和起始情境。
+- `ExpressionLearningDialogueTurn`：对话树上的一个学习节点，记录父节点、分支条件、这一轮对方说了什么、陆思源试答、owner 最终决定和分析快照。
+- `ExpressionLearningExample`：真正参与未来生成的经验单元。多轮 turn 保存入库后会关联到这里，`sourceRef` 使用 `dialogue_turn:{turnId}`，重复保存同一节点会更新同一条经验。
+
+如果上游 turn 或案例根情境被修改，系统会重建下游节点的路径上下文；再次保存节点经验时会覆盖对应的经验内容。
+
+模型教练暂不做手动输入入口。后续如果要做，应当由模型自动点评或生成候选经验，owner 可以在保存前或经验库中继续编辑。
 
 ## 平台隔离
 
@@ -88,6 +97,7 @@ Admin 顶部可以导出训练记录：
 ## 代码位置
 
 - `src/expression-learning/`：分析、保存、向量索引和检索。
+- `src/expression-learning/expression-learning-dialogues.ts`：多轮练习案例、对话树、节点分析和入库。
 - `src/expression-learning/expression-learning-training-records.ts`：训练过程记录和 JSON / JSONL 导出。
 - `src/platforms/xiaohongshu/`：小红书账号镜像与学习接入。
 - `src/mcp/chrome-devtools-mcp.service.ts`：页面复用、读取冷却、随机稳定等待和只读 MCP 工具白名单。

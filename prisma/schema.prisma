@@ -371,12 +371,70 @@ model ExpressionLearningExample {
 
   embeddings      ExpressionLearningEmbedding[]
   trainingRecords ExpressionLearningTrainingRecord[]
+  dialogueTurns   ExpressionLearningDialogueTurn[]
 
   @@index([scene, status])
   @@index([outcome])
   @@index([ownerAction])
   @@index([createdAt])
   @@map("expression_learning_examples")
+}
+
+/// A multi-turn expression-learning training case. It owns a dialogue tree;
+/// completed turns still compile into ExpressionLearningExample rows.
+model ExpressionLearningDialogueCase {
+  id              String   @id @default(cuid())
+  scene           String
+  title           String
+  trainingFocus   String?
+  rootContextText String
+  status          String   @default("draft")
+  createdFrom     String   @default("manual")
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  turns ExpressionLearningDialogueTurn[]
+
+  @@index([scene])
+  @@index([status])
+  @@index([createdAt])
+  @@map("expression_learning_dialogue_cases")
+}
+
+/// One decision point in a dialogue training tree.
+model ExpressionLearningDialogueTurn {
+  id               String   @id @default(cuid())
+  caseId           String
+  parentTurnId     String?
+  branchLabel      String?
+  userText         String
+  pathText         String?
+  draftText        String?
+  finalText        String?
+  outcome          String?
+  ownerAction      String?
+  ownerNote        String?
+  analysisSnapshot Json?
+  exampleId        String?
+  status           String   @default("draft")
+  needsReview      Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  case     ExpressionLearningDialogueCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  parent   ExpressionLearningDialogueTurn?  @relation("ExpressionLearningDialogueTurnTree", fields: [parentTurnId], references: [id], onDelete: SetNull)
+  children ExpressionLearningDialogueTurn[] @relation("ExpressionLearningDialogueTurnTree")
+  example  ExpressionLearningExample?       @relation(fields: [exampleId], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@index([parentTurnId])
+  @@index([exampleId])
+  @@index([status])
+  @@index([needsReview])
+  @@index([createdAt])
+  @@map("expression_learning_dialogue_turns")
 }
 
 /// Complete audit record for one expression-learning training interaction.
