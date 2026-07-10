@@ -19,6 +19,7 @@ import { isOwner } from "../tools/policy/owner-check.js";
 import { runtimeStateService } from "../runtime/runtime-state.service.js";
 import { relationshipStateService } from "../runtime/relationship-state.service.js";
 import { identityBindingService } from "../runtime/identity-binding.service.js";
+import { externalIdentityResearchService } from "../runtime/external-identity-research.service.js";
 import { runtimeConfig } from "../config/runtime-settings.service.js";
 import {
   isTaskCancellationError,
@@ -240,6 +241,15 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const relationshipRecord = await trace.time("relationship_get_or_create", () =>
     relationshipStateService.getOrCreate(user.id)
   );
+  await externalIdentityResearchService
+    .observeUserMessage({
+      userId: user.id,
+      messageId: userMessage.id,
+      content: input.message,
+      conversationId: conversation.id,
+      channel: input.channel,
+    })
+    .catch((err) => console.warn("[chat] external identity confirmation unavailable:", err));
   let sharedQueryEmbedding: Promise<number[]> | undefined;
   const getSharedQueryEmbedding = () => {
     sharedQueryEmbedding ??= trace.time("query_embedding", () =>
@@ -276,6 +286,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       runtimeState,
       relationshipState,
       expressionLearningExamples,
+      externalIdentityContext,
     ] = await trace.time(
       "prepare_prompt_materials",
       () =>
@@ -319,6 +330,12 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
             console.warn("[chat] expression learning unavailable:", err);
             return [];
           }),
+          externalIdentityResearchService
+            .preparePromptContext(relationshipRecord.personId)
+            .catch((err) => {
+              console.warn("[chat] external identity context unavailable:", err);
+              return "";
+            }),
         ])
     );
     checkCancelled();
@@ -361,6 +378,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       ownerProfile: ownerProfile || undefined,
       toolsAvailable: availableTools.length > 0,
       expressionLearningContext: formatExpressionLearningExamples(expressionLearningExamples),
+      externalIdentityContext: externalIdentityContext || undefined,
     });
     trace.mark("prompt_ready", { messages: messages.length });
 
@@ -581,6 +599,12 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       userMessage: input.message,
       displayName: input.display_name,
     })
+    .then(() =>
+      externalIdentityResearchService.enqueueForUser({
+        userId: user.id,
+        sourceMessageId: userMessage.id,
+      })
+    )
     .catch((err) => console.warn("[chat] identity proposal update failed:", err));
 
   trace.mark("done", { finalParts: finalParts.length });

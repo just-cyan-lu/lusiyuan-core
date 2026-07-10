@@ -31,6 +31,7 @@ import {
 } from "./runtime/runtime-autonomy-scheduler.js";
 import { chromeDevtoolsMcpService } from "./mcp/chrome-devtools-mcp.service.js";
 import { startVoiceCleanupScheduler, stopVoiceCleanupScheduler } from "./voice/voice-cleanup-scheduler.js";
+import { externalIdentityResearchService } from "./runtime/external-identity-research.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +95,11 @@ export function buildApp() {
 
   // Start voice cache cleanup scheduler
   startVoiceCleanupScheduler(app.log);
+
+  // Resume short public-identity lookups that were queued before a restart.
+  void externalIdentityResearchService.resumeQueued().catch((error) =>
+    app.log.warn(error, "failed to resume external identity research")
+  );
 
   const dreamKeys = new Set<RuntimeSettingKey>([
     "DREAM_ENABLED", "DREAM_CRON",

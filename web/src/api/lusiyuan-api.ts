@@ -266,6 +266,47 @@ export interface RelationshipStateEvent {
   createdAt: string;
 }
 
+export interface ExternalIdentityResearchJob {
+  id: string;
+  personId: string;
+  sourceUserId: string | null;
+  sourceMessageId: string | null;
+  queryAliases: unknown;
+  trigger: string;
+  status: string;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExternalIdentityCandidate {
+  id: string;
+  jobId: string;
+  personId: string;
+  alias: string;
+  canonicalName: string;
+  role: string | null;
+  summary: string;
+  publicReach: string | null;
+  region: string | null;
+  confidence: number;
+  relevanceScore: number;
+  sources: unknown;
+  status: "pending" | "confirmed" | "rejected" | "superseded";
+  promptedAt: string | null;
+  confirmedAt: string | null;
+  rejectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExternalIdentityResearchResponse {
+  jobs: ExternalIdentityResearchJob[];
+  candidates: ExternalIdentityCandidate[];
+}
+
 export interface RelationshipReviewEvidence {
   id: string;
   proposalId: string;
@@ -1448,6 +1489,32 @@ export async function updateAutonomousTask(input: {
       body: JSON.stringify(body),
     }
   );
+export async function fetchExternalIdentityResearch(input: {
+  token: string;
+  relationshipId: string;
+}): Promise<ExternalIdentityResearchResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/external-identity-research`,
+    { headers: adminHeaders(input.token) }
+  );
+  return parseJsonResponse<ExternalIdentityResearchResponse>(response, "无法读取外部身份候选");
+}
+
+export async function runExternalIdentityResearch(input: {
+  token: string;
+  relationshipId: string;
+  userId: string;
+}): Promise<{ jobId: string | null }> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/relationships/${input.relationshipId}/external-identity-research`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(input.token), "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: input.userId }),
+    }
+  );
+  return parseJsonResponse<{ jobId: string | null }>(response, "无法创建外部身份检索");
+}
   return parseJsonResponse<{ task: AutonomousTask }>(response, "更新自主任务失败");
 }
 

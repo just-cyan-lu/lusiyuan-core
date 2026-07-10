@@ -9,6 +9,7 @@ interface TavilySearchRequest {
   search_depth?: "basic" | "advanced";
   max_results?: number;
   include_answer?: boolean;
+  include_domains?: string[];
 }
 
 interface TavilyResult {
@@ -28,6 +29,7 @@ async function doSearch(
   apiKey: string,
   query: string,
   searchDepth: "basic" | "advanced",
+  includeDomains: string[] | undefined,
   signal?: AbortSignal
 ) {
   const body: TavilySearchRequest = {
@@ -36,6 +38,7 @@ async function doSearch(
     search_depth: searchDepth,
     max_results: runtimeConfig.TAVILY_MAX_RESULTS,
     include_answer: true,
+    ...(includeDomains && includeDomains.length > 0 ? { include_domains: includeDomains } : {}),
   };
 
   const dispatcher = env.EXTERNAL_HTTP_PROXY
@@ -53,7 +56,7 @@ async function doSearch(
 
 export async function tavilySearch(
   query: string,
-  options: { searchDepth?: "basic" | "advanced"; signal?: AbortSignal } = {}
+  options: { searchDepth?: "basic" | "advanced"; includeDomains?: string[]; signal?: AbortSignal } = {}
 ): Promise<SearchResponse> {
   const keys = env.TAVILY_API_KEYS;
   if (keys.length === 0) throw new Error("No Tavily API keys configured");
@@ -66,7 +69,7 @@ export async function tavilySearch(
   const searchDepth = options.searchDepth ?? "basic";
 
   for (const key of shuffled) {
-    const res = await doSearch(key, query, searchDepth, options.signal);
+    const res = await doSearch(key, query, searchDepth, options.includeDomains, options.signal);
 
     if (res.ok) {
       const data = (await res.json()) as TavilyResponse;

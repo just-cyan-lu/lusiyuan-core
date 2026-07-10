@@ -71,6 +71,7 @@ export const runtimeSettingDefinitions = {
 
   TAVILY_ENABLED: { group: "网页能力", label: "Tavily 搜索启用", type: "boolean", defaultValue: false, description: "启用 web_search 搜索引擎；适合找链接、查新闻和外部资料，不负责读取完整网页。" },
   TAVILY_MAX_RESULTS: { group: "网页能力", label: "Tavily 最大结果", type: "integer", defaultValue: 5, min: 1, max: 20, description: "一次搜索最多返回多少条结果；越大信息越多，也越容易带入噪声。" },
+  EXTERNAL_IDENTITY_RESEARCH_ENABLED: { group: "网页能力", label: "外部身份候选检索", type: "boolean", defaultValue: false, description: "当用户自称或显示名出现时，在后台检索公开身份候选；不会阻塞聊天，且必须经本人确认才写入正式关系资料。需要 Tavily 搜索可用。" },
   JINA_ENABLED: { group: "网页能力", label: "Jina Reader", type: "boolean", defaultValue: true, description: "第三方网页读取服务，适合公开文档、文章、博客、新闻等静态内容；不使用本地登录态。" },
   PLAYWRIGHT_ENABLED: { group: "网页能力", label: "Playwright Reader", type: "boolean", defaultValue: false, description: "本地无头浏览器读取，适合公开但依赖 JS 渲染的页面；被 read_page 选中时也可以返回截图。" },
   MCP_ENABLED: { group: "Chrome MCP", label: "MCP 总开关", type: "boolean", defaultValue: false, description: "MCP 能力总开关；关闭后 Chrome DevTools MCP 不会被启动或调用。" },

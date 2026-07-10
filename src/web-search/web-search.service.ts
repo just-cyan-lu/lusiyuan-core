@@ -6,7 +6,7 @@ import { runtimeConfig } from "../config/runtime-settings.service.js";
 class WebSearchService {
   async search(
     query: string,
-    options: { searchDepth?: "basic" | "advanced"; signal?: AbortSignal } = {}
+    options: { searchDepth?: "basic" | "advanced"; includeDomains?: string[]; signal?: AbortSignal } = {}
   ): Promise<SearchResponse> {
     if (!runtimeConfig.TAVILY_ENABLED) {
       throw new Error("Web search is disabled");

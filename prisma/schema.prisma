@@ -562,9 +562,72 @@ model PersonIdentity {
   reviewProposals    RelationshipReviewProposal[]
   reviewEvidences    RelationshipReviewEvidence[]
   memories           Memory[]
+  externalIdentityResearchJobs ExternalIdentityResearchJob[]
+  externalIdentityCandidates   ExternalIdentityCandidate[]
 
   @@index([label])
   @@map("person_identities")
+}
+
+/// A short, asynchronous public-web lookup triggered by a self-claimed or channel name.
+/// It is intentionally separate from IdentityLinkProposal, which only links channel accounts.
+model ExternalIdentityResearchJob {
+  id              String   @id @default(cuid())
+  personId        String
+  sourceUserId    String?
+  sourceMessageId String?
+  queryAliases    Json
+  trigger         String   @default("identity_alias")
+  status          String   @default("queued")
+  error           String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  person     PersonIdentity             @relation(fields: [personId], references: [id], onDelete: Cascade)
+  candidates ExternalIdentityCandidate[]
+
+  @@index([personId])
+  @@index([status])
+  @@index([sourceUserId])
+  @@index([createdAt])
+  @@map("external_identity_research_jobs")
+}
+
+/// A public identity possibility found by a research job. It remains non-factual until the person confirms it.
+model ExternalIdentityCandidate {
+  id                   String   @id @default(cuid())
+  jobId                String
+  personId             String
+  candidateKey         String
+  alias                String
+  canonicalName        String
+  role                 String?
+  summary              String
+  publicReach          String?
+  region               String?
+  confidence           Float    @default(0)
+  relevanceScore       Float    @default(0)
+  sources              Json
+  evidence             Json?
+  status               String   @default("pending")
+  promptedAt           DateTime?
+  confirmedAt          DateTime?
+  rejectedAt           DateTime?
+  confirmationMessageId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  job    ExternalIdentityResearchJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  person PersonIdentity              @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, candidateKey])
+  @@index([jobId])
+  @@index([personId, status])
+  @@index([status, promptedAt])
+  @@index([createdAt])
+  @@map("external_identity_candidates")
 }
 
 /// Link between one channel account and one real-person identity.

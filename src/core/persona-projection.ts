@@ -31,6 +31,7 @@ interface BuildPersonaProjectionInput {
   runtimeState?: string;
   relationshipState?: string;
   ownerProfile?: string;
+  externalIdentityContext?: string;
 }
 
 interface ProfileRule {
@@ -280,6 +281,8 @@ function selectPersonaSlices(
   const source = [
     input.channel ?? "",
     input.userMessage,
+    input.relationshipState ?? "",
+    input.externalIdentityContext ?? "",
     ...input.memories.map((m) => `${m.memory.type} ${m.text}`),
   ].join("\n");
 
@@ -289,6 +292,7 @@ function selectPersonaSlices(
       const defaultProfileMatch = slice.profiles.includes(
         DEFAULT_CHAT_PROFILE_ID
       );
+      const profileMatch = exactProfileMatch || defaultProfileMatch;
       const profileScore = exactProfileMatch ? 90 : defaultProfileMatch ? 20 : 0;
       const keywordHits = slice.keywords.filter((keyword) =>
         source.toLowerCase().includes(keyword.toLowerCase())
@@ -296,7 +300,7 @@ function selectPersonaSlices(
       const keywordScore = keywordHits * 35;
       const score = profileScore + keywordScore + slice.priority / 10;
       const shouldUse =
-        keywordHits > 0 ||
+        (profileMatch && keywordHits > 0) ||
         (profileId !== DEFAULT_CHAT_PROFILE_ID &&
           exactProfileMatch &&
           slice.category === "canon" &&
@@ -363,6 +367,8 @@ function selectSamples(
   const source = [
     input.channel ?? "",
     input.userMessage,
+    input.relationshipState ?? "",
+    input.externalIdentityContext ?? "",
     ...input.memories.map((m) => `${m.memory.type} ${m.text}`),
   ]
     .join("\n")
@@ -374,6 +380,7 @@ function selectSamples(
       const exactProfileMatch = sample.profiles.includes(profileId);
       const defaultProfileMatch = sample.profiles.includes(DEFAULT_CHAT_PROFILE_ID);
       const closeProfileMatch = useCloseSamples && sample.profiles.includes("close_friend");
+      const profileMatch = exactProfileMatch || defaultProfileMatch || closeProfileMatch;
       const anchorMatch = sampleAnchors(profileId).includes(sample.id);
       const keywordHits = sample.keywords.filter((keyword) =>
         source.includes(keyword.toLowerCase())
@@ -386,7 +393,7 @@ function selectSamples(
         keywordHits * 45 +
         sample.priority / 10;
       const shouldUse =
-        keywordHits > 0 ||
+        (profileMatch && keywordHits > 0) ||
         anchorMatch ||
         closeProfileMatch;
 

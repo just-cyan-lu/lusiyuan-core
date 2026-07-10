@@ -19,6 +19,7 @@ import {
   relationshipPatchFromAdminBody,
   relationshipStateService,
 } from "../runtime/relationship-state.service.js";
+import { externalIdentityResearchService } from "../runtime/external-identity-research.service.js";
 import { listSkills } from "../skills/skill-registry.js";
 import { isOwnerExternalId } from "../core/owner-identity.js";
 import {
@@ -1532,6 +1533,30 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     });
     const detail = await relationshipStateService.getDetail(relationshipId, 20);
     return reply.send(detail);
+  });
+
+  app.get("/v1/admin/relationships/:relationshipId/external-identity-research", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    return reply.send(await externalIdentityResearchService.listForRelationship(relationshipId));
+  });
+
+  app.post("/v1/admin/relationships/:relationshipId/external-identity-research", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const body = (request.body ?? {}) as { userId?: string };
+    if (!body.userId) throw routeError("userId is required", 400);
+    const relationship = await prisma.relationshipState.findUnique({
+      where: { id: relationshipId },
+      include: { person: { include: { identityLinks: true } } },
+    });
+    if (!relationship) throw routeError("Relationship not found", 404);
+    if (!relationship.person.identityLinks.some((link) => link.userId === body.userId)) {
+      throw routeError("userId does not belong to this relationship", 400);
+    }
+    const jobId = await externalIdentityResearchService.enqueueForUser({
+      userId: body.userId,
+      force: true,
+    });
+    return reply.status(202).send({ jobId });
   });
 
   app.patch("/v1/admin/relationships/:relationshipId/users/:userId", async (request, reply) => {

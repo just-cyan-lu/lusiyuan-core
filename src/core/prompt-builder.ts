@@ -20,6 +20,7 @@ interface BuildChatPromptInput {
   toolResults?: string;
   toolsAvailable?: boolean;
   expressionLearningContext?: string;
+  externalIdentityContext?: string;
 }
 
 export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
@@ -37,6 +38,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     toolResults,
     toolsAvailable = false,
     expressionLearningContext,
+    externalIdentityContext,
   } = input;
   const projection = buildPersonaProjection({
     persona,
@@ -47,6 +49,7 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     runtimeState,
     relationshipState,
     ownerProfile,
+    externalIdentityContext,
   });
 
   const memorySection =
@@ -93,6 +96,9 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
         "",
         "---",
       ].join("\n")
+    : "";
+  const externalIdentitySection = externalIdentityContext?.trim()
+    ? [externalIdentityContext.trim(), "", "---"].join("\n")
     : "";
 
   const toolSection = toolsAvailable
@@ -178,6 +184,8 @@ ${projection.styleExamples}
 ---
 
 ${expressionLearningSection ? `${expressionLearningSection}\n\n` : ""}
+${externalIdentitySection ? `${externalIdentitySection}\n\n` : ""}
+
 
 ## 相关记忆（参考信息）
 
