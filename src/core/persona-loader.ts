@@ -15,6 +15,7 @@ const CHAT_PROFILE_FILES = [
 export interface PersonaContent {
   personality: string;
   conversationBehavior: string;
+  expressionRules: string;
   toolUsage: string;
   chatProfiles: Record<string, string>;
   runtimeCore: string;
@@ -165,6 +166,7 @@ export async function loadPersona(): Promise<PersonaContent> {
   const [
     personality,
     conversationBehavior,
+    expressionRules,
     toolUsage,
     chatProfiles,
     runtimeCore,
@@ -174,6 +176,7 @@ export async function loadPersona(): Promise<PersonaContent> {
   ] = await Promise.all([
     readPersonaFile("personality.md"),
     readOptionalPersonaFile("conversation_behavior.md"),
+    readOptionalPersonaFile("expression_rules.md"),
     readPersonaFile("tool_usage.md"),
     loadChatProfiles(),
     readOptionalPersonaFile("runtime/core.md"),
@@ -185,6 +188,7 @@ export async function loadPersona(): Promise<PersonaContent> {
   return {
     personality,
     conversationBehavior,
+    expressionRules,
     toolUsage,
     chatProfiles,
     runtimeCore,

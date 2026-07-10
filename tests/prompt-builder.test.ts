@@ -12,6 +12,7 @@ import type { BudgetedMemory } from "../src/core/memory-budget.js";
 const persona: PersonaContent = {
   personality: "# 深层性格\n\nFULL_DEEP_PERSONALITY_SHOULD_NOT_APPEAR_IN_DEFAULT",
   conversationBehavior: "# 接话规则\n\n先接当前这句话，不要像客服。BEHAVIOR_SHOULD_APPEAR",
+  expressionRules: "# 已发布表达规则\n\n- 不要使用老气表情。PUBLISHED_EXPRESSION_RULE",
   toolUsage: "# 工具使用\n\n需要时调用工具。",
   chatProfiles: {
     default: "# 默认聊天投影\n\n自然聊天。",
@@ -129,6 +130,7 @@ test("builds a projected prompt without dumping full personality in default chat
   assert.match(systemPrompt as string, /当前场景策略：default/);
   assert.match(systemPrompt as string, /CORE_SHOULD_APPEAR/);
   assert.match(systemPrompt as string, /BEHAVIOR_SHOULD_APPEAR/);
+  assert.match(systemPrompt as string, /PUBLISHED_EXPRESSION_RULE/);
   assert.match(systemPrompt as string, /认真但不沉重/);
   assert.match(systemPrompt as string, /DAILY_SAMPLE_SHOULD_APPEAR/);
   assert.match(systemPrompt as string, /SPARK_SAMPLE_SHOULD_APPEAR/);

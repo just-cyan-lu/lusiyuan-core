@@ -764,6 +764,10 @@ export interface ExpressionLearningRule {
   evidences: ExpressionLearningRuleEvidence[];
   createdAt: string;
   updatedAt: string;
+  publication?: {
+    state: "unpublished" | "synced" | "outdated" | "file_modified" | "missing";
+    path: string | null;
+  };
 }
 
 export interface ExpressionLearningRuleCandidate {
@@ -2219,6 +2223,32 @@ export async function deleteExpressionLearningRule(input: {
     headers: adminHeaders(input.token),
   });
   return parseJsonResponse<{ ok: true; deletedId: string }>(response, "删除表达规则失败");
+}
+
+export async function publishExpressionLearningRule(input: {
+  token: string;
+  ruleId: string;
+  force?: boolean;
+}): Promise<{ rule: ExpressionLearningRule }> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/rules/${input.ruleId}/publish`, {
+    method: "POST",
+    headers: { ...adminHeaders(input.token), "Content-Type": "application/json" },
+    body: JSON.stringify({ force: input.force === true }),
+  });
+  return parseJsonResponse<{ rule: ExpressionLearningRule }>(response, "发布表达规则到人设失败");
+}
+
+export async function unpublishExpressionLearningRule(input: {
+  token: string;
+  ruleId: string;
+  force?: boolean;
+}): Promise<{ rule: ExpressionLearningRule }> {
+  const response = await fetch(`${API_BASE_URL}/v1/admin/expression-learning/rules/${input.ruleId}/unpublish`, {
+    method: "POST",
+    headers: { ...adminHeaders(input.token), "Content-Type": "application/json" },
+    body: JSON.stringify({ force: input.force === true }),
+  });
+  return parseJsonResponse<{ rule: ExpressionLearningRule }>(response, "从人设撤回表达规则失败");
 }
 
 export async function fetchExpressionLearningDistillationBatches(input: {

@@ -143,6 +143,12 @@ ${projection.conversationBehavior}
 
 ---
 
+## 已发布表达规则
+
+${persona.expressionRules || "（暂无已发布规则）"}
+
+---
+
 ## 核心边界
 
 ${projection.boundaryContext}

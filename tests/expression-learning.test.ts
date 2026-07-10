@@ -20,6 +20,14 @@ import {
   buildExpressionLearningDistillationWhere,
   normalizeExpressionLearningDistillationCandidates,
 } from "../src/expression-learning/expression-learning-distillation.js";
+import {
+  extractExpressionLearningRuleBlock,
+  hashExpressionLearningRuleBlock,
+  inspectExpressionLearningRulePublication,
+  removeExpressionLearningRuleBlock,
+  renderExpressionLearningRuleBlock,
+  upsertExpressionLearningRuleBlock,
+} from "../src/expression-learning/expression-learning-publication.js";
 
 test("distinguishes owner-written, edited, accepted, and skipped decisions", () => {
   assert.equal(deriveExpressionOwnerAction(null, "谢谢你呀", "sent"), "owner_written");
@@ -206,6 +214,40 @@ test("does not propose evidence already linked to the matched rule", () => {
     existingRules: [{ id: "rule-1", ruleText: "回复保持简短" }],
   });
   assert.deepEqual(candidates[0]?.sourceExampleIds, ["new-evidence"]);
+});
+
+test("publishes managed expression rule blocks without rewriting surrounding markdown", () => {
+  const rule = { id: "rule-1", ruleText: "不要使用老气表情。", kind: "avoid", strength: "hard" };
+  const block = renderExpressionLearningRuleBlock(rule as never);
+  const content = upsertExpressionLearningRuleBlock("# 表达规则\n", rule.id, block);
+  assert.equal(extractExpressionLearningRuleBlock(content, rule.id), block);
+  assert.match(content, /必须遵守 · 避免/);
+  assert.equal(removeExpressionLearningRuleBlock(content, rule.id), "# 表达规则\n");
+});
+
+test("detects synced, outdated, and manually modified markdown rules", () => {
+  const base = {
+    id: "rule-1",
+    ruleText: "不要使用老气表情。",
+    kind: "avoid",
+    strength: "hard",
+    publishedAt: new Date(),
+    publishedPath: "persona/expression_rules.md",
+  };
+  const block = renderExpressionLearningRuleBlock(base as never);
+  const publishedContentHash = hashExpressionLearningRuleBlock(block);
+  assert.equal(inspectExpressionLearningRulePublication(
+    { ...base, publishedContentHash } as never,
+    `# 规则\n\n${block}\n`
+  ).state, "synced");
+  assert.equal(inspectExpressionLearningRulePublication(
+    { ...base, ruleText: "不要使用任何老气表情。", publishedContentHash } as never,
+    `# 规则\n\n${block}\n`
+  ).state, "outdated");
+  assert.equal(inspectExpressionLearningRulePublication(
+    { ...base, publishedContentHash } as never,
+    `# 规则\n\n${block.replace("老气", "过时")}\n`
+  ).state, "file_modified");
 });
 
 test("training export keeps raw materials and a supervised sample", () => {

@@ -25,6 +25,7 @@ import {
   generateExpressionLearningDraft,
   generateExpressionLearningPracticeQuestion,
   proposeExpressionLearningRule,
+  publishExpressionLearningRule,
   reanalyzeExpressionLearningExample,
   reopenExpressionLearningDistillationCandidate,
   resolveExpressionLearningDistillationCandidate,
@@ -36,6 +37,7 @@ import {
   updateExpressionLearningDistillationCandidate,
   updateExpressionLearningExample,
   updateExpressionLearningRule,
+  unpublishExpressionLearningRule,
   type ExpressionLearningAnalysis,
   type ExpressionLearningDialogueCase,
   type ExpressionLearningDialogueCasesResponse,
@@ -992,6 +994,39 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     }
   }
 
+  async function publishRule(ruleId: string, force = false) {
+    if (!adminToken) return;
+    if (force && !window.confirm("人设文件中的规则块已被人工修改。确认用当前规则内容覆盖文件吗？")) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await publishExpressionLearningRule({ token: adminToken, ruleId, force });
+      await loadRules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function unpublishRule(ruleId: string, force = false) {
+    if (!adminToken) return;
+    const message = force
+      ? "人设文件中的规则块已被人工修改。确认强制移除这个规则块吗？"
+      : "确认从人设 Markdown 撤回这条规则吗？撤回后仍保留在规则库，并恢复动态注入。";
+    if (!window.confirm(message)) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await unpublishExpressionLearningRule({ token: adminToken, ruleId, force });
+      await loadRules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function runDistillation(input: {
     scene: string;
     organization: "unorganized" | "partial" | "full" | "all";
@@ -1285,6 +1320,8 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           }}
           onSave={(input) => void saveRule(input)}
           onDelete={(ruleId) => void deleteRule(ruleId)}
+          onPublish={(ruleId, force) => void publishRule(ruleId, force)}
+          onUnpublish={(ruleId, force) => void unpublishRule(ruleId, force)}
         />
       )}
 
@@ -1457,6 +1494,17 @@ function distillationMatchLabel(value: ExpressionLearningDistillationCandidate["
 
 function distillationBatchStatusLabel(value: ExpressionLearningDistillationBatch["status"]) {
   return ({ processing: "整理中", proposed: "待处理", completed: "已完成", failed: "失败" } as Record<string, string>)[value] ?? value;
+}
+
+function publicationLabel(rule: ExpressionLearningRule): string | null {
+  const state = rule.publication?.state;
+  if (!state || state === "unpublished") return null;
+  return ({
+    synced: "已发布",
+    outdated: "待同步",
+    file_modified: "文件有修改",
+    missing: "文件缺失",
+  } as Record<string, string>)[state] ?? state;
 }
 
 function candidateSourceIds(candidate: ExpressionLearningDistillationCandidate): string[] {
@@ -1668,6 +1716,45 @@ function DistillationCandidateEditor({
   );
 }
 
+function ExpressionRulePublicationPanel({
+  rule,
+  working,
+  onPublish,
+  onUnpublish,
+}: {
+  rule: ExpressionLearningRule;
+  working: boolean;
+  onPublish: (ruleId: string, force?: boolean) => void;
+  onUnpublish: (ruleId: string, force?: boolean) => void;
+}) {
+  const state = rule.publication?.state ?? "unpublished";
+  if (rule.status !== "active" || rule.scope !== "global") {
+    return <div className="admin-island-soft-panel px-4 py-3 text-sm font-semibold text-[var(--ls-ink-muted)]">发布到人设仅适用于已启用的全局规则。</div>;
+  }
+  const labels: Record<string, string> = {
+    unpublished: "未发布",
+    synced: "已同步到 persona/expression_rules.md",
+    outdated: "规则已修改，等待同步",
+    file_modified: "Markdown 中的规则块已被人工修改",
+    missing: "Markdown 文件或规则块缺失",
+  };
+  return (
+    <div className="rounded-lg border-2 border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <SectionTitle icon="icon-map">人设 Markdown</SectionTitle>
+        <span className={`admin-chip ${state === "synced" ? "admin-chip-mint" : state === "file_modified" || state === "missing" ? "admin-chip-pink" : "admin-chip-yellow"}`}>{labels[state] ?? state}</span>
+      </div>
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        {state === "unpublished" && <Button type="primary" size="small" disabled={working} onClick={() => onPublish(rule.id)}>发布到人设</Button>}
+        {state === "synced" && <Button type="default" size="small" disabled={working} onClick={() => onUnpublish(rule.id)}>从人设撤回</Button>}
+        {state === "outdated" && <><Button type="default" size="small" disabled={working} onClick={() => onUnpublish(rule.id)}>从人设撤回</Button><Button type="primary" size="small" disabled={working} onClick={() => onPublish(rule.id)}>同步更新</Button></>}
+        {state === "file_modified" && <><Button type="default" size="small" disabled={working} onClick={() => onUnpublish(rule.id, true)}>强制撤回</Button><Button type="primary" size="small" disabled={working} onClick={() => onPublish(rule.id, true)}>以规则覆盖文件</Button></>}
+        {state === "missing" && <><Button type="default" size="small" disabled={working} onClick={() => onUnpublish(rule.id)}>清除发布记录</Button><Button type="primary" size="small" disabled={working} onClick={() => onPublish(rule.id)}>重新发布</Button></>}
+      </div>
+    </div>
+  );
+}
+
 function ExpressionRulesPanel({
   state,
   batches,
@@ -1685,6 +1772,8 @@ function ExpressionRulesPanel({
   onStartNew,
   onSave,
   onDelete,
+  onPublish,
+  onUnpublish,
 }: {
   state: ExpressionLearningRulesResponse;
   batches: ExpressionLearningDistillationBatch[];
@@ -1712,6 +1801,8 @@ function ExpressionRulesPanel({
   onStartNew: () => void;
   onSave: (input: RuleSaveInput) => void;
   onDelete: (ruleId: string) => void;
+  onPublish: (ruleId: string, force?: boolean) => void;
+  onUnpublish: (ruleId: string, force?: boolean) => void;
 }) {
   const initial = seed ?? selectedRule;
   const [form, setForm] = useState({
@@ -1779,6 +1870,7 @@ function ExpressionRulesPanel({
                 <StatusPill active={rule.status === "active"} label={rule.status === "active" ? "已启用" : rule.status === "draft" ? "草稿" : "已停用"} />
                 <span className="admin-chip admin-chip-mint">{rule.scope === "global" ? "全局" : sceneLabel(rule.scene ?? "general")}</span>
                 {rule.strength === "hard" && <span className="admin-chip admin-chip-pink">必须遵守</span>}
+                {publicationLabel(rule) && <span className="admin-chip admin-chip-yellow">{publicationLabel(rule)}</span>}
               </div>
               <p className="mt-2 text-sm font-bold leading-6 text-[var(--ls-ink-strong)]">{rule.ruleText}</p>
               <p className="mt-1 text-[11px] font-semibold text-[var(--ls-ink-muted)]">{rule.evidences.length} 条原始证据</p>
@@ -1829,6 +1921,15 @@ function ExpressionRulesPanel({
             {form.scope === "scene" && <SelectField label="场景" value={form.scene} onChange={(scene) => setForm((current) => ({ ...current, scene }))} options={defaultSceneOptions} />}
             {seed?.exampleId && <SelectField label="经验覆盖程度" value={form.coverage} onChange={(coverage) => setForm((current) => ({ ...current, coverage: coverage as "partial" | "full" }))} options={[{ key: "partial", label: "部分覆盖，可继续整理" }, { key: "full", label: "完整覆盖" }]} />}
           </div>
+
+          {selectedRule && (
+            <ExpressionRulePublicationPanel
+              rule={selectedRule}
+              working={working}
+              onPublish={onPublish}
+              onUnpublish={onUnpublish}
+            />
+          )}
 
           {selectedRule && selectedRule.evidences.length > 0 && (
             <div className="space-y-2">

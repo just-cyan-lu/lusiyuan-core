@@ -1,6 +1,10 @@
 import type { ExpressionLearningExample, ExpressionLearningRule, Prisma } from "@prisma/client";
 import { modelProvider } from "../core/model-provider.js";
 import { prisma } from "../db/prisma.js";
+import {
+  attachExpressionLearningPublicationStates,
+  unpublishExpressionLearningRule,
+} from "./expression-learning-publication.js";
 
 export type ExpressionLearningRuleKind = "avoid" | "prefer" | "strategy";
 export type ExpressionLearningRuleScope = "global" | "scene";
@@ -156,7 +160,10 @@ export async function listExpressionLearningRules(input: {
     prisma.expressionLearningRule.count({ where: { status: "active" } }),
     prisma.expressionLearningRule.count({ where: { status: "draft" } }),
   ]);
-  return { rules, summary: { total, active, draft } };
+  return {
+    rules: await attachExpressionLearningPublicationStates(rules),
+    summary: { total, active, draft },
+  };
 }
 
 export async function createExpressionLearningRule(input: ExpressionLearningRuleInput) {
@@ -191,6 +198,10 @@ export async function updateExpressionLearningRule(id: string, input: Expression
   if (!normalized.ruleText) {
     throw Object.assign(new Error("ruleText is required"), { statusCode: 400 });
   }
+  const current = await prisma.expressionLearningRule.findUniqueOrThrow({ where: { id } });
+  if (current.publishedAt && (normalized.status !== "active" || normalized.scope !== "global")) {
+    await unpublishExpressionLearningRule(id);
+  }
   return prisma.expressionLearningRule.update({
     where: { id },
     data: {
@@ -210,6 +221,7 @@ export async function retrieveExpressionLearningRules(scene: string): Promise<Ex
   return prisma.expressionLearningRule.findMany({
     where: {
       status: "active",
+      publishedAt: null,
       OR: [
         { scope: "global" },
         { scope: "scene", scene: { in: ["general", normalizedScene] } },

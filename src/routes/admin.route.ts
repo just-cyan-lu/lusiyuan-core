@@ -84,6 +84,10 @@ import {
   reopenExpressionLearningDistillationCandidate,
   updateExpressionLearningDistillationCandidate,
 } from "../expression-learning/expression-learning-distillation.js";
+import {
+  publishExpressionLearningRule,
+  unpublishExpressionLearningRule,
+} from "../expression-learning/expression-learning-publication.js";
 import type {
   ExpressionLearningAnalysis,
   ExpressionLearningOwnerAction,
@@ -2335,8 +2339,24 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
 
   app.delete("/v1/admin/expression-learning/rules/:ruleId", async (request, reply) => {
     const { ruleId } = request.params as { ruleId: string };
+    const rule = await prisma.expressionLearningRule.findUniqueOrThrow({ where: { id: ruleId } });
+    if (rule.publishedAt) await unpublishExpressionLearningRule(ruleId);
     await prisma.expressionLearningRule.delete({ where: { id: ruleId } });
     return reply.send({ ok: true, deletedId: ruleId });
+  });
+
+  app.post("/v1/admin/expression-learning/rules/:ruleId/publish", async (request, reply) => {
+    const { ruleId } = request.params as { ruleId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const rule = await publishExpressionLearningRule(ruleId, body.force === true);
+    return reply.send({ rule });
+  });
+
+  app.post("/v1/admin/expression-learning/rules/:ruleId/unpublish", async (request, reply) => {
+    const { ruleId } = request.params as { ruleId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const rule = await unpublishExpressionLearningRule(ruleId, body.force === true);
+    return reply.send({ rule });
   });
 
   app.get("/v1/admin/expression-learning/distillation-batches", async (request, reply) => {
