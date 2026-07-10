@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   replySegmentDelay,
+  segmentReply,
   splitReplyByRules,
   validateLlmSegments,
   type ReplySegmentationOptions,
@@ -71,6 +72,33 @@ test("keeps repeated sentence punctuation as separate breath marks", () => {
 
   assert.deepEqual(segments, ["我想了一下…", "…", "啊？"]);
   assert.equal(comparable(segments.join("")), comparable(reply));
+});
+
+test("occasionally adds one casual split at an internal punctuation mark", async () => {
+  const reply = "那我先说一下，后面再慢慢讲。";
+
+  const result = await segmentReply(reply, options, undefined, () => 0.95);
+
+  assert.deepEqual(result, {
+    replies: ["那我先说一下，", "后面再慢慢讲。"],
+    source: "rule",
+  });
+});
+
+test("does not add a casual split when the 1-10 roll misses", async () => {
+  const reply = "那我先说一下，后面再慢慢讲。";
+
+  const result = await segmentReply(reply, options, undefined, () => 0.89);
+
+  assert.deepEqual(result, { replies: [reply], source: "single" });
+});
+
+test("never casually splits structured replies", async () => {
+  const reply = ["```ts", "const value = 1;", "console.log(value);", "```"].join("\n");
+
+  const result = await segmentReply(reply, options, undefined, () => 0.95);
+
+  assert.deepEqual(result, { replies: [reply], source: "single" });
 });
 
 test("accepts LLM segmentation only when it preserves the original reply", () => {

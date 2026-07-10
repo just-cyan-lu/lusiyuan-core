@@ -23,6 +23,21 @@ interface LlmSegmentationResponse {
 
 const SENTENCE_END_CHARS = new Set(["。", "！", "？", "!", "?", "…"]);
 const SOFT_BREAK_CHARS = new Set(["，", ",", "；", ";", "：", ":"]);
+const CASUAL_SPLIT_CHARS = new Set([
+  "。",
+  "！",
+  "？",
+  "!",
+  "?",
+  "…",
+  "，",
+  ",",
+  "、",
+  "；",
+  ";",
+  "：",
+  ":",
+]);
 const SENTENCE_CLOSER_CHARS = new Set([
   "\"",
   "'",
@@ -72,7 +87,8 @@ export function replySegmentDelay(
 export async function segmentReply(
   reply: string,
   options = getReplySegmentationOptions(),
-  callOptions?: ModelCallOptions
+  callOptions?: ModelCallOptions,
+  random = Math.random
 ): Promise<ReplySegmentationResult> {
   const text = reply.trim();
   if (!text) return { replies: [""], source: "single" };
@@ -89,14 +105,22 @@ export async function segmentReply(
     if (llmReplies) {
       if (llmReplies.length === 1) {
         const ruleReplies = splitReplyByRules(text, options);
-        if (ruleReplies.length > 1) return { replies: ruleReplies, source: "rule" };
+        if (ruleReplies.length > 1) {
+          return toSegmentationResult(withCasualRandomSplit(ruleReplies, random), "rule");
+        }
       }
-      return { replies: llmReplies, source: llmReplies.length > 1 ? "llm" : "single" };
+      return toSegmentationResult(
+        withCasualRandomSplit(llmReplies, random),
+        llmReplies.length > 1 ? "llm" : "single"
+      );
     }
   }
 
   const ruleReplies = splitReplyByRules(text, options);
-  return { replies: ruleReplies, source: ruleReplies.length > 1 ? "rule" : "single" };
+  return toSegmentationResult(
+    withCasualRandomSplit(ruleReplies, random),
+    ruleReplies.length > 1 ? "rule" : "single"
+  );
 }
 
 export function splitReplyByRules(reply: string, options: ReplySegmentationOptions): string[] {
@@ -309,6 +333,57 @@ function isNaturalShortLead(text: string): boolean {
 
 function isStandaloneSentencePunctuation(text: string): boolean {
   return /^[。！？!?…]+$/.test(text.trim());
+}
+
+function withCasualRandomSplit(replies: string[], random: () => number): {
+  replies: string[];
+  added: boolean;
+} {
+  const candidates = replies.flatMap((reply, replyIndex) =>
+    findCasualSplitPositions(reply).map((position) => ({ replyIndex, position }))
+  );
+  if (candidates.length === 0 || Math.floor(random() * 10) + 1 !== 10) {
+    return { replies, added: false };
+  }
+
+  const candidate = candidates[Math.floor(random() * candidates.length)];
+  const reply = replies[candidate.replyIndex];
+  const first = reply.slice(0, candidate.position).trim();
+  const second = reply.slice(candidate.position).trim();
+  if (!first || !second) return { replies, added: false };
+
+  return {
+    replies: [
+      ...replies.slice(0, candidate.replyIndex),
+      first,
+      second,
+      ...replies.slice(candidate.replyIndex + 1),
+    ],
+    added: true,
+  };
+}
+
+function findCasualSplitPositions(text: string): number[] {
+  const positions: number[] = [];
+  for (let index = 0; index < text.length; index++) {
+    if (!CASUAL_SPLIT_CHARS.has(text[index])) continue;
+    let position = index + 1;
+    if (SENTENCE_END_CHARS.has(text[index])) {
+      while (position < text.length && SENTENCE_CLOSER_CHARS.has(text[position])) position++;
+    }
+    if (text.slice(0, position).trim() && text.slice(position).trim()) positions.push(position);
+  }
+  return positions;
+}
+
+function toSegmentationResult(
+  result: { replies: string[]; added: boolean },
+  source: ReplySegmentationResult["source"]
+): ReplySegmentationResult {
+  return {
+    replies: result.replies,
+    source: result.added && source === "single" ? "rule" : source,
+  };
 }
 
 function normalizeForComparison(text: string): string {
