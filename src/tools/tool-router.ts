@@ -1,7 +1,7 @@
 import { actionPolicy } from "./policy/action-policy.js";
 import type { ToolDefinition, ToolExecutionContext } from "./tool.types.js";
 
-export type ChatToolIntent = "memory" | "web_search" | "read_page";
+export type ChatToolIntent = "memory" | "web_search" | "read_page" | "home_automation";
 
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/iu;
 
@@ -50,6 +50,14 @@ const readPagePatterns = [
   /open\s+.*?url/iu,
 ];
 
+const homeAutomationPatterns = [
+  /智能家居/u,
+  /家里(?:的)?(?:灯|空调|窗帘|电视|设备|家电)/u,
+  /(?:开|关|打开|关闭|调|设置).{0,12}(?:灯|空调|窗帘|电视|设备|家电)/u,
+  /(?:客厅|卧室|书房|厨房|卫生间).{0,12}(?:灯|空调|窗帘|电视|温度)/u,
+  /(?:场景|睡眠模式|离家模式)/u,
+];
+
 function includesAny(message: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(message));
 }
@@ -70,6 +78,9 @@ export function detectChatToolIntents(message: string): ChatToolIntent[] {
   if (includesAny(text, searchPatterns)) {
     intents.push("web_search");
   }
+  if (includesAny(text, homeAutomationPatterns)) {
+    intents.push("home_automation");
+  }
 
   return [...new Set(intents)];
 }
@@ -80,6 +91,10 @@ function toolNamesForIntents(intents: ChatToolIntent[]): Set<string> {
     if (intent === "memory") names.add("search_memories");
     if (intent === "web_search") names.add("web_search");
     if (intent === "read_page") names.add("read_page");
+    if (intent === "home_automation") {
+      names.add("query_home_state");
+      names.add("control_home");
+    }
   }
   return names;
 }

@@ -53,6 +53,10 @@ export const runtimeSettingDefinitions = {
   TOOL_SEARCH_MEMORIES_MODE: { group: "工具访问", label: "search_memories", type: "select", defaultValue: "on", options: ["off", "owner_only", "on"], description: "控制模型能否主动检索长期记忆；on=所有用户可用，owner_only=仅 Owner，可用于减少普通用户触发记忆检索。" },
   TOOL_WEB_SEARCH_MODE: { group: "工具访问", label: "web_search", type: "select", defaultValue: "owner_only", options: ["off", "owner_only", "on"], description: "控制模型能否用 Tavily 搜索网页；还需要 TAVILY_ENABLED 和 API Key 可用。" },
   TOOL_READ_PAGE_MODE: { group: "工具访问", label: "read_page", type: "select", defaultValue: "owner_only", options: ["off", "owner_only", "on"], description: "控制模型能否读取指定网页正文；还需要 Jina、Playwright 或 Chrome MCP 至少一个读取器启用。" },
+  HOME_ASSISTANT_ENABLED: { group: "智能家居", label: "Home Assistant 启用", type: "boolean", defaultValue: false, description: "开启后 Owner 可以通过聊天查询和控制 Home Assistant；还需要在环境变量中配置地址和 Token。" },
+  HOME_ASSISTANT_ALLOWED_DOMAINS: { group: "智能家居", label: "允许控制的 HA domain", type: "string", defaultValue: "light,switch,climate,cover,media_player,scene,script", description: "逗号分隔的 Home Assistant domain；填写 * 表示不限制。" },
+  HOME_ASSISTANT_MAX_CALLS_PER_TURN: { group: "智能家居", label: "单条消息 HA 调用上限", type: "integer", defaultValue: 3, min: 1, max: 20, description: "只限制智能家居工具；超过后不再向 Home Assistant 发请求。" },
+  HOME_ASSISTANT_MAX_MUTATIONS_PER_TURN: { group: "智能家居", label: "单条消息 HA 变更上限", type: "integer", defaultValue: 2, min: 1, max: 20, description: "只限制智能家居状态变更；不改变全局工具循环。" },
 
   EXPRESSION_LEARNING_AUTO_PRACTICE_ENABLED: { group: "表达学习", label: "自动出题启用", type: "boolean", defaultValue: false, description: "开启后按 cron 自动生成表达学习习题，生成后进入习题库待处理。" },
   EXPRESSION_LEARNING_AUTO_PRACTICE_CRON: { group: "表达学习", label: "自动出题时间", type: "string", defaultValue: "0 9 * * *", description: "Cron 表达式，使用服务器本地时间。" },

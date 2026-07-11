@@ -66,6 +66,16 @@ test("selects web search for search-like requests", () => {
   assert.deepEqual(selected.map((item) => item.name), ["web_search"]);
 });
 
+test("selects Home Assistant tools for home control requests", () => {
+  const selected = selectToolsForChat({
+    message: "把客厅灯打开",
+    tools: [tool("query_home_state"), tool("control_home")],
+    context: { ...context, isOwner: true },
+  });
+
+  assert.deepEqual(selected.map((item) => item.name), ["query_home_state", "control_home"]);
+});
+
 test("does not expose owner-only tools to non-owner contexts", () => {
   const selected = selectToolsForChat({
     message: "搜一下今天有什么新消息",

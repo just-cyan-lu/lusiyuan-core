@@ -69,4 +69,8 @@ export const env = {
     .map((key) => key.trim())
     .filter(Boolean),
   JINA_API_KEY: process.env.JINA_API_KEY ?? "",
+
+  // Home Assistant connection. Keep the token outside live database settings.
+  HOME_ASSISTANT_BASE_URL: process.env.HOME_ASSISTANT_BASE_URL ?? "",
+  HOME_ASSISTANT_TOKEN: process.env.HOME_ASSISTANT_TOKEN ?? "",
 } as const;

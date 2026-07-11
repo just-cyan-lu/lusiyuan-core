@@ -46,3 +46,8 @@ test("registered tool access resolves from current runtime settings", () => {
     () => assert.equal(toolRegistry.get("search_memories")?.enabled, true)
   );
 });
+
+test("Home Assistant tools stay disabled until their live switch is enabled", () => {
+  assert.equal(toolRegistry.get("query_home_state")?.enabled, false);
+  assert.equal(toolRegistry.get("control_home")?.enabled, false);
+});
