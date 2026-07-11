@@ -4,6 +4,7 @@ import { LusiyuanAvatar } from "../LusiyuanAvatar";
 import { useClickParticles } from "../../hooks/useClickParticles";
 
 export type AdminSection =
+  | "island"
   | "overview"
   | "runtime"
   | "relationships"
@@ -36,6 +37,15 @@ const navItems: Array<{
   color: CardColor;
   accentClass: string;
 }> = [
+  {
+    section: "island",
+    index: "00",
+    label: "岛屿首页",
+    description: "陆思源此刻的岛",
+    icon: "icon-map",
+    color: "app-teal",
+    accentClass: "bg-[var(--ls-mint-light)] text-[var(--ls-section-mint-text)]",
+  },
   {
     section: "overview",
     index: "01",
@@ -156,6 +166,7 @@ const navItems: Array<{
 ];
 
 const navGroups: Array<{ label: string; items: AdminSection[] }> = [
+  { label: "岛屿", items: ["island"] },
   { label: "核心状态", items: ["overview", "runtime", "relationships"] },
   { label: "记忆与表达", items: ["memory", "conversations", "learning", "chat"] },
   { label: "后台运行", items: ["dream", "ops"] },
@@ -261,7 +272,7 @@ export function AdminShell({
         </aside>
 
         <main className="flex min-h-0 flex-col">
-          <header className="admin-island-main-header border-b px-4 py-4 backdrop-blur md:px-7">
+          {activeSection !== "island" && <header className="admin-island-main-header border-b px-4 py-4 backdrop-blur md:px-7">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -306,9 +317,9 @@ export function AdminShell({
                 </Card>
               </div>
             </div>
-          </header>
+          </header>}
 
-          <div className="admin-island-content min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-7 md:py-7">
+          <div className={`admin-island-content min-h-0 flex-1 overflow-y-auto ${activeSection === "island" ? "p-0" : "px-4 py-5 md:px-7 md:py-7"}`}>
             {children}
           </div>
         </main>
