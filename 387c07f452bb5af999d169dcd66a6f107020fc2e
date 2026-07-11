@@ -1,0 +1,67 @@
+src/config/runtime-settings.registry.ts
+  0e51fabbe78476b8 56-59
+tests/home-assistant-client.test.ts
+  0e51fabbe78476b8 1-68
+tests/home-automation.service.test.ts
+  0e51fabbe78476b8 1-110
+src/tools/builtin/query-home-state.tool.ts
+  0e51fabbe78476b8 1-36
+tests/tool-router.test.ts
+  0e51fabbe78476b8 69-78
+src/home-automation/home-automation.service.ts
+  0e51fabbe78476b8 1-144
+src/tools/tool-router.ts
+  0e51fabbe78476b8 4,53-60,81-83,94-97
+src/home-automation/home-tool-execution-guard.ts
+  0e51fabbe78476b8 1-42
+docs/home-assistant-integration-design.md
+  486e08eb6ba40245 1-239,241-249,251-260,262-362,364-429,437-477,479-483,485-487,489-620
+  0e51fabbe78476b8 240,250,261,363,430-436,478,484,488
+src/home-automation/home-assistant-client.ts
+  0e51fabbe78476b8 1-106
+src/home-automation/home-assistant.types.ts
+  0e51fabbe78476b8 1-14
+tests/runtime-settings.test.ts
+  0e51fabbe78476b8 49-53
+src/tools/builtin/index.ts
+  0e51fabbe78476b8 5-6,13-14
+src/tools/builtin/control-home.tool.ts
+  0e51fabbe78476b8 1-39
+src/utils/env.ts
+  0e51fabbe78476b8 72-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "bzl_git_version": "0.1.18",
+  "base_commit_sha": "387c07f452bb5af999d169dcd66a6f107020fc2e",
+  "prompts": {
+    "0e51fabbe78476b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5036-6418-7240-baf4-80f4a246ce78",
+        "model": "gpt-5.6-terra",
+        "ide": "codex-desktop"
+      },
+      "human_author": "just-cyan-lu",
+      "messages": [],
+      "total_additions": 667,
+      "total_deletions": 69,
+      "accepted_lines": 616,
+      "overriden_lines": 0
+    },
+    "486e08eb6ba40245": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5036-6418-7240-baf4-80f4a246ce78",
+        "model": "gpt-5.6-sol",
+        "ide": "codex-desktop"
+      },
+      "human_author": "just-cyan-lu",
+      "messages": [],
+      "total_additions": 623,
+      "total_deletions": 0,
+      "accepted_lines": 606,
+      "overriden_lines": 0
+    }
+  }
+}
