@@ -1577,6 +1577,21 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     return reply.send(detail);
   });
 
+  app.patch("/v1/admin/relationships/:relationshipId/person/aliases", async (request, reply) => {
+    const { relationshipId } = request.params as { relationshipId: string };
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (!Array.isArray(body.aliases)) {
+      throw routeError("aliases must be an array", 400);
+    }
+    await relationshipStateService.updateIdentityAliases({
+      relationshipId,
+      aliases: body.aliases.filter((value): value is string => typeof value === "string"),
+      source: "admin",
+    });
+    const detail = await relationshipStateService.getDetail(relationshipId, 20);
+    return reply.send(detail);
+  });
+
   app.get("/v1/admin/relationships/:relationshipId/external-identity-research", async (request, reply) => {
     const { relationshipId } = request.params as { relationshipId: string };
     return reply.send(await externalIdentityResearchService.listForRelationship(relationshipId));
