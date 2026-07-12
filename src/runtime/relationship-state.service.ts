@@ -616,6 +616,13 @@ export const relationshipStateService = {
                       { id: { contains: q, mode: "insensitive" } },
                       { label: { contains: q, mode: "insensitive" } },
                       {
+                        identityAliases: {
+                          some: {
+                            value: { contains: q, mode: "insensitive" },
+                          },
+                        },
+                      },
+                      {
                         identityLinks: {
                           some: {
                             user: {
@@ -1332,6 +1339,114 @@ export const relationshipStateService = {
       });
     }
     return updated;
+  },
+
+  async updateIdentityAliases(input: {
+    relationshipId: string;
+    aliases: string[];
+    source?: string;
+  }): Promise<RelationshipState> {
+    const relationship = await prisma.relationshipState.findUnique({
+      where: { id: input.relationshipId },
+      include: {
+        person: {
+          include: {
+            identityAliases: {
+              orderBy: [{ lastSeenAt: "desc" }],
+            },
+          },
+        },
+      },
+    });
+    if (!relationship) throw serviceError("Relationship not found", 404);
+
+    const aliases = uniqueIdentityHints(input.aliases).slice(0, 40);
+    const normalizedValues = aliases.map((alias) => normalizeIdentityToken(alias));
+    const now = new Date();
+    const source = input.source ?? "admin";
+    const beforeAliases = relationship.person.identityAliases.map((alias) => ({
+      id: alias.id,
+      value: alias.value,
+      normalizedValue: alias.normalizedValue,
+      source: alias.source,
+      confidence: alias.confidence,
+      mentionCount: alias.mentionCount,
+    }));
+
+    return prisma.$transaction(async (tx) => {
+      await tx.identityAlias.deleteMany({
+        where: {
+          personId: relationship.personId,
+          normalizedValue: { notIn: normalizedValues },
+        },
+      });
+
+      for (const value of aliases) {
+        const normalizedValue = normalizeIdentityToken(value);
+        await tx.identityAlias.upsert({
+          where: {
+            personId_normalizedValue: {
+              personId: relationship.personId,
+              normalizedValue,
+            },
+          },
+          create: {
+            personId: relationship.personId,
+            value,
+            normalizedValue,
+            source,
+            confidence: 0.9,
+            mentionCount: 1,
+            firstSeenAt: now,
+            lastSeenAt: now,
+          },
+          update: {
+            value,
+            source,
+            confidence: 0.9,
+            lastSeenAt: now,
+          },
+        });
+      }
+
+      const afterAliases = await tx.identityAlias.findMany({
+        where: { personId: relationship.personId },
+        orderBy: [{ lastSeenAt: "desc" }],
+      });
+      const updated = await tx.relationshipState.findUniqueOrThrow({
+        where: { id: relationship.id },
+      });
+      await tx.relationshipStateEvent.create({
+        data: {
+          relationshipStateId: updated.id,
+          personId: updated.personId,
+          eventType: "identity_alias_update",
+          source,
+          summary: aliases.length > 0
+            ? `Admin 将自称/别名更新为：${aliases.join(" / ")}。`
+            : "Admin 清空了自称/别名。",
+          patch: {
+            aliases,
+          },
+          before: {
+            ...snapshotRelationshipState(relationship),
+            identityAliases: beforeAliases,
+          },
+          after: {
+            ...snapshotRelationshipState(updated),
+            identityAliases: afterAliases.map((alias) => ({
+              id: alias.id,
+              value: alias.value,
+              normalizedValue: alias.normalizedValue,
+              source: alias.source,
+              confidence: alias.confidence,
+              mentionCount: alias.mentionCount,
+            })),
+          },
+        },
+      });
+      return updated;
+    });
   },
 
   async approveIdentityLinkProposal(input: { proposalId: string; reviewedBy?: string }) {

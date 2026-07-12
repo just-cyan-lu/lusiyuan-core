@@ -371,12 +371,174 @@ model ExpressionLearningExample {
 
   embeddings      ExpressionLearningEmbedding[]
   trainingRecords ExpressionLearningTrainingRecord[]
+  dialogueTurns   ExpressionLearningDialogueTurn[]
+  ruleEvidences   ExpressionLearningRuleEvidence[]
 
   @@index([scene, status])
   @@index([outcome])
   @@index([ownerAction])
   @@index([createdAt])
   @@map("expression_learning_examples")
+}
+
+/// A reusable expression rule distilled from one or more raw learning examples.
+model ExpressionLearningRule {
+  id                   String   @id @default(cuid())
+  ruleText             String
+  kind                 String
+  scope                String   @default("global")
+  scene                String?
+  strength             String   @default("soft")
+  status               String   @default("draft")
+  source               String   @default("manual")
+  publishedPath        String?
+  publishedRuleKey     String?
+  publishedContentHash String?
+  publishedAt          DateTime?
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  evidences ExpressionLearningRuleEvidence[]
+  matchedCandidates ExpressionLearningDistillationCandidate[] @relation("ExpressionLearningCandidateMatchedRule")
+  createdCandidates ExpressionLearningDistillationCandidate[] @relation("ExpressionLearningCandidateCreatedRule")
+
+  @@index([status, scope])
+  @@index([scene, status])
+  @@index([kind])
+  @@index([createdAt])
+  @@map("expression_learning_rules")
+}
+
+/// One owner-triggered batch that distills raw examples into reviewable rule candidates.
+model ExpressionLearningDistillationBatch {
+  id               String   @id @default(cuid())
+  status           String   @default("processing")
+  scene            String?
+  organization     String   @default("unorganized")
+  fromTime         DateTime?
+  toTime           DateTime?
+  sourceExampleIds Json
+  sourceCount      Int
+  candidateCount   Int      @default(0)
+  rawOutput        Json?
+  error            String?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  candidates ExpressionLearningDistillationCandidate[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("expression_learning_distillation_batches")
+}
+
+/// A proposed rule produced by a distillation batch. It has no runtime effect until accepted.
+model ExpressionLearningDistillationCandidate {
+  id               String   @id @default(cuid())
+  batchId          String
+  ruleText         String
+  kind             String
+  scope            String   @default("global")
+  scene            String?
+  strength         String   @default("soft")
+  coverage         String   @default("partial")
+  reason           String?
+  sourceExampleIds Json
+  matchType        String   @default("new")
+  matchedRuleId    String?
+  matchReason      String?
+  status           String   @default("proposed")
+  createdRuleId    String?
+  resolvedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  batch       ExpressionLearningDistillationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  matchedRule ExpressionLearningRule? @relation("ExpressionLearningCandidateMatchedRule", fields: [matchedRuleId], references: [id], onDelete: SetNull)
+  createdRule ExpressionLearningRule? @relation("ExpressionLearningCandidateCreatedRule", fields: [createdRuleId], references: [id], onDelete: SetNull)
+
+  @@index([batchId, status])
+  @@index([matchedRuleId])
+  @@index([createdRuleId])
+  @@index([matchType])
+  @@map("expression_learning_distillation_candidates")
+}
+
+/// Provenance connecting a distilled rule to its retained raw examples.
+model ExpressionLearningRuleEvidence {
+  id         String   @id @default(cuid())
+  ruleId     String
+  exampleId  String
+  relation   String   @default("supports")
+  coverage   String   @default("partial")
+  createdAt  DateTime @default(now())
+
+  rule    ExpressionLearningRule    @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  example ExpressionLearningExample @relation(fields: [exampleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, exampleId])
+  @@index([exampleId])
+  @@index([relation])
+  @@map("expression_learning_rule_evidences")
+}
+
+/// A multi-turn expression-learning training case. It owns a dialogue tree;
+/// completed turns still compile into ExpressionLearningExample rows.
+model ExpressionLearningDialogueCase {
+  id              String   @id @default(cuid())
+  scene           String
+  title           String
+  trainingFocus   String?
+  rootContextText String
+  status          String   @default("draft")
+  createdFrom     String   @default("manual")
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  turns ExpressionLearningDialogueTurn[]
+
+  @@index([scene])
+  @@index([status])
+  @@index([createdAt])
+  @@map("expression_learning_dialogue_cases")
+}
+
+/// One decision point in a dialogue training tree.
+model ExpressionLearningDialogueTurn {
+  id               String   @id @default(cuid())
+  caseId           String
+  parentTurnId     String?
+  branchLabel      String?
+  userText         String
+  pathText         String?
+  draftText        String?
+  finalText        String?
+  outcome          String?
+  ownerAction      String?
+  ownerNote        String?
+  analysisSnapshot Json?
+  exampleId        String?
+  status           String   @default("draft")
+  needsReview      Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  case     ExpressionLearningDialogueCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  parent   ExpressionLearningDialogueTurn?  @relation("ExpressionLearningDialogueTurnTree", fields: [parentTurnId], references: [id], onDelete: SetNull)
+  children ExpressionLearningDialogueTurn[] @relation("ExpressionLearningDialogueTurnTree")
+  example  ExpressionLearningExample?       @relation(fields: [exampleId], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@index([parentTurnId])
+  @@index([exampleId])
+  @@index([status])
+  @@index([needsReview])
+  @@index([createdAt])
+  @@map("expression_learning_dialogue_turns")
 }
 
 /// Complete audit record for one expression-learning training interaction.

@@ -5,17 +5,22 @@ import {
   applyRelationshipReviewProposal,
   approveIdentityLinkProposal,
   fetchIdentityLinkProposals,
+  fetchExternalIdentityResearch,
   fetchRelationshipDetail,
   fetchRelationships,
   mergeRelationshipIdentities,
   rejectIdentityLinkProposal,
   rejectRelationshipReviewProposal,
   resetRelationshipState,
+  runExternalIdentityResearch,
   splitRelationshipIdentity,
+  updateRelationshipIdentityAliases,
   updateRelationshipIdentityLabel,
   updateRelationshipUserDisplayName,
   updateRelationshipState,
   type IdentityLinkProposal,
+  type ExternalIdentityCandidate,
+  type ExternalIdentityResearchJob,
   type RelationshipReviewProposal,
   type RelationshipState,
   type RelationshipStateEvent,
@@ -37,6 +42,8 @@ interface PageState {
   reviewProposals: RelationshipReviewProposal[];
   selected: RelationshipState | null;
   events: RelationshipStateEvent[];
+  externalIdentityCandidates: ExternalIdentityCandidate[];
+  externalIdentityJobs: ExternalIdentityResearchJob[];
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -57,6 +64,8 @@ type EditNameDialog =
   | { type: "person"; value: string }
   | { type: "user"; userId: string; channel: string; value: string }
   | null;
+
+type EditAliasesDialog = { value: string } | null;
 
 function friendlyErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -122,10 +131,41 @@ function identityAliasLabels(relationship: RelationshipState): string[] {
     .map((alias) => `${alias.value}${alias.mentionCount > 1 ? ` · ${alias.mentionCount}次` : ""}`);
 }
 
+function identityAliasValues(relationship: RelationshipState): string[] {
+  return (relationship.person?.identityAliases ?? []).map((alias) => alias.value);
+}
+
+function parseAliasEditorValue(value: string): string[] {
+  const seen = new Set<string>();
+  const aliases: string[] = [];
+  for (const raw of value.split(/[\n,，、]/)) {
+    const alias = raw.trim();
+    const key = alias.toLowerCase();
+    if (!alias || seen.has(key)) continue;
+    seen.add(key);
+    aliases.push(alias);
+  }
+  return aliases;
+}
+
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function externalIdentitySourceLinks(value: unknown): Array<{ title: string; url: string; platform: string | null }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const source = metadataRecord(item);
+    const url = typeof source.url === "string" ? source.url : "";
+    if (!/^https?:\/\//iu.test(url)) return [];
+    return [{
+      title: typeof source.title === "string" && source.title.trim() ? source.title : url,
+      url,
+      platform: typeof source.platform === "string" ? source.platform : null,
+    }];
+  });
 }
 
 function relationshipAutoUpdateEnabled(relationship: RelationshipState): boolean {
@@ -297,6 +337,7 @@ export function RelationshipStatePage({
   const [splitLabel, setSplitLabel] = useState("");
   const [splitAffinity, setSplitAffinity] = useState("");
   const [editNameDialog, setEditNameDialog] = useState<EditNameDialog>(null);
+  const [editAliasesDialog, setEditAliasesDialog] = useState<EditAliasesDialog>(null);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [form, setForm] = useState<RelationshipForm | null>(null);
@@ -307,6 +348,8 @@ export function RelationshipStatePage({
     reviewProposals: [],
     selected: null,
     events: [],
+    externalIdentityCandidates: [],
+    externalIdentityJobs: [],
     loading: false,
     saving: false,
     error: null,
@@ -321,6 +364,8 @@ export function RelationshipStatePage({
         reviewProposals: [],
         selected: null,
         events: [],
+        externalIdentityCandidates: [],
+        externalIdentityJobs: [],
         loading: false,
         saving: false,
         error: null,
@@ -347,16 +392,20 @@ export function RelationshipStatePage({
       const selectedId = preferredId ?? selectedRelationshipId ?? null;
       let events: RelationshipStateEvent[] = [];
       let reviewProposals: RelationshipReviewProposal[] = [];
+      let externalIdentityCandidates: ExternalIdentityCandidate[] = [];
+      let externalIdentityJobs: ExternalIdentityResearchJob[] = [];
       let detailRelationship: RelationshipState | null = null;
       if (selectedId) {
         try {
-          const detail = await fetchRelationshipDetail({
-            token: adminToken,
-            relationshipId: selectedId,
-          });
+          const [detail, research] = await Promise.all([
+            fetchRelationshipDetail({ token: adminToken, relationshipId: selectedId }),
+            fetchExternalIdentityResearch({ token: adminToken, relationshipId: selectedId }),
+          ]);
           detailRelationship = detail.relationship;
           events = detail.events;
           reviewProposals = detail.reviewProposals ?? [];
+          externalIdentityCandidates = research.candidates;
+          externalIdentityJobs = research.jobs;
         } catch (error) {
           if (!isMissingRelationshipError(error)) throw error;
           setPageState((current) => ({
@@ -365,6 +414,8 @@ export function RelationshipStatePage({
             proposals: proposalData.proposals,
             selected: null,
             events: [],
+            externalIdentityCandidates: [],
+            externalIdentityJobs: [],
             reviewProposals: [],
             loading: false,
             error: null,
@@ -383,6 +434,8 @@ export function RelationshipStatePage({
         selected: detailRelationship,
         events,
         reviewProposals,
+        externalIdentityCandidates,
+        externalIdentityJobs,
         loading: false,
         error: null,
       }));
@@ -404,12 +457,17 @@ export function RelationshipStatePage({
     }
     setPageState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const detail = await fetchRelationshipDetail({ token: adminToken, relationshipId });
+      const [detail, research] = await Promise.all([
+        fetchRelationshipDetail({ token: adminToken, relationshipId }),
+        fetchExternalIdentityResearch({ token: adminToken, relationshipId }),
+      ]);
       setPageState((current) => ({
         ...current,
         selected: detail.relationship,
         events: detail.events,
         reviewProposals: detail.reviewProposals ?? [],
+        externalIdentityCandidates: research.candidates,
+        externalIdentityJobs: research.jobs,
         loading: false,
         error: null,
         message: null,
@@ -419,6 +477,37 @@ export function RelationshipStatePage({
       setPageState((current) => ({
         ...current,
         loading: false,
+        error: friendlyErrorMessage(error),
+      }));
+    }
+  }
+
+  async function requestExternalIdentityResearch() {
+    const selected = pageState.selected;
+    const userId = selected?.person?.identityLinks?.[0]?.userId;
+    if (!selected || !userId || !adminToken) return;
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      await runExternalIdentityResearch({
+        token: adminToken,
+        relationshipId: selected.id,
+        userId,
+      });
+      const research = await fetchExternalIdentityResearch({
+        token: adminToken,
+        relationshipId: selected.id,
+      });
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        externalIdentityCandidates: research.candidates,
+        externalIdentityJobs: research.jobs,
+        message: "已提交后台公开身份检索；聊天不会等待它完成。",
+      }));
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
         error: friendlyErrorMessage(error),
       }));
     }
@@ -731,6 +820,13 @@ export function RelationshipStatePage({
     setEditNameDialog({ type: "user", userId, channel, value });
   }
 
+  function openAliasEditor() {
+    if (!pageState.selected) return;
+    setEditAliasesDialog({
+      value: identityAliasValues(pageState.selected).join("\n"),
+    });
+  }
+
   async function saveNameDialog() {
     if (!adminToken || !pageState.selected || !editNameDialog) return;
     const nextValue = editNameDialog.value.trim();
@@ -762,6 +858,40 @@ export function RelationshipStatePage({
       }));
       setForm(formFromRelationship(detail.relationship));
       setEditNameDialog(null);
+    } catch (error) {
+      setPageState((current) => ({
+        ...current,
+        saving: false,
+        error: friendlyErrorMessage(error),
+        message: null,
+      }));
+    }
+  }
+
+  async function saveAliasesDialog() {
+    if (!adminToken || !pageState.selected || !editAliasesDialog) return;
+    const aliases = parseAliasEditorValue(editAliasesDialog.value);
+    setPageState((current) => ({ ...current, saving: true, error: null, message: null }));
+    try {
+      const detail = await updateRelationshipIdentityAliases({
+        token: adminToken,
+        relationshipId: pageState.selected.id,
+        aliases,
+      });
+      setPageState((current) => ({
+        ...current,
+        relationships: current.relationships.map((relationship) =>
+          relationship.id === detail.relationship.id ? detail.relationship : relationship
+        ),
+        selected: detail.relationship,
+        events: detail.events,
+        reviewProposals: detail.reviewProposals ?? [],
+        saving: false,
+        error: null,
+        message: "自称/别名已更新。",
+      }));
+      setForm(formFromRelationship(detail.relationship));
+      setEditAliasesDialog(null);
     } catch (error) {
       setPageState((current) => ({
         ...current,
@@ -1023,16 +1153,26 @@ export function RelationshipStatePage({
                     </span>
                   ))}
                 </div>
-                {identityAliasLabels(pageState.selected).length > 0 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
-                    <span className="font-semibold text-[var(--ls-ink-strong)]">自称/别名</span>
-                    {identityAliasLabels(pageState.selected).map((alias) => (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
+                  <span className="font-semibold text-[var(--ls-ink-strong)]">自称/别名</span>
+                  <EditPencilButton
+                    label="编辑自称/别名"
+                    compact
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openAliasEditor();
+                    }}
+                  />
+                  {identityAliasLabels(pageState.selected).length > 0 ? (
+                    identityAliasLabels(pageState.selected).map((alias) => (
                       <Tag key={alias} size="small" variant="outlined" color="default">
                         {alias}
                       </Tag>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <span>暂无</span>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -1066,6 +1206,70 @@ export function RelationshipStatePage({
                 </div>
               </div>
             </div>
+	          </section>
+
+	          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
+	            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+	              <div>
+	                <h3 className="text-base font-semibold text-[var(--ls-ink-strong)]">外部身份候选</h3>
+	                <p className="mt-1 text-xs leading-6 text-[var(--ls-ink-soft)]">
+	                  只检索公开资料。候选不是事实，必须由对方本人确认后才会写入正式关系资料。
+	                </p>
+	              </div>
+	              <Button
+	                type="default"
+	                loading={pageState.saving}
+	                disabled={(pageState.selected.person?.identityLinks?.length ?? 0) === 0}
+	                onClick={() => void requestExternalIdentityResearch()}
+	              >
+	                重新检索
+	              </Button>
+	            </div>
+	            <div className="mt-4 grid gap-3">
+	              {pageState.externalIdentityCandidates.length > 0 ? (
+	                pageState.externalIdentityCandidates.map((candidate) => (
+	                  <div key={candidate.id} className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] p-4">
+	                    <div className="flex flex-wrap items-center gap-2">
+	                      <span className="font-semibold text-[var(--ls-ink-strong)]">{candidate.canonicalName}</span>
+	                      {candidate.role && <Tag size="small" variant="outlined" color="default">{candidate.role}</Tag>}
+	                      <Tag size="small" variant="outlined" color="default">
+	                        {candidate.status === "confirmed" ? "本人确认" : candidate.status === "rejected" ? "本人否认" : candidate.status === "superseded" ? "已排除" : "待本人确认"}
+	                      </Tag>
+	                    </div>
+	                    <p className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">{candidate.summary}</p>
+                    <p className="mt-2 text-xs leading-5 text-[var(--ls-ink-soft)]">
+                      自称/显示名：{candidate.alias} · 证据强度 {Math.round(candidate.confidence * 100)}%
+                      {candidate.publicReach ? ` · ${candidate.publicReach}` : ""}
+                    </p>
+                    {externalIdentitySourceLinks(candidate.sources).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        {externalIdentitySourceLinks(candidate.sources).map((source) => (
+                          <a
+                            key={source.url}
+                            href={source.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[var(--ls-link)] underline decoration-dotted underline-offset-2"
+                          >
+                            {source.platform ?? source.title}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+	                ))
+	              ) : (
+	                <div className="rounded-lg border border-dashed border-[var(--ls-border)] px-4 py-5 text-sm text-[var(--ls-ink-soft)]">
+	                  暂无可靠候选。普通昵称、同名词或无法明确主体的搜索结果不会保存。
+	                </div>
+	              )}
+	              {pageState.externalIdentityJobs[0] && (
+	                <div className="text-xs text-[var(--ls-ink-soft)]">
+	                  最近检索：{pageState.externalIdentityJobs[0].status} · {formatDate(pageState.externalIdentityJobs[0].createdAt)}
+	                  {pageState.externalIdentityJobs[0].error ? ` · ${pageState.externalIdentityJobs[0].error}` : ""}
+	                </div>
+	              )}
+	            </div>
 	          </section>
 
 	          <section className="rounded-lg border border-[var(--ls-border)] bg-white p-5">
@@ -1472,6 +1676,42 @@ export function RelationshipStatePage({
         </RelationshipModal>
       )}
 
+      {editAliasesDialog && (
+        <RelationshipModal
+          title="编辑自称/别名"
+          description="一行一个，也可以用逗号或顿号分隔。保存为空会清空当前身份的自称/别名。"
+          onClose={() => setEditAliasesDialog(null)}
+          footer={
+            <>
+              <Button type="default" disabled={pageState.saving} onClick={() => setEditAliasesDialog(null)}>
+                取消
+              </Button>
+              <Button
+                type="primary"
+                loading={pageState.saving}
+                onClick={() => void saveAliasesDialog()}
+              >
+                保存
+              </Button>
+            </>
+          }
+        >
+          <Field label="自称/别名">
+            <textarea
+              className="field-input min-h-28 resize-y text-sm leading-6"
+              value={editAliasesDialog.value}
+              onChange={(event) =>
+                setEditAliasesDialog((current) =>
+                  current ? { ...current, value: event.target.value } : current
+                )
+              }
+              placeholder={"黄叽\nCyan"}
+              aria-label="自称或别名"
+            />
+          </Field>
+        </RelationshipModal>
+      )}
+
       {resetConfirmOpen && pageState.selected && (
         <RelationshipModal
           title="确认重置关系状态"
@@ -1741,5 +1981,3 @@ function relationshipLabelColor(label: string): import("animal-island-ui").TagPr
   if (/(陌生|未形成|未知|未确认)/.test(s)) return "default";
   return "app-orange";
 }
-
-

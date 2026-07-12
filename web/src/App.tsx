@@ -16,6 +16,9 @@ const DashboardPage = lazy(() =>
 const ExpressionLearningPage = lazy(() =>
   import("./components/admin/ExpressionLearningPage").then((module) => ({ default: module.ExpressionLearningPage }))
 );
+const IslandHomePage = lazy(() =>
+  import("./components/admin/IslandHomePage").then((module) => ({ default: module.IslandHomePage }))
+);
 const MemoryAdminPage = lazy(() =>
   import("./components/admin/MemoryAdminPage").then((module) => ({ default: module.MemoryAdminPage }))
 );
@@ -45,6 +48,7 @@ const ToolsAdminPage = lazy(() =>
 );
 
 const sections: AdminSection[] = [
+  "island",
   "overview",
   "runtime",
   "relationships",
@@ -193,6 +197,10 @@ export default function App() {
   }
 
   const content = useMemo(() => {
+    if (route.section === "island") {
+      return <IslandHomePage onNavigate={handleNavigate} />;
+    }
+
     if (route.section === "overview") {
       return <DashboardPage adminToken={adminToken} />;
     }

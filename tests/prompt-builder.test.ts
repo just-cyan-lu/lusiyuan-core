@@ -12,6 +12,7 @@ import type { BudgetedMemory } from "../src/core/memory-budget.js";
 const persona: PersonaContent = {
   personality: "# 深层性格\n\nFULL_DEEP_PERSONALITY_SHOULD_NOT_APPEAR_IN_DEFAULT",
   conversationBehavior: "# 接话规则\n\n先接当前这句话，不要像客服。BEHAVIOR_SHOULD_APPEAR",
+  expressionRules: "# 已发布表达规则\n\n- 不要使用老气表情。PUBLISHED_EXPRESSION_RULE",
   toolUsage: "# 工具使用\n\n需要时调用工具。",
   chatProfiles: {
     default: "# 默认聊天投影\n\n自然聊天。",
@@ -129,6 +130,7 @@ test("builds a projected prompt without dumping full personality in default chat
   assert.match(systemPrompt as string, /当前场景策略：default/);
   assert.match(systemPrompt as string, /CORE_SHOULD_APPEAR/);
   assert.match(systemPrompt as string, /BEHAVIOR_SHOULD_APPEAR/);
+  assert.match(systemPrompt as string, /PUBLISHED_EXPRESSION_RULE/);
   assert.match(systemPrompt as string, /认真但不沉重/);
   assert.match(systemPrompt as string, /DAILY_SAMPLE_SHOULD_APPEAR/);
   assert.match(systemPrompt as string, /SPARK_SAMPLE_SHOULD_APPEAR/);
@@ -139,6 +141,26 @@ test("builds a projected prompt without dumping full personality in default chat
     /FULL_DEEP_PERSONALITY_SHOULD_NOT_APPEAR_IN_DEFAULT/
   );
   assert.doesNotMatch(systemPrompt as string, /UNUSED_SLICE_SHOULD_NOT_APPEAR/);
+});
+
+test("tool prompt allows visible process messages without fake intermediate tools", () => {
+  const messages = buildChatPrompt({
+    persona: {
+      ...persona,
+      toolUsage: "# 工具使用\n\n不要调用不存在的“中间消息工具”。",
+    },
+    memories: [],
+    recentMessages: [],
+    userMessage: "搜一下最新消息",
+    channel: "web",
+    toolsAvailable: true,
+  });
+
+  const systemPrompt = messages[0].content;
+  assert.equal(typeof systemPrompt, "string");
+  assert.match(systemPrompt as string, /系统会先展示成过程消息/);
+  assert.match(systemPrompt as string, /过程消息只写真实动作、结果判断或下一步/);
+  assert.doesNotMatch(systemPrompt as string, /send_intermediate_message/);
 });
 
 test("selects persona slices and profile-specific samples by context", () => {

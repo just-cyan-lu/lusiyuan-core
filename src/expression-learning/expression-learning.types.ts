@@ -6,7 +6,7 @@ export type ExpressionLearningOwnerAction =
   | "skipped"
   | "owner_taught";
 
-export type ExpressionLearningStatus = "pending" | "active" | "disabled";
+export type ExpressionLearningStatus = "active" | "disabled";
 
 export interface ExpressionLearningInput {
   sourceRef: string;
@@ -61,5 +61,6 @@ export interface ExpressionLearningDraftInput {
 
 export interface ExpressionLearningDraftOutput {
   draftText: string;
+  reason: string;
   referenceExampleIds: string[];
 }

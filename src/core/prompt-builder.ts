@@ -88,9 +88,9 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
     : "";
   const expressionLearningSection = expressionLearningContext?.trim()
     ? [
-        "## 本轮动态表达样本",
+        "## 本轮表达规则与动态样本",
         "",
-        "以下内容来自经验库，是 owner 过去教过的相似表达场景。它只用于参考判断、长度、语气和取舍；不要照抄原句，也不要把其中的具体事实当成当前事实。",
+        "以下内容来自 owner 确认的表达规则和经验库。明确规则优先于相似经验；经验只用于参考判断、长度、语气和取舍。不要照抄原句，也不要把其中的具体事实当成当前事实。",
         "",
         expressionLearningContext.trim(),
         "",
@@ -107,7 +107,8 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
         "",
         "本轮系统提供了外部工具。需要查看外部平台内容、搜索网页、读取 URL 或查询长期记忆时，直接调用工具获取真实信息；不要假装、猜测或编造结果。",
         "",
-        "调用工具前不要先发一条寒暄或固定过渡句。系统会用等待状态提示用户正在处理。",
+        "需要调用工具时，可以在同一轮工具调用消息的文字内容里写一句很短的即时反应或下一步，系统会先展示成过程消息，再执行工具。",
+        "过程消息只写真实动作、结果判断或下一步，不要写成长篇解释，也不要每轮都固定寒暄。",
         "",
         persona.toolUsage,
         "",
@@ -140,6 +141,12 @@ ${projection.coreIdentity}
 ## 常驻接话规则
 
 ${projection.conversationBehavior}
+
+---
+
+## 已发布表达规则
+
+${persona.expressionRules || "（暂无已发布规则）"}
 
 ---
 
@@ -184,8 +191,8 @@ ${projection.styleExamples}
 ---
 
 ${expressionLearningSection ? `${expressionLearningSection}\n\n` : ""}
-${externalIdentitySection ? `${externalIdentitySection}\n\n` : ""}
 
+${externalIdentitySection ? `${externalIdentitySection}\n\n` : ""}
 
 ## 相关记忆（参考信息）
 
