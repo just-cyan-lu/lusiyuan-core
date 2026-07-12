@@ -107,7 +107,8 @@ export function buildChatPrompt(input: BuildChatPromptInput): ChatMessage[] {
         "",
         "本轮系统提供了外部工具。需要查看外部平台内容、搜索网页、读取 URL 或查询长期记忆时，直接调用工具获取真实信息；不要假装、猜测或编造结果。",
         "",
-        "调用工具前不要先发一条寒暄或固定过渡句。系统会用等待状态提示用户正在处理。",
+        "需要调用工具时，可以在同一轮工具调用消息的文字内容里写一句很短的即时反应或下一步，系统会先展示成过程消息，再执行工具。",
+        "过程消息只写真实动作、结果判断或下一步，不要写成长篇解释，也不要每轮都固定寒暄。",
         "",
         persona.toolUsage,
         "",
@@ -190,8 +191,8 @@ ${projection.styleExamples}
 ---
 
 ${expressionLearningSection ? `${expressionLearningSection}\n\n` : ""}
-${externalIdentitySection ? `${externalIdentitySection}\n\n` : ""}
 
+${externalIdentitySection ? `${externalIdentitySection}\n\n` : ""}
 
 ## 相关记忆（参考信息）
 

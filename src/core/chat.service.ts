@@ -111,6 +111,21 @@ async function emitProgressDraft(input: {
   return part;
 }
 
+function toolIntermediateFallback(toolNames: string[], round: number): string {
+  const names = new Set(toolNames);
+  const pick = (items: string[]) => items[Math.floor(Math.random() * items.length)] ?? items[0] ?? "我试一下。";
+  if (round > 1) {
+    if (names.has("read_page")) return pick(["我再瞅一眼。", "等下，我换个角度看看。", "诶，这个还得再打开确认一下。"]);
+    if (names.has("web_search")) return pick(["我再搜一轮。", "我换个关键词试试。", "等下，我再捞一下最新的。"]);
+    if (names.has("search_memories")) return pick(["我再翻翻记忆。", "我去记忆里扒拉一下。", "等下，我再想想之前有没有说过。"]);
+    return pick(["我换个方向试试。", "等下，我再试一手。", "这步不太顺，我绕一下。"]);
+  }
+  if (names.has("read_page")) return pick(["我打开看看。", "我瞅一眼。", "等下，我去看看这个页面。"]);
+  if (names.has("web_search")) return pick(["我去搜一下，马上回来。", "我冲去搜一下。", "等下，我查查最新的。"]);
+  if (names.has("search_memories")) return pick(["我翻一下记忆。", "我去脑袋里翻箱倒柜一下。", "我找找我们之前说过啥。"]);
+  return pick(["我试一下。", "我先动一下手。", "等下，我跑一下看看。"]);
+}
+
 export async function runChatTask(input: ChatInput): Promise<ChatOutput> {
   const handle = runningTaskRegistry.start({
     kind: "chat",
@@ -194,6 +209,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       },
     });
   }
+  const activeConversation = conversation;
 
   const owner = isOwner(input.user_id);
   const turnId = input.task_id ?? randomUUID();
@@ -208,13 +224,49 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   const deliveryOptions = getReplySegmentationOptions();
   async function progress(content = "typing"): Promise<void> {
     if (!input.onReplyPart) return;
-    const part = await emitProgressDraft({
+    await emitProgressDraft({
       chatInput: input,
       turnId,
       sequence: replySequence,
       content,
     });
-    if (part) replySequence++;
+  }
+  async function intermediate(content: string, metadata?: Record<string, unknown>): Promise<void> {
+    if (deliveryOptions.mode !== "hybrid") return;
+    const text = sanitizeOutput(content).trim();
+    if (!text) return;
+    const sequence = replySequence;
+    const assistantMessage = await trace.time("store_intermediate_message", () =>
+      prisma.message.create({
+        data: {
+          conversationId: activeConversation.id,
+          role: "assistant",
+          content: text,
+          isIntermediate: true,
+          metadata: {
+            turnId,
+            deliveryKind: "intermediate",
+            sequence,
+            useAsChatContext: false,
+            ...metadata,
+          },
+        },
+      })
+    );
+    const part: ChatReplyPart = {
+      turn_id: turnId,
+      message_id: assistantMessage.id,
+      sequence,
+      kind: "intermediate",
+      content: text,
+      delay_ms: 0,
+      transcript: true,
+    };
+    replyParts.push(part);
+    replySequence++;
+    if (input.onReplyPart) {
+      await input.onReplyPart(part);
+    }
   }
   trace.mark("received");
 
@@ -439,8 +491,18 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         // LLM wants to call tools
         const toolCallNames = response.tool_calls.map((toolCall) => toolCall.function.name);
         console.log(`[chat] LLM requested ${response.tool_calls.length} tool calls`);
-        await progress(toolProgressContent(toolCallNames));
         trace.mark("tool_calls_requested", { round: round + 1, tools: toolCallNames });
+        checkCancelled();
+        const visibleToolReaction = sanitizeOutput(response.content ?? "").trim();
+        await intermediate(
+          visibleToolReaction || toolIntermediateFallback(toolCallNames, round + 1),
+          {
+            toolRound: round + 1,
+            toolNames: toolCallNames,
+            source: visibleToolReaction ? "model_tool_call_content" : "tool_reaction_fallback",
+          }
+        );
+        await progress(toolProgressContent(toolCallNames));
         checkCancelled();
 
         // Add assistant message with tool calls to conversation

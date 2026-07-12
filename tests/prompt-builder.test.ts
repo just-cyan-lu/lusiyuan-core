@@ -143,6 +143,26 @@ test("builds a projected prompt without dumping full personality in default chat
   assert.doesNotMatch(systemPrompt as string, /UNUSED_SLICE_SHOULD_NOT_APPEAR/);
 });
 
+test("tool prompt allows visible process messages without fake intermediate tools", () => {
+  const messages = buildChatPrompt({
+    persona: {
+      ...persona,
+      toolUsage: "# 工具使用\n\n不要调用不存在的“中间消息工具”。",
+    },
+    memories: [],
+    recentMessages: [],
+    userMessage: "搜一下最新消息",
+    channel: "web",
+    toolsAvailable: true,
+  });
+
+  const systemPrompt = messages[0].content;
+  assert.equal(typeof systemPrompt, "string");
+  assert.match(systemPrompt as string, /系统会先展示成过程消息/);
+  assert.match(systemPrompt as string, /过程消息只写真实动作、结果判断或下一步/);
+  assert.doesNotMatch(systemPrompt as string, /send_intermediate_message/);
+});
+
 test("selects persona slices and profile-specific samples by context", () => {
   const messages = buildChatPrompt({
     persona,
