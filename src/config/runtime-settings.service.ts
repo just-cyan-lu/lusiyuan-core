@@ -12,6 +12,14 @@ import {
 type SettingValue = boolean | number | string;
 type ChangeListener = (keys: RuntimeSettingKey[]) => void | Promise<void>;
 
+const legacyActiveModelProviderKey = "ACTIVE_MODEL_PROVIDER";
+const modelRoutingKeys: RuntimeSettingKey[] = [
+  "DEFAULT_MODEL_PROVIDER",
+  "CHAT_MODEL_PROVIDER",
+  "DREAM_MODEL_PROVIDER",
+  "EXPRESSION_LEARNING_MODEL_PROVIDER",
+];
+
 function validateValue(key: RuntimeSettingKey, value: unknown): SettingValue {
   const definition = runtimeSettingDefinitions[key];
   const definitionType = definition.type as RuntimeSettingType;
@@ -65,7 +73,23 @@ class RuntimeSettingsService {
   }
 
   async initialize(): Promise<void> {
-    const rows = await prisma.systemSetting.findMany();
+    let rows = await prisma.systemSetting.findMany();
+    const legacyActiveModelProvider = rows.find((row) => row.key === legacyActiveModelProviderKey);
+    if (typeof legacyActiveModelProvider?.value === "string") {
+      await prisma.$transaction(async (tx) => {
+        await tx.systemSetting.createMany({
+          data: modelRoutingKeys.map((key) => ({
+            key,
+            value: legacyActiveModelProvider.value as Prisma.InputJsonValue,
+          })),
+          skipDuplicates: true,
+        });
+        await tx.systemSetting.delete({ where: { key: legacyActiveModelProviderKey } });
+        await tx.systemSettingEvent.deleteMany({ where: { key: legacyActiveModelProviderKey } });
+      });
+      console.log("[runtime-settings] migrated ACTIVE_MODEL_PROVIDER to purpose-based model routes");
+      rows = await prisma.systemSetting.findMany();
+    }
     for (const row of rows) {
       if (!isRuntimeSettingKey(row.key)) continue;
       try {

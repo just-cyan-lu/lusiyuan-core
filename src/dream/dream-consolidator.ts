@@ -1,7 +1,7 @@
 // dream-consolidator.ts — Deep Sleep phase: write global/project/topic memories from signals
 
 import { prisma } from "../db/prisma.js";
-import { modelProvider } from "../core/model-provider.js";
+import { dreamModelProvider } from "../core/model-provider.js";
 import { memoryService } from "../core/memory.service.js";
 import { DEEP_CONSOLIDATION_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { filterProposals } from "./dream-policy.js";
@@ -42,7 +42,7 @@ export class DreamConsolidator {
 
     const userContent = this.buildUserContent(signals, dailyNote);
 
-    const raw = await modelProvider.chatJson<RawConsolidationOutput>(
+    const raw = await dreamModelProvider.chatJson<RawConsolidationOutput>(
       [
         { role: "system", content: DEEP_CONSOLIDATION_SYSTEM_PROMPT },
         { role: "user", content: userContent },

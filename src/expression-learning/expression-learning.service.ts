@@ -1,5 +1,5 @@
 import type { ExpressionLearningExample, Prisma } from "@prisma/client";
-import { modelProvider } from "../core/model-provider.js";
+import { expressionLearningModelProvider } from "../core/model-provider.js";
 import { buildChatPrompt } from "../core/prompt-builder.js";
 import { loadPersona } from "../core/persona-loader.js";
 import { prisma } from "../db/prisma.js";
@@ -197,7 +197,7 @@ export function buildExpressionLearningEmbeddingText(
 
 async function analyze(input: ExpressionLearningInput): Promise<ExpressionLearningAnalysis> {
   try {
-    const raw = await modelProvider.chatJson<ExpressionLearningAnalysis>([
+    const raw = await expressionLearningModelProvider.chatJson<ExpressionLearningAnalysis>([
       { role: "system", content: analysisPrompt },
       { role: "user", content: buildAnalysisPayload(input) },
     ]);
@@ -254,7 +254,7 @@ export async function generateExpressionLearningPracticeQuestion(
     focus: cleanText(input.focus, "", 200) || null,
   };
   try {
-    const raw = await modelProvider.chatJson<ExpressionLearningPracticeQuestion>([
+    const raw = await expressionLearningModelProvider.chatJson<ExpressionLearningPracticeQuestion>([
       { role: "system", content: practiceQuestionPrompt },
       { role: "user", content: JSON.stringify(normalized, null, 2) },
     ]);
@@ -305,7 +305,7 @@ export async function generateExpressionLearningDraft(
     "格式：",
     '{"draftText":"回复正文", "reason":"简短回答依据"}',
   ].filter(Boolean).join("\n");
-  const draft = await modelProvider.chatJson<{ draftText?: unknown; reason?: unknown }>(buildChatPrompt({
+  const draft = await expressionLearningModelProvider.chatJson<{ draftText?: unknown; reason?: unknown }>(buildChatPrompt({
     persona,
     memories: [],
     recentMessages: [],

@@ -12,7 +12,10 @@ export interface RuntimeSettingDefinition<T extends boolean | number | string = 
 }
 
 export const runtimeSettingDefinitions = {
-  ACTIVE_MODEL_PROVIDER: { group: "模型运行", label: "当前模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow"], description: "从 .env 已配置的模型渠道中选择，保存后下一次模型调用立即使用。" },
+  DEFAULT_MODEL_PROVIDER: { group: "模型路由", label: "通用模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow", "custom"], description: "没有专属分配的内部能力（例如工具技能、摘要和自主任务）使用这个模型渠道。" },
+  CHAT_MODEL_PROVIDER: { group: "模型路由", label: "聊天模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow", "custom"], description: "用户聊天和聊天工具调用使用这个模型渠道；切换后下一轮聊天立即生效。" },
+  DREAM_MODEL_PROVIDER: { group: "模型路由", label: "Dream 模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow", "custom"], description: "Daily Note、信号提取、梦境日记、记忆整理和关系复盘使用这个模型渠道。" },
+  EXPRESSION_LEARNING_MODEL_PROVIDER: { group: "模型路由", label: "表达学习模型渠道", type: "select", defaultValue: "openai", options: ["openai", "anthropic", "glm", "qwen", "deepseek", "minimax", "kimi", "siliconflow", "custom"], description: "表达学习的分析、规则提炼、练习出题和草稿生成使用这个模型渠道。" },
   MINIMAX_THINKING_TYPE: { group: "模型运行", label: "MiniMax Thinking Type", type: "select", defaultValue: "adaptive", options: ["adaptive", "disabled"], description: "MiniMax-M3 专用：adaptive=按需思考，disabled=关闭思考。" },
   MINIMAX_MAX_COMPLETION_TOKENS: { group: "模型运行", label: "MiniMax 最大生成 Token", type: "integer", defaultValue: 0, min: 0, description: "0 表示不额外限制。" },
 

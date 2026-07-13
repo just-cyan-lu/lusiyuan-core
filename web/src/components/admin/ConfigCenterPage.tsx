@@ -86,22 +86,23 @@ function buildFindings(runtime: RuntimeConfig | null): Finding[] {
   if (!runtime) return [];
 
   const findings: Finding[] = [];
-  const activeProvider =
-    runtime.providers.find((provider) => provider.active) ?? null;
   const readyProviders = runtime.providers.filter(providerReady);
 
-  if (!activeProvider) {
-    findings.push({
-      level: "danger",
-      title: "没有匹配的当前模型渠道",
-      detail: `ACTIVE_MODEL_PROVIDER=${runtime.activeModelProvider}，但 provider 列表里没有匹配项。`,
-    });
-  } else if (!providerReady(activeProvider)) {
-    findings.push({
-      level: "danger",
-      title: "当前模型渠道配置不完整",
-      detail: `${activeProvider.label} 需要 base URL、API key 和 model 都配置好。`,
-    });
+  for (const [purpose, providerName] of Object.entries(runtime.modelRoutes)) {
+    const provider = runtime.providers.find((item) => item.name === providerName);
+    if (!provider) {
+      findings.push({
+        level: "danger",
+        title: `${purpose} 没有匹配的模型渠道`,
+        detail: `当前分配为 ${providerName}，但该连接档案不存在。`,
+      });
+    } else if (!providerReady(provider)) {
+      findings.push({
+        level: "danger",
+        title: `${provider.assignedTo.join("、")} 模型渠道配置不完整`,
+        detail: `${provider.label} 需要 base URL、API key 和 model 都配置好。`,
+      });
+    }
   }
 
   if (readyProviders.length === 0) {
@@ -167,9 +168,13 @@ function visibleRuntimeFields(
   fields: RuntimeSettingField[],
   values: Record<string, string>
 ): RuntimeSettingField[] {
-  const activeProvider = values.ACTIVE_MODEL_PROVIDER
-    ?? String(fields.find((field) => field.key === "ACTIVE_MODEL_PROVIDER")?.value ?? "");
-  if (activeProvider === "minimax") return fields;
+  const selectedProviders = [
+    "DEFAULT_MODEL_PROVIDER",
+    "CHAT_MODEL_PROVIDER",
+    "DREAM_MODEL_PROVIDER",
+    "EXPRESSION_LEARNING_MODEL_PROVIDER",
+  ].map((key) => values[key] ?? String(fields.find((field) => field.key === key)?.value ?? ""));
+  if (selectedProviders.includes("minimax")) return fields;
   return fields.filter((field) => !minimaxRuntimeSettingKeys.has(field.key));
 }
 
@@ -368,8 +373,10 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
     () => groupRuntimeFields(visibleRuntimeSettingFields),
     [visibleRuntimeSettingFields]
   );
-  const activeProvider = useMemo(
-    () => runtime?.providers.find((provider) => provider.active) ?? null,
+  const chatProvider = useMemo(
+    () => runtime
+      ? runtime.providers.find((provider) => provider.name === runtime.modelRoutes.chat) ?? null
+      : null,
     [runtime]
   );
   const readyProviderCount = useMemo(
@@ -611,9 +618,9 @@ export function ConfigCenterPage({ adminToken }: ConfigCenterPageProps) {
 
       <section className="grid gap-5 lg:grid-cols-3">
         <SummaryCard
-          label="当前模型渠道"
-          value={activeProvider?.label ?? runtime?.activeModelProvider ?? "读取中"}
-          active={Boolean(activeProvider && providerReady(activeProvider))}
+          label="聊天模型渠道"
+          value={chatProvider?.label ?? runtime?.modelRoutes.chat ?? "读取中"}
+          active={Boolean(chatProvider && providerReady(chatProvider))}
         />
         <SummaryCard
           label="可用 Provider"
@@ -1060,7 +1067,7 @@ function ProviderCard({ provider }: { provider: RuntimeProvider }) {
   return (
     <article
       className={`rounded-lg border px-4 py-4 ${
-        provider.active
+        provider.assignedTo.length > 0
           ? "border-[var(--ls-border-cold-soft)] bg-[var(--ls-panel-soft)]"
           : "border-[var(--ls-border)] bg-white"
       }`}
@@ -1080,10 +1087,11 @@ function ProviderCard({ provider }: { provider: RuntimeProvider }) {
         </div>
         <StatusPill
           active={ready}
-          label={provider.active ? "当前" : ready ? "可用" : "缺配置"}
+          label={provider.assignedTo.length > 0 ? "已分配" : ready ? "可用" : "缺配置"}
         />
       </div>
       <div className="mt-4 grid gap-2 text-xs text-[var(--ls-ink-soft)]">
+        <MiniRow label="用于" active={provider.assignedTo.length > 0} value={provider.assignedTo.join("、") || "未分配"} />
         <MiniRow label="Base URL" active={provider.baseUrlConfigured} />
         <MiniRow label="API Key" active={provider.apiKeyConfigured} />
         <MiniRow label="Model" active={Boolean(provider.model)} />
@@ -1121,12 +1129,12 @@ function ChannelCard({
   );
 }
 
-function MiniRow({ label, active }: { label: string; active: boolean }) {
+function MiniRow({ label, active, value }: { label: string; active: boolean; value?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span>{label}</span>
       <span className={active ? "text-[var(--ls-success-text)]" : "text-[var(--ls-warning-text)]"}>
-        {configuredLabel(active)}
+        {value ?? configuredLabel(active)}
       </span>
     </div>
   );

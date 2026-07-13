@@ -3,7 +3,7 @@
 import { Prisma, type Memory, type RelationshipState } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
-import { modelProvider } from "../core/model-provider.js";
+import { dreamModelProvider } from "../core/model-provider.js";
 import { memoryService } from "../core/memory.service.js";
 import {
   buildMemoryAgingPatch,
@@ -1204,7 +1204,7 @@ export class DreamRelationshipReviewOrganizer {
       input.group.messages
     );
 
-    const raw = await modelProvider.chatJson<RawRelationshipReviewOutput>(
+    const raw = await dreamModelProvider.chatJson<RawRelationshipReviewOutput>(
       [
         { role: "system", content: RELATIONSHIP_REVIEW_SYSTEM_PROMPT },
         {

@@ -3,7 +3,7 @@ import { prisma } from "../db/prisma.js";
 import { loadPersona } from "./persona-loader.js";
 import { loadOwnerProfile } from "./owner-profile-loader.js";
 import { buildChatPrompt } from "./prompt-builder.js";
-import { modelProvider } from "./model-provider.js";
+import { chatModelProvider } from "./model-provider.js";
 import { memoryService } from "./memory.service.js";
 import { embeddingProvider } from "../embeddings/siliconflow-embedding-provider.js";
 import {
@@ -472,7 +472,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         const response = await trace.time(
           `model_tools_round_${round + 1}`,
           () =>
-            modelProvider.chatWithTools(
+            chatModelProvider.chatWithTools(
               conversationMessages,
               toolsForLLM,
               { signal }
@@ -582,7 +582,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
         checkCancelled();
         console.log("[chat] exhausted tool rounds, final call without tools");
         const finalResponse = await trace.time("model_final_no_tools", () =>
-          modelProvider.chat(conversationMessages, { signal })
+          chatModelProvider.chat(conversationMessages, { signal })
         );
         checkCancelled();
         reply = sanitizeOutput(finalResponse);
@@ -591,7 +591,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
       // No tool is available for this context, so use a direct response.
       checkCancelled();
       const draftReply = await trace.time("model_direct", () =>
-        modelProvider.chat(messages, { signal })
+        chatModelProvider.chat(messages, { signal })
       );
       checkCancelled();
       reply = sanitizeOutput(draftReply);

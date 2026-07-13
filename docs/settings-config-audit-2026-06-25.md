@@ -29,7 +29,7 @@
 
 | 分组 | 配置项 | 结论 | 主要使用位置 |
 | --- | --- | --- | --- |
-| 模型运行 | `ACTIVE_MODEL_PROVIDER`、`MINIMAX_THINKING_TYPE`、`MINIMAX_MAX_COMPLETION_TOKENS` | 保留 | `src/core/model-provider.ts` |
+| 模型路由 | `DEFAULT_MODEL_PROVIDER`、`CHAT_MODEL_PROVIDER`、`DREAM_MODEL_PROVIDER`、`EXPRESSION_LEARNING_MODEL_PROVIDER`、`MINIMAX_THINKING_TYPE`、`MINIMAX_MAX_COMPLETION_TOKENS` | 保留 | `src/core/model-provider.ts` |
 | 回复投递 | `REPLY_DELIVERY_MODE`、`REPLY_SEGMENTATION_LLM_ENABLED`、`REPLY_HUMAN_DELAY_MIN_MS`、`REPLY_HUMAN_DELAY_MAX_MS` | 保留；`REPLY_SEGMENT_MIN_CHARS`、`REPLY_SEGMENT_MAX_CHARS`、`REPLY_SEGMENT_MAX_COUNT` 已改为代码默认值 | `src/core/chat.service.ts`、`src/core/reply-segmentation.service.ts` |
 | 记忆检索 | `MEMORY_RETRIEVAL_ENABLED`、`MEMORY_FINAL_TOP_K` | 保留；`MEMORY_SEMANTIC_TOP_K`、`MEMORY_MAX_TOTAL_CHARS` 已删除，候选召回和上下文预算改为内部固定策略 | `src/core/memory.service.ts`、`src/core/memory-retrieval.service.ts`、`src/core/memory-budget.ts` |
 | 工具 | `TOOL_CALL_LOG_ENABLED` | 保留；工具层固定开启，访问范围只在具体工具上配置；全局/风险开关已删除 | `src/tools/policy/action-policy.ts`、`src/tools/tool-executor.ts`、`src/routes/tools.route.ts` |
@@ -97,7 +97,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 
 | 配置项 | 当前状态 | 主要使用位置 | 建议 |
 | --- | --- | --- | --- |
-| `OPENAI_*`、`ANTHROPIC_*`、`GLM_*`、`QWEN_*`、`DEEPSEEK_*`、`MINIMAX_*`、`KIMI_*`、`SILICONFLOW_*` | 在用 | `src/core/model-provider.ts` | 保留。它们和 `ACTIVE_MODEL_PROVIDER` 配套。 |
+| `OPENAI_*`、`ANTHROPIC_*`、`GLM_*`、`QWEN_*`、`DEEPSEEK_*`、`MINIMAX_*`、`KIMI_*`、`SILICONFLOW_*`、`CUSTOM_*` | 在用 | `src/core/model-provider.ts` | 保留。它们可分别分配给聊天、Dream、表达学习和通用内部能力。 |
 | `TELEGRAM_BOT_TOKEN` | 在用 | `src/channels/telegram/telegram-runtime.ts` | 保留。 |
 | `TELEGRAM_MODE` | 只用于状态展示；页面选项只有 `polling`，代码也只实际支持 polling。 | `src/routes/channels.route.ts` | 已在页面说明“目前只支持 polling；webhook 还没有真实接线”。 |
 | `TELEGRAM_PROXY` | 在用 | `src/channels/telegram/telegram.bot.ts` | 保留。注意 `EXTERNAL_HTTP_PROXY` 默认也会 fallback 到它。 |
@@ -110,7 +110,7 @@ Dream 相关配置已删除 23 个：`DREAM_TIMEZONE`、`DREAM_DEFAULT_LOOKBACK_
 
 ## 额外发现
 
-- 旧的 `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` fallback 已删除；模型只按 `ACTIVE_MODEL_PROVIDER` 指向的 provider 配置读取，配置错了就直接报错。
+- 旧的 `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME` fallback 已删除；每个业务用途按自己的模型路由读取连接档案，配置错了就直接报错。
 - `WEB_ORIGIN` 目前像是“安全配置”，但全局 CORS 仍允许任意 origin。这个最好单独修，不然配置页会给人一种已经限制来源的错觉。
 - 手动 Reflection 已删除。后续记忆、成长记录、风险项统一由 Dream 深睡阶段生成。
 - 已处理：旧 `reflection_jobs`、`reflection_reports`、`reflection_risk_flags`、旧记忆审核表已删除；记忆由 Dream 直接写入，风险项和成长日志挂到 `dream_consolidation_reports`。

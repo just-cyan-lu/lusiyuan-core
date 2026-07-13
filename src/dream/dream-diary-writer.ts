@@ -1,7 +1,7 @@
 // dream-diary-writer.ts — Dream Diary phase: generate DreamDiaryEntry
 
 import { prisma } from "../db/prisma.js";
-import { modelProvider } from "../core/model-provider.js";
+import { dreamModelProvider } from "../core/model-provider.js";
 import { loadPersona, type PersonaContent } from "../core/persona-loader.js";
 import { DREAM_DIARY_SYSTEM_PROMPT } from "./dream-prompts.js";
 import type { RawDreamDiaryEntry } from "./dream.types.js";
@@ -18,7 +18,7 @@ export class DreamDiaryWriter {
     const persona = await loadPersona();
     const userContent = this.buildUserContent(dailyNote, signals, persona);
 
-    const raw = await modelProvider.chatJson<RawDreamDiaryEntry>(
+    const raw = await dreamModelProvider.chatJson<RawDreamDiaryEntry>(
       [
         { role: "system", content: DREAM_DIARY_SYSTEM_PROMPT },
         { role: "user", content: userContent },

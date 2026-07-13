@@ -21,11 +21,28 @@ import type {
 } from "../types/model.js";
 
 interface ProviderConfig {
+  name: ModelProviderName;
   type: "openai-compatible" | "anthropic";
   baseURL: string;
   apiKey: string;
+  authToken?: string;
   model: string;
 }
+
+export const modelProviderNames = [
+  "openai",
+  "anthropic",
+  "glm",
+  "qwen",
+  "deepseek",
+  "minimax",
+  "kimi",
+  "siliconflow",
+  "custom",
+] as const;
+
+export type ModelProviderName = typeof modelProviderNames[number];
+export type ModelPurpose = "default" | "chat" | "dream" | "expression-learning";
 
 type OpenAICompatibleMessageParam = Record<string, unknown>;
 
@@ -42,33 +59,51 @@ type OpenAIContentPart =
     };
 
 /**
- * Get the active provider configuration based on ACTIVE_MODEL_PROVIDER.
+ * Resolve one configured connection profile. Profiles are selected independently
+ * for each business purpose by the runtime model router below.
  */
-function getActiveProviderConfig(): ProviderConfig {
-  const active = runtimeConfig.ACTIVE_MODEL_PROVIDER.toLowerCase();
+function getProviderConfig(providerName: string): ProviderConfig {
+  const active = providerName.toLowerCase();
 
   // Map provider name to config
-  const configMap: Record<string, { baseURL: string; apiKey: string; model: string; type: ProviderConfig["type"] }> = {
+  const configMap: Record<string, {
+    baseURL: string;
+    apiKey: string;
+    authToken?: string;
+    model: string;
+    type: ProviderConfig["type"];
+  }> = {
     openai: { baseURL: env.OPENAI_BASE_URL, apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL, type: "openai-compatible" },
-    anthropic: { baseURL: env.ANTHROPIC_BASE_URL, apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL, type: "anthropic" },
+    anthropic: { baseURL: env.ANTHROPIC_BASE_URL, apiKey: env.ANTHROPIC_API_KEY, authToken: env.ANTHROPIC_AUTH_TOKEN, model: env.ANTHROPIC_MODEL, type: "anthropic" },
     glm: { baseURL: env.GLM_BASE_URL, apiKey: env.GLM_API_KEY, model: env.GLM_MODEL, type: "openai-compatible" },
     qwen: { baseURL: env.QWEN_BASE_URL, apiKey: env.QWEN_API_KEY, model: env.QWEN_MODEL, type: "openai-compatible" },
     deepseek: { baseURL: env.DEEPSEEK_BASE_URL, apiKey: env.DEEPSEEK_API_KEY, model: env.DEEPSEEK_MODEL, type: "openai-compatible" },
     minimax: { baseURL: env.MINIMAX_BASE_URL, apiKey: env.MINIMAX_API_KEY, model: env.MINIMAX_MODEL, type: "openai-compatible" },
     kimi: { baseURL: env.KIMI_BASE_URL, apiKey: env.KIMI_API_KEY, model: env.KIMI_MODEL, type: "openai-compatible" },
     siliconflow: { baseURL: env.SILICONFLOW_BASE_URL, apiKey: env.SILICONFLOW_API_KEY, model: env.SILICONFLOW_MODEL, type: "openai-compatible" },
+    custom: { baseURL: env.CUSTOM_BASE_URL, apiKey: env.CUSTOM_API_KEY, model: env.CUSTOM_MODEL, type: "openai-compatible" },
   };
 
   const config = configMap[active];
   if (!config) {
-    throw new Error(`Unknown ACTIVE_MODEL_PROVIDER: ${active}. Supported: ${Object.keys(configMap).join(", ")}`);
+    throw new Error(`Unknown model provider: ${active}. Supported: ${Object.keys(configMap).join(", ")}`);
   }
 
-  if (!config.baseURL || !config.apiKey || !config.model) {
-    throw new Error(`Incomplete configuration for provider "${active}". Check ${active.toUpperCase()}_BASE_URL, ${active.toUpperCase()}_API_KEY, ${active.toUpperCase()}_MODEL`);
+  if (!config.baseURL || (!config.apiKey && !config.authToken) || !config.model) {
+    const credentialHint = active === "anthropic"
+      ? "ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN"
+      : `${active.toUpperCase()}_API_KEY`;
+    throw new Error(`Incomplete configuration for provider "${active}". Check ${active.toUpperCase()}_BASE_URL, ${credentialHint}, ${active.toUpperCase()}_MODEL`);
   }
 
-  return { type: config.type, baseURL: config.baseURL, apiKey: config.apiKey, model: config.model };
+  return {
+    name: active as ModelProviderName,
+    type: config.type,
+    baseURL: config.baseURL,
+    apiKey: config.apiKey,
+    authToken: config.authToken || undefined,
+    model: config.model,
+  };
 }
 
 function getMiniMaxRuntimeOptions(): MiniMaxRuntimeOptions {
@@ -168,7 +203,7 @@ class OpenAICompatibleProvider implements ModelProvider {
       apiKey: config.apiKey,
     });
     this.model = config.model;
-    this.providerName = runtimeConfig.ACTIVE_MODEL_PROVIDER;
+    this.providerName = config.name;
     this.isMiniMax = isMiniMaxProvider(this.providerName);
     this.isMiniMaxM3 = this.isMiniMax && isMiniMaxM3Model(this.model);
     this.miniMaxRuntimeOptions = getMiniMaxRuntimeOptions();
@@ -351,7 +386,7 @@ class AnthropicProvider implements ModelProvider {
   constructor(config: ProviderConfig) {
     this.client = new Anthropic({
       baseURL: config.baseURL || undefined,
-      apiKey: config.apiKey,
+      ...(config.authToken ? { authToken: config.authToken } : { apiKey: config.apiKey }),
     });
     this.model = config.model;
 
@@ -512,12 +547,34 @@ class AnthropicProvider implements ModelProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Factory: pick provider based on ACTIVE_MODEL_PROVIDER
+// Factory and purpose-based model router
 // ---------------------------------------------------------------------------
 
-function createModelProvider(): ModelProvider {
-  const config = getActiveProviderConfig();
-  console.log(`[model-provider] active: ${runtimeConfig.ACTIVE_MODEL_PROVIDER}, model: ${config.model}`);
+function providerForPurpose(purpose: ModelPurpose): ModelProviderName {
+  switch (purpose) {
+    case "chat":
+      return runtimeConfig.CHAT_MODEL_PROVIDER;
+    case "dream":
+      return runtimeConfig.DREAM_MODEL_PROVIDER;
+    case "expression-learning":
+      return runtimeConfig.EXPRESSION_LEARNING_MODEL_PROVIDER;
+    case "default":
+      return runtimeConfig.DEFAULT_MODEL_PROVIDER;
+  }
+}
+
+export function getModelPurposeAssignments(): Record<ModelPurpose, ModelProviderName> {
+  return {
+    default: providerForPurpose("default"),
+    chat: providerForPurpose("chat"),
+    dream: providerForPurpose("dream"),
+    "expression-learning": providerForPurpose("expression-learning"),
+  };
+}
+
+function createModelProvider(providerName: ModelProviderName): ModelProvider {
+  const config = getProviderConfig(providerName);
+  console.log(`[model-provider] purpose profile: ${providerName}, model: ${config.model}`);
 
   if (config.type === "anthropic") {
     return new AnthropicProvider(config);
@@ -525,33 +582,46 @@ function createModelProvider(): ModelProvider {
   return new OpenAICompatibleProvider(config);
 }
 
-let cachedProvider: ModelProvider | null = null;
-let cachedProviderSignature = "";
+const cachedProviders = new Map<ModelPurpose, { provider: ModelProvider; signature: string }>();
 
-function currentProvider(): ModelProvider {
+function currentProvider(purpose: ModelPurpose): ModelProvider {
+  const providerName = providerForPurpose(purpose);
   const signature = JSON.stringify({
-    active: runtimeConfig.ACTIVE_MODEL_PROVIDER,
+    providerName,
     thinkingType: runtimeConfig.MINIMAX_THINKING_TYPE,
     maxCompletionTokens: runtimeConfig.MINIMAX_MAX_COMPLETION_TOKENS,
   });
-  if (!cachedProvider || signature !== cachedProviderSignature) {
-    cachedProvider = createModelProvider();
-    cachedProviderSignature = signature;
+  const cached = cachedProviders.get(purpose);
+  if (!cached || signature !== cached.signature) {
+    const provider = createModelProvider(providerName);
+    cachedProviders.set(purpose, { provider, signature });
+    return provider;
   }
-  return cachedProvider;
+  return cached.provider;
 }
 
-export const modelProvider: ModelProvider = {
-  get capabilities() {
-    return currentProvider().capabilities;
-  },
-  chat(messages, options) {
-    return currentProvider().chat(messages, options);
-  },
-  chatJson<T>(messages: ChatMessage[], options?: ModelCallOptions) {
-    return currentProvider().chatJson<T>(messages, options);
-  },
-  chatWithTools(messages, tools, options) {
-    return currentProvider().chatWithTools(messages, tools, options);
-  },
-};
+function routedProvider(purpose: ModelPurpose): ModelProvider {
+  return {
+    get capabilities() {
+      return currentProvider(purpose).capabilities;
+    },
+    chat(messages, options) {
+      return currentProvider(purpose).chat(messages, options);
+    },
+    chatJson<T>(messages: ChatMessage[], options?: ModelCallOptions) {
+      return currentProvider(purpose).chatJson<T>(messages, options);
+    },
+    chatWithTools(messages, tools, options) {
+      return currentProvider(purpose).chatWithTools(messages, tools, options);
+    },
+  };
+}
+
+/** Model for internal capabilities that do not have their own assignment. */
+export const modelProvider: ModelProvider = routedProvider("default");
+/** Model used for end-user conversation, including the tool loop. */
+export const chatModelProvider: ModelProvider = routedProvider("chat");
+/** Model used by every phase of the Dream Cycle. */
+export const dreamModelProvider: ModelProvider = routedProvider("dream");
+/** Model used by expression-learning analysis, distillation, practice, and drafts. */
+export const expressionLearningModelProvider: ModelProvider = routedProvider("expression-learning");

@@ -89,7 +89,10 @@ cp web/.env.example web/.env
 至少建议先改 `.env` 里的这些：
 
 - `ADMIN_API_TOKEN`：后台管理密码。打开 Admin 后填这个。
-- `OPENAI_API_KEY` / `MINIMAX_API_KEY` / `KIMI_API_KEY` 等：选择你要用的模型供应商后，填对应 key。
+- `OPENAI_API_KEY` / `MINIMAX_API_KEY` / `KIMI_API_KEY` 等：填需要使用的模型连接档案。启动后可在 Admin 将聊天、Dream、表达学习分别分配给不同档案。
+- `CUSTOM_BASE_URL` / `CUSTOM_API_KEY` / `CUSTOM_MODEL`：可选的 OpenAI 兼容自定义模型档案，适合自托管或其他兼容服务。
+
+Anthropic 原生协议的 Base URL 不填写 `/v1`：客户端会自行请求 `/v1/messages`。使用 Bearer Token 的 Anthropic 兼容中转服务可填写 `ANTHROPIC_AUTH_TOKEN`，和 `ANTHROPIC_API_KEY` 二选一。
 - `WEB_ORIGIN`：默认是 `http://localhost:64111`，本地开发一般不用改。
 
 如果只是先打开后台看看，可以先只填 `ADMIN_API_TOKEN`。要真正聊天，就需要配置可用的大模型 key。

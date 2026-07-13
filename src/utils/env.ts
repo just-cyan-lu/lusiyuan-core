@@ -25,6 +25,7 @@ export const env = {
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? "",
   ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL ?? "",
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+  ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? "",
   ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL ?? "",
   GLM_BASE_URL: process.env.GLM_BASE_URL ?? "",
   GLM_API_KEY: process.env.GLM_API_KEY ?? "",
@@ -46,6 +47,9 @@ export const env = {
     process.env.SILICONFLOW_BASE_URL ?? "https://api.siliconflow.cn/v1",
   SILICONFLOW_API_KEY: process.env.SILICONFLOW_API_KEY ?? "",
   SILICONFLOW_MODEL: process.env.SILICONFLOW_MODEL ?? "",
+  CUSTOM_BASE_URL: process.env.CUSTOM_BASE_URL ?? "",
+  CUSTOM_API_KEY: process.env.CUSTOM_API_KEY ?? "",
+  CUSTOM_MODEL: process.env.CUSTOM_MODEL ?? "",
 
   // Embedding connection and index shape.
   EMBEDDING_BASE_URL:

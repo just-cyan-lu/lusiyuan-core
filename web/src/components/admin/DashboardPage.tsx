@@ -151,8 +151,10 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
     };
   }, [adminToken, reloadKey]);
 
-  const activeProvider = useMemo(
-    () => state.runtime?.providers.find((provider) => provider.active) ?? null,
+  const chatProvider = useMemo(
+    () => state.runtime
+      ? state.runtime.providers.find((provider) => provider.name === state.runtime!.modelRoutes.chat) ?? null
+      : null,
     [state.runtime]
   );
 
@@ -226,9 +228,9 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
             color="app-teal"
           />
           <StatusCard
-            label="Active Model"
-            value={activeProvider?.model ?? state.runtime?.activeModelProvider ?? "token needed"}
-            active={Boolean(activeProvider && providerReady(activeProvider))}
+            label="Chat Model"
+            value={chatProvider?.model ?? state.runtime?.modelRoutes.chat ?? "token needed"}
+            active={Boolean(chatProvider && providerReady(chatProvider))}
             icon="icon-miles"
             color="app-blue"
           />
@@ -479,15 +481,15 @@ export function DashboardPage({ adminToken }: DashboardPageProps) {
               <div className="admin-island-row flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <div className="text-xs font-black uppercase text-[var(--ls-ink-soft)]">
-                    当前指向
+                    聊天模型
                   </div>
                   <div className="mt-1 text-base font-black text-[var(--ls-ink-strong)]">
-                    {activeProvider?.label ?? "未选定"}
+                    {chatProvider?.label ?? "未选定"}
                   </div>
                 </div>
                 <StatusPill
-                  active={Boolean(activeProvider && providerReady(activeProvider))}
-                  label={activeProvider?.model ?? "—"}
+                  active={Boolean(chatProvider && providerReady(chatProvider))}
+                  label={chatProvider?.model ?? "—"}
                 />
               </div>
               <InfoBlock>

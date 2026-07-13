@@ -72,7 +72,7 @@ TELEGRAM_MAX_IMAGE_FILE_MB=10
 Use this `.env` shape:
 
 ```env
-ACTIVE_MODEL_PROVIDER="minimax"
+CHAT_MODEL_PROVIDER="minimax"
 MINIMAX_BASE_URL="https://api.minimax.io/v1"
 MINIMAX_API_KEY="your-api-key"
 MINIMAX_MODEL="MiniMax-M3"
@@ -128,4 +128,4 @@ curl -H "Authorization: Bearer $ADMIN_API_TOKEN" \
 | `Unsupported image type: application/octet-stream` | CDN sent a generic content type. | Current code falls back to file extension; restart the bot. |
 | Admin endpoints return `503` | `ADMIN_API_TOKEN` is empty. | Set a token and restart. |
 | `pnpm smoke` cannot reach `/health` | Server is not running or wrong port. | Start `pnpm dev` or set `SMOKE_BASE_URL`. |
-| `SMOKE_RUN_CHAT=true` fails | Model provider/API key issue. | Check `ACTIVE_MODEL_PROVIDER`, provider key, base URL, and model name. |
+| `SMOKE_RUN_CHAT=true` fails | Model provider/API key issue. | Check `CHAT_MODEL_PROVIDER`, its provider key, base URL, and model name. |

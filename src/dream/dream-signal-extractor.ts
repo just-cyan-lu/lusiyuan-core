@@ -1,7 +1,7 @@
 // dream-signal-extractor.ts — REM Sleep phase: extract DreamSignals
 
 import { prisma } from "../db/prisma.js";
-import { modelProvider } from "../core/model-provider.js";
+import { dreamModelProvider } from "../core/model-provider.js";
 import { DREAM_SIGNAL_SYSTEM_PROMPT } from "./dream-prompts.js";
 import { filterSignals, computeSignalScore } from "./dream-policy.js";
 import type { DreamContext, RawDreamSignal } from "./dream.types.js";
@@ -18,7 +18,7 @@ export class DreamSignalExtractor {
 
     const userContent = this.buildUserContent(context, dailyNote);
 
-    const raw = await modelProvider.chatJson<RawDreamSignal[]>(
+    const raw = await dreamModelProvider.chatJson<RawDreamSignal[]>(
       [
         { role: "system", content: DREAM_SIGNAL_SYSTEM_PROMPT },
         { role: "user", content: userContent },

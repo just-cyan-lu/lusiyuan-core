@@ -99,6 +99,30 @@ function configured(value: string | string[]): boolean {
   return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
 }
 
+const modelProviderConnections: Record<string, [string, string, string]> = {
+  openai: [env.OPENAI_BASE_URL, env.OPENAI_API_KEY, env.OPENAI_MODEL],
+  anthropic: [env.ANTHROPIC_BASE_URL, env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN, env.ANTHROPIC_MODEL],
+  glm: [env.GLM_BASE_URL, env.GLM_API_KEY, env.GLM_MODEL],
+  qwen: [env.QWEN_BASE_URL, env.QWEN_API_KEY, env.QWEN_MODEL],
+  deepseek: [env.DEEPSEEK_BASE_URL, env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL],
+  minimax: [env.MINIMAX_BASE_URL, env.MINIMAX_API_KEY, env.MINIMAX_MODEL],
+  kimi: [env.KIMI_BASE_URL, env.KIMI_API_KEY, env.KIMI_MODEL],
+  siliconflow: [env.SILICONFLOW_BASE_URL, env.SILICONFLOW_API_KEY, env.SILICONFLOW_MODEL],
+  custom: [env.CUSTOM_BASE_URL, env.CUSTOM_API_KEY, env.CUSTOM_MODEL],
+};
+
+const modelProviderLabels: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  glm: "GLM",
+  qwen: "Qwen",
+  deepseek: "DeepSeek",
+  minimax: "MiniMax",
+  kimi: "Kimi",
+  siliconflow: "SiliconFlow",
+  custom: "Custom（OpenAI 兼容）",
+};
+
 function routeError(message: string, statusCode: number) {
   return Object.assign(new Error(message), { statusCode });
 }
@@ -163,11 +187,13 @@ const editableEnvConfig: EnvConfigDescriptor[] = [
     ["MINIMAX", "MiniMax"],
     ["KIMI", "Kimi"],
     ["SILICONFLOW", "SiliconFlow"],
+    ["CUSTOM", "Custom（OpenAI 兼容）"],
   ].flatMap(([prefix, label]) => [
     { key: `${prefix}_BASE_URL`, group: `模型连接 / ${label}`, label: `${label} Base URL`, type: "string" as const },
     { key: `${prefix}_API_KEY`, group: `模型连接 / ${label}`, label: `${label} API Key`, type: "secret" as const, description: "秘密保存在 .env；留空表示不修改。" },
     { key: `${prefix}_MODEL`, group: `模型连接 / ${label}`, label: `${label} Model`, type: "string" as const },
   ]),
+  { key: "ANTHROPIC_AUTH_TOKEN", group: "模型连接 / Anthropic", label: "Anthropic Auth Token", type: "secret", description: "Anthropic 原生 Bearer Token；和 Anthropic API Key 二选一，留空表示不修改。" },
   { key: "TELEGRAM_BOT_TOKEN", group: "渠道连接", label: "Telegram Bot Token", type: "secret", description: "秘密保存在 .env；留空表示不修改。" },
   { key: "TELEGRAM_MODE", group: "渠道连接", label: "Telegram Mode", type: "select", defaultValue: "polling", options: ["polling"], description: "目前代码只支持 polling；webhook 还没有真实接线。" },
   { key: "TELEGRAM_PROXY", group: "渠道连接", label: "Telegram Proxy", type: "string", description: "Telegram API 访问代理；文件下载会优先使用 EXTERNAL_HTTP_PROXY，未配置时回退到这里。" },
@@ -1164,75 +1190,34 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/v1/admin/runtime", async (_request, reply) => {
-    const providers = [
-      {
-        name: "openai",
-        label: "OpenAI",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "openai",
-        baseUrlConfigured: configured(env.OPENAI_BASE_URL),
-        apiKeyConfigured: configured(env.OPENAI_API_KEY),
-        model: env.OPENAI_MODEL || null,
-      },
-      {
-        name: "anthropic",
-        label: "Anthropic",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "anthropic",
-        baseUrlConfigured: configured(env.ANTHROPIC_BASE_URL),
-        apiKeyConfigured: configured(env.ANTHROPIC_API_KEY),
-        model: env.ANTHROPIC_MODEL || null,
-      },
-      {
-        name: "glm",
-        label: "GLM",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "glm",
-        baseUrlConfigured: configured(env.GLM_BASE_URL),
-        apiKeyConfigured: configured(env.GLM_API_KEY),
-        model: env.GLM_MODEL || null,
-      },
-      {
-        name: "qwen",
-        label: "Qwen",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "qwen",
-        baseUrlConfigured: configured(env.QWEN_BASE_URL),
-        apiKeyConfigured: configured(env.QWEN_API_KEY),
-        model: env.QWEN_MODEL || null,
-      },
-      {
-        name: "deepseek",
-        label: "DeepSeek",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "deepseek",
-        baseUrlConfigured: configured(env.DEEPSEEK_BASE_URL),
-        apiKeyConfigured: configured(env.DEEPSEEK_API_KEY),
-        model: env.DEEPSEEK_MODEL || null,
-      },
-      {
-        name: "minimax",
-        label: "MiniMax",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "minimax",
-        baseUrlConfigured: configured(env.MINIMAX_BASE_URL),
-        apiKeyConfigured: configured(env.MINIMAX_API_KEY),
-        model: env.MINIMAX_MODEL || null,
-      },
-      {
-        name: "kimi",
-        label: "Kimi",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "kimi",
-        baseUrlConfigured: configured(env.KIMI_BASE_URL),
-        apiKeyConfigured: configured(env.KIMI_API_KEY),
-        model: env.KIMI_MODEL || null,
-      },
-      {
-        name: "siliconflow",
-        label: "SiliconFlow",
-        active: runtimeConfig.ACTIVE_MODEL_PROVIDER === "siliconflow",
-        baseUrlConfigured: configured(env.SILICONFLOW_BASE_URL),
-        apiKeyConfigured: configured(env.SILICONFLOW_API_KEY),
-        model: env.SILICONFLOW_MODEL || null,
-      },
-    ];
+    const modelRoutes = {
+      default: runtimeConfig.DEFAULT_MODEL_PROVIDER,
+      chat: runtimeConfig.CHAT_MODEL_PROVIDER,
+      dream: runtimeConfig.DREAM_MODEL_PROVIDER,
+      expressionLearning: runtimeConfig.EXPRESSION_LEARNING_MODEL_PROVIDER,
+    };
+    const purposeLabels: Record<keyof typeof modelRoutes, string> = {
+      default: "通用功能",
+      chat: "聊天",
+      dream: "Dream",
+      expressionLearning: "表达学习",
+    };
+    const providers = Object.entries(modelProviderConnections).map(([name, connection]) => {
+      const assignedTo = (Object.entries(modelRoutes) as Array<[keyof typeof modelRoutes, string]>)
+        .filter(([, provider]) => provider === name)
+        .map(([purpose]) => purposeLabels[purpose]);
+      return {
+        name,
+        label: modelProviderLabels[name],
+        assignedTo,
+        baseUrlConfigured: configured(connection[0]),
+        apiKeyConfigured: configured(connection[1]),
+        model: connection[2] || null,
+      };
+    });
 
     return reply.send({
-      activeModelProvider: runtimeConfig.ACTIVE_MODEL_PROVIDER,
+      modelRoutes,
       providers,
       channels: {
         telegram: {
@@ -1289,20 +1274,17 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
     if (body.values.WEIXIN_ENABLED === true && !configured(env.WEIXIN_BRIDGE_SECRET)) {
       throw routeError("请先在连接配置中填写 WEIXIN_BRIDGE_SECRET 并重启，再开启微信桥接。", 400);
     }
-    if (typeof body.values.ACTIVE_MODEL_PROVIDER === "string") {
-      const providerConnections: Record<string, [string, string, string]> = {
-        openai: [env.OPENAI_BASE_URL, env.OPENAI_API_KEY, env.OPENAI_MODEL],
-        anthropic: [env.ANTHROPIC_BASE_URL, env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL],
-        glm: [env.GLM_BASE_URL, env.GLM_API_KEY, env.GLM_MODEL],
-        qwen: [env.QWEN_BASE_URL, env.QWEN_API_KEY, env.QWEN_MODEL],
-        deepseek: [env.DEEPSEEK_BASE_URL, env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL],
-        minimax: [env.MINIMAX_BASE_URL, env.MINIMAX_API_KEY, env.MINIMAX_MODEL],
-        kimi: [env.KIMI_BASE_URL, env.KIMI_API_KEY, env.KIMI_MODEL],
-        siliconflow: [env.SILICONFLOW_BASE_URL, env.SILICONFLOW_API_KEY, env.SILICONFLOW_MODEL],
-      };
-      const connection = providerConnections[body.values.ACTIVE_MODEL_PROVIDER];
+    const modelRoutingKeys = [
+      "DEFAULT_MODEL_PROVIDER",
+      "CHAT_MODEL_PROVIDER",
+      "DREAM_MODEL_PROVIDER",
+      "EXPRESSION_LEARNING_MODEL_PROVIDER",
+    ];
+    for (const key of modelRoutingKeys) {
+      if (typeof body.values[key] !== "string") continue;
+      const connection = modelProviderConnections[body.values[key]];
       if (!connection?.every(configured)) {
-        throw routeError("所选模型渠道的 Base URL、API Key 或 Model 尚未配置完整。", 400);
+        throw routeError(`${key} 选择的模型渠道尚未配置完整（需要 Base URL、API Key 和 Model）。`, 400);
       }
     }
     try {

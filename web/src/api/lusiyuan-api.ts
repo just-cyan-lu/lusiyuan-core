@@ -28,14 +28,19 @@ export interface ChannelStatus {
 export interface RuntimeProvider {
   name: string;
   label: string;
-  active: boolean;
+  assignedTo: string[];
   baseUrlConfigured: boolean;
   apiKeyConfigured: boolean;
   model: string | null;
 }
 
 export interface RuntimeConfig {
-  activeModelProvider: string;
+  modelRoutes: {
+    default: string;
+    chat: string;
+    dream: string;
+    expressionLearning: string;
+  };
   providers: RuntimeProvider[];
   channels: {
     telegram: {

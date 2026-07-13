@@ -1,5 +1,5 @@
 import type { ExpressionLearningExample, ExpressionLearningRule, Prisma } from "@prisma/client";
-import { modelProvider } from "../core/model-provider.js";
+import { expressionLearningModelProvider } from "../core/model-provider.js";
 import { prisma } from "../db/prisma.js";
 import {
   createExpressionLearningRule,
@@ -281,7 +281,7 @@ export async function createExpressionLearningDistillationBatch(input: Expressio
   });
 
   try {
-    const raw = await modelProvider.chatJson<{ candidates?: unknown[] }>([
+    const raw = await expressionLearningModelProvider.chatJson<{ candidates?: unknown[] }>([
       { role: "system", content: batchDistillationPrompt },
       { role: "user", content: JSON.stringify({
         examples: examples.map(serializeExample),

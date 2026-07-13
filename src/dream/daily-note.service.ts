@@ -1,7 +1,7 @@
 // daily-note.service.ts — Light Sleep phase: generate DailyNote from DreamContext
 
 import { prisma } from "../db/prisma.js";
-import { modelProvider } from "../core/model-provider.js";
+import { dreamModelProvider } from "../core/model-provider.js";
 import { DAILY_NOTE_SYSTEM_PROMPT } from "./dream-prompts.js";
 import type { DreamContext, DailyNoteContent } from "./dream.types.js";
 import type { DailyNote } from "@prisma/client";
@@ -14,7 +14,7 @@ export class DailyNoteService {
   ): Promise<DailyNote> {
     const userContent = this.buildUserContent(context);
 
-    const raw = await modelProvider.chatJson<DailyNoteContent>(
+    const raw = await dreamModelProvider.chatJson<DailyNoteContent>(
       [
         { role: "system", content: DAILY_NOTE_SYSTEM_PROMPT },
         { role: "user", content: userContent },
