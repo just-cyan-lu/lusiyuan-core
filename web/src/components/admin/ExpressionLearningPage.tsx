@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "
 import { Button, Card, Form, Icon, Input, Switch, type CardColor, type IconName } from "animal-island-ui";
 import { AdminSelect } from "./AdminFormPrimitives";
 import {
-  acceptExpressionLearningTrainingDraft,
   analyzeExpressionLearningDialogueTurn,
   analyzeExpressionLearningExample,
   createExpressionLearningDialogueCase,
@@ -522,6 +521,9 @@ export function ExpressionLearningPage({ adminToken }: Props) {
         ...input,
         token: adminToken,
       });
+      if (!result.draftText.trim()) {
+        throw new Error("陆思源没有生成试答，请重试。");
+      }
       return {
         draftText: result.draftText,
         draftReason: result.reason,
@@ -829,29 +831,6 @@ export function ExpressionLearningPage({ adminToken }: Props) {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       return null;
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function acceptDraft(input: {
-    recordId: string;
-    status?: "active" | "disabled";
-    ownerNote?: string | null;
-  }) {
-    if (!adminToken) return;
-    setWorking(true);
-    setError(null);
-    try {
-      const result = await acceptExpressionLearningTrainingDraft({
-        ...input,
-        token: adminToken,
-      });
-      await refreshAll();
-      setSelectedId(result.example.id);
-      setActiveTab("library");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setWorking(false);
     }
@@ -1277,7 +1256,6 @@ export function ExpressionLearningPage({ adminToken }: Props) {
           onGenerateQuestion={(input) => generatePractice(input)}
           onGenerateDraft={generateDraft}
           onSaveDraft={(input) => saveTrainingDraft(input)}
-          onAcceptTeachingDraft={(input) => void acceptDraft(input)}
           onDeleteExercise={(recordId) => void deleteExercise(recordId)}
           onSetExerciseEnabled={(exampleId, enabled) => void setExerciseEnabled(exampleId, enabled)}
           editSeed={teachingSeed}
@@ -2274,11 +2252,6 @@ function ExerciseWorkspacePanel({
   onGenerateQuestion: (input: { scene: string; focus?: string | null }) => Promise<ExpressionLearningPracticeQuestionResponse | null>;
   onGenerateDraft: (input: { scene: string; contextText: string }) => Promise<{ draftText: string; draftReason: string; trainingRecordId: string | null } | null>;
   onSaveDraft: (input: Omit<ExpressionLearningTrainingDraftInput, "token">) => Promise<ExpressionLearningTrainingRecord | null>;
-  onAcceptTeachingDraft: (input: {
-    recordId: string;
-    status?: "active" | "disabled";
-    ownerNote?: string | null;
-  }) => void;
   onDeleteExercise: (recordId: string) => void;
   onSetExerciseEnabled: (exampleId: string, enabled: boolean) => void;
   editSeed: TeachingSeed | null;
@@ -2290,7 +2263,6 @@ function ExerciseWorkspacePanel({
     onGenerateQuestion,
     onGenerateDraft,
     onSaveDraft,
-    onAcceptTeachingDraft,
     onDeleteExercise,
     onSetExerciseEnabled,
     editSeed,
@@ -2312,7 +2284,6 @@ function ExerciseWorkspacePanel({
         onGenerateQuestion={onGenerateQuestion}
         onGenerateDraft={onGenerateDraft}
         onSaveDraft={onSaveDraft}
-        onAcceptDraft={onAcceptTeachingDraft}
         onDeleteExercise={onDeleteExercise}
         onSetExerciseEnabled={onSetExerciseEnabled}
         editSeed={editSeed}
@@ -2491,7 +2462,7 @@ type TeachingForm = {
   contextText: string;
   draftText: string;
   finalText: string;
-  outcome: "sent" | "skipped" | "bad_question";
+  outcome: "sent" | "accepted_draft" | "skipped" | "bad_question";
   ownerNote: string;
   status: "active" | "disabled";
 };
@@ -2560,7 +2531,6 @@ function ManualTeachingPanel({
   onGenerateQuestion,
   onGenerateDraft,
   onSaveDraft,
-  onAcceptDraft,
   onDeleteExercise,
   onSetExerciseEnabled,
   editSeed,
@@ -2580,11 +2550,6 @@ function ManualTeachingPanel({
   onSaveDraft: (
     input: Omit<ExpressionLearningTrainingDraftInput, "token">
   ) => Promise<ExpressionLearningTrainingRecord | null>;
-  onAcceptDraft: (input: {
-    recordId: string;
-    status?: "active" | "disabled";
-    ownerNote?: string | null;
-  }) => void;
   onDeleteExercise: (recordId: string) => void;
   onSetExerciseEnabled: (exampleId: string, enabled: boolean) => void;
   editSeed: TeachingSeed | null;
@@ -2624,7 +2589,9 @@ function ManualTeachingPanel({
         ? "bad_question"
         : record.outcome === "skipped"
           ? "skipped"
-          : "sent",
+          : record.ownerAction === "accepted_draft"
+            ? "accepted_draft"
+            : "sent",
       ownerNote: record.ownerNote ?? record.reasonText ?? "",
     });
     setAnalysisForm(analysis ? analysisToEditForm(analysis) : null);
@@ -2645,6 +2612,13 @@ function ManualTeachingPanel({
     setLocalMessage(null);
   }
 
+  function updateOutcome(value: TeachingForm["outcome"]) {
+    patchForm({
+      outcome: value,
+      finalText: value === "accepted_draft" ? form.draftText : form.finalText,
+    });
+  }
+
   function currentGrid() {
     const grid = libForm.getFieldsValue();
     return {
@@ -2656,15 +2630,16 @@ function ManualTeachingPanel({
   function buildInput(analysis?: ExpressionLearningAnalysis): Omit<ExpressionLearningCreateInput, "token"> {
     const grid = currentGrid();
     const outcome = form.outcome === "skipped" ? "skipped" : "sent";
+    const acceptsDraft = form.outcome === "accepted_draft";
     return {
       trainingRecordId,
       sourceType: generatedQuestion ? "practice_answer" : "manual_teaching",
       scene: grid.scene,
       contextText: form.contextText,
       draftText: form.draftText || null,
-      finalText: outcome === "skipped" ? null : form.finalText,
+      finalText: outcome === "skipped" ? null : acceptsDraft ? form.draftText : form.finalText,
       outcome,
-      ownerAction: outcome === "skipped" ? "skipped" : "owner_taught",
+      ownerAction: outcome === "skipped" ? "skipped" : acceptsDraft ? "accepted_draft" : "owner_taught",
       ownerNote: form.ownerNote || null,
       status: grid.status,
       analysis,
@@ -2679,7 +2654,8 @@ function ManualTeachingPanel({
   ): Omit<ExpressionLearningTrainingDraftInput, "token"> {
     const grid = currentGrid();
     const isBadQuestion = form.outcome === "bad_question";
-    const outcome: "sent" | "skipped" | null = form.outcome === "sent"
+    const acceptsDraft = form.outcome === "accepted_draft";
+    const outcome: "sent" | "skipped" | null = form.outcome === "sent" || acceptsDraft
       ? "sent"
       : form.outcome === "skipped"
         ? "skipped"
@@ -2691,9 +2667,9 @@ function ManualTeachingPanel({
       status: "draft_saved",
       contextText: form.contextText,
       draftText: form.draftText || null,
-      finalText: outcome === "sent" ? form.finalText : null,
+      finalText: outcome === "sent" ? acceptsDraft ? form.draftText : form.finalText : null,
       outcome,
-      ownerAction: isBadQuestion ? null : outcome === "skipped" ? "skipped" : "owner_taught",
+      ownerAction: isBadQuestion ? null : outcome === "skipped" ? "skipped" : acceptsDraft ? "accepted_draft" : "owner_taught",
       ownerNote: form.ownerNote || null,
       reasonText: form.ownerNote || null,
       generatedQuestion: generatedQuestion
@@ -2720,15 +2696,6 @@ function ManualTeachingPanel({
       setLocalMessage(message);
     }
     return record;
-  }
-
-  function acceptCurrentDraft() {
-    if (!trainingRecordId) return;
-    onAcceptDraft({
-      recordId: trainingRecordId,
-      status: currentGrid().status,
-      ownerNote: form.ownerNote || null,
-    });
   }
 
   function submit() {
@@ -2785,8 +2752,14 @@ function ManualTeachingPanel({
   }
 
   const teachingSceneOptions = sceneOptions(editSeed?.record.scene ? [editSeed.record.scene] : []);
-  const canAcceptCurrentDraft = Boolean(trainingRecordId && form.contextText.trim() && form.draftText.trim());
   const canSaveCurrentDraft = Boolean(form.contextText.trim());
+  const hasDraft = Boolean(form.draftText.trim());
+  const hasFinalReply = form.outcome === "accepted_draft"
+    ? hasDraft
+    : form.outcome === "sent"
+      ? Boolean(form.finalText.trim())
+      : true;
+  const canAnalyze = Boolean(form.contextText.trim() && hasFinalReply);
   const linkedExample = editSeed?.record.example ?? null;
   const isExerciseEnabled = linkedExample?.status === "active";
 
@@ -2908,31 +2881,20 @@ function ManualTeachingPanel({
           onChange={(value) => update("draftText", value)}
           rows={8}
           action={
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="default"
-                size="small"
-                onClick={generateDraft}
-                disabled={drafting || !form.contextText.trim()}
-                loading={drafting}
-              >
-                {drafting ? "试答中" : "让思源试答"}
-              </Button>
-              <Button
-                type="primary"
-                size="small"
-                onClick={acceptCurrentDraft}
-                disabled={working || !canAcceptCurrentDraft}
-                loading={working}
-              >
-                采用试答并保存
-              </Button>
-            </div>
+            <Button
+              type="default"
+              size="small"
+              onClick={generateDraft}
+              disabled={drafting || !form.contextText.trim()}
+              loading={drafting}
+            >
+              {drafting ? "试答中" : "让思源试答"}
+            </Button>
           }
         />
       </div>
 
-      {draftReason && (
+      {draftReason && hasDraft && (
         <DetailReadBlock
           label="陆思源试答原因"
           value={draftReason}
@@ -2945,9 +2907,10 @@ function ManualTeachingPanel({
         <SelectField
           label="最终决定"
           value={form.outcome}
-          onChange={(value) => update("outcome", value as TeachingForm["outcome"])}
+          onChange={(value) => updateOutcome(value as TeachingForm["outcome"])}
           options={[
             { key: "sent", label: "应该这样回复" },
+            { key: "accepted_draft", label: "采用思源的试答" },
             { key: "skipped", label: "不回复" },
             { key: "bad_question", label: "这题不好" },
           ]}
@@ -2963,7 +2926,11 @@ function ManualTeachingPanel({
           <div className="rounded-[18px] border-2 border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm font-semibold leading-7 text-[var(--ls-ink-muted)]">
             {form.outcome === "bad_question"
               ? "这题会被记录为坏题，不会生成经验。"
-              : "不回复也可以成为经验，后面用补充说明解释原因。"}
+              : form.outcome === "accepted_draft"
+                ? hasDraft
+                  ? "会将上方陆思源的试答作为最终回复；可在补充说明里留下额外要求。"
+                  : "还没有可采用的试答，请先让陆思源试答，或改为自己填写回复。"
+                : "不回复也可以成为经验，后面用补充说明解释原因。"}
           </div>
         )}
       </div>
@@ -2986,7 +2953,7 @@ function ManualTeachingPanel({
           type="primary"
           size="middle"
           onClick={analyzeCurrent}
-          disabled={working || !form.contextText.trim() || (form.outcome === "sent" && !form.finalText.trim())}
+          disabled={working || !canAnalyze}
           loading={working}
           icon={<Icon name={form.outcome === "bad_question" ? "icon-variant" : "icon-diy"} size={18} />}
         >
