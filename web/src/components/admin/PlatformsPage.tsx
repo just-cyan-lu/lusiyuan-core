@@ -3,13 +3,15 @@ import { Button } from "animal-island-ui";
 import { AdminInput, AdminSelect } from "./AdminFormPrimitives";
 import { SectionPanel } from "./AdminDetailPrimitives";
 import {
+  analyzeXiaohongshuCommentDecision,
+  enableXiaohongshuCommentLearning,
   fetchSkills,
   fetchXiaohongshuImportStatus,
   fetchXiaohongshuPosts,
   generateXiaohongshuCommentReply,
   importXiaohongshuUrl,
+  publishXiaohongshuReply,
   recordXiaohongshuFinalDecision,
-  updateXiaohongshuComment,
   updateXiaohongshuPost,
   updateXiaohongshuReplyDraft,
   type RegisteredSkill,
@@ -46,11 +48,6 @@ interface XiaohongshuPlatformPageProps {
 type XiaohongshuPostPatch = Omit<
   Parameters<typeof updateXiaohongshuPost>[0],
   "token" | "postId"
->;
-
-type XiaohongshuCommentPatch = Omit<
-  Parameters<typeof updateXiaohongshuComment>[0],
-  "token" | "commentId"
 >;
 
 const MAX_IMAGE_ALT_SLOTS = 30;
@@ -107,6 +104,14 @@ function riskLabel(risk: string): string {
   return risk;
 }
 
+function replyNeedLabel(value: string): string {
+  if (value === "unknown") return "待处理";
+  if (value === "completed") return "已完成";
+  if (value === "skip") return "不回复";
+  if (value === "not_applicable") return "不适用";
+  return value;
+}
+
 export function PlatformsPage({ onOpenPlatform }: PlatformsPageProps) {
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -119,8 +124,11 @@ export function PlatformsPage({ onOpenPlatform }: PlatformsPageProps) {
               平台自己的连接设置、读取能力、任务和日志放到各自详情页里，避免和通用工具混在一起。
             </p>
           </div>
-          <div className="rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm text-[var(--ls-ink-soft)]">
-            小红书通过 Chrome DevTools MCP 读取已登录浏览器，页面读取后会保留。
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-3 text-sm text-[var(--ls-ink-soft)]">
+            <span>小红书通过 Chrome DevTools MCP 读取已登录浏览器，页面读取后会保留。</span>
+            <a href="/mock/xiaohongshu" target="_blank" rel="noreferrer" className="font-medium text-[var(--ls-link)] underline underline-offset-2">
+              打开本机评论模拟页
+            </a>
           </div>
         </div>
       </section>
@@ -228,7 +236,9 @@ export function XiaohongshuPlatformPage({
   const [savingDraftId, setSavingDraftId] = useState<string | null>(null);
   const [learningCommentId, setLearningCommentId] = useState<string | null>(null);
   const [savingPostId, setSavingPostId] = useState<string | null>(null);
-  const [savingCommentId, setSavingCommentId] = useState<string | null>(null);
+  const [publishingCommentId, setPublishingCommentId] = useState<string | null>(null);
+  const [analyzingCommentId, setAnalyzingCommentId] = useState<string | null>(null);
+  const [enablingLearningCommentId, setEnablingLearningCommentId] = useState<string | null>(null);
 
   const xiaohongshuReply = useMemo(
     () => skills.find((skill) => skill.id === "xiaohongshu_reply") ?? null,
@@ -305,20 +315,6 @@ export function XiaohongshuPlatformPage({
     }
   }
 
-  async function saveComment(commentId: string, patch: XiaohongshuCommentPatch) {
-    if (!adminToken) return;
-    setSavingCommentId(commentId);
-    setError(null);
-    try {
-      const result = await updateXiaohongshuComment({ ...patch, token: adminToken, commentId });
-      setPosts(result.posts);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSavingCommentId(null);
-    }
-  }
-
   async function generateReply(comment: XiaohongshuComment) {
     if (!adminToken) return;
     setGeneratingId(comment.id);
@@ -380,6 +376,60 @@ export function XiaohongshuPlatformPage({
     }
   }
 
+  async function publishReply(comment: XiaohongshuComment, draft: XiaohongshuReplyDraft, content: string) {
+    if (!adminToken || !content.trim()) return;
+    if (!window.confirm("确认以当前已登录的小红书账号发布这条回复？发布后会立即公开，系统只会记录结果，不会自动学习。")) return;
+    setPublishingCommentId(comment.id);
+    setError(null);
+    try {
+      const result = await publishXiaohongshuReply({
+        token: adminToken,
+        commentId: comment.id,
+        draftId: draft.id,
+        content,
+      });
+      setPosts(result.posts);
+      setSelectedCommentId(comment.id);
+      setImportWarning("已在小红书页面确认到回复，并写入发布审计。此操作不会自动学习；如需采用经验，请点击“分析”后再点击“学习”。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPublishingCommentId(null);
+    }
+  }
+
+  async function analyzeComment(comment: XiaohongshuComment) {
+    if (!adminToken) return;
+    setAnalyzingCommentId(comment.id);
+    setError(null);
+    try {
+      const result = await analyzeXiaohongshuCommentDecision({ token: adminToken, commentId: comment.id });
+      setPosts(result.posts);
+      setSelectedCommentId(comment.id);
+      setImportWarning("分析已完成；这条经验目前未启用，不会参与思源之后的回复。确认后再点击“学习”。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAnalyzingCommentId(null);
+    }
+  }
+
+  async function enableCommentLearning(comment: XiaohongshuComment) {
+    if (!adminToken) return;
+    setEnablingLearningCommentId(comment.id);
+    setError(null);
+    try {
+      const result = await enableXiaohongshuCommentLearning({ token: adminToken, commentId: comment.id });
+      setPosts(result.posts);
+      setSelectedCommentId(comment.id);
+      setImportWarning("这条分析经验已启用，会参与以后相似场景的回复生成。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEnablingLearningCommentId(null);
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
@@ -435,6 +485,10 @@ export function XiaohongshuPlatformPage({
                 <StatusPill
                   active={Boolean(importStatus?.browserAvailable)}
                   label={importStatus?.browserAvailable ? "已连接登录浏览器" : "浏览器未连接"}
+                />
+                <StatusPill
+                  active={Boolean(importStatus?.publisher.enabled)}
+                  label={importStatus?.publisher.enabled ? "自动发布已开启" : "自动发布关闭"}
                 />
                 <span>
                   {importStatus?.connectionMode === "browser_url" ? "调试地址连接" : "自动连接当前 Chrome"}
@@ -505,6 +559,7 @@ export function XiaohongshuPlatformPage({
                       void importUrl(selectedPost.url);
                     }
                   }}
+                  rereadAvailable={selectedPost.source === "xiaohongshu_sync"}
                 />
 
                 <div className="grid gap-3">
@@ -516,13 +571,18 @@ export function XiaohongshuPlatformPage({
                       generatingId={generatingId}
                       savingDraftId={savingDraftId}
                       learningCommentId={learningCommentId}
+                      analyzingCommentId={analyzingCommentId}
+                      enablingLearningCommentId={enablingLearningCommentId}
                       skillEnabled={replyDraftAvailable}
                       onSelect={(comment) => setSelectedCommentId(comment.id)}
                       onGenerate={(comment) => void generateReply(comment)}
                       onSaveDraft={(draft, content) => void saveDraft(draft, content)}
                       onFinalDecision={(comment, input) => void recordFinalDecision({ comment, ...input })}
-                      savingCommentId={savingCommentId}
-                      onSaveComment={(comment, patch) => void saveComment(comment.id, patch)}
+                      onAnalyze={(comment) => void analyzeComment(comment)}
+                      onEnableLearning={(comment) => void enableCommentLearning(comment)}
+                      publisherEnabled={Boolean(importStatus?.publisher.enabled && importStatus?.browserAvailable)}
+                      publishingCommentId={publishingCommentId}
+                      onPublish={(comment, draft, content) => void publishReply(comment, draft, content)}
                     />
                   )) : (
                     <EmptyBlock>这个帖子下还没有记录评论。</EmptyBlock>
@@ -564,6 +624,7 @@ function PostRecordEditor({
   importing,
   onSave,
   onReread,
+  rereadAvailable,
 }: {
   post: XiaohongshuPost;
   postTypes: Record<string, string>;
@@ -571,6 +632,7 @@ function PostRecordEditor({
   importing: boolean;
   onSave: (patch: XiaohongshuPostPatch) => void;
   onReread: () => void;
+  rereadAvailable: boolean;
 }) {
   const [title, setTitle] = useState(post.title);
   const [caption, setCaption] = useState(post.caption ?? "");
@@ -607,10 +669,10 @@ function PostRecordEditor({
         <Button
           size="small"
           type="default"
-          disabled={importing || !post.url}
+          disabled={importing || !post.url || !rereadAvailable}
           onClick={onReread}
         >
-          {importing ? "读取中" : "重新读取当前页面"}
+          {importing ? "读取中" : rereadAvailable ? "重新读取当前页面" : "本机测试页不读取"}
         </Button>
       </div>
 
@@ -697,55 +759,32 @@ function PostRecordEditor({
   );
 }
 
-function CommentRecordEditor({
-  comment,
-  saving,
-  onSave,
-}: {
-  comment: XiaohongshuComment;
-  saving: boolean;
-  onSave: (patch: XiaohongshuCommentPatch) => void;
-}) {
-  const [authorName, setAuthorName] = useState(comment.authorName ?? "");
-  const [content, setContent] = useState(comment.content);
-  return (
-    <div className="mt-3 grid gap-2">
-      <FieldInput label="评论者" value={authorName} onChange={setAuthorName} />
-      <label>
-        <span className="mb-1 block text-xs font-semibold text-[var(--ls-ink-soft)]">评论原文</span>
-        <textarea value={content} onChange={(event) => setContent(event.target.value)} className="field-input min-h-20 resize-y text-sm leading-6" />
-      </label>
-      <Button
-        size="small"
-        type="default"
-        disabled={saving || !content.trim()}
-        onClick={() => onSave({ authorName, content })}
-      >
-        {saving ? "保存中" : "保存评论修改"}
-      </Button>
-    </div>
-  );
-}
-
 function CommentThreadBlock({
   thread,
   selectedComment,
   generatingId,
   savingDraftId,
   learningCommentId,
+  analyzingCommentId,
+  enablingLearningCommentId,
   skillEnabled,
   onSelect,
   onGenerate,
   onSaveDraft,
   onFinalDecision,
-  savingCommentId,
-  onSaveComment,
+  onAnalyze,
+  onEnableLearning,
+  publisherEnabled,
+  publishingCommentId,
+  onPublish,
 }: {
   thread: XiaohongshuComment;
   selectedComment: XiaohongshuComment | null;
   generatingId: string | null;
   savingDraftId: string | null;
   learningCommentId: string | null;
+  analyzingCommentId: string | null;
+  enablingLearningCommentId: string | null;
   skillEnabled: boolean;
   onSelect: (comment: XiaohongshuComment) => void;
   onGenerate: (comment: XiaohongshuComment) => void;
@@ -756,8 +795,11 @@ function CommentThreadBlock({
     outcome: "sent" | "skipped";
     ownerNote?: string;
   }) => void;
-  savingCommentId: string | null;
-  onSaveComment: (comment: XiaohongshuComment, patch: XiaohongshuCommentPatch) => void;
+  onAnalyze: (comment: XiaohongshuComment) => void;
+  onEnableLearning: (comment: XiaohongshuComment) => void;
+  publisherEnabled: boolean;
+  publishingCommentId: string | null;
+  onPublish: (comment: XiaohongshuComment, draft: XiaohongshuReplyDraft, content: string) => void;
 }) {
   const threadNodes = [thread, ...thread.replies];
   const activeComment = threadNodes.find((comment) => comment.id === selectedComment?.id) ?? null;
@@ -791,12 +833,17 @@ function CommentThreadBlock({
           generating={generatingId === activeComment.id}
           savingDraftId={savingDraftId}
           learning={learningCommentId === activeComment.id}
+          analyzing={analyzingCommentId === activeComment.id}
+          enablingLearning={enablingLearningCommentId === activeComment.id}
           skillEnabled={skillEnabled}
-          savingComment={savingCommentId === activeComment.id}
           onGenerate={() => onGenerate(activeComment)}
           onSaveDraft={onSaveDraft}
           onFinalDecision={(input) => onFinalDecision(activeComment, input)}
-          onSaveComment={(patch) => onSaveComment(activeComment, patch)}
+          onAnalyze={() => onAnalyze(activeComment)}
+          onEnableLearning={() => onEnableLearning(activeComment)}
+          publisherEnabled={publisherEnabled}
+          publishing={publishingCommentId === activeComment.id}
+          onPublish={(draft, content) => onPublish(activeComment, draft, content)}
         />
       )}
     </article>
@@ -813,7 +860,7 @@ function CommentSummary({
   onSelect: () => void;
 }) {
   return (
-    <button type="button" onClick={onSelect} className={`admin-layout-button block w-full text-left ${active ? "is-active" : ""}`}>
+    <button type="button" onClick={onSelect} className={`admin-layout-button -mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--ls-panel-cold)] ${active ? "is-active" : ""}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ls-ink-soft)]">
         <span className={comment.isAuthor ? "font-semibold text-[var(--ls-success-text-strong)]" : ""}>
           {comment.authorName || "未命名评论者"}
@@ -834,20 +881,26 @@ function CommentActionPanel({
   generating,
   savingDraftId,
   learning,
+  analyzing,
+  enablingLearning,
   skillEnabled,
-  savingComment,
   onGenerate,
   onSaveDraft,
   onFinalDecision,
-  onSaveComment,
+  onAnalyze,
+  onEnableLearning,
+  publisherEnabled,
+  publishing,
+  onPublish,
 }: {
   comment: XiaohongshuComment;
   authorReplies: XiaohongshuComment[];
   generating: boolean;
   savingDraftId: string | null;
   learning: boolean;
+  analyzing: boolean;
+  enablingLearning: boolean;
   skillEnabled: boolean;
-  savingComment: boolean;
   onGenerate: () => void;
   onSaveDraft: (draft: XiaohongshuReplyDraft, content: string) => void;
   onFinalDecision: (input: {
@@ -856,28 +909,24 @@ function CommentActionPanel({
     outcome: "sent" | "skipped";
     ownerNote?: string;
   }) => void;
-  onSaveComment: (patch: XiaohongshuCommentPatch) => void;
+  onAnalyze: () => void;
+  onEnableLearning: () => void;
+  publisherEnabled: boolean;
+  publishing: boolean;
+  onPublish: (draft: XiaohongshuReplyDraft, content: string) => void;
 }) {
   const latestDraft = comment.drafts[0];
   const hasAuthorReply = authorReplies.length > 0;
+  const finalDecisionAvailable = !comment.isAuthor && !hasAuthorReply && comment.status !== "replied";
+  const publishAvailable = comment.source === "xiaohongshu_sync" && publisherEnabled && finalDecisionAvailable;
   return (
     <div className="border-t border-[var(--ls-border)] bg-[var(--ls-panel-soft)] px-4 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-[var(--ls-ink-soft)]">当前选中内容</span>
         <span className="text-xs text-[var(--ls-ink-soft)]">
-          {comment.isAuthor ? "作者回复" : hasAuthorReply ? `已有 ${authorReplies.length} 条作者回复` : comment.replyNeed}
+          {comment.isAuthor ? "作者回复" : hasAuthorReply ? `已有 ${authorReplies.length} 条作者回复` : replyNeedLabel(comment.replyNeed)}
         </span>
       </div>
-
-      <details className="mt-3 border-t border-[var(--ls-border)] pt-3">
-        <summary className="cursor-pointer text-xs font-medium text-[var(--ls-ink-soft)]">修改这条记录</summary>
-        <CommentRecordEditor
-          key={`${comment.id}:${comment.updatedAt}`}
-          comment={comment}
-          saving={savingComment}
-          onSave={onSaveComment}
-        />
-      </details>
 
       {comment.isAuthor ? (
         <div className="mt-3 border-l-2 border-[var(--ls-success-border-soft)] bg-[var(--ls-panel-cold)] px-4 py-3 text-sm leading-6 text-[var(--ls-success-text-strong)]">
@@ -890,7 +939,7 @@ function CommentActionPanel({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-semibold text-[var(--ls-success-text-strong)]">思源从这次互动中学到</span>
             <span className="text-xs text-[var(--ls-ink-soft)]">
-              {comment.learningExample.status === "active" ? "会参与以后生成" : "已停用"}
+              {comment.learningExample.status === "active" ? "已学习，会参与以后生成" : "分析完成，待学习"}
             </span>
           </div>
           <div className="mt-2 text-sm leading-6 text-[var(--ls-ink-strong)]">{comment.learningExample.lesson}</div>
@@ -916,6 +965,18 @@ function CommentActionPanel({
               saving={savingDraftId === latestDraft.id || learning}
               onSave={onSaveDraft}
               onFinalDecision={onFinalDecision}
+              onGenerate={onGenerate}
+              generating={generating}
+              analyzeAvailable={comment.status === "replied" || comment.status === "skipped"}
+              analyzing={analyzing}
+              learningAvailable={comment.learningExample?.status === "disabled"}
+              enablingLearning={enablingLearning}
+              onAnalyze={onAnalyze}
+              onEnableLearning={onEnableLearning}
+              publishAvailable={publishAvailable}
+              finalDecisionAvailable={finalDecisionAvailable}
+              publishing={publishing}
+              onPublish={onPublish}
             />
           )}
           {latestDraft.reason && (
@@ -937,7 +998,7 @@ function CommentActionPanel({
         />
       )}
 
-      {!comment.isAuthor && (
+      {!comment.isAuthor && (!latestDraft || latestDraft.risk === "skip") && (
         <Button
           type="primary"
           size="small"
@@ -957,6 +1018,18 @@ function DraftEditor({
   saving,
   onSave,
   onFinalDecision,
+  onGenerate,
+  generating,
+  analyzeAvailable,
+  analyzing,
+  learningAvailable,
+  enablingLearning,
+  onAnalyze,
+  onEnableLearning,
+  publishAvailable,
+  finalDecisionAvailable,
+  publishing,
+  onPublish,
 }: {
   draft: XiaohongshuReplyDraft;
   saving: boolean;
@@ -967,6 +1040,18 @@ function DraftEditor({
     outcome: "sent" | "skipped";
     ownerNote?: string;
   }) => void;
+  onGenerate: () => void;
+  generating: boolean;
+  analyzeAvailable: boolean;
+  analyzing: boolean;
+  learningAvailable: boolean;
+  enablingLearning: boolean;
+  onAnalyze: () => void;
+  onEnableLearning: () => void;
+  publishAvailable: boolean;
+  finalDecisionAvailable: boolean;
+  publishing: boolean;
+  onPublish: (draft: XiaohongshuReplyDraft, content: string) => void;
 }) {
   const [content, setContent] = useState(draft.content);
   const [ownerNote, setOwnerNote] = useState("");
@@ -997,27 +1082,65 @@ function DraftEditor({
         <Button
           size="small"
           type="default"
+          disabled={generating}
+          onClick={onGenerate}
+        >
+          {generating ? "生成中" : "让思源生成草稿"}
+        </Button>
+        <Button
+          size="small"
+          type="default"
+          disabled={!analyzeAvailable || analyzing}
+          onClick={onAnalyze}
+        >
+          {analyzing ? "分析中" : "分析"}
+        </Button>
+        <Button
+          size="small"
+          type="default"
+          disabled={!learningAvailable || enablingLearning}
+          onClick={onEnableLearning}
+        >
+          {enablingLearning ? "启用中" : "学习"}
+        </Button>
+        <Button
+          size="small"
+          type="default"
           disabled={saving || !content.trim() || !changed}
           onClick={() => onSave(draft, content)}
         >
           {saving ? "保存中" : "只保存草稿"}
         </Button>
-        <Button
-          size="small"
-          type="primary"
-          disabled={saving || !content.trim()}
-          onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
-        >
-          记录已发布并学习
-        </Button>
-        <Button
-          size="small"
-          type="default"
-          disabled={saving}
-          onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
-        >
-          不回复并学习
-        </Button>
+        {publishAvailable && (
+          <Button
+            size="small"
+            type="primary"
+            disabled={saving || publishing || changed || !content.trim()}
+            onClick={() => onPublish(draft, content)}
+          >
+            {publishing ? "正在发布并核验" : "发布到小红书"}
+          </Button>
+        )}
+        {finalDecisionAvailable && (
+          <>
+            <Button
+              size="small"
+              type="primary"
+              disabled={saving || !content.trim()}
+              onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
+            >
+              我已在小红书发布，记录结果
+            </Button>
+            <Button
+              size="small"
+              type="default"
+              disabled={saving}
+              onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
+            >
+              记录不回复
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1061,7 +1184,7 @@ function OwnerReplyRecorder({
           disabled={learning || !content.trim()}
           onClick={() => onFinalDecision({ draft, content, outcome: "sent", ownerNote })}
         >
-          {learning ? "正在分析" : "记录已发布并学习"}
+          {learning ? "正在记录" : "记录已发布"}
         </Button>
         <Button
           size="small"
@@ -1069,7 +1192,7 @@ function OwnerReplyRecorder({
           disabled={learning}
           onClick={() => onFinalDecision({ draft, outcome: "skipped", ownerNote })}
         >
-          不回复并学习
+          记录不回复
         </Button>
       </div>
     </div>

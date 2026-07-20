@@ -423,7 +423,7 @@ interface FinalDecisionInput {
   content?: string | null;
   outcome: ExpressionLearningOutcome;
   ownerNote?: string | null;
-  source?: "manual" | "xiaohongshu_sync";
+  source?: "manual" | "xiaohongshu_sync" | "xiaohongshu_publish";
   externalId?: string | null;
   publishedAt?: string | Date | null;
 }
@@ -436,7 +436,8 @@ async function learnFromFinalReply(input: {
   draftText: string | null;
   draftId: string | null;
   ownerNote: string | null;
-  source: "manual" | "xiaohongshu_sync";
+  source: string;
+  status?: "active" | "disabled";
 }) {
   const { comment, threadContext } = await getXiaohongshuCommentThreadContext(input.targetCommentId);
   const ownerAction = deriveExpressionOwnerAction(input.draftText, input.finalText, input.outcome);
@@ -465,6 +466,51 @@ async function learnFromFinalReply(input: {
       source: input.source,
       sourcePlatform: "xiaohongshu",
     },
+    status: input.status,
+  });
+}
+
+export async function analyzeXiaohongshuFinalDecision(commentId: string) {
+  const { comment } = await getXiaohongshuCommentThreadContext(commentId);
+  if (comment.isAuthor) {
+    throw Object.assign(new Error("作者自己的回复不能作为表达学习目标"), { statusCode: 400 });
+  }
+  const outcome: ExpressionLearningOutcome = comment.status === "skipped" ? "skipped" : "sent";
+  if (outcome === "sent" && comment.status !== "replied") {
+    throw Object.assign(new Error("请先完成发布或人工记录，再分析这次回复。"), { statusCode: 409 });
+  }
+  const authorReply = outcome === "sent"
+    ? await prisma.xiaohongshuComment.findFirst({
+        where: { replyToId: comment.id, isAuthor: true },
+        orderBy: { updatedAt: "desc" },
+      })
+    : null;
+  if (outcome === "sent" && !authorReply?.content) {
+    throw Object.assign(new Error("找不到这条评论对应的作者回复，无法分析。"), { statusCode: 409 });
+  }
+  const draft = comment.drafts[0] ?? null;
+  return learnFromFinalReply({
+    targetCommentId: comment.id,
+    replyCommentId: authorReply?.id ?? null,
+    finalText: authorReply?.content ?? "",
+    outcome,
+    draftText: draft?.originalContent || draft?.content || null,
+    draftId: draft?.id ?? null,
+    ownerNote: null,
+    source: comment.source,
+    status: "disabled",
+  });
+}
+
+export async function enableXiaohongshuFinalDecisionLearning(commentId: string) {
+  const sourceRef = `xiaohongshu_comment:${commentId}`;
+  const example = await prisma.expressionLearningExample.findUnique({ where: { sourceRef } });
+  if (!example || example.sourceType !== "xiaohongshu_comment" || example.sourceId !== commentId) {
+    throw Object.assign(new Error("请先分析这条评论，再启用它的表达经验。"), { statusCode: 409 });
+  }
+  return prisma.expressionLearningExample.update({
+    where: { id: example.id },
+    data: { status: "active" },
   });
 }
 
@@ -484,13 +530,11 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
   if (input.outcome === "sent" && !finalText) {
     throw Object.assign(new Error("记录已发布回复时，回复内容不能为空"), { statusCode: 400 });
   }
-  const draftText = draft?.originalContent || draft?.content || null;
   const source = input.source ?? "manual";
   const publishedAt = input.publishedAt instanceof Date
     ? input.publishedAt
     : parseDate(input.publishedAt) ?? (input.outcome === "sent" ? new Date() : null);
 
-  let replyCommentId: string | null = null;
   if (input.outcome === "sent") {
     const externalId = cleanText(input.externalId, 240) || null;
     const existingReply = externalId
@@ -544,7 +588,6 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
             lastSyncedAt: source === "xiaohongshu_sync" ? new Date() : null,
           },
         });
-    replyCommentId = reply.id;
   }
 
   await prisma.$transaction([
@@ -568,20 +611,8 @@ export async function recordXiaohongshuFinalDecision(input: FinalDecisionInput) 
 
   await mirrorXiaohongshuThreadToConversations(rootId);
 
-  const learningExample = await learnFromFinalReply({
-    targetCommentId: comment.id,
-    replyCommentId,
-    finalText,
-    outcome: input.outcome,
-    draftText,
-    draftId: draft?.id ?? null,
-    ownerNote: cleanText(input.ownerNote, 2000) || null,
-    source,
-  });
-
   return {
     posts: await listXiaohongshuAccountMirror(),
-    learningExample,
   };
 }
 

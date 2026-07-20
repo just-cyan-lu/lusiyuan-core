@@ -33,6 +33,8 @@ import {
   isXiaohongshuReplySkillEnabled,
 } from "../skills/xiaohongshu-reply/xiaohongshu-reply.skill.js";
 import {
+  analyzeXiaohongshuFinalDecision,
+  enableXiaohongshuFinalDecisionLearning,
   normalizeXiaohongshuPostType,
   listXiaohongshuAccountMirror,
   recordXiaohongshuFinalDecision,
@@ -40,6 +42,7 @@ import {
   xiaohongshuPostTypeLabels,
 } from "../platforms/xiaohongshu/xiaohongshu-account.service.js";
 import { importXiaohongshuUrl } from "../platforms/xiaohongshu/xiaohongshu-url-import.service.js";
+import { publishXiaohongshuReply } from "../platforms/xiaohongshu/xiaohongshu-comment-publisher.service.js";
 import { chromeDevtoolsMcpService } from "../mcp/chrome-devtools-mcp.service.js";
 import {
   generateAndStoreExpressionLearningPracticeQuestion,
@@ -2421,6 +2424,9 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       browserUrl: runtimeConfig.CHROME_DEVTOOLS_MCP_CONNECTION_MODE === "browser_url"
         ? runtimeConfig.CHROME_DEVTOOLS_MCP_BROWSER_URL
         : null,
+      publisher: {
+        enabled: runtimeConfig.XIAOHONGSHU_COMMENT_PUBLISHER_ENABLED,
+      },
       pageBehavior: {
         reusesExistingPage: true,
         leavesPageOpen: true,
@@ -2535,6 +2541,43 @@ export async function adminRoute(app: FastifyInstance): Promise<void> {
       ownerNote: cleanNullableString(body.ownerNote) ?? null,
     });
     return reply.send(result);
+  });
+
+  app.post("/v1/admin/xiaohongshu/comments/:commentId/analyze", async (request, reply) => {
+    const { commentId } = request.params as { commentId: string };
+    const learningExample = await analyzeXiaohongshuFinalDecision(commentId);
+    return reply.send({
+      learningExample,
+      posts: await listXiaohongshuAccountMirror(),
+    });
+  });
+
+  app.post("/v1/admin/xiaohongshu/comments/:commentId/enable-learning", async (request, reply) => {
+    const { commentId } = request.params as { commentId: string };
+    const learningExample = await enableXiaohongshuFinalDecisionLearning(commentId);
+    return reply.send({
+      learningExample,
+      posts: await listXiaohongshuAccountMirror(),
+    });
+  });
+
+  app.post("/v1/admin/xiaohongshu/comments/:commentId/publish", async (request, reply) => {
+    const { commentId } = request.params as { commentId: string };
+    const body = (request.body ?? {}) as {
+      draftId?: string | null;
+      content?: string | null;
+      confirmed?: boolean;
+    };
+    if (body.confirmed !== true) {
+      throw routeError("请明确确认后才能发布到小红书。", 400);
+    }
+    const content = cleanNullableString(body.content);
+    if (!content) throw routeError("content is required", 400);
+    return reply.send(await publishXiaohongshuReply({
+      commentId,
+      draftId: cleanNullableString(body.draftId) ?? null,
+      content,
+    }));
   });
 
   app.post("/v1/admin/xiaohongshu/sync", async (request, reply) => {

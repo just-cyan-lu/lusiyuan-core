@@ -1088,6 +1088,9 @@ export interface XiaohongshuImportStatus {
   browserAvailable: boolean;
   connectionMode: "auto" | "browser_url";
   browserUrl: string | null;
+  publisher: {
+    enabled: boolean;
+  };
   pageBehavior: {
     reusesExistingPage: boolean;
     leavesPageOpen: boolean;
@@ -2819,6 +2822,24 @@ export async function importXiaohongshuUrl(input: {
   return parseJsonResponse<XiaohongshuImportResponse>(response, "读取并导入小红书帖子失败");
 }
 
+export async function publishXiaohongshuReply(input: {
+  token: string;
+  commentId: string;
+  draftId: string;
+  content: string;
+}): Promise<{ posts: XiaohongshuPost[]; attempt: { id: string; status: string } }> {
+  const { token, commentId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}/publish`,
+    {
+      method: "POST",
+      headers: { ...adminHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, confirmed: true }),
+    }
+  );
+  return parseJsonResponse(response, "发布到小红书失败");
+}
+
 export async function updateXiaohongshuPost(input: {
   token: string;
   postId: string;
@@ -2912,7 +2933,7 @@ export async function recordXiaohongshuFinalDecision(input: {
   content?: string | null;
   outcome: "sent" | "skipped";
   ownerNote?: string | null;
-}): Promise<{ posts: XiaohongshuPost[]; learningExample: ExpressionLearningExample }> {
+}): Promise<{ posts: XiaohongshuPost[] }> {
   const { token, commentId, ...body } = input;
   const response = await fetch(
     `${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}/final-decision`,
@@ -2922,10 +2943,34 @@ export async function recordXiaohongshuFinalDecision(input: {
       body: JSON.stringify(body),
     }
   );
-  return parseJsonResponse<{ posts: XiaohongshuPost[]; learningExample: ExpressionLearningExample }>(
+  return parseJsonResponse<{ posts: XiaohongshuPost[] }>(
     response,
     "记录最终回复并学习失败"
   );
+}
+
+export async function analyzeXiaohongshuCommentDecision(input: {
+  token: string;
+  commentId: string;
+}): Promise<{ posts: XiaohongshuPost[]; learningExample: ExpressionLearningExample }> {
+  const { token, commentId } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}/analyze`,
+    { method: "POST", headers: adminHeaders(token) }
+  );
+  return parseJsonResponse(response, "分析这次回复失败");
+}
+
+export async function enableXiaohongshuCommentLearning(input: {
+  token: string;
+  commentId: string;
+}): Promise<{ posts: XiaohongshuPost[]; learningExample: ExpressionLearningExample }> {
+  const { token, commentId } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/v1/admin/xiaohongshu/comments/${commentId}/enable-learning`,
+    { method: "POST", headers: adminHeaders(token) }
+  );
+  return parseJsonResponse(response, "启用表达经验失败");
 }
 
 export async function fetchToolCallLogs(input: {

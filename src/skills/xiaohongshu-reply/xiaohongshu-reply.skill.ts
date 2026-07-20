@@ -186,6 +186,7 @@ export async function generateXiaohongshuReplyDraftForComment(commentId: string)
   const replyNeed =
     output.risk === "skip" ? "skip" : output.risk === "review" ? "review" : "needed";
   const commentStatus = output.risk === "skip" ? "skipped" : "drafted";
+  const decisionAlreadyRecorded = comment.status === "replied" || comment.status === "skipped";
 
   const draft = await prisma.xiaohongshuReplyDraft.create({
     data: {
@@ -205,8 +206,8 @@ export async function generateXiaohongshuReplyDraftForComment(commentId: string)
   const updatedComment = await prisma.xiaohongshuComment.update({
     where: { id: commentId },
     data: {
-      status: commentStatus,
-      replyNeed,
+      status: decisionAlreadyRecorded ? comment.status : commentStatus,
+      replyNeed: decisionAlreadyRecorded ? comment.replyNeed : replyNeed,
     },
     include: {
       post: true,

@@ -301,6 +301,7 @@ model XiaohongshuComment {
   replyTo       XiaohongshuComment?     @relation("XiaohongshuDirectReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   directReplies XiaohongshuComment[]    @relation("XiaohongshuDirectReplies")
   drafts        XiaohongshuReplyDraft[]
+  publishAttempts PlatformCommentPublishAttempt[]
 
   @@unique([postId, externalId])
   @@index([postId])
@@ -331,12 +332,39 @@ model XiaohongshuReplyDraft {
   updatedAt       DateTime @updatedAt
 
   comment XiaohongshuComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  publishAttempts PlatformCommentPublishAttempt[]
 
   @@index([commentId])
   @@index([risk])
   @@index([status])
   @@index([createdAt])
   @@map("xiaohongshu_reply_drafts")
+}
+
+/// Auditable state for a browser-backed platform comment publication.
+model PlatformCommentPublishAttempt {
+  id           String   @id @default(cuid())
+  platform     String
+  commentId    String
+  draftId      String?
+  content      String
+  contentHash  String
+  target       Json
+  status       String   @default("approved")
+  verification Json?
+  error        String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  comment XiaohongshuComment    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  draft   XiaohongshuReplyDraft? @relation(fields: [draftId], references: [id], onDelete: SetNull)
+
+  @@index([platform, status])
+  @@index([commentId, createdAt])
+  @@index([draftId])
+  @@map("platform_comment_publish_attempts")
 }
 
 /// A reusable lesson learned from an owner's final response decision.

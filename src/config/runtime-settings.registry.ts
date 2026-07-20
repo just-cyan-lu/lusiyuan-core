@@ -89,6 +89,8 @@ export const runtimeSettingDefinitions = {
   CHROME_DEVTOOLS_MCP_SETTLE_MIN_MS: { group: "Chrome MCP", label: "稳定等待最短时间", type: "integer", defaultValue: 3000, min: 300, max: 60000, description: "打开或切换页面后至少等待多久再读取，让页面 JS 和评论有时间加载。" },
   CHROME_DEVTOOLS_MCP_SETTLE_MAX_MS: { group: "Chrome MCP", label: "稳定等待最长时间", type: "integer", defaultValue: 5000, min: 300, max: 60000, description: "没有指定等待时间时的随机等待上限；必须大于等于最短等待。" },
 
+  XIAOHONGSHU_COMMENT_PUBLISHER_ENABLED: { group: "小红书发布", label: "评论自动发布", type: "boolean", defaultValue: false, description: "默认关闭。开启后仍只允许从已读取的真实帖子发布一条已保存草稿，每次都要在后台明确确认；会核验评论、提交结果并记录审计，验证码、登录失效或页面不匹配时会停止。" },
+
   TELEGRAM_ENABLED: { group: "渠道", label: "Telegram 启用", type: "boolean", defaultValue: false, description: "保存后立即启动或停止 Telegram 长轮询；需要先在渠道连接里配置 Bot Token 并重启。" },
   TELEGRAM_FILE_DOWNLOAD_TIMEOUT_MS: { group: "渠道", label: "Telegram 下载超时", type: "integer", defaultValue: 30000, min: 1000, max: 300000, description: "Telegram 图片/文件下载的单次等待时间，单位毫秒；网络慢或走代理时可以调大。" },
   TELEGRAM_FILE_DOWNLOAD_RETRIES: { group: "渠道", label: "Telegram 下载重试", type: "integer", defaultValue: 2, min: 0, max: 20, description: "Telegram 图片/文件下载失败后的重试次数；0 表示不重试。" },
