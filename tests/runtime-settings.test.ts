@@ -28,6 +28,14 @@ test("temporary runtime values are visible immediately and restored", () => {
   assert.equal(runtimeConfig.MEMORY_FINAL_TOP_K, original);
 });
 
+test("Xiaohongshu comment publisher stays disabled by default", () => {
+  runtimeSettingsService.withTemporaryValues(
+    { XIAOHONGSHU_COMMENT_PUBLISHER_ENABLED: true },
+    () => assert.equal(runtimeConfig.XIAOHONGSHU_COMMENT_PUBLISHER_ENABLED, true)
+  );
+  assert.equal(runtimeConfig.XIAOHONGSHU_COMMENT_PUBLISHER_ENABLED, false);
+});
+
 test("input safety rejects empty messages only", () => {
   assert.deepEqual(checkInput("   "), {
     ok: false,
